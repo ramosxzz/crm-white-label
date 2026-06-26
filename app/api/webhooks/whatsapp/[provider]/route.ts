@@ -155,6 +155,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
   }
 
   if (provider === "evolution") {
+    const evoPayload = payload as { event?: string };
+    void supabase.from("whatsapp_webhook_logs").insert({
+      tenant_id: account.tenant_id,
+      whatsapp_account_id: account.id,
+      event_type: evoPayload.event ?? "UNKNOWN",
+      from_me: null,
+      contact_phone: null,
+      contact_lid: null,
+      parsed_count: 0,
+      payload: payload as Record<string, unknown>,
+    });
+
     const groupMessages = parseEvolutionGroupMessages(payload);
     if (groupMessages.length > 0) {
       const { error } = await supabase.from("whatsapp_webhook_logs").insert(
