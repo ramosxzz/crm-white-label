@@ -6,6 +6,8 @@ export type ChatMessage = {
   status: string;
   media_url?: string | null;
   media_type?: string | null;
+  user_id?: string | null;
+  sender_name?: string | null;
 };
 
 export type ConversationStatus =

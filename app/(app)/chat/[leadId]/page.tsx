@@ -42,21 +42,39 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
     direction: "inbound" | "outbound";
     created_at: string;
     status: string;
+    media_url?: string | null;
+    media_type?: string | null;
+    user_id?: string | null;
+    sender_name?: string | null;
   }[] = [];
 
   if (convo?.id) {
     const { data } = await supabase
       .from("messages")
-      .select("id, body, direction, created_at, status, media_url, media_type")
+      .select("id, body, direction, created_at, status, media_url, media_type, user_id, profiles:user_id(full_name)")
       .eq("conversation_id", convo.id)
       .order("created_at", { ascending: true })
       .limit(500);
-    messages = (data ?? []) as typeof messages;
+    messages = (data ?? []).map((row) => {
+      const r = row as Record<string, unknown>;
+      const profile = r.profiles as { full_name?: string | null } | null;
+      return {
+        id: r.id as string,
+        body: r.body as string | null,
+        direction: r.direction as "inbound" | "outbound",
+        created_at: r.created_at as string,
+        status: r.status as string,
+        media_url: r.media_url as string | null,
+        media_type: r.media_type as string | null,
+        user_id: r.user_id as string | null,
+        sender_name: profile?.full_name ?? null,
+      };
+    });
   }
 
   const quickMessages = await listQuickMessages();
 
-  const [{ data: professionals }, { data: services }] = await Promise.all([
+  const [{ data: professionals }, { data: services }, { data: whatsappAccounts }] = await Promise.all([
     supabase
       .from("professionals")
       .select("id, name")
@@ -69,6 +87,12 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
       .eq("tenant_id", ctx.tenantId)
       .eq("is_active", true)
       .order("name"),
+    supabase
+      .from("whatsapp_accounts")
+      .select("id, phone_number, display_name, provider")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("is_active", true)
+      .order("created_at"),
   ]);
 
   return (
@@ -84,6 +108,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
       quickMessages={quickMessages}
       professionals={professionals ?? []}
       services={(services ?? []) as { id: string; name: string; duration_minutes: number }[]}
+      whatsappAccounts={(whatsappAccounts ?? []) as { id: string; phone_number: string; display_name: string | null; provider: string }[]}
     />
   );
 }

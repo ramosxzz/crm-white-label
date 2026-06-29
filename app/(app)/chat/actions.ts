@@ -22,6 +22,7 @@ function providerErrorMessage(result: { status: string; raw?: unknown }): string
 export async function sendChatMessage(input: {
   leadId: string;
   body: string;
+  accountId?: string;
 }): Promise<{ conversationId: string; message: ChatMessage }> {
   const ctx = await requireContext();
   const supabase = await createClient();
@@ -39,13 +40,15 @@ export async function sendChatMessage(input: {
     await supabase.from("leads").update({ phone: to }).eq("id", lead.id).eq("tenant_id", ctx.tenantId);
   }
 
-  const { data: account } = await supabase
+  let accountQuery = supabase
     .from("whatsapp_accounts")
     .select("*")
     .eq("tenant_id", ctx.tenantId)
-    .eq("is_active", true)
-    .limit(1)
-    .single();
+    .eq("is_active", true);
+  if (input.accountId) {
+    accountQuery = accountQuery.eq("id", input.accountId);
+  }
+  const { data: account } = await accountQuery.limit(1).single();
 
   let conversationId: string | undefined;
   const { data: conv } = await supabase
@@ -153,6 +156,7 @@ export async function sendChatMedia(input: {
   fileName?: string;
   mimeType?: string;
   caption?: string;
+  accountId?: string;
 }): Promise<{ conversationId: string; message: ChatMessage }> {
   const ctx = await requireContext();
   const supabase = await createClient();
@@ -169,13 +173,15 @@ export async function sendChatMedia(input: {
 
   const to = normalizeWhatsAppPhone(lead.phone) ?? lead.phone.replace(/\D/g, "");
 
-  const { data: account } = await supabase
+  let mediaAccountQuery = supabase
     .from("whatsapp_accounts")
     .select("*")
     .eq("tenant_id", ctx.tenantId)
-    .eq("is_active", true)
-    .limit(1)
-    .single();
+    .eq("is_active", true);
+  if (input.accountId) {
+    mediaAccountQuery = mediaAccountQuery.eq("id", input.accountId);
+  }
+  const { data: account } = await mediaAccountQuery.limit(1).single();
 
   // Encontra ou cria a conversa
   let conversationId: string | undefined;

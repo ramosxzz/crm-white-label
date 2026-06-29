@@ -22,6 +22,7 @@ import {
   Image as ImageIcon,
   FileText,
   Pencil,
+  Phone,
 } from "lucide-react";
 import { updateLead } from "@/app/(app)/leads/actions";
 import { ScheduleMeetingButton } from "@/components/leads/schedule-meeting-button";
@@ -104,6 +105,7 @@ export function ChatThread({
   quickMessages = [],
   professionals = [],
   services = [],
+  whatsappAccounts = [],
 }: {
   leadId: string;
   tenantId: string;
@@ -116,6 +118,7 @@ export function ChatThread({
   quickMessages?: QuickMessage[];
   professionals?: { id: string; name: string }[];
   services?: { id: string; name: string; duration_minutes: number }[];
+  whatsappAccounts?: { id: string; phone_number: string; display_name: string | null; provider: string }[];
 }) {
   const displayPhone = displayLeadSubtitle(leadPhone);
   const [displayName, setDisplayName] = useState(displayLeadName(leadName, leadPhone));
@@ -147,6 +150,10 @@ export function ChatThread({
       .catch((err) => alert((err as Error).message))
       .finally(() => setRenaming(false));
   }
+
+  const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>(
+    whatsappAccounts.length > 1 ? whatsappAccounts[0]?.id : undefined,
+  );
 
   const [conversationId, setConversationId] = useState(initialConversationId);
   const [status, setStatus] = useState<ConversationStatus>(initialStatus);
@@ -303,7 +310,7 @@ export function ChatThread({
 
     start(async () => {
       try {
-        const result = await sendChatMessage({ leadId, body });
+        const result = await sendChatMessage({ leadId, body, accountId: selectedAccountId });
         if (!conversationId) setConversationId(result.conversationId);
         setMessages((prev) => {
           const withoutOpt = prev.filter((m) => m.id !== optimistic.id);
@@ -354,6 +361,7 @@ export function ChatThread({
           mediaKind: kind,
           fileName,
           mimeType: file.type || undefined,
+          accountId: selectedAccountId,
         });
         if (!conversationId) setConversationId(result.conversationId);
         setMessages((prev) => {
@@ -392,7 +400,7 @@ export function ChatThread({
     ]);
     setStatus("aguardando");
     try {
-      const result = await sendChatMedia({ leadId, mediaUrl: url, mediaKind: kind });
+      const result = await sendChatMedia({ leadId, mediaUrl: url, mediaKind: kind, accountId: selectedAccountId });
       if (!conversationId) setConversationId(result.conversationId);
       setMessages((prev) => mergeMessages(prev.filter((m) => m.id !== optimisticId), [result.message]));
     } catch (err) {
@@ -516,6 +524,13 @@ export function ChatThread({
             {automationsOn ? <Bot className="h-3.5 w-3.5" /> : <BotOff className="h-3.5 w-3.5" />}
             {automationsOn ? "Automações" : "Pausadas"}
           </button>
+          {whatsappAccounts.length > 1 && (
+            <AccountSelector
+              accounts={whatsappAccounts}
+              selectedId={selectedAccountId}
+              onChange={setSelectedAccountId}
+            />
+          )}
           <ScheduleMeetingButton
             leadId={leadId}
             leadName={displayName}
@@ -563,8 +578,9 @@ export function ChatThread({
             <div className="space-y-1.5">
               {group.items.map((m, idx) => {
                 const prev = group.items[idx - 1];
-                const sameAuthor = prev?.direction === m.direction;
+                const sameAuthor = prev?.direction === m.direction && prev?.sender_name === m.sender_name;
                 const outbound = m.direction === "outbound";
+                const showSender = outbound && m.sender_name && !sameAuthor;
                 return (
                   <div
                     key={m.id}
@@ -578,6 +594,9 @@ export function ChatThread({
                           : "rounded-bl-md border border-border/55 bg-card text-foreground shadow-elev-1",
                       )}
                     >
+                      {showSender && (
+                        <p className="mb-1 text-[11px] font-semibold text-chat-outbound-meta/80">{m.sender_name}</p>
+                      )}
                       <MessageContent message={m} />
                       <div
                         className={cn(
@@ -1045,6 +1064,89 @@ function AudioMessage({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function formatPhone(phone: string): string {
+  const d = phone.replace(/\D/g, "");
+  if (d.startsWith("55") && d.length >= 12) {
+    const ddd = d.slice(2, 4);
+    const num = d.slice(4);
+    return `(${ddd}) ${num.slice(0, num.length - 4)}-${num.slice(-4)}`;
+  }
+  return phone;
+}
+
+function AccountSelector({
+  accounts,
+  selectedId,
+  onChange,
+}: {
+  accounts: { id: string; phone_number: string; display_name: string | null; provider: string }[];
+  selectedId: string | undefined;
+  onChange: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const current = accounts.find((a) => a.id === selectedId) ?? accounts[0];
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  if (!current) return null;
+
+  const label = current.display_name || formatPhone(current.phone_number);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-background/60 px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-muted/40"
+        title="Trocar número WhatsApp"
+      >
+        <Phone className="h-3.5 w-3.5 text-emerald-500" />
+        <span className="max-w-[120px] truncate">{label}</span>
+        <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+      </button>
+      {open && (
+        <div className="absolute right-0 z-20 mt-1.5 w-64 overflow-hidden rounded-xl border border-border/60 bg-popover p-1 shadow-elev-2">
+          {accounts.map((a) => {
+            const active = a.id === (selectedId ?? accounts[0]?.id);
+            const providerLabel = a.provider === "cloud_api" ? "API Oficial" : a.provider === "evolution" ? "Evolution" : "Z-API";
+            return (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => {
+                  onChange(a.id);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted/60",
+                  active && "bg-muted/40",
+                )}
+              >
+                <Phone className="h-4 w-4 shrink-0 text-emerald-500" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{a.display_name || formatPhone(a.phone_number)}</p>
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    {formatPhone(a.phone_number)} · {providerLabel}
+                  </p>
+                </div>
+                {active && <Check className="h-4 w-4 shrink-0 text-brand" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

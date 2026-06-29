@@ -8,12 +8,26 @@ export async function fetchMessages(conversationId: string): Promise<ChatMessage
   const supabase = createClient();
   const { data, error } = await supabase
     .from("messages")
-    .select("id, body, direction, created_at, status, media_url, media_type")
+    .select("id, body, direction, created_at, status, media_url, media_type, user_id, profiles:user_id(full_name)")
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true })
     .limit(500);
   if (error) throw new Error(error.message);
-  return (data ?? []) as ChatMessage[];
+  return (data ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
+    const profile = r.profiles as { full_name?: string | null } | null;
+    return {
+      id: r.id as string,
+      body: r.body as string | null,
+      direction: r.direction as "inbound" | "outbound",
+      created_at: r.created_at as string,
+      status: r.status as string,
+      media_url: r.media_url as string | null,
+      media_type: r.media_type as string | null,
+      user_id: r.user_id as string | null,
+      sender_name: profile?.full_name ?? null,
+    };
+  });
 }
 
 export async function fetchConversationItems(tenantId: string): Promise<ConversationListItem[]> {
