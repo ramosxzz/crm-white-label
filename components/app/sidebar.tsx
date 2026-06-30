@@ -16,6 +16,7 @@ import {
   CalendarDays,
   CalendarCheck,
   Zap,
+  UserCog,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -38,7 +39,8 @@ const navItems = [
 const secondaryItems = [
   { href: "/pipelines", label: "Funis", icon: GitBranch },
   { href: "/integrations", label: "Integracoes", icon: Plug },
-  { href: "/settings", label: "Configuracoes", icon: Settings },
+  { href: "/settings/users", label: "Usuarios", icon: UserCog },
+  { href: "/settings", label: "Configuracoes", icon: Settings, exact: true },
 ];
 
 export function Sidebar({
@@ -131,11 +133,11 @@ function NavLink({
   item,
   pathname,
 }: {
-  item: { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
+  item: { href: string; label: string; icon: React.ComponentType<{ className?: string }>; exact?: boolean };
   pathname: string;
 }) {
   const Icon = item.icon;
-  const active = pathname === item.href || pathname.startsWith(item.href + "/");
+  const active = item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(item.href + "/");
   return (
     <Link
       href={item.href}

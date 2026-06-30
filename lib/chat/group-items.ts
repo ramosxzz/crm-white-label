@@ -99,17 +99,17 @@ function dateValue(value: string | null): number {
 export function buildWhatsAppGroupItems(
   groups: GroupRow[],
   assignments: AssignmentRow[],
-  // mantido por compat; previews agora vêm desnormalizadas na própria linha do grupo
-  _messageLogs: GroupMessageLogRow[] = [],
+  messageLogs: GroupMessageLogRow[] = [],
 ): WhatsAppGroupListItem[] {
-  void _messageLogs;
+  const logPreviews = buildPreviewMap(messageLogs);
 
   return groups
     .map((group) => {
+      const logPreview = logPreviews.get(group.provider_group_id);
       const direction =
         group.last_message_direction === "outbound" || group.last_message_direction === "inbound"
           ? group.last_message_direction
-          : null;
+          : (logPreview?.direction ?? null);
       return {
         id: group.id,
         providerGroupId: group.provider_group_id,
@@ -117,8 +117,8 @@ export function buildWhatsAppGroupItems(
         description: group.description,
         participantCount: group.participant_count,
         lastEventType: group.last_event_type,
-        lastAt: group.last_message_at ?? group.last_event_at ?? group.updated_at,
-        lastPreview: group.last_message_body ?? null,
+        lastAt: group.last_message_at ?? logPreview?.messageAt ?? group.last_event_at ?? group.updated_at,
+        lastPreview: group.last_message_body ?? logPreview?.body ?? null,
         lastDirection: direction,
         labels: normalizeLabels(assignments, group.id),
       };

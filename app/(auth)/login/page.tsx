@@ -17,6 +17,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -24,12 +25,13 @@ export default function LoginPage() {
     setError(null);
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
     if (error) {
+      setLoading(false);
       setError(mapSignupError(error.message));
       return;
     }
-    router.push("/dashboard");
+    setRedirecting(true);
+    router.replace("/dashboard");
     router.refresh();
   }
 
@@ -68,8 +70,15 @@ export default function LoginPage() {
             {error}
           </div>
         )}
-        <Button type="submit" variant="brand" size="lg" className="w-full" disabled={loading}>
-          {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Entrando...</> : "Entrar"}
+        <Button type="submit" variant="brand" size="lg" className="w-full" disabled={loading || redirecting}>
+          {loading || redirecting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {redirecting ? "Abrindo CRM..." : "Entrando..."}
+            </>
+          ) : (
+            "Entrar"
+          )}
         </Button>
         <p className="text-center text-sm text-muted-foreground">
           Nao tem conta?{" "}

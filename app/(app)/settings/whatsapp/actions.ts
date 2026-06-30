@@ -111,6 +111,44 @@ export async function saveWhatsAppAccount(input: {
   revalidatePath("/integrations/whatsapp");
 }
 
+export async function setWhatsAppAccountActive(input: { id: string; is_active: boolean }) {
+  const ctx = await requireContext();
+  if (ctx.role === "vendedor") throw new Error("Sem permissao");
+  const supabase = await createClient();
+
+  const { data: account, error: accountError } = await supabase
+    .from("whatsapp_accounts")
+    .select("*")
+    .eq("id", input.id)
+    .eq("tenant_id", ctx.tenantId)
+    .single();
+  if (accountError) throw new Error(accountError.message);
+  if (!account) throw new Error("Conexao nao encontrada");
+
+  const credentials = { ...((account as WhatsAppAccount).credentials as Record<string, unknown>) };
+  const syncInput = {
+    provider: (account as WhatsAppAccount).provider,
+    phone_number: (account as WhatsAppAccount).phone_number,
+    credentials,
+  };
+
+  if (input.is_active) {
+    await syncZapiWebhooks(syncInput, ctx.tenantId);
+    await syncEvolutionWebhook(syncInput);
+  }
+
+  const { error } = await supabase
+    .from("whatsapp_accounts")
+    .update({ is_active: input.is_active, credentials })
+    .eq("id", input.id)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/settings/whatsapp");
+  revalidatePath("/integrations/whatsapp");
+  revalidatePath("/chat");
+}
+
 export async function testWhatsAppConnection(input: {
   provider: WhatsAppProviderKind;
   credentials: Record<string, unknown>;

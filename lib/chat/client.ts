@@ -5,29 +5,12 @@ import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 import type { ChatMessage, ConversationListItem, WhatsAppGroupListItem } from "./types";
 
 export async function fetchMessages(conversationId: string): Promise<ChatMessage[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("messages")
-    .select("id, body, direction, created_at, status, media_url, media_type, user_id, profiles:user_id(full_name)")
-    .eq("conversation_id", conversationId)
-    .order("created_at", { ascending: true })
-    .limit(500);
-  if (error) throw new Error(error.message);
-  return (data ?? []).map((row) => {
-    const r = row as Record<string, unknown>;
-    const profile = r.profiles as { full_name?: string | null } | null;
-    return {
-      id: r.id as string,
-      body: r.body as string | null,
-      direction: r.direction as "inbound" | "outbound",
-      created_at: r.created_at as string,
-      status: r.status as string,
-      media_url: r.media_url as string | null,
-      media_type: r.media_type as string | null,
-      user_id: r.user_id as string | null,
-      sender_name: profile?.full_name ?? null,
-    };
+  const res = await fetch(`/api/chat/messages?conversationId=${encodeURIComponent(conversationId)}`, {
+    cache: "no-store",
   });
+  const payload = (await res.json()) as { messages?: ChatMessage[]; error?: string };
+  if (!res.ok) throw new Error(payload.error ?? "Falha ao carregar mensagens");
+  return payload.messages ?? [];
 }
 
 export async function fetchConversationItems(tenantId: string): Promise<ConversationListItem[]> {
@@ -36,7 +19,7 @@ export async function fetchConversationItems(tenantId: string): Promise<Conversa
   const [{ data: conversations, error }, { data: waAccount }] = await Promise.all([
     supabase
       .from("conversations")
-      .select("id, lead_id, last_message_at, unread_count, status, leads(name, phone, whatsapp_lid)")
+      .select("id, lead_id, channel, last_message_at, unread_count, status, leads(name, phone, whatsapp_lid)")
       .eq("tenant_id", tenantId)
       .order("last_message_at", { ascending: false, nullsFirst: false })
       .limit(100),

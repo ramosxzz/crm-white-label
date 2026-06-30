@@ -32,7 +32,7 @@ async function saveAccount(formData: FormData) {
     formData.get("instagram_business_account_id") || "",
   ).trim();
   const displayName = String(formData.get("display_name") || "").trim();
-  const webhookVerifyToken = String(formData.get("webhook_verify_token") || "").trim();
+  const webhookVerifyToken = process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN ?? "";
 
   if (!pageId || !pageAccessToken) return;
 
@@ -74,6 +74,7 @@ export default async function InstagramIntegrationPage(props: { searchParams?: P
   const searchParams = await props.searchParams;
   const { account } = await getAccount();
   const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/instagram`;
+  const webhookVerifyToken = process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN ?? "";
   const oauthUrl = buildOAuthUrl();
 
   return (
@@ -203,9 +204,11 @@ export default async function InstagramIntegrationPage(props: { searchParams?: P
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Campo de verificacao: use o mesmo valor que voce colocar em{" "}
-              <strong>Verify Token</strong> abaixo.
+              Campo de verificacao no Meta: cole exatamente o token abaixo.
             </p>
+            <code className="block rounded-md border bg-muted/40 px-3 py-2 text-xs font-mono break-all">
+              {webhookVerifyToken || "INSTAGRAM_WEBHOOK_VERIFY_TOKEN nao configurado"}
+            </code>
           </CardContent>
         </Card>
 
@@ -263,18 +266,6 @@ export default async function InstagramIntegrationPage(props: { searchParams?: P
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="webhook_verify_token">Verify Token (voce escolhe)</Label>
-                <Input
-                  id="webhook_verify_token"
-                  name="webhook_verify_token"
-                  placeholder="meu-token-secreto-123"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Qualquer string. Cole o mesmo valor ao configurar o webhook no Meta.
-                </p>
-              </div>
-
-              <div className="space-y-1.5">
                 <Label htmlFor="display_name">Nome de exibicao (opcional)</Label>
                 <Input
                   id="display_name"
@@ -317,10 +308,7 @@ export default async function InstagramIntegrationPage(props: { searchParams?: P
                 Adicione o produto <strong>Messenger</strong> e em seguida habilite o{" "}
                 <strong>Instagram</strong>.
               </li>
-              <li>
-                Va em <strong>Webhook</strong> → <strong>Instagram</strong> → Adicione o endpoint
-                acima com o verify token que voce definiu.
-              </li>
+              <li>Va em <strong>Webhook</strong> → <strong>Instagram</strong> e adicione o endpoint acima com o verify token exibido nesta tela.</li>
               <li>
                 Assine os campos: <code className="rounded bg-muted px-1">messages</code> e{" "}
                 <code className="rounded bg-muted px-1">messaging_postbacks</code>.

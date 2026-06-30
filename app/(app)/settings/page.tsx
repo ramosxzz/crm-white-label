@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MessageSquareText, ArrowRight } from "lucide-react";
+import { MessageSquareText, ArrowRight, UserCog } from "lucide-react";
 import { requireContext } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ export default async function SettingsPage() {
     .select("full_name")
     .eq("id", ctx.userId)
     .single();
+  const currentProfile = profile as { full_name?: string | null } | null;
 
   return (
     <div className="space-y-6 p-6">
@@ -25,7 +26,7 @@ export default async function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ProfileForm currentName={profile?.full_name ?? ""} />
+          <ProfileForm currentName={currentProfile?.full_name ?? ""} />
         </CardContent>
       </Card>
 
@@ -51,6 +52,23 @@ export default async function SettingsPage() {
               <p className="font-medium">Mensagens rápidas</p>
               <p className="text-sm text-muted-foreground">
                 Frases prontas para o time usar nas conversas do WhatsApp.
+              </p>
+            </div>
+            <ArrowRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-brand" />
+          </CardContent>
+        </Card>
+      </Link>
+
+      <Link href="/settings/users" prefetch>
+        <Card className="group transition-colors hover:border-brand/40">
+          <CardContent className="flex items-center gap-4 p-5">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">
+              <UserCog className="h-5 w-5" />
+            </div>
+            <div className="flex-1">
+              <p className="font-medium">Usuarios</p>
+              <p className="text-sm text-muted-foreground">
+                Crie atendentes e controle quem aparece nas mensagens do chat.
               </p>
             </div>
             <ArrowRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-brand" />

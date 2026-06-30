@@ -1,7 +1,26 @@
 <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="180" height="180" rx="42" fill="#080A0E"/>
-  <rect x="4" y="4" width="172" height="172" rx="38" stroke="#E5F45C" stroke-opacity=".34" stroke-width="4"/>
-  <path d="M39 57.5c14.9-15 43.2-21.5 66.8-10.8l-8.9 19.4c-14.4-6.2-31.4-3.8-41.1 6.1-6.6 6.6-5.1 14.2 5.2 17.7l28.9 9.4c26 8.6 36.2 29.5 20 46.8-16.3 17.2-49.1 20.8-73.4 6.6l10.3-18.6c16.3 9.1 36 8 45.7-1.7 6.6-6.6 4.6-14.6-6.1-18l-27.9-9.1C33.4 97.2 22.8 76.1 39 57.5Z" fill="#F8FAF4"/>
-  <path d="M121 148 142.7 40h20.7l-21.7 108H121Z" fill="#E5F45C"/>
-  <path d="M164 102v31h-13.6v-31H164Zm-22.8 8.8h31v13.6h-31v-13.6Z" fill="#66E3C4"/>
+  <defs>
+    <linearGradient id="bg" x1="24" y1="12" x2="164" y2="174" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#10151D"/>
+      <stop offset="1" stop-color="#05070A"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="34" y1="28" x2="154" y2="152" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#DDF85F"/>
+      <stop offset="1" stop-color="#4CE3C1"/>
+    </linearGradient>
+    <filter id="glow" x="20" y="14" width="140" height="146" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="8" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.55 0 0 0 0 0.89 0 0 0 0 0.55 0 0 0 .22 0"/>
+      <feBlend in2="BackgroundImageFix" mode="normal" result="effect"/>
+      <feBlend in="SourceGraphic" in2="effect" mode="normal" result="shape"/>
+    </filter>
+  </defs>
+  <rect x="8" y="8" width="164" height="164" rx="38" fill="url(#bg)"/>
+  <rect x="12" y="12" width="156" height="156" rx="34" stroke="url(#accent)" stroke-opacity=".58" stroke-width="5"/>
+  <g filter="url(#glow)">
+    <circle cx="134" cy="47" r="13" fill="#DDF85F"/>
+    <path d="M41 65 59 123 80 78 101 123 122 62" stroke="#F8FAF4" stroke-width="19" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M138 105v37M119.5 123.5h37" stroke="#4CE3C1" stroke-width="14" stroke-linecap="round"/>
+  </g>
 </svg>

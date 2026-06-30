@@ -44,6 +44,9 @@ export interface InboundNormalized {
   body?: string;
   mediaUrl?: string;
   mediaType?: string;
+  mediaBase64?: string;
+  mediaMimeType?: string;
+  mediaFileName?: string;
   timestamp: string;
   contactName?: string;
   /** Status de entrega/leitura (mensagens enviadas). */

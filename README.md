@@ -133,10 +133,19 @@ Alias de import: `@/*` → raiz do repositório.
 ### 1. Clonar e instalar
 
 ```bash
-git clone https://github.com/ramosxzz/solairew-crm.git
-cd solairew-crm
+git clone https://github.com/ramosxzz/crm-white-label.git
+cd crm-white-label
 npm install
 ```
+
+Para continuar o projeto em outro computador sem procurar as chaves manualmente, puxe o ambiente direto da VPS:
+
+```bash
+bash scripts/pull-vps-env.sh
+npm run dev
+```
+
+O script copia o `.env.production` da VPS para `.env.local`, ajusta `NEXT_PUBLIC_APP_URL` para `http://localhost:3000` e nao commita segredos no Git.
 
 ### 2. Variáveis de ambiente
 
@@ -153,6 +162,10 @@ Preencha em `.env.local`:
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role — **apenas servidor**, nunca no client |
 | `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | Token de verificação do webhook Meta |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` em dev |
+| `CLOUDFLARE_ACCOUNT_ID` | Account ID da Cloudflare para R2 |
+| `R2_ACCESS_KEY_ID` | Access key S3-compatible do R2 |
+| `R2_SECRET_ACCESS_KEY` | Secret key S3-compatible do R2 |
+| `R2_BUCKET_NAME` | Bucket R2 para midias do chat |
 
 ### 3. Banco de dados (migrations)
 
@@ -206,6 +219,12 @@ Build local de preview:
 ```bash
 npm run preview
 ```
+
+## Deploy alternativo na VPS
+
+Para rodar o CRM em uma VPS com Docker + HTTPS automatico, use o guia [docs/VPS_DEPLOY.md](docs/VPS_DEPLOY.md).
+
+Esse caminho e recomendado para testar a VPS como ambiente de producao ou como fallback, mantendo o deploy Cloudflare ativo ate a virada do dominio.
 
 ---
 

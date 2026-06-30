@@ -11,18 +11,21 @@ export type ConversationStatus =
 export type ConversationLeadRow = {
   id: string;
   lead_id: string;
+  channel?: string | null;
   last_message_at: string | null;
   unread_count: number | null;
   status?: ConversationStatus | null;
   leads: { name: string | null; phone: string | null; whatsapp_lid?: string | null } | null;
 };
 
-/** Remove ruído (telefone inválido, conversa consigo) e deduplica por telefone do lead. */
+/** Remove ruído do WhatsApp e deduplica WhatsApp por telefone, sem esconder canais sem telefone. */
 export function filterConversationRows(
   rows: ConversationLeadRow[],
   account: WhatsAppAccount | null,
 ): ConversationLeadRow[] {
-  const valid = rows.filter((c) => isValidBrazilWhatsAppPhone(c.leads?.phone ?? ""));
+  const whatsappRows = rows.filter((c) => (c.channel ?? "whatsapp") === "whatsapp");
+  const otherChannels = rows.filter((c) => (c.channel ?? "whatsapp") !== "whatsapp");
+  const valid = whatsappRows.filter((c) => isValidBrazilWhatsAppPhone(c.leads?.phone ?? ""));
 
   const withoutSelf = account
     ? valid.filter(
@@ -48,7 +51,7 @@ export function filterConversationRows(
     if (rowAt >= prevAt) byPhone.set(phone, row);
   }
 
-  return [...byPhone.values()].sort((a, b) => {
+  return [...byPhone.values(), ...otherChannels].sort((a, b) => {
     const aAt = a.last_message_at ? Date.parse(a.last_message_at) : 0;
     const bAt = b.last_message_at ? Date.parse(b.last_message_at) : 0;
     return bAt - aAt;

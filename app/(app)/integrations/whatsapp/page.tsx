@@ -2,8 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/app/page-header";
-import { WhatsAppForm } from "@/app/(app)/settings/whatsapp/whatsapp-form";
+import { WhatsAppConnectionsManager } from "@/app/(app)/settings/whatsapp/whatsapp-connections-manager";
 import { getAppBaseUrl } from "@/lib/app-url";
+import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 
 export default async function WhatsAppIntegrationPage() {
   const ctx = await requireContext();
@@ -15,7 +16,6 @@ export default async function WhatsAppIntegrationPage() {
     .eq("tenant_id", ctx.tenantId)
     .order("created_at", { ascending: false });
 
-  const account = accounts?.[0] ?? null;
   const webhookBase = await getAppBaseUrl();
 
   return (
@@ -26,19 +26,8 @@ export default async function WhatsAppIntegrationPage() {
         description="Conecte seu numero comercial e atenda todos os leads de dentro do CRM."
         backHref="/integrations"
       />
-      <div className="grid gap-6 p-8 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Provider</CardTitle>
-            <CardDescription>
-              Configure o servico que sua empresa vai usar para envio e recebimento.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <WhatsAppForm initial={account} />
-          </CardContent>
-        </Card>
-
+      <div className="grid gap-6 p-8 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <WhatsAppConnectionsManager accounts={(accounts ?? []) as WhatsAppAccount[]} />
         <Card>
           <CardHeader>
             <CardTitle>Webhooks</CardTitle>

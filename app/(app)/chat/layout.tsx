@@ -16,6 +16,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       .select(`
         id,
         lead_id,
+        channel,
         last_message_at,
         unread_count,
         status,

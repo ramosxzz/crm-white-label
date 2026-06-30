@@ -14,6 +14,10 @@ interface EvolutionCredentials {
   instance: string;
 }
 
+function text(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
 export class EvolutionProvider implements WhatsAppProvider {
   readonly kind = "evolution" as const;
   constructor(private account: WhatsAppAccount) {}
@@ -49,7 +53,7 @@ export class EvolutionProvider implements WhatsAppProvider {
           enabled: true,
           url: webhookUrl,
           webhookByEvents: false,
-          base64: false,
+          base64: true,
           events: ["MESSAGES_UPSERT", "GROUPS_UPSERT", "GROUP_PARTICIPANTS_UPDATE", "CONNECTION_UPDATE"],
         },
       }),
@@ -118,37 +122,50 @@ export class EvolutionProvider implements WhatsAppProvider {
     let body = p.data.message?.conversation ?? p.data.message?.extendedTextMessage?.text;
     let mediaType: string | undefined = undefined;
     let mediaUrl: string | undefined = undefined;
+    let mediaBase64: string | undefined = undefined;
+    let mediaMimeType: string | undefined = undefined;
+    let mediaFileName: string | undefined = undefined;
 
-    // Se não houver texto, validar se é uma mensagem de mídia (como áudio) para não descartá-la
-    if (!body?.trim()) {
-      const msgObj = p.data.message as any;
-      if (msgObj?.audioMessage) {
-        body = "🎤 Áudio";
+    const msgObj = p.data.message as any;
+    if (msgObj?.audioMessage) {
         mediaType = "audio";
-        mediaUrl = msgObj.audioMessage.url || msgObj.audioMessage.directPath || undefined;
-      } else if (msgObj?.imageMessage) {
-        body = "📷 Imagem";
+        mediaUrl = text(msgObj.audioMessage.url) || text(msgObj.audioMessage.directPath);
+        mediaBase64 = text(msgObj.audioMessage.base64) || text(msgObj.base64);
+        mediaMimeType = text(msgObj.audioMessage.mimetype);
+        body ||= "🎤 Áudio";
+    } else if (msgObj?.imageMessage) {
         mediaType = "image";
-        mediaUrl = msgObj.imageMessage.url || msgObj.imageMessage.directPath || undefined;
-      } else if (msgObj?.videoMessage) {
-        body = "🎬 Vídeo";
+        mediaUrl = text(msgObj.imageMessage.url) || text(msgObj.imageMessage.directPath);
+        mediaBase64 = text(msgObj.imageMessage.base64) || text(msgObj.base64);
+        mediaMimeType = text(msgObj.imageMessage.mimetype);
+        body ||= text(msgObj.imageMessage.caption) || "📷 Imagem";
+    } else if (msgObj?.videoMessage) {
         mediaType = "video";
-        mediaUrl = msgObj.videoMessage.url || msgObj.videoMessage.directPath || undefined;
-      } else if (msgObj?.documentMessage) {
-        body = "📎 Documento";
+        mediaUrl = text(msgObj.videoMessage.url) || text(msgObj.videoMessage.directPath);
+        mediaBase64 = text(msgObj.videoMessage.base64) || text(msgObj.base64);
+        mediaMimeType = text(msgObj.videoMessage.mimetype);
+        body ||= text(msgObj.videoMessage.caption) || "🎬 Vídeo";
+    } else if (msgObj?.documentMessage) {
         mediaType = "document";
-        mediaUrl = msgObj.documentMessage.url || msgObj.documentMessage.directPath || undefined;
-      } else if (msgObj?.stickerMessage) {
-        body = "🎭 Figurinha";
+        mediaUrl = text(msgObj.documentMessage.url) || text(msgObj.documentMessage.directPath);
+        mediaBase64 = text(msgObj.documentMessage.base64) || text(msgObj.base64);
+        mediaMimeType = text(msgObj.documentMessage.mimetype);
+        mediaFileName = text(msgObj.documentMessage.fileName);
+        body ||= text(msgObj.documentMessage.caption) || "📎 Documento";
+    } else if (msgObj?.stickerMessage) {
         mediaType = "sticker";
-        mediaUrl = msgObj.stickerMessage.url || msgObj.stickerMessage.directPath || undefined;
-      } else {
-        // Sem texto e sem mídia identificável (ex: eventos de ruído, reações, etc), ignorar
-        return [];
-      }
+        mediaUrl = text(msgObj.stickerMessage.url) || text(msgObj.stickerMessage.directPath);
+        mediaBase64 = text(msgObj.stickerMessage.base64) || text(msgObj.base64);
+        mediaMimeType = text(msgObj.stickerMessage.mimetype);
+        body ||= "🎭 Figurinha";
     }
 
-    const messageObj = p.data.message as any;
+    if (!body?.trim()) {
+      // Sem texto e sem mídia identificável (ex: eventos de ruído, reações, etc), ignorar
+      return [];
+    }
+
+    const messageObj = msgObj;
     let normalizedReferral = null;
     const rawReferral = messageObj?.referral ?? messageObj?.extendedTextMessage?.contextInfo?.externalAdReply;
     if (rawReferral && (rawReferral.sourceId || rawReferral.source_id)) {
@@ -173,6 +190,9 @@ export class EvolutionProvider implements WhatsAppProvider {
         body: body.trim(),
         mediaType,
         mediaUrl,
+        mediaBase64,
+        mediaMimeType,
+        mediaFileName,
         timestamp: p.data.messageTimestamp
           ? new Date(p.data.messageTimestamp * 1000).toISOString()
           : new Date().toISOString(),

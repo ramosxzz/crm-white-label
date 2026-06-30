@@ -1,0 +1,15 @@
+.git
+.next
+.open-next
+.wrangler
+node_modules
+npm-debug.log*
+.env
+.env.*
+!.env.example
+!.dev.vars.example
+Dockerfile
+docker-compose*.yml
+deploy
+README.local.md
+tsconfig.tsbuildinfo

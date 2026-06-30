@@ -1,26 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
-
-const sans = Manrope({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  display: "swap",
-});
-
-const display = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-display",
-  display: "swap",
-  weight: ["400", "500", "600", "700"],
-});
-
-const mono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: {
@@ -56,7 +36,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="pt-BR"
-      className={`${sans.variable} ${display.variable} ${mono.variable}`}
+      style={{
+        "--font-sans": "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+        "--font-display": "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+        "--font-mono": "JetBrains Mono, SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace",
+      } as React.CSSProperties}
       suppressHydrationWarning
     >
       <body className="min-h-screen font-sans">

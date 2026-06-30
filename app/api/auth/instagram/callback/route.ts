@@ -4,7 +4,7 @@ import { requireContext } from "@/lib/tenant";
 
 const INSTAGRAM_APP_ID = process.env.META_INSTAGRAM_APP_ID!;
 // Chave secreta do app do Instagram (diferente do Facebook app secret)
-const INSTAGRAM_APP_SECRET = process.env.META_INSTAGRAM_APP_SECRET!;
+const INSTAGRAM_APP_SECRET = process.env.META_INSTAGRAM_APP_SECRET ?? process.env.META_APP_SECRET;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!;
 const REDIRECT_URI = `${APP_URL}/api/auth/instagram/callback`;
 
@@ -19,6 +19,10 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    if (!INSTAGRAM_APP_ID || !INSTAGRAM_APP_SECRET) {
+      return NextResponse.redirect(`${APP_URL}/integrations/instagram?error=missing_app_secret`);
+    }
+
     // 1. Troca code por short-lived token (Instagram Business Login)
     const tokenBody = new URLSearchParams({
       client_id: INSTAGRAM_APP_ID,

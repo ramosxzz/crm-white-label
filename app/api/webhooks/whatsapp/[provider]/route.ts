@@ -14,6 +14,7 @@ import { findOrCreateWhatsAppLead } from "@/lib/leads/find-or-create";
 
 import { applyMessageStatusUpdates } from "@/lib/whatsapp/apply-message-status";
 import { isSelfWhatsAppContact } from "@/lib/whatsapp/self-contact";
+import { persistWhatsAppMedia } from "@/lib/whatsapp/media-storage";
 import {
   parseZapiMessageStatusUpdates,
   shouldUpgradeMessageStatus,
@@ -136,6 +137,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
   }
 
+  if (provider === "evolution") {
+
+    const raw = payload as { instance?: string; instanceId?: string };
+
+    const instanceName = raw.instance;
+
+    if (instanceName) {
+
+      const matched = accounts.find((a) => {
+
+        const creds = a.credentials as { instance?: string };
+
+        return creds.instance === instanceName;
+
+      });
+
+      if (matched) account = matched;
+
+    }
+
+  }
+
 
 
   if (provider === "zapi") {
@@ -166,83 +189,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
       parsed_count: 0,
       payload: payload as Record<string, unknown>,
     });
-
-    const groupMessages = parseEvolutionGroupMessages(payload);
-    if (groupMessages.length > 0) {
-      const { error } = await supabase.from("whatsapp_webhook_logs").insert(
-        groupMessages.map((message) => ({
-          tenant_id: account.tenant_id,
-          whatsapp_account_id: account.id,
-          event_type: "GROUP_MESSAGE",
-          from_me: message.direction === "outbound",
-          contact_lid: message.provider_group_id,
-          parsed_count: 1,
-          payload: {
-            external_id: message.external_id,
-            provider_group_id: message.provider_group_id,
-            sender_jid: message.sender_jid,
-            sender_name: message.sender_name,
-            direction: message.direction,
-            body: message.body,
-            message_at: message.message_at,
-            raw_payload: message.raw_payload,
-          },
-        })),
-      );
-
-      if (error) {
-        return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-      }
-
-      // Desnormaliza a última mensagem por grupo (preview rápido na lista)
-      const latestByGroup = new Map<string, { body: string; direction: string; message_at: string }>();
-      for (const m of groupMessages) {
-        const prev = latestByGroup.get(m.provider_group_id);
-        if (!prev || Date.parse(m.message_at) >= Date.parse(prev.message_at)) {
-          latestByGroup.set(m.provider_group_id, { body: m.body, direction: m.direction, message_at: m.message_at });
-        }
-      }
-      await Promise.all(
-        [...latestByGroup.entries()].map(([groupJid, last]) =>
-          supabase
-            .from("whatsapp_groups")
-            .update({
-              last_message_body: last.body,
-              last_message_direction: last.direction,
-              last_message_at: last.message_at,
-              last_event_at: last.message_at,
-            })
-            .eq("tenant_id", account.tenant_id)
-            .eq("provider_group_id", groupJid),
-        ),
-      );
-
-      return NextResponse.json({ ok: true, parsed: groupMessages.length, kind: "group_messages" });
-    }
-
-    const groups = parseEvolutionGroupEvents(payload);
-    if (groups.length > 0) {
-      const { error } = await supabase.from("whatsapp_groups").upsert(
-        groups.map((group) => ({
-          tenant_id: account.tenant_id,
-          whatsapp_account_id: account.id,
-          provider_group_id: group.provider_group_id,
-          subject: group.subject,
-          description: group.description,
-          owner_jid: group.owner_jid,
-          participant_count: group.participant_count,
-          last_event_type: group.last_event_type,
-          last_event_at: group.last_event_at,
-          raw_payload: group.raw_payload,
-        })),
-        { onConflict: "tenant_id,provider_group_id" },
-      );
-
-      if (error) {
-        return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-      }
-      return NextResponse.json({ ok: true, parsed: groups.length, kind: "groups" });
-    }
   }
 
   const adapter = createProvider(account);
@@ -284,7 +230,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
         .from("messages")
 
-        .select("id, body, status")
+        .select("id, body, status, conversation_id")
 
         .eq("tenant_id", account.tenant_id)
 
@@ -310,6 +256,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
           msg.messageStatus &&
           shouldUpgradeMessageStatus(currentStatus, msg.messageStatus);
 
+        const media =
+          canUpgradeBody && (msg.mediaUrl || msg.mediaBase64)
+            ? await persistWhatsAppMedia(supabase, account, {
+                tenantId: account.tenant_id,
+                conversationId: (existingMsg as { conversation_id?: string }).conversation_id ?? "",
+                messageId: existingMsg.id,
+                externalId: msg.externalId,
+                mediaUrl: msg.mediaUrl,
+                mediaType: msg.mediaType,
+                mediaBase64: msg.mediaBase64,
+                mediaMimeType: msg.mediaMimeType,
+                mediaFileName: msg.mediaFileName,
+              })
+            : null;
+
         if (canUpgradeBody || canUpgradeStatus) {
 
           await supabase
@@ -321,8 +282,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
               ...(canUpgradeBody
                 ? {
                     body: msg.body,
-                    media_url: msg.mediaUrl ?? null,
-                    media_type: msg.mediaType ?? null,
+                    media_url: media?.mediaUrl ?? msg.mediaUrl ?? null,
+                    media_type: media?.mediaType ?? msg.mediaType ?? null,
                   }
                 : {}),
               ...(canUpgradeStatus ? { status: msg.messageStatus } : {}),
@@ -470,6 +431,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
     if (!conversationId) continue;
 
+    const media = await persistWhatsAppMedia(supabase, account, {
+      tenantId: account.tenant_id,
+      conversationId,
+      externalId: msg.externalId,
+      mediaUrl: msg.mediaUrl,
+      mediaType: msg.mediaType,
+      mediaBase64: msg.mediaBase64,
+      mediaMimeType: msg.mediaMimeType,
+      mediaFileName: msg.mediaFileName,
+    });
+
 
 
     await supabase.from("messages").insert({
@@ -482,9 +454,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
       body: msg.body,
 
-      media_url: msg.mediaUrl,
+      media_url: media.mediaUrl,
 
-      media_type: msg.mediaType,
+      media_type: media.mediaType,
 
       external_id: msg.externalId || null,
 
@@ -501,5 +473,3 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
   return NextResponse.json({ ok: true, parsed: messages.length });
 
 }
-
-

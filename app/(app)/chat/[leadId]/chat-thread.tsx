@@ -908,16 +908,18 @@ function StatusSelector({
 function MessageContent({ message: m }: { message: ChatMessage }) {
   const type = m.media_type?.toLowerCase() ?? "";
   const url = m.media_url?.trim();
+  const isLocalPreview = m.id.startsWith("opt-") || m.id.startsWith("optimistic-");
+  const src = url && isLocalPreview ? url : `/api/chat/media/${encodeURIComponent(m.id)}`;
 
   if (url && type.startsWith("audio")) {
-    return <AudioMessage src={url} label={m.body} outbound={m.direction === "outbound"} />;
+    return <AudioMessage src={src} label={m.body} outbound={m.direction === "outbound"} />;
   }
 
   if (url && type.startsWith("image")) {
     return (
       <div className="space-y-1">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={url} alt="" className="max-h-64 max-w-full rounded-lg object-cover" />
+        <img src={src} alt="" className="max-h-64 max-w-full rounded-lg object-cover" />
         {m.body && m.body !== "📷 Imagem" && (
           <p className="whitespace-pre-wrap break-words">{m.body}</p>
         )}
@@ -928,7 +930,7 @@ function MessageContent({ message: m }: { message: ChatMessage }) {
   if (url && type.startsWith("video")) {
     return (
       <div className="space-y-1">
-        <video controls preload="metadata" src={url} className="max-h-64 max-w-full rounded-lg" />
+        <video controls preload="metadata" src={src} className="max-h-64 max-w-full rounded-lg" />
         {m.body && !m.body.startsWith("🎬") && (
           <p className="whitespace-pre-wrap break-words">{m.body}</p>
         )}
@@ -940,7 +942,7 @@ function MessageContent({ message: m }: { message: ChatMessage }) {
     const label = m.body?.replace(/^📎\s*/, "") || "Documento";
     return (
       <a
-        href={url}
+        href={src}
         target="_blank"
         rel="noopener noreferrer"
         className={cn(

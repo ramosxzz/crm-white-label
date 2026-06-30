@@ -47,22 +47,34 @@ export async function POST(req: NextRequest) {
   const supabase = createServiceClient();
 
   for (const entry of payload.entry ?? []) {
-    const pageId = entry.id;
-
-    const { data: account } = await supabase
-      .from("instagram_accounts")
-      .select("*")
-      .eq("page_id", pageId)
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (!account) continue;
-
-    const tenantId = account.tenant_id as string;
-
     for (const event of entry.messaging ?? []) {
       if (!event.message) continue;
 
+      const candidateIds = [...new Set([entry.id, event.recipient?.id].filter(Boolean))];
+      if (candidateIds.length === 0) continue;
+
+      let { data: account } = await supabase
+        .from("instagram_accounts")
+        .select("*")
+        .in("page_id", candidateIds)
+        .eq("is_active", true)
+        .limit(1)
+        .maybeSingle();
+
+      if (!account) {
+        const res = await supabase
+          .from("instagram_accounts")
+          .select("*")
+          .in("instagram_business_account_id", candidateIds)
+          .eq("is_active", true)
+          .limit(1)
+          .maybeSingle();
+        account = res.data;
+      }
+
+      if (!account) continue;
+
+      const tenantId = account.tenant_id as string;
       const senderId = event.sender.id;
       const externalId = event.message.mid;
       const body = event.message.text ?? null;

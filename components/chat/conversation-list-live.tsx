@@ -6,8 +6,9 @@ import { fetchConversationItems, fetchWhatsAppGroupItems } from "@/lib/chat/clie
 import type { ConversationListItem, WhatsAppGroupListItem } from "@/lib/chat/types";
 import { ConversationList } from "@/app/(app)/chat/conversation-list";
 
-/** Fallback se realtime falhar; intervalo longo para não travar a UI. */
-const POLL_MS = 12_000;
+/** Fallback se realtime falhar; grupos sao mais pesados e mudam menos. */
+const CONTACT_POLL_MS = 12_000;
+const GROUP_POLL_MS = 45_000;
 
 export function ConversationListLive({
   tenantId,
@@ -20,26 +21,36 @@ export function ConversationListLive({
 }) {
   const [items, setItems] = useState(initialItems);
   const [groups, setGroups] = useState(initialGroups);
-  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const contactRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const groupRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const refresh = useCallback(async () => {
+  const refreshContacts = useCallback(async () => {
     try {
-      const [next, nextGroups] = await Promise.all([
-        fetchConversationItems(tenantId),
-        fetchWhatsAppGroupItems(tenantId),
-      ]);
+      const next = await fetchConversationItems(tenantId);
       setItems(next);
-      setGroups(nextGroups);
     } catch {
-      /* mantém lista anterior */
+      /* mantem lista anterior */
     }
   }, [tenantId]);
 
-  // Debounce maior: grupos ativos geram muitos eventos de realtime; coalesce as rajadas.
-  const scheduleRefresh = useCallback(() => {
-    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-    refreshTimerRef.current = setTimeout(() => void refresh(), 2500);
-  }, [refresh]);
+  const refreshGroups = useCallback(async () => {
+    try {
+      const nextGroups = await fetchWhatsAppGroupItems(tenantId);
+      setGroups(nextGroups);
+    } catch {
+      /* mantem lista anterior */
+    }
+  }, [tenantId]);
+
+  const scheduleContactsRefresh = useCallback(() => {
+    if (contactRefreshTimerRef.current) clearTimeout(contactRefreshTimerRef.current);
+    contactRefreshTimerRef.current = setTimeout(() => void refreshContacts(), 1200);
+  }, [refreshContacts]);
+
+  const scheduleGroupsRefresh = useCallback(() => {
+    if (groupRefreshTimerRef.current) clearTimeout(groupRefreshTimerRef.current);
+    groupRefreshTimerRef.current = setTimeout(() => void refreshGroups(), 3500);
+  }, [refreshGroups]);
 
   useEffect(() => {
     setItems(initialItems);
@@ -47,9 +58,13 @@ export function ConversationListLive({
   }, [initialItems, initialGroups]);
 
   useEffect(() => {
-    const timer = setInterval(() => void refresh(), POLL_MS);
-    return () => clearInterval(timer);
-  }, [refresh]);
+    const contactTimer = setInterval(() => void refreshContacts(), CONTACT_POLL_MS);
+    const groupTimer = setInterval(() => void refreshGroups(), GROUP_POLL_MS);
+    return () => {
+      clearInterval(contactTimer);
+      clearInterval(groupTimer);
+    };
+  }, [refreshContacts, refreshGroups]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -63,7 +78,7 @@ export function ConversationListLive({
           table: "messages",
           filter: `tenant_id=eq.${tenantId}`,
         },
-        () => scheduleRefresh(),
+        () => scheduleContactsRefresh(),
       )
       .on(
         "postgres_changes",
@@ -73,7 +88,7 @@ export function ConversationListLive({
           table: "conversations",
           filter: `tenant_id=eq.${tenantId}`,
         },
-        () => scheduleRefresh(),
+        () => scheduleContactsRefresh(),
       )
       .on(
         "postgres_changes",
@@ -83,7 +98,7 @@ export function ConversationListLive({
           table: "whatsapp_groups",
           filter: `tenant_id=eq.${tenantId}`,
         },
-        () => scheduleRefresh(),
+        () => scheduleGroupsRefresh(),
       )
       .on(
         "postgres_changes",
@@ -93,15 +108,16 @@ export function ConversationListLive({
           table: "whatsapp_group_label_assignments",
           filter: `tenant_id=eq.${tenantId}`,
         },
-        () => scheduleRefresh(),
+        () => scheduleGroupsRefresh(),
       )
       .subscribe();
 
     return () => {
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      if (contactRefreshTimerRef.current) clearTimeout(contactRefreshTimerRef.current);
+      if (groupRefreshTimerRef.current) clearTimeout(groupRefreshTimerRef.current);
       void supabase.removeChannel(channel);
     };
-  }, [tenantId, scheduleRefresh]);
+  }, [tenantId, scheduleContactsRefresh, scheduleGroupsRefresh]);
 
   return <ConversationList items={items} groups={groups} />;
 }

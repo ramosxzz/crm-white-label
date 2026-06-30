@@ -29,7 +29,7 @@ export function buildConversationItems(
       leadId: c.lead_id,
       leadName: displayLeadName(c.leads?.name, c.leads?.phone),
       leadPhone: c.leads?.phone ?? "",
-      leadSubtitle: displayLeadSubtitle(c.leads?.phone),
+      leadSubtitle: (c.channel ?? "whatsapp") === "instagram" ? "Instagram" : displayLeadSubtitle(c.leads?.phone),
       lastAt: c.last_message_at,
       unread: c.unread_count ?? 0,
       lastPreview: preview?.body ?? null,
