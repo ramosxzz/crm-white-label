@@ -502,6 +502,21 @@ export class ZapiProvider implements WhatsAppProvider {
     return this.send({ to: input.to, body: text });
   }
 
+  async fetchProfilePicture(phoneInput: string): Promise<string | null> {
+    const phone = normalizeWhatsAppPhone(phoneInput);
+    if (!phone) return null;
+
+    const res = await fetch(`${this.basePath("/profile-picture")}?phone=${encodeURIComponent(phone)}`, {
+      headers: this.headers(),
+    });
+    const data = (await res.json().catch(() => null)) as
+      | { link?: string; error?: string; message?: string }
+      | null;
+
+    if (!res.ok || data?.error) return null;
+    return typeof data?.link === "string" && data.link.startsWith("http") ? data.link : null;
+  }
+
   parseWebhook(payload: unknown): InboundNormalized[] {
     return parseZapiWebhookPayload(payload, this.account.phone_number);
   }

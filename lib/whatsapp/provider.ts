@@ -70,5 +70,7 @@ export interface WhatsAppProvider {
   sendTemplate?(input: SendTemplateInput): Promise<SendMessageResult>;
   /** Envia mídia (imagem, vídeo, áudio, documento) a partir de uma URL pública. */
   sendMedia?(input: SendMediaInput): Promise<SendMessageResult>;
+  /** Busca a foto publica do perfil do contato, quando o provedor disponibiliza. */
+  fetchProfilePicture?(phone: string): Promise<string | null>;
   parseWebhook(payload: unknown): InboundNormalized[];
 }

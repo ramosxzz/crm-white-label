@@ -1,4 +1,5 @@
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
+import { normalizeWhatsAppPhone } from "./phone";
 import type {
   InboundNormalized,
   SendMediaInput,
@@ -99,6 +100,27 @@ export class EvolutionProvider implements WhatsAppProvider {
   async sendTemplate(input: SendTemplateInput): Promise<SendMessageResult> {
     const text = [`[${input.templateName}]`, ...input.bodyParameters].filter(Boolean).join("\n");
     return this.send({ to: input.to, body: text });
+  }
+
+  async fetchProfilePicture(phoneInput: string): Promise<string | null> {
+    const phone = normalizeWhatsAppPhone(phoneInput);
+    if (!phone) return null;
+
+    const base = this.creds.base_url.replace(/\/$/, "");
+    const url = `${base}/chat/fetchProfilePictureUrl/${encodeURIComponent(this.creds.instance)}`;
+    for (const number of [phone, `${phone}@s.whatsapp.net`]) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { apikey: this.creds.api_key, "Content-Type": "application/json" },
+        body: JSON.stringify({ number }),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { profilePictureUrl?: string; picture?: string; url?: string }
+        | null;
+      const picture = data?.profilePictureUrl ?? data?.picture ?? data?.url;
+      if (typeof picture === "string" && picture.startsWith("http")) return picture;
+    }
+    return null;
   }
 
   parseWebhook(payload: unknown): InboundNormalized[] {

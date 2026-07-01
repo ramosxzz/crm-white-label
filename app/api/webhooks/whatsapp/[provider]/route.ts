@@ -15,6 +15,7 @@ import { findOrCreateWhatsAppLead } from "@/lib/leads/find-or-create";
 import { applyMessageStatusUpdates } from "@/lib/whatsapp/apply-message-status";
 import { isSelfWhatsAppContact } from "@/lib/whatsapp/self-contact";
 import { persistWhatsAppMedia } from "@/lib/whatsapp/media-storage";
+import { syncLeadWhatsAppProfilePicture } from "@/lib/whatsapp/profile-picture";
 import {
   parseZapiMessageStatusUpdates,
   shouldUpgradeMessageStatus,
@@ -355,6 +356,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
 
     if (!leadId) continue;
+
+    void supabase
+      .from("leads")
+      .select("id, tenant_id, phone, custom_fields")
+      .eq("id", leadId)
+      .eq("tenant_id", account.tenant_id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return null;
+        return syncLeadWhatsAppProfilePicture(supabase, account, {
+          id: data.id,
+          tenant_id: data.tenant_id,
+          phone: data.phone,
+          custom_fields: (data.custom_fields as Record<string, unknown> | null) ?? null,
+        });
+      })
+      .catch(() => null);
 
 
 

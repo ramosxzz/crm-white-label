@@ -15,7 +15,12 @@ export type ConversationLeadRow = {
   last_message_at: string | null;
   unread_count: number | null;
   status?: ConversationStatus | null;
-  leads: { name: string | null; phone: string | null; whatsapp_lid?: string | null } | null;
+  leads: {
+    name: string | null;
+    phone: string | null;
+    whatsapp_lid?: string | null;
+    custom_fields?: Record<string, unknown> | null;
+  } | null;
 };
 
 /** Remove ruído do WhatsApp e deduplica WhatsApp por telefone, sem esconder canais sem telefone. */

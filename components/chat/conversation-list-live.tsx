@@ -33,6 +33,35 @@ export function ConversationListLive({
     }
   }, [tenantId]);
 
+  const syncMissingProfilePictures = useCallback(async (currentItems: ConversationListItem[]) => {
+    const leadIds = currentItems
+      .filter((item) => item.leadPhone && !item.leadAvatarUrl)
+      .slice(0, 20)
+      .map((item) => item.leadId);
+    if (leadIds.length === 0) return;
+
+    try {
+      const res = await fetch("/api/chat/profile-pictures", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadIds }),
+      });
+      const data = (await res.json()) as { avatars?: Record<string, string | null> };
+      const avatars = data.avatars ?? {};
+      if (Object.keys(avatars).length === 0) return;
+
+      setItems((prev) =>
+        prev.map((item) =>
+          item.leadAvatarUrl || !avatars[item.leadId]
+            ? item
+            : { ...item, leadAvatarUrl: avatars[item.leadId] },
+        ),
+      );
+    } catch {
+      /* fallback visual continua com iniciais */
+    }
+  }, []);
+
   const refreshGroups = useCallback(async () => {
     try {
       const nextGroups = await fetchWhatsAppGroupItems(tenantId);
@@ -56,6 +85,11 @@ export function ConversationListLive({
     setItems(initialItems);
     setGroups(initialGroups);
   }, [initialItems, initialGroups]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => void syncMissingProfilePictures(items), 600);
+    return () => clearTimeout(timer);
+  }, [items, syncMissingProfilePictures]);
 
   useEffect(() => {
     const contactTimer = setInterval(() => void refreshContacts(), CONTACT_POLL_MS);

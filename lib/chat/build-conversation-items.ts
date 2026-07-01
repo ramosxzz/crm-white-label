@@ -1,5 +1,6 @@
 import { displayLeadName, displayLeadSubtitle } from "@/lib/leads/display";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
+import { getCachedWhatsAppProfilePicture } from "@/lib/whatsapp/profile-picture";
 import { filterConversationRows, type ConversationLeadRow } from "./conversation-filter";
 import type { ConversationListItem } from "./types";
 
@@ -29,6 +30,7 @@ export function buildConversationItems(
       leadId: c.lead_id,
       leadName: displayLeadName(c.leads?.name, c.leads?.phone),
       leadPhone: c.leads?.phone ?? "",
+      leadAvatarUrl: getCachedWhatsAppProfilePicture(c.leads?.custom_fields),
       leadSubtitle: (c.channel ?? "whatsapp") === "instagram" ? "Instagram" : displayLeadSubtitle(c.leads?.phone),
       lastAt: c.last_message_at,
       unread: c.unread_count ?? 0,

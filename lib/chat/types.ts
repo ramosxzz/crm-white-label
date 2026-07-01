@@ -21,6 +21,7 @@ export type ConversationListItem = {
   leadId: string;
   leadName: string;
   leadPhone: string;
+  leadAvatarUrl: string | null;
   leadSubtitle: string;
   lastAt: string | null;
   unread: number;

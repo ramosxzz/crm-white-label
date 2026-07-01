@@ -9,7 +9,7 @@ import { ptBR } from "date-fns/locale";
 import { cn, initials } from "@/lib/utils";
 import type { ConversationListItem, ConversationStatus, WhatsAppGroupListItem } from "@/lib/chat/types";
 import { CONVERSATION_STATUSES, STATUS_META } from "@/lib/chat/status";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { addGroupLabel, removeGroupLabel } from "./actions";
@@ -228,6 +228,7 @@ export function ConversationList({
               />
               <div className="relative shrink-0">
                 <Avatar className="h-11 w-11">
+                  {c.leadAvatarUrl && <AvatarImage src={c.leadAvatarUrl} alt={c.leadName} />}
                   <AvatarFallback className="bg-brand-muted text-sm font-semibold text-brand dark:bg-brand dark:text-brand-foreground">
                     {initials(c.leadName)}
                   </AvatarFallback>

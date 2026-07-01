@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { displayLeadName } from "@/lib/leads/display";
+import { getCachedWhatsAppProfilePicture } from "@/lib/whatsapp/profile-picture";
 import { listQuickMessages } from "@/app/(app)/settings/quick-messages-actions";
 import type { ConversationStatus } from "@/lib/chat/types";
 import { ChatThread } from "./chat-thread";
@@ -14,7 +15,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
   const [leadRes, convoRes, quickMessages, professionalsRes, servicesRes, whatsappAccountsRes] = await Promise.all([
     service
       .from("leads")
-      .select("id, name, phone, automations_enabled")
+      .select("id, name, phone, automations_enabled, custom_fields")
       .eq("id", leadId)
       .eq("tenant_id", ctx.tenantId)
       .single(),
@@ -54,6 +55,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
     name: string;
     phone: string | null;
     automations_enabled: boolean | null;
+    custom_fields: Record<string, unknown> | null;
   } | null;
   if (!lead) notFound();
 
@@ -113,6 +115,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
       tenantId={ctx.tenantId}
       leadName={displayLeadName(lead.name, lead.phone)}
       leadPhone={lead.phone ?? ""}
+      leadAvatarUrl={getCachedWhatsAppProfilePicture(lead.custom_fields)}
       conversationId={convo?.id ?? null}
       initialStatus={(convo?.status as ConversationStatus | null) ?? "nao_iniciada"}
       initialAutomationsEnabled={lead.automations_enabled ?? true}

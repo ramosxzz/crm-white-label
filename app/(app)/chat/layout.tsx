@@ -20,7 +20,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
         last_message_at,
         unread_count,
         status,
-        leads(name, phone, whatsapp_lid),
+        leads(name, phone, whatsapp_lid, custom_fields),
         messages(body, direction, created_at)
       `)
       .eq("tenant_id", ctx.tenantId)

@@ -52,7 +52,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn, initials } from "@/lib/utils";
 import { displayLeadName, displayLeadSubtitle } from "@/lib/leads/display";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LeadDeleteButton } from "@/components/leads/lead-delete-button";
 import {
   sendChatMessage,
@@ -98,6 +98,7 @@ export function ChatThread({
   tenantId,
   leadName,
   leadPhone,
+  leadAvatarUrl,
   conversationId: initialConversationId,
   initialStatus = "nao_iniciada",
   initialAutomationsEnabled = true,
@@ -111,6 +112,7 @@ export function ChatThread({
   tenantId: string;
   leadName: string;
   leadPhone: string;
+  leadAvatarUrl?: string | null;
   conversationId: string | null;
   initialStatus?: ConversationStatus;
   initialAutomationsEnabled?: boolean;
@@ -492,6 +494,7 @@ export function ChatThread({
       <header className="flex shrink-0 items-center justify-between border-b border-border/50 bg-card/78 px-5 py-3.5 backdrop-blur-md">
         <div className="flex min-w-0 items-center gap-3">
           <Avatar className="h-11 w-11 ring-2 ring-brand/25">
+            {leadAvatarUrl && <AvatarImage src={leadAvatarUrl} alt={displayName} />}
             <AvatarFallback className="bg-brand-muted text-sm font-semibold text-brand dark:bg-brand dark:text-brand-foreground">
               {initials(displayName)}
             </AvatarFallback>
