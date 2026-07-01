@@ -1,16 +1,14 @@
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { buildConversationItems } from "@/lib/chat/build-conversation-items";
-import { buildWhatsAppGroupItems } from "@/lib/chat/group-items";
 import type { ConversationLeadRow } from "@/lib/chat/conversation-filter";
 import { ConversationListLive } from "@/components/chat/conversation-list-live";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 export default async function ChatLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireContext();
   const supabase = await createClient();
-  const service = createServiceClient();
 
-  const [{ data: conversations }, { data: waAccount }, { data: groups }] = await Promise.all([
+  const [{ data: conversations }, { data: waAccount }] = await Promise.all([
     supabase
       .from("conversations")
       .select(`
@@ -34,14 +32,6 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       .eq("tenant_id", ctx.tenantId)
       .eq("is_active", true)
       .maybeSingle(),
-    service
-      .from("whatsapp_groups")
-      .select(
-        "id, provider_group_id, subject, description, participant_count, last_event_type, last_event_at, updated_at, last_message_body, last_message_direction, last_message_at",
-      )
-      .eq("tenant_id", ctx.tenantId)
-      .order("last_message_at", { ascending: false, nullsFirst: false })
-      .limit(200),
   ]);
 
   const rows = (conversations ?? []) as unknown as ConversationLeadRow[];
@@ -64,26 +54,9 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
     (waAccount as WhatsAppAccount | null) ?? null,
   );
 
-  const groupRows = (groups ?? []) as Parameters<typeof buildWhatsAppGroupItems>[0];
-  const groupIds = groupRows.map((group) => group.id);
-  let assignments: {
-    group_id: string;
-    whatsapp_group_labels: { id: string; name: string; color: string } | null;
-  }[] = [];
-
-  if (groupIds.length > 0) {
-    const { data } = await service
-      .from("whatsapp_group_label_assignments")
-      .select("group_id, whatsapp_group_labels(id, name, color)")
-      .in("group_id", groupIds);
-    assignments = (data ?? []) as typeof assignments;
-  }
-
-  const groupItems = buildWhatsAppGroupItems(groupRows, assignments);
-
   return (
     <div className="flex h-[calc(100vh-3.5rem)] min-h-0 overflow-hidden bg-background">
-      <ConversationListLive tenantId={ctx.tenantId} initialItems={items} initialGroups={groupItems} />
+      <ConversationListLive tenantId={ctx.tenantId} initialItems={items} />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
     </div>
   );

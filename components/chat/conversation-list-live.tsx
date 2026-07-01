@@ -2,27 +2,22 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { fetchConversationItems, fetchWhatsAppGroupItems } from "@/lib/chat/client";
-import type { ConversationListItem, WhatsAppGroupListItem } from "@/lib/chat/types";
+import { fetchConversationItems } from "@/lib/chat/client";
+import type { ConversationListItem } from "@/lib/chat/types";
 import { ConversationList } from "@/app/(app)/chat/conversation-list";
 
-/** Fallback se realtime falhar; grupos sao mais pesados e mudam menos. */
+/** Fallback se realtime falhar. */
 const CONTACT_POLL_MS = 12_000;
-const GROUP_POLL_MS = 45_000;
 
 export function ConversationListLive({
   tenantId,
   initialItems,
-  initialGroups,
 }: {
   tenantId: string;
   initialItems: ConversationListItem[];
-  initialGroups: WhatsAppGroupListItem[];
 }) {
   const [items, setItems] = useState(initialItems);
-  const [groups, setGroups] = useState(initialGroups);
   const contactRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const groupRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refreshContacts = useCallback(async () => {
     try {
@@ -62,29 +57,14 @@ export function ConversationListLive({
     }
   }, []);
 
-  const refreshGroups = useCallback(async () => {
-    try {
-      const nextGroups = await fetchWhatsAppGroupItems(tenantId);
-      setGroups(nextGroups);
-    } catch {
-      /* mantem lista anterior */
-    }
-  }, [tenantId]);
-
   const scheduleContactsRefresh = useCallback(() => {
     if (contactRefreshTimerRef.current) clearTimeout(contactRefreshTimerRef.current);
     contactRefreshTimerRef.current = setTimeout(() => void refreshContacts(), 1200);
   }, [refreshContacts]);
 
-  const scheduleGroupsRefresh = useCallback(() => {
-    if (groupRefreshTimerRef.current) clearTimeout(groupRefreshTimerRef.current);
-    groupRefreshTimerRef.current = setTimeout(() => void refreshGroups(), 3500);
-  }, [refreshGroups]);
-
   useEffect(() => {
     setItems(initialItems);
-    setGroups(initialGroups);
-  }, [initialItems, initialGroups]);
+  }, [initialItems]);
 
   useEffect(() => {
     const timer = setTimeout(() => void syncMissingProfilePictures(items), 600);
@@ -93,12 +73,10 @@ export function ConversationListLive({
 
   useEffect(() => {
     const contactTimer = setInterval(() => void refreshContacts(), CONTACT_POLL_MS);
-    const groupTimer = setInterval(() => void refreshGroups(), GROUP_POLL_MS);
     return () => {
       clearInterval(contactTimer);
-      clearInterval(groupTimer);
     };
-  }, [refreshContacts, refreshGroups]);
+  }, [refreshContacts]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -124,34 +102,13 @@ export function ConversationListLive({
         },
         () => scheduleContactsRefresh(),
       )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "whatsapp_groups",
-          filter: `tenant_id=eq.${tenantId}`,
-        },
-        () => scheduleGroupsRefresh(),
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "whatsapp_group_label_assignments",
-          filter: `tenant_id=eq.${tenantId}`,
-        },
-        () => scheduleGroupsRefresh(),
-      )
       .subscribe();
 
     return () => {
       if (contactRefreshTimerRef.current) clearTimeout(contactRefreshTimerRef.current);
-      if (groupRefreshTimerRef.current) clearTimeout(groupRefreshTimerRef.current);
       void supabase.removeChannel(channel);
     };
-  }, [tenantId, scheduleContactsRefresh, scheduleGroupsRefresh]);
+  }, [tenantId, scheduleContactsRefresh]);
 
-  return <ConversationList items={items} groups={groups} />;
+  return <ConversationList items={items} />;
 }
