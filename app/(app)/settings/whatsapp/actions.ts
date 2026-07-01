@@ -154,8 +154,40 @@ export async function testWhatsAppConnection(input: {
   credentials: Record<string, unknown>;
 }) {
   const ctx = await requireContext();
+  if (input.provider === "evolution") {
+    const { EvolutionProvider } = await import("@/lib/whatsapp/evolution");
+    const fakeAccount = {
+      provider: "evolution" as const,
+      credentials: input.credentials,
+    } as WhatsAppAccount;
+
+    try {
+      const evo = new EvolutionProvider(fakeAccount);
+      const status = await evo.getConnectionStatus();
+      if (!status.connected) {
+        return {
+          ok: false,
+          message:
+            status.error ??
+            `Evolution desconectada (${status.state ?? "sem estado"}). Reconecte o WhatsApp no painel Evolution e teste novamente.`,
+        };
+      }
+      const base = await getAppBaseUrl();
+      await evo.configureWebhook(`${base}/api/webhooks/whatsapp/evolution`);
+      if (input.credentials && typeof input.credentials === "object") {
+        input.credentials.webhooks_synced_at = new Date().toISOString();
+      }
+      return {
+        ok: true,
+        message: "Evolution conectada. Webhook do CRM configurado para receber mensagens.",
+      };
+    } catch (e) {
+      return { ok: false, message: (e as Error).message };
+    }
+  }
+
   if (input.provider !== "zapi") {
-    return { ok: false, message: "Teste automático disponível apenas para Z-API." };
+    return { ok: false, message: "Teste automático disponível apenas para Evolution e Z-API." };
   }
 
   const { ZapiProvider } = await import("@/lib/whatsapp/zapi");

@@ -42,6 +42,31 @@ export class EvolutionProvider implements WhatsAppProvider {
     return { externalId: data.key?.id ?? "", status: "sent", raw: data };
   }
 
+  async getConnectionStatus(): Promise<{ connected: boolean; state?: string; error?: string }> {
+    const base = this.creds.base_url.replace(/\/$/, "");
+    const url = `${base}/instance/connectionState/${encodeURIComponent(this.creds.instance)}`;
+    const res = await fetch(url, {
+      headers: { apikey: this.creds.api_key },
+    });
+    const data = (await res.json().catch(() => null)) as
+      | { instance?: { state?: string }; status?: number; error?: string; response?: { message?: string | string[] } }
+      | null;
+
+    const state = data?.instance?.state;
+    if (!res.ok) {
+      const responseMessage = Array.isArray(data?.response?.message)
+        ? data?.response?.message.join(", ")
+        : data?.response?.message;
+      return {
+        connected: false,
+        state,
+        error: data?.error ?? responseMessage ?? `Evolution respondeu HTTP ${res.status}`,
+      };
+    }
+
+    return { connected: state === "open", state };
+  }
+
   /** Configura o webhook da instância apontando para o CRM (eventos de mensagem e grupo). */
   async configureWebhook(webhookUrl: string): Promise<void> {
     const base = this.creds.base_url.replace(/\/$/, "");

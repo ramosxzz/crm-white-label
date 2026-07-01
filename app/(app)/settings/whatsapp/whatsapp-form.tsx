@@ -76,6 +76,13 @@ export function WhatsAppForm({ initial }: { initial: WhatsAppAccount | null }) {
             <li>Ao salvar ou testar, o CRM ativa a captura das mensagens enviadas pelo WhatsApp do celular</li>
           </ul>
         )}
+        {provider === "evolution" && (
+          <ul className="list-inside list-disc space-y-1 text-xs text-muted-foreground">
+            <li>A instância precisa estar conectada no painel Evolution do cliente</li>
+            <li>Ao salvar ou testar, o CRM configura o webhook para receber mensagens nessa URL</li>
+            <li>Se o teste retornar desconectado, reconecte o WhatsApp pelo QR Code no painel Evolution</li>
+          </ul>
+        )}
         <div className="grid gap-3 md:grid-cols-2">
           {fields.map((f) => (
             <div key={f.key} className="space-y-1.5">
@@ -104,7 +111,7 @@ export function WhatsAppForm({ initial }: { initial: WhatsAppAccount | null }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">{msg ?? testMsg}</p>
         <div className="flex gap-2">
-          {provider === "zapi" && (
+          {(provider === "zapi" || provider === "evolution") && (
             <Button
               type="button"
               variant="outline"
@@ -117,7 +124,7 @@ export function WhatsAppForm({ initial }: { initial: WhatsAppAccount | null }) {
                 });
               }}
             >
-              Testar Z-API
+              Testar conexão
             </Button>
           )}
           <Button type="submit" variant="brand" disabled={pending}>
