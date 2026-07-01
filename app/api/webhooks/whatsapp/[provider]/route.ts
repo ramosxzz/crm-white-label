@@ -194,6 +194,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
   const adapter = createProvider(account);
   const messages = adapter.parseWebhook(payload);
 
+  const accountCredentials = account.credentials as Record<string, unknown>;
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("name")
+    .eq("id", account.tenant_id)
+    .maybeSingle();
+  const ignoredContactNames = [
+    tenant?.name,
+    account.display_name,
+    account.phone_number,
+    String(accountCredentials.instance ?? ""),
+    String(accountCredentials.instance_id ?? ""),
+    String(accountCredentials.phone_number ?? ""),
+    String(accountCredentials.owner_whatsapp_lid ?? ""),
+  ];
+
+  const { data: pipeline } = await supabase
+    .from("pipelines")
+    .select("id, pipeline_stages(id, position)")
+    .eq("tenant_id", account.tenant_id)
+    .eq("is_default", true)
+    .single();
+  const stages = (pipeline as { pipeline_stages?: { id: string; position: number }[] } | null)
+    ?.pipeline_stages?.sort((a, b) => a.position - b.position);
+  const stageId = stages?.[0]?.id;
+  const pipelineId = (pipeline as { id?: string } | null)?.id;
+
   if (provider === "zapi") {
     const logPayload = unwrapZapiPayloadForLog(payload);
     void supabase.from("whatsapp_webhook_logs").insert({
@@ -307,26 +334,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
 
 
-    const { data: pipeline } = await supabase
-
-      .from("pipelines")
-
-      .select("id, pipeline_stages(id, position)")
-
-      .eq("tenant_id", account.tenant_id)
-
-      .eq("is_default", true)
-
-      .single();
-
-    const stages = (pipeline as { pipeline_stages?: { id: string; position: number }[] } | null)
-
-      ?.pipeline_stages?.sort((a, b) => a.position - b.position);
-
-    const stageId = stages?.[0]?.id;
-
-    const pipelineId = (pipeline as { id?: string } | null)?.id;
-
     const leadId = await findOrCreateWhatsAppLead(supabase, account.tenant_id, {
 
       phone: phoneDigits,
@@ -334,6 +341,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
       lid: contactLid,
 
       name: msg.contactName,
+
+      ignoredNames: ignoredContactNames,
 
       stageId,
 

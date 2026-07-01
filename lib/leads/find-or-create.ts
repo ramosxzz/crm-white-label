@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
+import { normalizeInboundContactName } from "@/lib/leads/contact-name";
 import { displayLeadName } from "@/lib/leads/display";
 import { attachWhatsAppLidToLead, findLeadByContact } from "@/lib/leads/find-by-contact";
 
@@ -12,6 +13,7 @@ export async function findOrCreateWhatsAppLead(
     phone?: string | null;
     lid?: string | null;
     name?: string | null;
+    ignoredNames?: Array<string | null | undefined>;
     stageId?: string | null;
     pipelineId?: string | null;
     referral?: {
@@ -62,11 +64,13 @@ export async function findOrCreateWhatsAppLead(
     if (contact.referral.body) customFields.meta_ad_body = contact.referral.body;
   }
 
+  const contactName = normalizeInboundContactName(contact.name, contact.ignoredNames);
+
   const { data: created, error } = await supabase
     .from("leads")
     .insert({
       tenant_id: tenantId,
-      name: displayLeadName(contact.name, contact.phone ?? contact.lid ?? ""),
+      name: displayLeadName(contactName, contact.phone ?? contact.lid ?? ""),
       phone: contact.phone ?? null,
       whatsapp_lid: contact.lid ?? null,
       source: "whatsapp",
