@@ -22,6 +22,7 @@ export async function updateSession(request: NextRequest) {
     url.pathname.startsWith("/api/health") ||
     url.pathname.startsWith("/api/webhooks") ||
     url.pathname.startsWith("/api/intake") ||
+    url.pathname.startsWith("/api/automations/process") ||
     url.pathname.startsWith("/api/cron") ||
     url.pathname === "/" ||
     url.pathname.startsWith("/privacy") ||

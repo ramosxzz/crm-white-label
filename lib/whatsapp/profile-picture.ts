@@ -5,6 +5,7 @@ import type { Database, WhatsAppAccount } from "@/lib/supabase/database.types";
 type SB = SupabaseClient<Database>;
 
 const PROFILE_PIC_TTL_MS = 24 * 60 * 60 * 1000;
+const MISSING_PROFILE_PIC_RETRY_MS = 10 * 60 * 1000;
 
 export const WHATSAPP_PROFILE_PIC_URL_FIELD = "whatsapp_profile_pic_url";
 export const WHATSAPP_PROFILE_PIC_FETCHED_AT_FIELD = "whatsapp_profile_pic_fetched_at";
@@ -19,10 +20,12 @@ export function getCachedWhatsAppProfilePicture(fields: Record<string, unknown> 
 }
 
 export function shouldRefreshWhatsAppProfilePicture(fields: Record<string, unknown> | null | undefined) {
+  const cachedUrl = getCachedWhatsAppProfilePicture(fields);
   const fetchedAt = stringField(fields, WHATSAPP_PROFILE_PIC_FETCHED_AT_FIELD);
   if (!fetchedAt) return true;
   const time = Date.parse(fetchedAt);
-  return !Number.isFinite(time) || Date.now() - time > PROFILE_PIC_TTL_MS;
+  if (!Number.isFinite(time)) return true;
+  return Date.now() - time > (cachedUrl ? PROFILE_PIC_TTL_MS : MISSING_PROFILE_PIC_RETRY_MS);
 }
 
 export async function syncLeadWhatsAppProfilePicture(

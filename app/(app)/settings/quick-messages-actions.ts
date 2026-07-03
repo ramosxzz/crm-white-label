@@ -28,7 +28,14 @@ export async function ensureQuickMessagesSeeded(): Promise<QuickMessage[]> {
   if ((tenant as { quick_messages_seeded_at?: string | null } | null)?.quick_messages_seeded_at) {
     return (existing ?? []) as QuickMessage[];
   }
-  if (existing && existing.length > 0) return existing as QuickMessage[];
+  if (existing && existing.length > 0) {
+    await supabase
+      .from("tenants")
+      .update({ quick_messages_seeded_at: new Date().toISOString() })
+      .eq("id", ctx.tenantId)
+      .is("quick_messages_seeded_at", null);
+    return existing as QuickMessage[];
+  }
 
   const rows = QUICK_MESSAGE_PRESETS.map((p, i) => ({
     tenant_id: ctx.tenantId,
@@ -85,6 +92,11 @@ export async function createQuickMessage(input: {
     is_preset: false,
   });
   if (error) throw new Error(error.message);
+  await supabase
+    .from("tenants")
+    .update({ quick_messages_seeded_at: new Date().toISOString() })
+    .eq("id", ctx.tenantId)
+    .is("quick_messages_seeded_at", null);
   revalidatePath("/mensagens-rapidas");
   revalidatePath("/chat", "layout");
 }
@@ -171,6 +183,11 @@ export async function addPresetQuickMessage(presetIndex: number) {
     is_preset: true,
   });
   if (error) throw new Error(error.message);
+  await supabase
+    .from("tenants")
+    .update({ quick_messages_seeded_at: new Date().toISOString() })
+    .eq("id", ctx.tenantId)
+    .is("quick_messages_seeded_at", null);
   revalidatePath("/settings");
   revalidatePath("/chat", "layout");
 }
