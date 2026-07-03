@@ -8,6 +8,20 @@ const INSTAGRAM_APP_SECRET = process.env.META_INSTAGRAM_APP_SECRET ?? process.en
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!;
 const REDIRECT_URI = `${APP_URL}/api/auth/instagram/callback`;
 
+async function subscribeInstagramWebhooks(accessToken: string): Promise<void> {
+  const params = new URLSearchParams({
+    subscribed_fields: "messages,messaging_postbacks",
+    access_token: accessToken,
+  });
+  const res = await fetch(`https://graph.instagram.com/v25.0/me/subscribed_apps?${params.toString()}`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const raw = await res.text().catch(() => "");
+    console.error("[instagram] subscribed_apps failed", res.status, raw.slice(0, 300));
+  }
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const code = searchParams.get("code");
@@ -64,20 +78,24 @@ export async function GET(req: NextRequest) {
       `https://graph.instagram.com/v25.0/me?fields=id,username&access_token=${longToken}`,
     );
     const meData = await meRes.json();
-    const displayName: string = meData.username ?? `Instagram ${instagramUserId}`;
+    const resolvedInstagramUserId: string = String(meData.id ?? instagramUserId);
+    const displayName: string = meData.username ?? `Instagram ${resolvedInstagramUserId}`;
 
     const ctx = await requireContext();
     const supabase = await createClient();
 
     const verifyToken = `ig-${ctx.tenantId.slice(0, 8)}-${Date.now()}`;
 
+    await supabase.from("instagram_accounts").delete().eq("tenant_id", ctx.tenantId);
+    await subscribeInstagramWebhooks(longToken);
+
     await supabase.from("instagram_accounts").upsert(
       {
         tenant_id: ctx.tenantId,
         // Para Instagram Business Login, page_id = Instagram Business Account ID
-        page_id: instagramUserId,
+        page_id: resolvedInstagramUserId,
         page_access_token: longToken,
-        instagram_business_account_id: instagramUserId,
+        instagram_business_account_id: resolvedInstagramUserId,
         display_name: displayName,
         webhook_verify_token: verifyToken,
         is_active: true,
