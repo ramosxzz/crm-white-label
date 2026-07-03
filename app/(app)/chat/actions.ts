@@ -147,6 +147,158 @@ export async function sendChatMessage(input: {
   }
 }
 
+function instagramApiError(raw: unknown): string {
+  if (raw && typeof raw === "object") {
+    const data = raw as Record<string, unknown>;
+    const error = data.error;
+    if (error && typeof error === "object") {
+      const message = (error as Record<string, unknown>).message;
+      if (typeof message === "string") return message;
+    }
+    const message = data.message;
+    if (typeof message === "string") return message;
+  }
+  return "Falha ao enviar mensagem pelo Instagram";
+}
+
+export async function sendInstagramMessage(input: {
+  leadId: string;
+  body: string;
+}): Promise<{ conversationId: string; message: ChatMessage }> {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+  const body = input.body.trim();
+  if (!body) throw new Error("Escreva uma mensagem");
+
+  const { data: lead } = await supabase
+    .from("leads")
+    .select("id, instagram_sender_id")
+    .eq("id", input.leadId)
+    .eq("tenant_id", ctx.tenantId)
+    .single();
+  const senderId = (lead as { instagram_sender_id?: string | null } | null)?.instagram_sender_id;
+  if (!lead || !senderId) throw new Error("Lead sem identificador do Instagram");
+
+  const { data: account } = await supabase
+    .from("instagram_accounts")
+    .select("*")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+  if (!account) throw new Error("Configure uma conta Instagram em /integrations/instagram");
+
+  let conversationId: string | undefined;
+  const { data: conv } = await supabase
+    .from("conversations")
+    .select("id")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("lead_id", input.leadId)
+    .eq("channel", "instagram")
+    .maybeSingle();
+
+  if (conv?.id) {
+    conversationId = conv.id;
+  } else {
+    const { data: created } = await supabase
+      .from("conversations")
+      .insert({
+        tenant_id: ctx.tenantId,
+        lead_id: input.leadId,
+        channel: "instagram",
+        last_message_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+    conversationId = created?.id;
+  }
+  if (!conversationId) throw new Error("Falha ao criar conversa");
+
+  const { data: pendingMsg } = await supabase
+    .from("messages")
+    .insert({
+      tenant_id: ctx.tenantId,
+      conversation_id: conversationId,
+      user_id: ctx.userId,
+      direction: "outbound",
+      body,
+      status: "pending",
+    })
+    .select("id")
+    .single();
+
+  const row = account as {
+    page_access_token?: string | null;
+    page_id?: string | null;
+    instagram_business_account_id?: string | null;
+  };
+  const accessToken = row.page_access_token;
+  const igUserId = row.instagram_business_account_id || row.page_id;
+  if (!accessToken || !igUserId) {
+    await supabase
+      .from("messages")
+      .update({ status: "failed", error: "Credenciais Instagram incompletas" })
+      .eq("id", pendingMsg!.id);
+    throw new Error("Credenciais Instagram incompletas");
+  }
+
+  try {
+    const res = await fetch(`https://graph.instagram.com/v25.0/${encodeURIComponent(igUserId)}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        recipient: { id: senderId },
+        message: { text: body },
+      }),
+    });
+    const raw = await res.json().catch(() => null);
+    if (!res.ok) {
+      const errMsg = instagramApiError(raw);
+      await supabase.from("messages").update({ status: "failed", error: errMsg }).eq("id", pendingMsg!.id);
+      throw new Error(errMsg);
+    }
+
+    const externalId =
+      raw && typeof raw === "object" && typeof (raw as Record<string, unknown>).message_id === "string"
+        ? ((raw as Record<string, unknown>).message_id as string)
+        : null;
+
+    const { data: sentRow } = await supabase
+      .from("messages")
+      .update({ status: "sent", external_id: externalId })
+      .eq("id", pendingMsg!.id)
+      .select("id, body, direction, created_at, status")
+      .single();
+    await supabase
+      .from("conversations")
+      .update({ last_message_at: new Date().toISOString(), status: "aguardando" })
+      .eq("id", conversationId);
+
+    revalidatePath(`/chat/${input.leadId}`);
+    revalidatePath("/chat");
+
+    return {
+      conversationId,
+      message: (sentRow ?? {
+        id: pendingMsg!.id,
+        body,
+        direction: "outbound",
+        created_at: new Date().toISOString(),
+        status: "sent",
+      }) as ChatMessage,
+    };
+  } catch (e) {
+    await supabase
+      .from("messages")
+      .update({ status: "failed", error: (e as Error).message })
+      .eq("id", pendingMsg!.id);
+    throw e;
+  }
+}
+
 type MediaKind = "image" | "video" | "audio" | "document";
 
 export async function sendChatMedia(input: {

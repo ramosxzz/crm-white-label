@@ -21,10 +21,9 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
       .single(),
     service
       .from("conversations")
-      .select("id, status")
+      .select("id, status, channel")
       .eq("tenant_id", ctx.tenantId)
       .eq("lead_id", leadId)
-      .eq("channel", "whatsapp")
       .order("last_message_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(1)
@@ -59,7 +58,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
   } | null;
   if (!lead) notFound();
 
-  const convo = convoRes.data as { id: string; status: string | null } | null;
+  const convo = convoRes.data as { id: string; status: string | null; channel: string | null } | null;
 
   let messages: {
     id: string;
@@ -117,6 +116,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
       leadPhone={lead.phone ?? ""}
       leadAvatarUrl={getCachedWhatsAppProfilePicture(lead.custom_fields)}
       conversationId={convo?.id ?? null}
+      channel={(convo?.channel === "instagram" ? "instagram" : "whatsapp")}
       initialStatus={(convo?.status as ConversationStatus | null) ?? "nao_iniciada"}
       initialAutomationsEnabled={lead.automations_enabled ?? true}
       initialMessages={messages}

@@ -56,6 +56,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LeadDeleteButton } from "@/components/leads/lead-delete-button";
 import {
   sendChatMessage,
+  sendInstagramMessage,
   sendChatMedia,
   markConversationRead,
   setConversationStatusByLead,
@@ -101,6 +102,7 @@ export function ChatThread({
   leadName,
   leadPhone,
   leadAvatarUrl,
+  channel = "whatsapp",
   conversationId: initialConversationId,
   initialStatus = "nao_iniciada",
   initialAutomationsEnabled = true,
@@ -115,6 +117,7 @@ export function ChatThread({
   leadName: string;
   leadPhone: string;
   leadAvatarUrl?: string | null;
+  channel?: "whatsapp" | "instagram";
   conversationId: string | null;
   initialStatus?: ConversationStatus;
   initialAutomationsEnabled?: boolean;
@@ -124,7 +127,8 @@ export function ChatThread({
   services?: { id: string; name: string; duration_minutes: number }[];
   whatsappAccounts?: { id: string; phone_number: string; display_name: string | null; provider: string }[];
 }) {
-  const displayPhone = displayLeadSubtitle(leadPhone);
+  const isInstagram = channel === "instagram";
+  const displayPhone = isInstagram ? "Instagram Direct" : displayLeadSubtitle(leadPhone);
   const [displayName, setDisplayName] = useState(displayLeadName(leadName, leadPhone));
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameValue, setRenameValue] = useState("");
@@ -322,7 +326,9 @@ export function ChatThread({
 
     start(async () => {
       try {
-        const result = await sendChatMessage({ leadId, body, accountId: selectedAccountId });
+        const result = isInstagram
+          ? await sendInstagramMessage({ leadId, body })
+          : await sendChatMessage({ leadId, body, accountId: selectedAccountId });
         if (!conversationId) setConversationId(result.conversationId);
         setMessages((prev) => {
           const withoutOpt = prev.filter((m) => m.id !== optimistic.id);
@@ -592,7 +598,7 @@ export function ChatThread({
             {automationsOn ? <Bot className="h-3.5 w-3.5" /> : <BotOff className="h-3.5 w-3.5" />}
             {automationsOn ? "Automações" : "Pausadas"}
           </button>
-          {whatsappAccounts.length > 1 && (
+          {!isInstagram && whatsappAccounts.length > 1 && (
             <AccountSelector
               accounts={whatsappAccounts}
               selectedId={selectedAccountId}
@@ -740,54 +746,57 @@ export function ChatThread({
           </div>
         ) : (
           <form onSubmit={onSubmit} className="mx-auto flex max-w-3xl items-end gap-2">
-            {/* Menu "+" de anexos */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-12 w-11 shrink-0 rounded-xl text-muted-foreground hover:text-foreground"
-                  disabled={busy}
-                  title="Anexar"
-                >
-                  {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" side="top" className="w-52">
-                <DropdownMenuItem onSelect={() => openPicker("image/*,video/*")} className="cursor-pointer gap-2.5">
-                  <ImageIcon className="h-4 w-4 text-purple-500" /> Foto e vídeo
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => openPicker("application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip")}
-                  className="cursor-pointer gap-2.5"
-                >
-                  <FileText className="h-4 w-4 text-blue-500" /> Documento
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={openSchedule} className="cursor-pointer gap-2.5">
-                  <CalendarClock className="h-4 w-4 text-amber-500" /> Agendar mensagem
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {!isInstagram && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-12 w-11 shrink-0 rounded-xl text-muted-foreground hover:text-foreground"
+                    disabled={busy}
+                    title="Anexar"
+                  >
+                    {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" side="top" className="w-52">
+                  <DropdownMenuItem onSelect={() => openPicker("image/*,video/*")} className="cursor-pointer gap-2.5">
+                    <ImageIcon className="h-4 w-4 text-purple-500" /> Foto e vídeo
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => openPicker("application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip")}
+                    className="cursor-pointer gap-2.5"
+                  >
+                    <FileText className="h-4 w-4 text-blue-500" /> Documento
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={openSchedule} className="cursor-pointer gap-2.5">
+                    <CalendarClock className="h-4 w-4 text-amber-500" /> Agendar mensagem
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
 
             <QuickRepliesPicker messages={quickMessages} disabled={busy} onPick={onPickQuick} />
 
             {/* Agendar mensagem (atalho direto) */}
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-12 w-11 shrink-0 rounded-xl text-muted-foreground hover:text-foreground"
-              onClick={openSchedule}
-              disabled={busy}
-              title="Agendar mensagem"
-            >
-              <CalendarClock className="h-5 w-5" />
-            </Button>
+            {!isInstagram && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-12 w-11 shrink-0 rounded-xl text-muted-foreground hover:text-foreground"
+                onClick={openSchedule}
+                disabled={busy}
+                title="Agendar mensagem"
+              >
+                <CalendarClock className="h-5 w-5" />
+              </Button>
+            )}
 
             <Textarea
               rows={1}
-              placeholder="Digite sua mensagem..."
+              placeholder={isInstagram ? "Responder no Instagram..." : "Digite sua mensagem..."}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
@@ -798,13 +807,13 @@ export function ChatThread({
               }}
               className="min-h-[48px] max-h-32 flex-1 resize-none rounded-2xl border-border/60 bg-background/70 py-3"
             />
-            {text.trim() ? (
+            {text.trim() || isInstagram ? (
               <Button
                 type="submit"
                 variant="brand"
                 size="icon"
                 className="h-12 w-12 shrink-0 rounded-xl"
-                disabled={busy}
+                disabled={busy || !text.trim()}
               >
                 {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
