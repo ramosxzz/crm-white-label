@@ -238,6 +238,10 @@ export interface Message {
   media_url: string | null;
   media_type: string | null;
   external_id: string | null;
+  reply_to_message_id: string | null;
+  reply_to_external_id: string | null;
+  reply_to_body: string | null;
+  reply_to_sender_name: string | null;
   status: MessageStatus;
   error: string | null;
   created_at: string;

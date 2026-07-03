@@ -35,6 +35,15 @@ export class EvolutionProvider implements WhatsAppProvider {
       body: JSON.stringify({
         number: input.to.replace(/\D/g, ""),
         text: input.body ?? "",
+        ...(input.quotedMessageId
+          ? {
+              quoted: {
+                key: {
+                  id: input.quotedMessageId,
+                },
+              },
+            }
+          : {}),
       }),
     });
     const data = (await res.json()) as { key?: { id?: string } };
@@ -153,7 +162,26 @@ export class EvolutionProvider implements WhatsAppProvider {
       event?: string;
       data?: {
         key?: { id?: string; remoteJid?: string; fromMe?: boolean };
-        message?: { conversation?: string; extendedTextMessage?: { text?: string } };
+        message?: {
+          conversation?: string;
+          extendedTextMessage?: {
+            text?: string;
+            contextInfo?: {
+              stanzaId?: string;
+              participant?: string;
+              quotedMessage?: {
+                conversation?: string;
+                extendedTextMessage?: { text?: string };
+                imageMessage?: { caption?: string };
+                videoMessage?: { caption?: string };
+                documentMessage?: { caption?: string; fileName?: string };
+                audioMessage?: unknown;
+                stickerMessage?: unknown;
+              };
+              pushName?: string;
+            };
+          };
+        };
         pushName?: string;
         messageTimestamp?: number;
       };
@@ -213,6 +241,20 @@ export class EvolutionProvider implements WhatsAppProvider {
     }
 
     const messageObj = msgObj;
+    const contextInfo = msgObj?.extendedTextMessage?.contextInfo ?? msgObj?.contextInfo;
+    const quoted = contextInfo?.quotedMessage;
+    const quotedBody =
+      text(quoted?.conversation) ??
+      text(quoted?.extendedTextMessage?.text) ??
+      text(quoted?.imageMessage?.caption) ??
+      text(quoted?.videoMessage?.caption) ??
+      text(quoted?.documentMessage?.caption) ??
+      text(quoted?.documentMessage?.fileName) ??
+      (quoted?.audioMessage ? "🎤 Áudio" : undefined) ??
+      (quoted?.imageMessage ? "📷 Imagem" : undefined) ??
+      (quoted?.videoMessage ? "🎬 Vídeo" : undefined) ??
+      (quoted?.documentMessage ? "📎 Documento" : undefined) ??
+      (quoted?.stickerMessage ? "🎭 Figurinha" : undefined);
     let normalizedReferral = null;
     const rawReferral = messageObj?.referral ?? messageObj?.extendedTextMessage?.contextInfo?.externalAdReply;
     if (rawReferral && (rawReferral.sourceId || rawReferral.source_id)) {
@@ -243,7 +285,10 @@ export class EvolutionProvider implements WhatsAppProvider {
         timestamp: p.data.messageTimestamp
           ? new Date(p.data.messageTimestamp * 1000).toISOString()
           : new Date().toISOString(),
-        contactName: p.data.pushName,
+        contactName: fromMe ? undefined : p.data.pushName,
+        quotedMessageId: text(contextInfo?.stanzaId),
+        quotedBody: quotedBody ?? null,
+        quotedSenderName: text(contextInfo?.pushName) ?? text(contextInfo?.participant) ?? null,
         referral: normalizedReferral,
       },
     ];

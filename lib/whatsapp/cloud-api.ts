@@ -35,6 +35,9 @@ export class CloudApiProvider implements WhatsAppProvider {
     } else {
       body.text = { body: input.body ?? "" };
     }
+    if (input.quotedMessageId) {
+      body.context = { message_id: input.quotedMessageId };
+    }
 
     const res = await fetch(url, {
       method: "POST",
@@ -112,6 +115,7 @@ export class CloudApiProvider implements WhatsAppProvider {
             video?: { id?: string; mime_type?: string };
             document?: { id?: string; mime_type?: string; filename?: string };
             sticker?: { id?: string; mime_type?: string };
+            context?: { id?: string };
           }>;
         };
       }>;
@@ -149,6 +153,7 @@ export class CloudApiProvider implements WhatsAppProvider {
             body: msg.text?.body ?? fallbackBody,
             mediaUrl: media?.id ? `cloud_api:${media.id}` : undefined,
             mediaType: msg.type,
+            quotedMessageId: msg.context?.id ?? null,
             timestamp: new Date(Number(msg.timestamp) * 1000).toISOString(),
             contactName,
           });

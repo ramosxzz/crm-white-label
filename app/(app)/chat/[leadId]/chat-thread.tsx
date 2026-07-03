@@ -23,6 +23,8 @@ import {
   FileText,
   Pencil,
   Phone,
+  Reply,
+  X,
 } from "lucide-react";
 import { updateLead } from "@/app/(app)/leads/actions";
 import { ScheduleMeetingButton } from "@/components/leads/schedule-meeting-button";
@@ -94,6 +96,17 @@ function mergeMessages(prev: ChatMessage[], incoming: ChatMessage[]): ChatMessag
   return [...map.values()].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
   );
+}
+
+function replyPreview(message: ChatMessage): string {
+  const body = message.body?.trim();
+  if (body) return body.slice(0, 180);
+  const type = message.media_type?.toLowerCase() ?? "";
+  if (type.startsWith("audio")) return "🎤 Áudio";
+  if (type.startsWith("image")) return "📷 Imagem";
+  if (type.startsWith("video")) return "🎬 Vídeo";
+  if (type === "document" || type.startsWith("application")) return "📎 Documento";
+  return "Mensagem";
 }
 
 export function ChatThread({
@@ -168,6 +181,7 @@ export function ChatThread({
   const [automationsOn, setAutomationsOn] = useState(initialAutomationsEnabled);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [text, setText] = useState("");
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [pending, start] = useTransition();
   const [uploading, setUploading] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -230,6 +244,7 @@ export function ChatThread({
     setStatus(initialStatus);
     setAutomationsOn(initialAutomationsEnabled);
     setMessages(initialMessages);
+    setReplyTo(null);
     shouldStickToBottomRef.current = true;
     requestAnimationFrame(() => scrollToBottom("auto"));
   }, [leadId, initialConversationId, initialStatus, initialAutomationsEnabled, initialMessages]);
@@ -318,9 +333,17 @@ export function ChatThread({
       direction: "outbound",
       created_at: new Date().toISOString(),
       status: "pending",
+      reply_to_message_id: replyTo?.id ?? null,
+      reply_to_external_id: replyTo?.external_id ?? null,
+      reply_to_body: replyTo ? replyPreview(replyTo) : null,
+      reply_to_sender_name: replyTo
+        ? replyTo.sender_name ?? (replyTo.direction === "outbound" ? "Você" : displayName)
+        : null,
     };
     shouldStickToBottomRef.current = true;
     setText("");
+    const replyMessageId = replyTo?.id ?? null;
+    setReplyTo(null);
     setMessages((prev) => [...prev, optimistic]);
     setStatus("aguardando");
 
@@ -328,7 +351,7 @@ export function ChatThread({
       try {
         const result = isInstagram
           ? await sendInstagramMessage({ leadId, body })
-          : await sendChatMessage({ leadId, body, accountId: selectedAccountId });
+          : await sendChatMessage({ leadId, body, accountId: selectedAccountId, replyToMessageId: replyMessageId });
         if (!conversationId) setConversationId(result.conversationId);
         setMessages((prev) => {
           const withoutOpt = prev.filter((m) => m.id !== optimistic.id);
@@ -658,8 +681,22 @@ export function ChatThread({
                 return (
                   <div
                     key={m.id}
-                    className={cn("flex", outbound ? "justify-end" : "justify-start", sameAuthor ? "mt-0.5" : "mt-3")}
+                    className={cn(
+                      "group flex items-end gap-1.5",
+                      outbound ? "justify-end" : "justify-start",
+                      sameAuthor ? "mt-0.5" : "mt-3",
+                    )}
                   >
+                    {outbound && (
+                      <button
+                        type="button"
+                        onClick={() => setReplyTo(m)}
+                        className="mb-1 grid h-7 w-7 place-items-center rounded-full border border-border/50 bg-card/85 text-muted-foreground opacity-0 shadow-sm transition hover:text-foreground group-hover:opacity-100"
+                        title="Responder"
+                      >
+                        <Reply className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                     <div
                       className={cn(
                         "max-w-[min(86%,520px)] rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed shadow-elev-1",
@@ -687,6 +724,16 @@ export function ChatThread({
                         {outbound && <MessageStatusLabel status={m.status} />}
                       </div>
                     </div>
+                    {!outbound && (
+                      <button
+                        type="button"
+                        onClick={() => setReplyTo(m)}
+                        className="mb-1 grid h-7 w-7 place-items-center rounded-full border border-border/50 bg-card/85 text-muted-foreground opacity-0 shadow-sm transition hover:text-foreground group-hover:opacity-100"
+                        title="Responder"
+                      >
+                        <Reply className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -712,6 +759,28 @@ export function ChatThread({
           className="hidden"
           onChange={pickScheduleAudio}
         />
+
+        {replyTo && !recording && (
+          <div className="mx-auto mb-2 flex max-w-3xl items-center gap-2 rounded-xl border border-brand/25 bg-brand/10 px-3 py-2 text-sm">
+            <Reply className="h-4 w-4 shrink-0 text-brand" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-brand">
+                Respondendo {replyTo.sender_name ?? (replyTo.direction === "outbound" ? "você" : displayName)}
+              </p>
+              <p className="truncate text-xs text-muted-foreground">{replyPreview(replyTo)}</p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0 rounded-lg"
+              onClick={() => setReplyTo(null)}
+              title="Cancelar resposta"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
 
         {recording ? (
           <div className="mx-auto flex max-w-3xl items-center gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3">
@@ -1072,14 +1141,35 @@ function MessageContent({ message: m }: { message: ChatMessage }) {
   const url = m.media_url?.trim();
   const isLocalPreview = m.id.startsWith("opt-") || m.id.startsWith("optimistic-");
   const src = url && isLocalPreview ? url : `/api/chat/media/${encodeURIComponent(m.id)}`;
+  const quoted = m.reply_to_body ? (
+    <div
+      className={cn(
+        "mb-2 rounded-lg border-l-2 px-2.5 py-1.5 text-xs",
+        m.direction === "outbound"
+          ? "border-chat-outbound-foreground/40 bg-chat-outbound-foreground/10 text-chat-outbound-meta"
+          : "border-brand/60 bg-muted/55 text-muted-foreground",
+      )}
+    >
+      <p className="font-semibold">
+        {m.reply_to_sender_name || "Mensagem"}
+      </p>
+      <p className="line-clamp-2 whitespace-pre-wrap break-words">{m.reply_to_body}</p>
+    </div>
+  ) : null;
 
   if (url && type.startsWith("audio")) {
-    return <AudioMessage src={src} label={m.body} outbound={m.direction === "outbound"} />;
+    return (
+      <>
+        {quoted}
+        <AudioMessage src={src} label={m.body} outbound={m.direction === "outbound"} />
+      </>
+    );
   }
 
   if (url && type.startsWith("image")) {
     return (
       <div className="space-y-1">
+        {quoted}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={src} alt="" className="max-h-64 max-w-full rounded-lg object-cover" />
         {m.body && m.body !== "📷 Imagem" && (
@@ -1092,6 +1182,7 @@ function MessageContent({ message: m }: { message: ChatMessage }) {
   if (url && type.startsWith("video")) {
     return (
       <div className="space-y-1">
+        {quoted}
         <video controls preload="metadata" src={src} className="max-h-64 max-w-full rounded-lg" />
         {m.body && !m.body.startsWith("🎬") && (
           <p className="whitespace-pre-wrap break-words">{m.body}</p>
@@ -1103,24 +1194,32 @@ function MessageContent({ message: m }: { message: ChatMessage }) {
   if (url && (type === "document" || type.startsWith("application"))) {
     const label = m.body?.replace(/^📎\s*/, "") || "Documento";
     return (
-      <a
-        href={src}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={cn(
-          "flex items-center gap-2.5 rounded-lg border px-3 py-2 transition-colors",
-          m.direction === "outbound"
-            ? "border-chat-outbound-foreground/20 hover:bg-chat-outbound-foreground/10"
-            : "border-border/60 hover:bg-muted/50",
-        )}
-      >
-        <FileIcon className="h-5 w-5 shrink-0 opacity-80" />
-        <span className="truncate text-sm font-medium underline-offset-2 hover:underline">{label}</span>
-      </a>
+      <div className="space-y-1">
+        {quoted}
+        <a
+          href={src}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            "flex items-center gap-2.5 rounded-lg border px-3 py-2 transition-colors",
+            m.direction === "outbound"
+              ? "border-chat-outbound-foreground/20 hover:bg-chat-outbound-foreground/10"
+              : "border-border/60 hover:bg-muted/50",
+          )}
+        >
+          <FileIcon className="h-5 w-5 shrink-0 opacity-80" />
+          <span className="truncate text-sm font-medium underline-offset-2 hover:underline">{label}</span>
+        </a>
+      </div>
     );
   }
 
-  return <p className="whitespace-pre-wrap break-words">{m.body}</p>;
+  return (
+    <>
+      {quoted}
+      <p className="whitespace-pre-wrap break-words">{m.body}</p>
+    </>
+  );
 }
 
 function formatAudioTime(value: number) {

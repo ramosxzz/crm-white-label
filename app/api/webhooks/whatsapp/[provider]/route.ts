@@ -469,6 +469,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
       mediaFileName: msg.mediaFileName,
     });
 
+    let repliedMessageId: string | null = null;
+    let replyBody = msg.quotedBody ?? null;
+    let replySenderName = msg.quotedSenderName ?? null;
+    if (msg.quotedMessageId) {
+      const { data: replied } = await supabase
+        .from("messages")
+        .select("id, body, media_type, direction, user_id")
+        .eq("tenant_id", account.tenant_id)
+        .eq("conversation_id", conversationId)
+        .eq("external_id", msg.quotedMessageId)
+        .maybeSingle();
+      if (replied) {
+        repliedMessageId = replied.id as string;
+        replyBody ||= (replied.body as string | null) ?? null;
+        replySenderName ||= replied.direction === "outbound" ? "Você" : null;
+      }
+    }
+
 
 
     await supabase.from("messages").insert({
@@ -486,6 +504,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
       media_type: media.mediaType,
 
       external_id: msg.externalId || null,
+
+      reply_to_message_id: repliedMessageId,
+
+      reply_to_external_id: msg.quotedMessageId ?? null,
+
+      reply_to_body: replyBody,
+
+      reply_to_sender_name: replySenderName,
 
       status: isInbound ? "delivered" : (msg.messageStatus ?? "sent"),
 

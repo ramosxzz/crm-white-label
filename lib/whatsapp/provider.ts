@@ -5,6 +5,7 @@ export interface SendMessageInput {
   body?: string;
   mediaUrl?: string;
   mediaType?: string;
+  quotedMessageId?: string | null;
 }
 
 export type MediaKind = "image" | "video" | "audio" | "document";
@@ -49,6 +50,9 @@ export interface InboundNormalized {
   mediaFileName?: string;
   timestamp: string;
   contactName?: string;
+  quotedMessageId?: string | null;
+  quotedBody?: string | null;
+  quotedSenderName?: string | null;
   /** Status de entrega/leitura (mensagens enviadas). */
   messageStatus?: "sent" | "delivered" | "read";
   referral?: {

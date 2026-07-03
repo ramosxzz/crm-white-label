@@ -7,12 +7,17 @@ function mapMessage(row: Record<string, unknown>, namesByUser: Map<string, strin
   const userId = typeof row.user_id === "string" ? row.user_id : null;
   return {
     id: row.id as string,
+    external_id: row.external_id as string | null,
     body: row.body as string | null,
     direction: row.direction as "inbound" | "outbound",
     created_at: row.created_at as string,
     status: row.status as string,
     media_url: row.media_url as string | null,
     media_type: row.media_type as string | null,
+    reply_to_message_id: row.reply_to_message_id as string | null,
+    reply_to_external_id: row.reply_to_external_id as string | null,
+    reply_to_body: row.reply_to_body as string | null,
+    reply_to_sender_name: row.reply_to_sender_name as string | null,
     user_id: userId,
     sender_name: userId ? (namesByUser.get(userId) ?? null) : null,
   };
@@ -39,7 +44,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from("messages")
-    .select("id, body, direction, created_at, status, media_url, media_type, user_id")
+    .select("id, external_id, body, direction, created_at, status, media_url, media_type, reply_to_message_id, reply_to_external_id, reply_to_body, reply_to_sender_name, user_id")
     .eq("conversation_id", conversationId)
     .eq("tenant_id", ctx.tenantId)
     .order("created_at", { ascending: true })

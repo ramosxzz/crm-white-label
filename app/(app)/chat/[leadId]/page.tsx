@@ -75,7 +75,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
   if (convo?.id) {
     const { data } = await service
       .from("messages")
-      .select("id, body, direction, created_at, status, media_url, media_type, user_id")
+      .select("id, external_id, body, direction, created_at, status, media_url, media_type, reply_to_message_id, reply_to_external_id, reply_to_body, reply_to_sender_name, user_id")
       .eq("conversation_id", convo.id)
       .eq("tenant_id", ctx.tenantId)
       .order("created_at", { ascending: false })
@@ -96,12 +96,17 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
       const userId = r.user_id as string | null;
       return {
         id: r.id as string,
+        external_id: r.external_id as string | null,
         body: r.body as string | null,
         direction: r.direction as "inbound" | "outbound",
         created_at: r.created_at as string,
         status: r.status as string,
         media_url: r.media_url as string | null,
         media_type: r.media_type as string | null,
+        reply_to_message_id: r.reply_to_message_id as string | null,
+        reply_to_external_id: r.reply_to_external_id as string | null,
+        reply_to_body: r.reply_to_body as string | null,
+        reply_to_sender_name: r.reply_to_sender_name as string | null,
         user_id: userId,
         sender_name: userId ? (namesByUser.get(userId) ?? null) : null,
       };

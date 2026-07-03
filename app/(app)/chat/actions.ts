@@ -19,10 +19,25 @@ function providerErrorMessage(result: { status: string; raw?: unknown }): string
   return "Falha ao enviar mensagem pelo WhatsApp";
 }
 
+function messageReplyPreview(message: {
+  body?: string | null;
+  media_type?: string | null;
+}): string {
+  const body = message.body?.trim();
+  if (body) return body.slice(0, 240);
+  const type = message.media_type?.toLowerCase() ?? "";
+  if (type.startsWith("audio")) return "🎤 Áudio";
+  if (type.startsWith("image")) return "📷 Imagem";
+  if (type.startsWith("video")) return "🎬 Vídeo";
+  if (type === "document" || type.startsWith("application")) return "📎 Documento";
+  return "Mensagem";
+}
+
 export async function sendChatMessage(input: {
   leadId: string;
   body: string;
   accountId?: string;
+  replyToMessageId?: string | null;
 }): Promise<{ conversationId: string; message: ChatMessage }> {
   const ctx = await requireContext();
   const supabase = await createClient();
@@ -78,6 +93,36 @@ export async function sendChatMessage(input: {
 
   if (!conversationId) throw new Error("Falha ao criar conversa");
 
+  let replyTo:
+    | {
+        id: string;
+        external_id: string | null;
+        body: string | null;
+        media_type: string | null;
+        direction: "inbound" | "outbound";
+        user_id: string | null;
+      }
+    | null = null;
+  let replySenderName: string | null = null;
+  if (input.replyToMessageId) {
+    const { data } = await supabase
+      .from("messages")
+      .select("id, external_id, body, media_type, direction, user_id")
+      .eq("id", input.replyToMessageId)
+      .eq("tenant_id", ctx.tenantId)
+      .eq("conversation_id", conversationId)
+      .maybeSingle();
+    replyTo = (data as typeof replyTo) ?? null;
+    if (replyTo?.user_id) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", replyTo.user_id)
+        .maybeSingle();
+      replySenderName = (profile as { full_name?: string | null } | null)?.full_name ?? null;
+    }
+  }
+
   const { data: pendingMsg } = await supabase
     .from("messages")
     .insert({
@@ -87,6 +132,12 @@ export async function sendChatMessage(input: {
       direction: "outbound",
       body: input.body,
       status: "pending",
+      reply_to_message_id: replyTo?.id ?? null,
+      reply_to_external_id: replyTo?.external_id ?? null,
+      reply_to_body: replyTo ? messageReplyPreview(replyTo) : null,
+      reply_to_sender_name: replyTo
+        ? replySenderName ?? (replyTo.direction === "outbound" ? "Você" : lead.name)
+        : null,
     })
     .select("id")
     .single();
@@ -102,7 +153,11 @@ export async function sendChatMessage(input: {
 
   try {
     const provider = createProvider(account as WhatsAppAccount);
-    const result = await provider.send({ to, body: input.body });
+    const result = await provider.send({
+      to,
+      body: input.body,
+      quotedMessageId: replyTo?.external_id ?? null,
+    });
     if (result.status !== "sent") {
       const errMsg = providerErrorMessage(result);
       await supabase
@@ -118,7 +173,7 @@ export async function sendChatMessage(input: {
         external_id: result.externalId,
       })
       .eq("id", pendingMsg!.id)
-      .select("id, body, direction, created_at, status")
+      .select("id, body, direction, created_at, status, reply_to_message_id, reply_to_external_id, reply_to_body, reply_to_sender_name")
       .single();
     await supabase
       .from("conversations")
@@ -136,6 +191,12 @@ export async function sendChatMessage(input: {
         direction: "outbound",
         created_at: new Date().toISOString(),
         status: "sent",
+        reply_to_message_id: replyTo?.id ?? null,
+        reply_to_external_id: replyTo?.external_id ?? null,
+        reply_to_body: replyTo ? messageReplyPreview(replyTo) : null,
+        reply_to_sender_name: replyTo
+          ? replySenderName ?? (replyTo.direction === "outbound" ? "Você" : lead.name)
+          : null,
       }) as ChatMessage,
     };
   } catch (e) {

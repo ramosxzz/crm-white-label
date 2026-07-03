@@ -1,11 +1,16 @@
 export type ChatMessage = {
   id: string;
+  external_id?: string | null;
   body: string | null;
   direction: "inbound" | "outbound";
   created_at: string;
   status: string;
   media_url?: string | null;
   media_type?: string | null;
+  reply_to_message_id?: string | null;
+  reply_to_external_id?: string | null;
+  reply_to_body?: string | null;
+  reply_to_sender_name?: string | null;
   user_id?: string | null;
   sender_name?: string | null;
 };
