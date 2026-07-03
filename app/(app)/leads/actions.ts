@@ -72,6 +72,15 @@ export async function createLead(formData: FormData) {
 
   if (error) throw new Error(error.message);
   if (createdLead) {
+    if (parsed.value_cents && parsed.value_cents > 0) {
+      await supabase.from("lead_value_items").insert({
+        tenant_id: ctx.tenantId,
+        lead_id: createdLead.id,
+        label: "Valor inicial",
+        amount_cents: parsed.value_cents,
+        created_by: ctx.userId,
+      });
+    }
     try {
       await autoAssignLead(createdLead.id);
     } catch (assignmentError) {

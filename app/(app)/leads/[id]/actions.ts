@@ -73,6 +73,23 @@ export async function createLeadTask(input: {
   revalidatePath(`/leads/${input.leadId}`);
 }
 
+export async function addLeadNote(input: { leadId: string; text: string }) {
+  const ctx = await requireContext();
+  assertRole(ctx.role, canOperateLead);
+  const text = input.text.trim();
+  if (!text) throw new Error("Nota vazia");
+  const supabase = await createClient();
+  const { error } = await supabase.from("lead_activities").insert({
+    tenant_id: ctx.tenantId,
+    lead_id: input.leadId,
+    user_id: ctx.userId,
+    kind: "note",
+    payload: { text },
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/leads/${input.leadId}`);
+}
+
 export async function completeLeadTask(taskId: string, leadId: string) {
   const ctx = await requireContext();
   assertRole(ctx.role, canOperateLead);

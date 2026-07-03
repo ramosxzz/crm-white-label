@@ -302,12 +302,15 @@ export async function scheduleChatMessage(input: {
   leadId: string;
   body: string;
   sendAt: string; // ISO
+  mediaUrl?: string;
+  mediaType?: string;
 }): Promise<{ id: string }> {
   const ctx = await requireContext();
   const supabase = await createClient();
 
   const body = input.body.trim();
-  if (!body) throw new Error("Mensagem vazia");
+  const mediaUrl = input.mediaUrl?.trim() || null;
+  if (!body && !mediaUrl) throw new Error("Escreva uma mensagem ou anexe um áudio");
   const when = new Date(input.sendAt);
   if (Number.isNaN(when.getTime())) throw new Error("Data inválida");
   if (when.getTime() < Date.now() - 60_000) throw new Error("Escolha um horário no futuro");
@@ -325,7 +328,9 @@ export async function scheduleChatMessage(input: {
     .insert({
       tenant_id: ctx.tenantId,
       lead_id: input.leadId,
-      body,
+      body: body || null,
+      media_url: mediaUrl,
+      media_type: mediaUrl ? input.mediaType ?? "audio" : null,
       send_at: when.toISOString(),
       status: "pending",
       created_by: ctx.userId,
@@ -343,12 +348,19 @@ export async function listScheduledMessages(leadId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("scheduled_messages")
-    .select("id, body, send_at, status")
+    .select("id, body, media_url, media_type, send_at, status")
     .eq("tenant_id", ctx.tenantId)
     .eq("lead_id", leadId)
     .eq("status", "pending")
     .order("send_at", { ascending: true });
-  return (data ?? []) as { id: string; body: string | null; send_at: string; status: string }[];
+  return (data ?? []) as {
+    id: string;
+    body: string | null;
+    media_url: string | null;
+    media_type: string | null;
+    send_at: string;
+    status: string;
+  }[];
 }
 
 export async function cancelScheduledMessage(input: { id: string; leadId: string }) {

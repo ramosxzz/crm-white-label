@@ -7,13 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { formatPhoneBR, formatCurrencyBRL, initials } from "@/lib/utils";
+import { formatPhoneBR, initials } from "@/lib/utils";
 import { LeadStageSelect } from "./lead-stage-select";
 import { LeadFilesPanel } from "./lead-files-panel";
 import { LeadDeleteButton } from "@/components/leads/lead-delete-button";
 import { ScheduleMeetingButton } from "@/components/leads/schedule-meeting-button";
 import { TechnicalProfilePanel } from "./technical-profile-panel";
 import { TaskPanel } from "./task-panel";
+import { NotesPanel } from "./notes-panel";
+import { ValuePanel } from "./value-panel";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -29,7 +31,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
   if (!lead) notFound();
 
-  const [{ data: stages }, { data: files }, { data: activities }, { data: technicalDefinitions }, { data: tasks }, { data: professionals }, { data: services }] = await Promise.all([
+  const [{ data: stages }, { data: files }, { data: activities }, { data: technicalDefinitions }, { data: tasks }, { data: professionals }, { data: services }, { data: valueItems }] = await Promise.all([
     supabase
       .from("pipeline_stages")
       .select("id, name, color")
@@ -70,7 +72,23 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       .eq("tenant_id", ctx.tenantId)
       .eq("is_active", true)
       .order("name"),
+    supabase
+      .from("lead_value_items")
+      .select("id, label, amount_cents, created_at")
+      .eq("lead_id", lead.id)
+      .eq("tenant_id", ctx.tenantId)
+      .order("created_at", { ascending: true }),
   ]);
+
+  const authorIds = Array.from(
+    new Set((activities ?? []).map((a) => a.user_id).filter((v): v is string => Boolean(v))),
+  );
+  const { data: profiles } = authorIds.length
+    ? await supabase.from("profiles").select("id, full_name").in("id", authorIds)
+    : { data: [] as { id: string; full_name: string | null }[] };
+  const authorNames = Object.fromEntries(
+    (profiles ?? []).map((p) => [p.id, p.full_name ?? "Equipe"]),
+  ) as Record<string, string>;
 
   return (
     <div>
@@ -137,7 +155,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                 <LeadStageSelect leadId={lead.id} stageId={lead.stage_id} stages={stages ?? []} />
               </Info>
               <Info label="Valor">
-                <span className="font-mono text-base font-semibold">{formatCurrencyBRL(lead.value_cents)}</span>
+                <ValuePanel leadId={lead.id} items={valueItems ?? []} totalCents={lead.value_cents ?? 0} />
               </Info>
               <Info label="Origem">{lead.source ?? "-"}</Info>
               <Info label="Atualizado">{new Date(lead.updated_at).toLocaleString("pt-BR")}</Info>
@@ -162,6 +180,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
           <LeadFilesPanel leadId={lead.id} files={files ?? []} />
           <TaskPanel leadId={lead.id} tasks={tasks ?? []} currentUserId={ctx.userId} />
+          <NotesPanel leadId={lead.id} activities={activities ?? []} authorNames={authorNames} />
         </div>
 
         <Card>
@@ -175,7 +194,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             {activities?.map((a) => (
               <div key={a.id} className="relative pl-6">
                 <span className="absolute left-0 top-1.5 h-2 w-2 rounded-full bg-brand ring-4 ring-brand/15" />
-                <p className="font-medium">{a.kind}</p>
+                <p className="font-medium">{describeActivity(a)}</p>
                 <p className="text-xs text-muted-foreground">
                   {new Date(a.created_at).toLocaleString("pt-BR")}
                 </p>
@@ -186,6 +205,20 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       </div>
     </div>
   );
+}
+
+function describeActivity(activity: { kind: string; payload: unknown }): string {
+  const payload = (activity.payload ?? {}) as Record<string, unknown>;
+  switch (activity.kind) {
+    case "note":
+      return `Nota: "${String(payload.text ?? "")}"`;
+    case "automation":
+      return `Automação: ${String(payload.message ?? payload.ai ?? "executada")}`;
+    case "technical_profile_updated":
+      return "Perfil técnico atualizado";
+    default:
+      return activity.kind.replaceAll("_", " ");
+  }
 }
 
 function Info({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {

@@ -61,6 +61,8 @@ import {
   setConversationStatusByLead,
   setLeadAutomations,
   scheduleChatMessage,
+  listScheduledMessages,
+  cancelScheduledMessage,
 } from "../actions";
 
 type MediaKind = "image" | "video" | "audio" | "document";
@@ -170,10 +172,18 @@ export function ChatThread({
   const [scheduleAt, setScheduleAt] = useState("");
   const [scheduleText, setScheduleText] = useState("");
   const [scheduling, setScheduling] = useState(false);
+  const [scheduleMediaUrl, setScheduleMediaUrl] = useState<string | null>(null);
+  const [scheduleMediaName, setScheduleMediaName] = useState<string | null>(null);
+  const [scheduleUploading, setScheduleUploading] = useState(false);
+  const [pendingScheduled, setPendingScheduled] = useState<
+    { id: string; body: string | null; media_url: string | null; media_type: string | null; send_at: string }[]
+  >([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const scheduleAudioInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<Blob[]>([]);
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordTargetRef = useRef<"send" | "schedule">("send");
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef(true);
@@ -325,6 +335,23 @@ export function ChatThread({
     });
   }
 
+  const uploadChatMedia = useCallback(
+    async (file: Blob, fileName: string) => {
+      const supabase = createClient();
+      const safeName = fileName.replace(/[^\w.\-]+/g, "_");
+      const path = `${tenantId}/${leadId}/${crypto.randomUUID()}-${safeName}`;
+      const { error: upErr } = await supabase.storage.from("chat-media").upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type || undefined,
+      });
+      if (upErr) throw new Error(upErr.message);
+      const { data: pub } = supabase.storage.from("chat-media").getPublicUrl(path);
+      return pub.publicUrl;
+    },
+    [tenantId, leadId],
+  );
+
   const uploadAndSend = useCallback(
     async (file: Blob, fileName: string, kind: MediaKind) => {
       setUploading(true);
@@ -344,22 +371,10 @@ export function ChatThread({
       setStatus("aguardando");
 
       try {
-        const supabase = createClient();
-        const safeName = fileName.replace(/[^\w.\-]+/g, "_");
-        const path = `${tenantId}/${leadId}/${crypto.randomUUID()}-${safeName}`;
-        const { error: upErr } = await supabase.storage
-          .from("chat-media")
-          .upload(path, file, {
-            cacheControl: "3600",
-            upsert: false,
-            contentType: file.type || undefined,
-          });
-        if (upErr) throw new Error(upErr.message);
-
-        const { data: pub } = supabase.storage.from("chat-media").getPublicUrl(path);
+        const url = await uploadChatMedia(file, fileName);
         const result = await sendChatMedia({
           leadId,
-          mediaUrl: pub.publicUrl,
+          mediaUrl: url,
           mediaKind: kind,
           fileName,
           mimeType: file.type || undefined,
@@ -378,8 +393,21 @@ export function ChatThread({
         setUploading(false);
       }
     },
-    [tenantId, leadId, conversationId],
+    [leadId, conversationId, uploadChatMedia, selectedAccountId],
   );
+
+  async function uploadForSchedule(file: Blob, fileName: string) {
+    setScheduleUploading(true);
+    try {
+      const url = await uploadChatMedia(file, fileName);
+      setScheduleMediaUrl(url);
+      setScheduleMediaName(fileName);
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setScheduleUploading(false);
+    }
+  }
 
   function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -421,8 +449,9 @@ export function ChatThread({
     }
   }
 
-  async function startRecording() {
+  async function startRecording(target: "send" | "schedule" = "send") {
     try {
+      recordTargetRef.current = target;
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream);
       recordChunksRef.current = [];
@@ -432,7 +461,10 @@ export function ChatThread({
       mr.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(recordChunksRef.current, { type: "audio/ogg" });
-        if (blob.size > 0) void uploadAndSend(blob, `audio-${Date.now()}.ogg`, "audio");
+        if (blob.size === 0) return;
+        const fileName = `audio-${Date.now()}.ogg`;
+        if (recordTargetRef.current === "schedule") void uploadForSchedule(blob, fileName);
+        else void uploadAndSend(blob, fileName, "audio");
       };
       mediaRecorderRef.current = mr;
       mr.start();
@@ -464,27 +496,60 @@ export function ChatThread({
     input.click();
   }
 
+  function refreshPendingScheduled() {
+    void listScheduledMessages(leadId).then(setPendingScheduled).catch(() => {});
+  }
+
   function openSchedule() {
     // pré-preenche com o texto digitado e horário +1h
     setScheduleText(text);
+    setScheduleMediaUrl(null);
+    setScheduleMediaName(null);
     const d = new Date(Date.now() + 60 * 60 * 1000);
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
     setScheduleAt(d.toISOString().slice(0, 16));
     setScheduleOpen(true);
+    refreshPendingScheduled();
+  }
+
+  function pickScheduleAudio(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 25 * 1024 * 1024) {
+      alert("Arquivo muito grande (máximo 25 MB).");
+      return;
+    }
+    void uploadForSchedule(file, file.name);
   }
 
   function submitSchedule() {
     const body = scheduleText.trim();
-    if (!body || !scheduleAt) return;
+    if (!body && !scheduleMediaUrl) return;
+    if (!scheduleAt) return;
     setScheduling(true);
-    void scheduleChatMessage({ leadId, body, sendAt: new Date(scheduleAt).toISOString() })
+    void scheduleChatMessage({
+      leadId,
+      body,
+      sendAt: new Date(scheduleAt).toISOString(),
+      mediaUrl: scheduleMediaUrl ?? undefined,
+      mediaType: scheduleMediaUrl ? "audio" : undefined,
+    })
       .then(() => {
-        setScheduleOpen(false);
         setScheduleText("");
+        setScheduleMediaUrl(null);
+        setScheduleMediaName(null);
         if (scheduleText.trim() === text.trim()) setText("");
+        refreshPendingScheduled();
       })
       .catch((err) => alert((err as Error).message))
       .finally(() => setScheduling(false));
+  }
+
+  function cancelSchedule(id: string) {
+    void cancelScheduledMessage({ id, leadId })
+      .then(() => refreshPendingScheduled())
+      .catch((err) => alert((err as Error).message));
   }
 
   const busy = pending || uploading;
@@ -634,6 +699,13 @@ export function ChatThread({
           className="hidden"
           onChange={onPickFile}
         />
+        <input
+          ref={scheduleAudioInputRef}
+          type="file"
+          accept="audio/*"
+          className="hidden"
+          onChange={pickScheduleAudio}
+        />
 
         {recording ? (
           <div className="mx-auto flex max-w-3xl items-center gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3">
@@ -742,7 +814,7 @@ export function ChatThread({
                 variant="brand"
                 size="icon"
                 className="h-12 w-12 shrink-0 rounded-xl"
-                onClick={startRecording}
+                onClick={() => startRecording("send")}
                 disabled={busy}
                 title="Gravar áudio"
               >
@@ -817,20 +889,98 @@ export function ChatThread({
               <Textarea
                 id="schedule-text"
                 rows={4}
-                placeholder="Escreva a mensagem a ser enviada..."
+                placeholder="Escreva a mensagem a ser enviada (opcional se anexar áudio)..."
                 value={scheduleText}
                 onChange={(e) => setScheduleText(e.target.value)}
               />
             </div>
+            <div className="space-y-1.5">
+              <Label>Áudio (opcional)</Label>
+              {scheduleMediaUrl ? (
+                <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/60 p-2">
+                  <div className="flex-1">
+                    {scheduleMediaName && (
+                      <p className="mb-1 truncate text-xs text-muted-foreground">{scheduleMediaName}</p>
+                    )}
+                    <audio controls src={scheduleMediaUrl} className="h-9 w-full" />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => {
+                      setScheduleMediaUrl(null);
+                      setScheduleMediaName(null);
+                    }}
+                    title="Remover áudio"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => startRecording("schedule")}
+                    disabled={scheduleUploading || recording}
+                  >
+                    <Mic className="h-4 w-4" /> Gravar áudio
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => scheduleAudioInputRef.current?.click()}
+                    disabled={scheduleUploading || recording}
+                  >
+                    {scheduleUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                    Escolher arquivo
+                  </Button>
+                </div>
+              )}
+            </div>
+            {pendingScheduled.length > 0 && (
+              <div className="space-y-1.5 border-t border-border/50 pt-3">
+                <Label>Agendadas para este lead</Label>
+                <div className="max-h-40 space-y-2 overflow-y-auto">
+                  {pendingScheduled.map((s) => (
+                    <div
+                      key={s.id}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-border/50 bg-background/40 px-3 py-2 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate">{s.media_url ? "🎤 Áudio agendado" : s.body}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(s.send_at).toLocaleString("pt-BR")}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => cancelSchedule(s.id)}
+                        title="Cancelar agendamento"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setScheduleOpen(false)} disabled={scheduling}>
-              Cancelar
+              Fechar
             </Button>
             <Button
               variant="brand"
               onClick={submitSchedule}
-              disabled={scheduling || !scheduleText.trim() || !scheduleAt}
+              disabled={scheduling || scheduleUploading || (!scheduleText.trim() && !scheduleMediaUrl) || !scheduleAt}
             >
               {scheduling ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
               Agendar

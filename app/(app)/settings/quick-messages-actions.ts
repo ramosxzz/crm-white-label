@@ -9,6 +9,13 @@ import type { QuickMessage } from "@/lib/supabase/database.types";
 export async function ensureQuickMessagesSeeded(): Promise<QuickMessage[]> {
   const ctx = await requireContext();
   const supabase = await createClient();
+
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("quick_messages_seeded_at")
+    .eq("id", ctx.tenantId)
+    .single();
+
   const { data: existing, error } = await supabase
     .from("quick_messages")
     .select("*")
@@ -16,6 +23,11 @@ export async function ensureQuickMessagesSeeded(): Promise<QuickMessage[]> {
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
+
+  // Ja foi semeado antes (mesmo que o tenant tenha apagado tudo depois) -> nunca reseeda
+  if ((tenant as { quick_messages_seeded_at?: string | null } | null)?.quick_messages_seeded_at) {
+    return (existing ?? []) as QuickMessage[];
+  }
   if (existing && existing.length > 0) return existing as QuickMessage[];
 
   const rows = QUICK_MESSAGE_PRESETS.map((p, i) => ({
@@ -30,6 +42,12 @@ export async function ensureQuickMessagesSeeded(): Promise<QuickMessage[]> {
     .insert(rows)
     .select("*");
   if (insErr) throw new Error(insErr.message);
+
+  await supabase
+    .from("tenants")
+    .update({ quick_messages_seeded_at: new Date().toISOString() })
+    .eq("id", ctx.tenantId);
+
   return (inserted ?? []) as QuickMessage[];
 }
 
@@ -102,6 +120,7 @@ export async function deleteQuickMessage(id: string) {
     .eq("tenant_id", ctx.tenantId);
   if (error) throw new Error(error.message);
   revalidatePath("/settings");
+  revalidatePath("/mensagens-rapidas");
   revalidatePath("/chat", "layout");
 }
 
