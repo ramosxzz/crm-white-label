@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Search, Inbox } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -14,17 +14,23 @@ import { Input } from "@/components/ui/input";
 
 export type { ConversationListItem };
 
-type StatusFilter = ConversationStatus | "todas";
+export type StatusFilter = ConversationStatus | "todas";
 
 export function ConversationList({
   items,
+  query,
+  statusFilter,
+  onQueryChange,
+  onStatusFilterChange,
 }: {
   items: ConversationListItem[];
+  query: string;
+  statusFilter: StatusFilter;
+  onQueryChange: (query: string) => void;
+  onStatusFilterChange: (status: StatusFilter) => void;
 }) {
   const pathname = usePathname();
   const activeLeadId = pathname.startsWith("/chat/") ? (pathname.split("/")[2] ?? null) : null;
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("todas");
 
   const statusCounts = useMemo(() => {
     const counts: Record<ConversationStatus, number> = {
@@ -65,14 +71,14 @@ export function ConversationList({
             placeholder="Pesquisar conversa..."
             className="h-10 rounded-lg border-border/60 bg-background/50 pl-9"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => onQueryChange(e.target.value)}
           />
         </div>
 
         <div className="mt-3 flex flex-wrap gap-1.5">
           <StatusPill
             active={statusFilter === "todas"}
-            onClick={() => setStatusFilter("todas")}
+            onClick={() => onStatusFilterChange("todas")}
             label="Todas"
             count={items.length}
           />
@@ -83,7 +89,7 @@ export function ConversationList({
               <button
                 key={s.value}
                 type="button"
-                onClick={() => setStatusFilter(active ? "todas" : s.value)}
+                onClick={() => onStatusFilterChange(active ? "todas" : s.value)}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
                   active

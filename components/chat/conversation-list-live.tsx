@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchConversationItems } from "@/lib/chat/client";
 import type { ConversationListItem } from "@/lib/chat/types";
-import { ConversationList } from "@/app/(app)/chat/conversation-list";
+import { ConversationList, type StatusFilter } from "@/app/(app)/chat/conversation-list";
 
 /** Fallback se realtime falhar. */
 const CONTACT_POLL_MS = 12_000;
@@ -17,16 +17,21 @@ export function ConversationListLive({
   initialItems: ConversationListItem[];
 }) {
   const [items, setItems] = useState(initialItems);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("todas");
   const contactRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refreshContacts = useCallback(async () => {
     try {
-      const next = await fetchConversationItems(tenantId);
+      const next = await fetchConversationItems(tenantId, {
+        query,
+        status: statusFilter === "todas" ? undefined : statusFilter,
+      });
       setItems(next);
     } catch {
       /* mantem lista anterior */
     }
-  }, [tenantId]);
+  }, [query, statusFilter, tenantId]);
 
   const syncMissingProfilePictures = useCallback(async (currentItems: ConversationListItem[]) => {
     const leadIds = currentItems
@@ -65,6 +70,11 @@ export function ConversationListLive({
   useEffect(() => {
     setItems(initialItems);
   }, [initialItems]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => void refreshContacts(), 280);
+    return () => clearTimeout(timer);
+  }, [query, statusFilter, refreshContacts]);
 
   useEffect(() => {
     const timer = setTimeout(() => void syncMissingProfilePictures(items), 600);
@@ -110,5 +120,13 @@ export function ConversationListLive({
     };
   }, [tenantId, scheduleContactsRefresh]);
 
-  return <ConversationList items={items} />;
+  return (
+    <ConversationList
+      items={items}
+      query={query}
+      statusFilter={statusFilter}
+      onQueryChange={setQuery}
+      onStatusFilterChange={setStatusFilter}
+    />
+  );
 }

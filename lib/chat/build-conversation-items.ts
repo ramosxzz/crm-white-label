@@ -10,6 +10,7 @@ export function buildConversationItems(
   rows: ConversationLeadRow[],
   messagePreviews: MessagePreview[],
   account: WhatsAppAccount | null,
+  options: { tenantName?: string | null } = {},
 ): ConversationListItem[] {
   const filtered = filterConversationRows(rows, account);
 
@@ -28,7 +29,7 @@ export function buildConversationItems(
     return {
       id: c.id,
       leadId: c.lead_id,
-      leadName: displayLeadName(c.leads?.name, c.leads?.phone),
+      leadName: displayLeadName(c.leads?.name, c.leads?.phone, options.tenantName),
       leadPhone: c.leads?.phone ?? "",
       leadAvatarUrl: getCachedWhatsAppProfilePicture(c.leads?.custom_fields),
       leadSubtitle: (c.channel ?? "whatsapp") === "instagram" ? "Instagram" : displayLeadSubtitle(c.leads?.phone),

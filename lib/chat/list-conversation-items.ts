@@ -26,12 +26,26 @@ type ChatConversationRpcClient = {
   ): Promise<{ data: ChatConversationRow[] | null; error: { message: string } | null }>;
 };
 
+export type ConversationListFilters = {
+  search?: string | null;
+  status?: string | null;
+};
+
 export async function listConversationItemsForTenant(
   tenantId: string,
   limit = 100,
+  filters: ConversationListFilters = {},
+  tenantName?: string | null,
 ): Promise<ConversationListItem[]> {
   const supabase = createServiceClient();
   const rpcClient = supabase as unknown as ChatConversationRpcClient;
+  const search = filters.search?.trim() ?? "";
+  const status = filters.status?.trim() ?? "";
+  const hasFilters = Boolean(search || (status && status !== "todas"));
+
+  if (hasFilters) {
+    return listFilteredConversationItemsForTenant(tenantId, limit, { search, status }, tenantName);
+  }
 
   const [{ data: rows, error }, { data: waAccount }] = await Promise.all([
     rpcClient.rpc("list_chat_conversations", {
@@ -77,5 +91,135 @@ export async function listConversationItemsForTenant(
     conversationRows,
     messagePreviews,
     (waAccount as WhatsAppAccount | null) ?? null,
+    { tenantName },
   );
+}
+
+async function listFilteredConversationItemsForTenant(
+  tenantId: string,
+  limit: number,
+  filters: { search: string; status: string },
+  tenantName?: string | null,
+): Promise<ConversationListItem[]> {
+  const supabase = createServiceClient();
+  const cappedLimit = Math.min(Math.max(limit, 1), 300);
+  const search = filters.search.trim();
+  const status = filters.status.trim();
+  let leadIds: string[] | null = null;
+
+  if (search) {
+    const matches = await findMatchingLeadIds(tenantId, search);
+    leadIds = [...new Set(matches)];
+    if (leadIds.length === 0) return [];
+  }
+
+  let query = supabase
+    .from("conversations")
+    .select("id, lead_id, channel, last_message_at, unread_count, status, leads!inner(name, phone, whatsapp_lid, custom_fields)")
+    .eq("tenant_id", tenantId)
+    .order("last_message_at", { ascending: false, nullsFirst: false })
+    .limit(cappedLimit);
+
+  if (status && status !== "todas") query = query.eq("status", status);
+  if (leadIds) query = query.in("lead_id", leadIds);
+
+  const [{ data: rows, error }, { data: waAccount }] = await Promise.all([
+    query,
+    supabase
+      .from("whatsapp_accounts")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .maybeSingle(),
+  ]);
+
+  if (error) throw new Error(error.message);
+
+  const conversationRows = ((rows ?? []) as unknown as ConversationLeadRow[]).map((row) => ({
+    ...row,
+    status: row.status as ConversationLeadRow["status"],
+  }));
+  const conversationIds = conversationRows.map((row) => row.id);
+  const messagePreviews = await fetchLatestMessagePreviews(tenantId, conversationIds);
+
+  return buildConversationItems(
+    conversationRows,
+    messagePreviews,
+    (waAccount as WhatsAppAccount | null) ?? null,
+    { tenantName },
+  );
+}
+
+async function findMatchingLeadIds(tenantId: string, search: string): Promise<string[]> {
+  const supabase = createServiceClient();
+  const terms = buildLeadSearchTerms(search);
+  const queries = [
+    supabase
+      .from("leads")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .ilike("name", `%${search}%`)
+      .limit(250),
+    ...terms.map((term) =>
+      supabase
+        .from("leads")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .ilike("phone", `%${term}%`)
+        .limit(250),
+    ),
+  ];
+  const results = await Promise.all(queries);
+  const failed = results.find((result) => result.error);
+  if (failed?.error) throw new Error(failed.error.message);
+
+  return results.flatMap((result) =>
+    ((result.data ?? []) as { id: string }[]).map((row) => row.id),
+  );
+}
+
+function buildLeadSearchTerms(search: string): string[] {
+  const digits = search.replace(/\D/g, "");
+  const terms = new Set<string>();
+  if (search) terms.add(search);
+  if (digits.length >= 4) {
+    terms.add(digits);
+    terms.add(digits.slice(-9));
+    terms.add(digits.slice(-8));
+  }
+  return [...terms].filter(Boolean);
+}
+
+async function fetchLatestMessagePreviews(
+  tenantId: string,
+  conversationIds: string[],
+): Promise<{ conversation_id: string; body: string | null; direction: string }[]> {
+  if (conversationIds.length === 0) return [];
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("messages")
+    .select("conversation_id, body, direction, created_at")
+    .eq("tenant_id", tenantId)
+    .in("conversation_id", conversationIds)
+    .order("created_at", { ascending: false })
+    .limit(conversationIds.length * 5);
+
+  if (error) throw new Error(error.message);
+
+  const seen = new Set<string>();
+  const previews: { conversation_id: string; body: string | null; direction: string }[] = [];
+  for (const row of (data ?? []) as {
+    conversation_id: string;
+    body: string | null;
+    direction: string | null;
+  }[]) {
+    if (seen.has(row.conversation_id)) continue;
+    seen.add(row.conversation_id);
+    previews.push({
+      conversation_id: row.conversation_id,
+      body: row.body,
+      direction: row.direction ?? "inbound",
+    });
+  }
+  return previews;
 }
