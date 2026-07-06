@@ -25,6 +25,9 @@ export async function updateSession(request: NextRequest) {
     url.pathname.startsWith("/api/automations/process") ||
     url.pathname.startsWith("/api/cron") ||
     url.pathname === "/" ||
+    url.pathname === "/manifest.webmanifest" ||
+    url.pathname === "/sw.js" ||
+    url.pathname.startsWith("/pwa/") ||
     url.pathname.startsWith("/privacy") ||
     url.pathname.startsWith("/terms") ||
     url.pathname.startsWith("/_next") ||

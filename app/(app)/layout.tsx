@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/app/sidebar";
 import { Topbar } from "@/components/app/topbar";
+import { MobileBottomNav } from "@/components/app/mobile-bottom-nav";
 import { TenantTheme } from "@/components/app/tenant-theme";
 import { TenantPageTitle } from "@/components/app/tenant-page-title";
 import { getCurrentContext } from "@/lib/tenant";
@@ -46,8 +47,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar />
-          <main className="flex-1 overflow-auto">{children}</main>
+          <main className="flex-1 overflow-auto pb-[calc(4.75rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
         </div>
+        <MobileBottomNav />
       </div>
     </>
   );

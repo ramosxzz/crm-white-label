@@ -51,7 +51,12 @@ export function ConversationList({
   }, [items, query, statusFilter]);
 
   return (
-    <aside className="flex w-[360px] shrink-0 flex-col border-r border-border bg-card dark:border-border/50 dark:bg-card/62">
+    <aside
+      className={cn(
+        "w-full shrink-0 flex-col border-r border-border bg-card dark:border-border/50 dark:bg-card/62 md:flex md:w-[360px]",
+        activeLeadId ? "hidden" : "flex",
+      )}
+    >
       <header className="border-b border-border/50 px-4 py-4">
         <h2 className="mb-3 font-display text-lg font-semibold tracking-normal">Conversas</h2>
         <div className="relative">
