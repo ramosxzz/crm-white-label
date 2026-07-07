@@ -32,8 +32,8 @@ export default async function DashboardPage() {
     { count: sharedQueueLeads },
     { count: appointmentsToday },
     { count: overdueTasks },
-    { data: products },
-    { data: activeReservations },
+    productsResult,
+    activeReservationsResult,
   ] = await Promise.all([
     supabase
       .from("leads")
@@ -76,9 +76,15 @@ export default async function DashboardPage() {
     supabase.from("leads").select("id", { count: "exact", head: true }).eq("tenant_id", ctx.tenantId).is("assigned_to", null),
     supabase.from("appointments").select("id", { count: "exact", head: true }).eq("tenant_id", ctx.tenantId).gte("starts_at", today.startIso).lte("starts_at", today.endIso),
     supabase.from("tasks").select("id", { count: "exact", head: true }).eq("tenant_id", ctx.tenantId).eq("status", "open").lt("due_at", new Date().toISOString()),
-    supabase.from("products").select("id, stock_quantity, min_stock").eq("tenant_id", ctx.tenantId).eq("is_active", true),
-    supabase.from("stock_reservations").select("product_id, quantity").eq("tenant_id", ctx.tenantId).eq("status", "active"),
+    ctx.tenant.stock_enabled
+      ? supabase.from("products").select("id, stock_quantity, min_stock").eq("tenant_id", ctx.tenantId).eq("is_active", true)
+      : Promise.resolve({ data: [] }),
+    ctx.tenant.stock_enabled
+      ? supabase.from("stock_reservations").select("product_id, quantity").eq("tenant_id", ctx.tenantId).eq("status", "active")
+      : Promise.resolve({ data: [] }),
   ]);
+  const products = productsResult.data ?? [];
+  const activeReservations = activeReservationsResult.data ?? [];
 
   const wonIds = new Set((wonStages ?? []).map((s) => s.id));
   const stageMap = new Map((stages ?? []).map((s) => [s.id, s]));
@@ -95,10 +101,10 @@ export default async function DashboardPage() {
   const wonToday = (leadsToday ?? []).filter((l) => l.stage_id && wonIds.has(l.stage_id)).length;
   const pipelineValueTodayCents = (leadsToday ?? []).reduce((a, l) => a + (l.value_cents ?? 0), 0);
   const reservedByProduct = new Map<string, number>();
-  for (const reservation of activeReservations ?? []) {
+  for (const reservation of activeReservations) {
     reservedByProduct.set(reservation.product_id, (reservedByProduct.get(reservation.product_id) ?? 0) + reservation.quantity);
   }
-  const lowStockProducts = (products ?? []).filter((product) => product.stock_quantity - (reservedByProduct.get(product.id) ?? 0) <= product.min_stock).length;
+  const lowStockProducts = products.filter((product) => product.stock_quantity - (reservedByProduct.get(product.id) ?? 0) <= product.min_stock).length;
 
   const dashboardData: LeadsDashboardData = {
     dateLabel: formatBRTDateLong(),
@@ -116,7 +122,7 @@ export default async function DashboardPage() {
       appointmentsToday: appointmentsToday ?? 0,
       overdueTasks: overdueTasks ?? 0,
       lowStockProducts,
-      activeReservations: activeReservations?.length ?? 0,
+      activeReservations: activeReservations.length,
     },
     leadsByHour: buildLeadsByHour(leadsToday ?? [], today.startIso),
     pipelineByStage,
@@ -144,7 +150,7 @@ export default async function DashboardPage() {
         title="Central de operações"
         description="Painel diário para acompanhar entradas, conversas e desempenho comercial."
       />
-      <LeadsOpsDashboard data={dashboardData} />
+      <LeadsOpsDashboard data={dashboardData} stockEnabled={ctx.tenant.stock_enabled} />
     </div>
   );
 }

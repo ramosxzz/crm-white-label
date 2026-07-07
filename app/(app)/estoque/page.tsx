@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AlertTriangle, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
@@ -9,6 +10,8 @@ import { NewProductDialog } from "./new-product-dialog";
 
 export default async function EstoquePage() {
   const ctx = await requireContext();
+  if (!ctx.tenant.stock_enabled) redirect("/dashboard");
+
   const supabase = await createClient();
 
   const { data: products } = await supabase

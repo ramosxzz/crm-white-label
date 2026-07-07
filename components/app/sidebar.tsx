@@ -47,16 +47,19 @@ export function Sidebar({
   tenantName,
   tenantLogoUrl,
   tenantTagline,
+  stockEnabled = true,
   userName,
   userEmail,
 }: {
   tenantName: string;
   tenantLogoUrl: string | null;
   tenantTagline?: string | null;
+  stockEnabled?: boolean;
   userName: string;
   userEmail: string;
 }) {
   const pathname = usePathname();
+  const visibleNavItems = navItems.filter((item) => item.href !== "/estoque" || stockEnabled);
 
   async function logout() {
     const supabase = createClient();
@@ -98,7 +101,7 @@ export function Sidebar({
         <div className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           Operacao
         </div>
-        {navItems.map((item) => (
+        {visibleNavItems.map((item) => (
           <NavLink key={item.href} item={item} pathname={pathname} />
         ))}
         <div className="mb-1.5 mt-6 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">

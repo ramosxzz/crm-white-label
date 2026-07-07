@@ -11,6 +11,7 @@ export async function updateTenantInfo(input: {
   phone?: string;
   website?: string;
   brand_color?: string;
+  stock_enabled?: boolean;
 }) {
   const ctx = await requireContext();
   if (!["owner", "admin"].includes(ctx.role)) throw new Error("Sem permissao");
@@ -24,10 +25,13 @@ export async function updateTenantInfo(input: {
       phone: input.phone ?? null,
       website: input.website ?? null,
       brand_color: input.brand_color ?? null,
+      stock_enabled: input.stock_enabled ?? true,
     })
     .eq("id", ctx.tenantId);
   if (error) throw new Error(error.message);
   revalidatePath("/", "layout");
+  revalidatePath("/dashboard");
+  revalidatePath("/estoque");
 }
 
 export async function getTenantLogoPath() {

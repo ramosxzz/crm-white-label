@@ -20,8 +20,13 @@ const productSchema = z.object({
   texture: z.string().optional(),
 });
 
+function assertStockModuleEnabled(ctx: Awaited<ReturnType<typeof requireContext>>) {
+  if (!ctx.tenant.stock_enabled) throw new Error("Modulo de estoque desativado para esta empresa");
+}
+
 export async function createProduct(formData: FormData) {
   const ctx = await requireContext();
+  assertStockModuleEnabled(ctx);
   const supabase = await createClient();
 
   const parsed = productSchema.parse({
@@ -56,6 +61,7 @@ export async function createProduct(formData: FormData) {
 
 export async function deleteProduct(id: string) {
   const ctx = await requireContext();
+  assertStockModuleEnabled(ctx);
   const supabase = await createClient();
   const { error } = await supabase
     .from("products")
@@ -73,6 +79,7 @@ export async function recordMovement(input: {
   reason?: string;
 }) {
   const ctx = await requireContext();
+  assertStockModuleEnabled(ctx);
   const supabase = await createClient();
   const { error } = await supabase.from("stock_movements").insert({
     tenant_id: ctx.tenantId,
@@ -89,6 +96,7 @@ export async function recordMovement(input: {
 
 export async function createReservation(formData: FormData) {
   const ctx = await requireContext();
+  assertStockModuleEnabled(ctx);
   const parsed = z.object({
     product_id: z.string().uuid(),
     lead_id: z.string().uuid().optional(),
@@ -125,6 +133,7 @@ export async function releaseReservation(formData: FormData) {
 
 export async function consumeReservation(formData: FormData) {
   const ctx = await requireContext();
+  assertStockModuleEnabled(ctx);
   const id = z.string().uuid().parse(formData.get("id"));
   const supabase = await createClient();
   const { data: reservation } = await supabase
@@ -150,6 +159,7 @@ export async function consumeReservation(formData: FormData) {
 
 async function changeReservationStatus(formData: FormData, status: "released") {
   const ctx = await requireContext();
+  assertStockModuleEnabled(ctx);
   const id = z.string().uuid().parse(formData.get("id"));
   const productId = z.string().uuid().parse(formData.get("product_id"));
   const supabase = await createClient();

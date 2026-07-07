@@ -63,6 +63,7 @@ export interface Tenant {
   website: string | null;
   email: string | null;
   phone: string | null;
+  stock_enabled: boolean;
   created_at: string;
 }
 

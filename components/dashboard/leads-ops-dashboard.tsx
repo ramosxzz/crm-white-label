@@ -20,7 +20,7 @@ import type { LeadsDashboardData } from "@/lib/leads/dashboard-metrics";
 import { formatCurrencyBRL, cn } from "@/lib/utils";
 import { LeadsByStageChart, LeadsPerDayChart, LeadsTodayHourChart } from "@/app/(app)/dashboard/charts";
 
-export function LeadsOpsDashboard({ data }: { data: LeadsDashboardData }) {
+export function LeadsOpsDashboard({ data, stockEnabled = true }: { data: LeadsDashboardData; stockEnabled?: boolean }) {
   const leadTrend =
     data.kpis.newLeadsYesterday === 0
       ? data.kpis.newLeadsToday > 0
@@ -61,7 +61,9 @@ export function LeadsOpsDashboard({ data }: { data: LeadsDashboardData }) {
         <OpsCard icon={<Inbox className="h-4 w-4" />} label="Fila compartilhada" value={data.operations.sharedQueueLeads} href="/leads" />
         <OpsCard icon={<CalendarDays className="h-4 w-4" />} label="Horarios hoje" value={data.operations.appointmentsToday} href="/agenda" />
         <OpsCard icon={<ClipboardList className="h-4 w-4" />} label="Tarefas atrasadas" value={data.operations.overdueTasks} href="/leads" alert={data.operations.overdueTasks > 0} />
-        <OpsCard icon={<Boxes className="h-4 w-4" />} label="Estoque baixo" value={data.operations.lowStockProducts} hint={`${data.operations.activeReservations} reserva(s) ativa(s)`} href="/estoque" alert={data.operations.lowStockProducts > 0} />
+        {stockEnabled && (
+          <OpsCard icon={<Boxes className="h-4 w-4" />} label="Estoque baixo" value={data.operations.lowStockProducts} hint={`${data.operations.activeReservations} reserva(s) ativa(s)`} href="/estoque" alert={data.operations.lowStockProducts > 0} />
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

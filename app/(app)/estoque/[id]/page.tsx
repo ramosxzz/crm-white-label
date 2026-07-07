@@ -14,6 +14,8 @@ import { consumeReservation, releaseReservation } from "../actions";
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const ctx = await requireContext();
+  if (!ctx.tenant.stock_enabled) notFound();
+
   const supabase = await createClient();
 
   const { data: product } = await supabase
