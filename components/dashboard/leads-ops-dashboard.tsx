@@ -3,7 +3,6 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   MessageCircle,
-  Sparkles,
   Target,
   UserPlus,
   Users,
@@ -34,23 +33,24 @@ export function LeadsOpsDashboard({ data, stockEnabled = true }: { data: LeadsDa
 
   return (
     <div className="space-y-6 p-6 md:p-8">
-      <section className="border-b border-brand/25 bg-card px-1 pb-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-brand">
-              <Sparkles className="h-3.5 w-3.5" />
-              Operações do dia
+      <section className="border-b border-border/70 pb-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              Painel operacional
             </p>
-            <h2 className="mt-2 font-display text-2xl font-semibold capitalize md:text-3xl">{data.dateLabel}</h2>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-              Resumo em tempo real dos leads, conversas e desempenho do funil — horário de Brasília.
+            <h2 className="mt-1 font-display text-xl font-semibold capitalize tracking-normal md:text-2xl">
+              {data.dateLabel}
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+              Resumo diário de leads, conversas e desempenho comercial no horário de Brasília.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="brand">
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button asChild variant="outline" className="bg-background/60">
               <Link href="/leads">Ver todos os leads</Link>
             </Button>
-            <Button asChild variant="outline">
+            <Button asChild variant="brand">
               <Link href="/kanban">Abrir kanban</Link>
             </Button>
           </div>
