@@ -10,7 +10,7 @@ import { requireContext } from "@/lib/tenant";
 
 const uuid = z.string().uuid();
 const appointmentSchema = z.object({
-  lead_id: uuid,
+  lead_id: uuid.optional(),
   professional_id: uuid.optional(),
   service_id: uuid.optional(),
   starts_at: z.string().min(1),
@@ -27,7 +27,7 @@ export async function createAppointment(formData: FormData) {
   const ctx = await requireContext();
   assertRole(ctx.role, canOperateLead);
   const parsed = appointmentSchema.parse({
-    lead_id: formData.get("lead_id"),
+    lead_id: formData.get("lead_id") || undefined,
     professional_id: formData.get("professional_id") || undefined,
     service_id: formData.get("service_id") || undefined,
     starts_at: formData.get("starts_at"),
@@ -37,7 +37,7 @@ export async function createAppointment(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase.from("appointments").insert({
     tenant_id: ctx.tenantId,
-    lead_id: parsed.lead_id,
+    lead_id: parsed.lead_id ?? null,
     professional_id: parsed.professional_id ?? null,
     service_id: parsed.service_id ?? null,
     starts_at: new Date(parsed.starts_at).toISOString(),
@@ -54,7 +54,7 @@ export async function updateAppointment(formData: FormData) {
   assertRole(ctx.role, canOperateLead);
   const id = uuid.parse(formData.get("id"));
   const parsed = appointmentSchema.parse({
-    lead_id: formData.get("lead_id"),
+    lead_id: formData.get("lead_id") || undefined,
     professional_id: formData.get("professional_id") || undefined,
     service_id: formData.get("service_id") || undefined,
     starts_at: formData.get("starts_at"),
@@ -64,6 +64,7 @@ export async function updateAppointment(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase.from("appointments").update({
     ...parsed,
+    lead_id: parsed.lead_id ?? null,
     professional_id: parsed.professional_id ?? null,
     service_id: parsed.service_id ?? null,
     starts_at: new Date(parsed.starts_at).toISOString(),

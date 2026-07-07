@@ -67,7 +67,7 @@ export default async function AgendaPage({ searchParams }: { searchParams?: Prom
                   <p className="text-xs text-muted-foreground">{appointment.duration_minutes} min</p>
                 </div>
                 <div className="min-w-48 flex-1">
-                  <p className="font-medium">{lead?.name ?? "Cliente removida"}</p>
+                  <p className="font-medium">{lead?.name ?? "Sem cliente vinculado"}</p>
                   <p className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1"><UserRound className="h-3 w-3" />{professional?.name ?? "Sem profissional"}</span>
                     <span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />{service?.name ?? "Sem servico"}</span>
@@ -80,7 +80,7 @@ export default async function AgendaPage({ searchParams }: { searchParams?: Prom
                   {appointment.status === "scheduled" && <StatusButton id={appointment.id} status="confirmed" title="Confirmar"><Check className="h-4 w-4" /></StatusButton>}
                   <MeetingOutcomeDialog
                     appointmentId={appointment.id}
-                    leadName={lead?.name ?? "Cliente"}
+                    leadName={lead?.name ?? "Sem cliente"}
                     currentOutcome={(appointment as { outcome?: string | null }).outcome ?? null}
                   />
                   {(appointment.status === "scheduled" || appointment.status === "confirmed") && <StatusButton id={appointment.id} status="cancelled" title="Cancelar"><X className="h-4 w-4" /></StatusButton>}

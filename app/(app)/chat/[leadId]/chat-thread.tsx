@@ -25,6 +25,7 @@ import {
   Phone,
   Reply,
   X,
+  Zap,
 } from "lucide-react";
 import { updateLead } from "@/app/(app)/leads/actions";
 import { ScheduleMeetingButton } from "@/components/leads/schedule-meeting-button";
@@ -69,6 +70,11 @@ import {
 } from "../actions";
 
 type MediaKind = "image" | "video" | "audio" | "document";
+type QuickMediaDraft = {
+  title: string;
+  mediaUrl: string;
+  mediaType: MediaKind;
+};
 
 function detectMediaKind(mime: string): MediaKind {
   if (mime.startsWith("image")) return "image";
@@ -181,6 +187,7 @@ export function ChatThread({
   const [automationsOn, setAutomationsOn] = useState(initialAutomationsEnabled);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [text, setText] = useState("");
+  const [quickMediaDraft, setQuickMediaDraft] = useState<QuickMediaDraft | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [pending, start] = useTransition();
   const [uploading, setUploading] = useState(false);
@@ -217,6 +224,17 @@ export function ChatThread({
     return out;
   }, [messages]);
 
+  const quickCommandMatches = useMemo(() => {
+    if (!text.startsWith("/")) return [];
+    const query = text.slice(1).trim().toLowerCase();
+    return quickMessages
+      .filter((message) => {
+        const haystack = `${message.title} ${message.body ?? ""}`.toLowerCase();
+        return !query || haystack.includes(query);
+      })
+      .slice(0, 8);
+  }, [quickMessages, text]);
+
   const syncMessages = useCallback(async () => {
     if (!conversationId) return;
     try {
@@ -244,6 +262,8 @@ export function ChatThread({
     setStatus(initialStatus);
     setAutomationsOn(initialAutomationsEnabled);
     setMessages(initialMessages);
+    setQuickMediaDraft(null);
+    setText("");
     setReplyTo(null);
     shouldStickToBottomRef.current = true;
     requestAnimationFrame(() => scrollToBottom("auto"));
@@ -276,7 +296,9 @@ export function ChatThread({
 
   useEffect(() => {
     if (!conversationId) return;
-    void markConversationRead(conversationId);
+    void markConversationRead(conversationId).then(() => {
+      setStatus((prev) => (prev === "aguardando" ? "em_atendimento" : prev));
+    });
   }, [conversationId]);
 
   useEffect(() => {
@@ -325,7 +347,15 @@ export function ChatThread({
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const body = text.trim();
-    if (!body || pending) return;
+    if ((!body && !quickMediaDraft) || pending) return;
+
+    if (quickMediaDraft) {
+      const draft = quickMediaDraft;
+      setText("");
+      setQuickMediaDraft(null);
+      void sendExistingMedia(draft.mediaUrl, draft.mediaType, body || undefined);
+      return;
+    }
 
     const optimistic: ChatMessage = {
       id: `opt-${Date.now()}`,
@@ -345,7 +375,7 @@ export function ChatThread({
     const replyMessageId = replyTo?.id ?? null;
     setReplyTo(null);
     setMessages((prev) => [...prev, optimistic]);
-    setStatus("aguardando");
+    setStatus("em_atendimento");
 
     start(async () => {
       try {
@@ -397,7 +427,7 @@ export function ChatThread({
         media_type: kind,
       };
       setMessages((prev) => [...prev, optimistic]);
-      setStatus("aguardando");
+      setStatus("em_atendimento");
 
       try {
         const url = await uploadChatMedia(file, fileName);
@@ -449,17 +479,17 @@ export function ChatThread({
     void uploadAndSend(file, file.name, detectMediaKind(file.type));
   }
 
-  async function sendExistingMedia(url: string, kind: MediaKind) {
+  async function sendExistingMedia(url: string, kind: MediaKind, caption?: string) {
     setUploading(true);
     shouldStickToBottomRef.current = true;
     const optimisticId = `opt-${Date.now()}`;
     setMessages((prev) => [
       ...prev,
-      { id: optimisticId, body: "", direction: "outbound", created_at: new Date().toISOString(), status: "pending", media_url: url, media_type: kind },
+      { id: optimisticId, body: caption ?? "", direction: "outbound", created_at: new Date().toISOString(), status: "pending", media_url: url, media_type: kind },
     ]);
-    setStatus("aguardando");
+    setStatus("em_atendimento");
     try {
-      const result = await sendChatMedia({ leadId, mediaUrl: url, mediaKind: kind, accountId: selectedAccountId });
+      const result = await sendChatMedia({ leadId, mediaUrl: url, mediaKind: kind, caption, accountId: selectedAccountId });
       if (!conversationId) setConversationId(result.conversationId);
       setMessages((prev) => mergeMessages(prev.filter((m) => m.id !== optimisticId), [result.message]));
     } catch (err) {
@@ -470,11 +500,17 @@ export function ChatThread({
     }
   }
 
-  function onPickQuick(m: { body: string | null; media_url: string | null; media_type: string | null }) {
+  function onPickQuick(m: { title?: string | null; body: string | null; media_url: string | null; media_type: string | null }) {
     if (m.media_url && m.media_type === "audio") {
-      void sendExistingMedia(m.media_url, "audio");
+      if (isInstagram) {
+        alert("Envio de áudio rápido ainda está disponível apenas para WhatsApp.");
+        return;
+      }
+      setQuickMediaDraft({ title: m.title ?? "Áudio rápido", mediaUrl: m.media_url, mediaType: "audio" });
+      setText((prev) => (prev.startsWith("/") ? "" : prev));
     } else if (m.body) {
-      setText((prev) => (prev.trim() ? `${prev.trim()}\n\n${m.body}` : m.body!));
+      setQuickMediaDraft(null);
+      setText((prev) => (prev.startsWith("/") || !prev.trim() ? m.body! : `${prev.trim()}\n\n${m.body}`));
     }
   }
 
@@ -814,7 +850,7 @@ export function ChatThread({
             </div>
           </div>
         ) : (
-          <form onSubmit={onSubmit} className="mx-auto flex max-w-3xl items-end gap-2">
+          <form onSubmit={onSubmit} className="relative mx-auto flex max-w-3xl items-end gap-2">
             {!isInstagram && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -863,9 +899,56 @@ export function ChatThread({
               </Button>
             )}
 
+            {quickMediaDraft && (
+              <div className="absolute bottom-full left-16 right-14 mb-2 rounded-2xl border border-border bg-popover p-3 shadow-lg">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand/10 text-brand">
+                    <Mic className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{quickMediaDraft.title}</p>
+                    <p className="text-xs text-muted-foreground">Prévia pronta. Clique em enviar para disparar.</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setQuickMediaDraft(null)}
+                    title="Remover prévia"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {!quickMediaDraft && quickCommandMatches.length > 0 && (
+              <div className="absolute bottom-full left-16 right-14 mb-2 max-h-72 overflow-y-auto rounded-2xl border border-border bg-popover p-2 shadow-lg">
+                {quickCommandMatches.map((message) => (
+                  <button
+                    key={message.id}
+                    type="button"
+                    className="flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left hover:bg-muted"
+                    onClick={() => onPickQuick(message)}
+                  >
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand">
+                      {message.media_type === "audio" ? <Mic className="h-3.5 w-3.5" /> : <Zap className="h-3.5 w-3.5" />}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">{message.title}</span>
+                      <span className="line-clamp-1 text-xs text-muted-foreground">
+                        {message.media_type === "audio" ? "Áudio rápido" : message.body}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
             <Textarea
               rows={1}
-              placeholder={isInstagram ? "Responder no Instagram..." : "Digite sua mensagem..."}
+              placeholder={isInstagram ? "Responder no Instagram..." : "Digite sua mensagem ou / para mensagens rápidas..."}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
@@ -876,13 +959,13 @@ export function ChatThread({
               }}
               className="min-h-[48px] max-h-32 flex-1 resize-none rounded-2xl border-border/60 bg-background/70 py-3"
             />
-            {text.trim() || isInstagram ? (
+            {text.trim() || quickMediaDraft || isInstagram ? (
               <Button
                 type="submit"
                 variant="brand"
                 size="icon"
                 className="h-12 w-12 shrink-0 rounded-xl"
-                disabled={busy || !text.trim()}
+                disabled={busy || (!text.trim() && !quickMediaDraft)}
               >
                 {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>

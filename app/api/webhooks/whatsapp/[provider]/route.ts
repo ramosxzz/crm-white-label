@@ -414,6 +414,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
           unread_count: isInbound ? 1 : 0,
 
+          status: isInbound ? "aguardando" : "em_atendimento",
+
         })
 
         .select("id")
@@ -425,16 +427,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
     } else {
 
       const unread = (existingConv as { unread_count?: number | null }).unread_count ?? 0;
-      const currentConvStatus = (existingConv as { status?: string | null }).status ?? "nao_iniciada";
 
-      // Transição de status no recebimento de mensagem do cliente
-      let nextStatus = currentConvStatus;
-      if (isInbound) {
-        if (currentConvStatus === "resolvida") nextStatus = "nao_iniciada";
-        else if (currentConvStatus === "aguardando") nextStatus = "em_atendimento";
-      } else {
-        nextStatus = "aguardando";
-      }
+      const nextStatus = isInbound ? "aguardando" : "em_atendimento";
 
       await supabase
 

@@ -175,7 +175,7 @@ export async function processExecution(
             if (convId && sendResult.status === "sent") {
               await supabase
                 .from("conversations")
-                .update({ last_message_at: new Date().toISOString(), status: "aguardando" })
+                .update({ last_message_at: new Date().toISOString(), status: "em_atendimento" })
                 .eq("id", convId);
             }
             result = { sent: sendResult.status === "sent", message };

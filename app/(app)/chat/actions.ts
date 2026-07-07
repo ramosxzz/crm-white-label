@@ -177,7 +177,7 @@ export async function sendChatMessage(input: {
       .single();
     await supabase
       .from("conversations")
-      .update({ last_message_at: new Date().toISOString(), status: "aguardando" })
+      .update({ last_message_at: new Date().toISOString(), status: "em_atendimento" })
       .eq("id", conversationId);
 
     revalidatePath(`/chat/${lead.id}`);
@@ -335,7 +335,7 @@ export async function sendInstagramMessage(input: {
       .single();
     await supabase
       .from("conversations")
-      .update({ last_message_at: new Date().toISOString(), status: "aguardando" })
+      .update({ last_message_at: new Date().toISOString(), status: "em_atendimento" })
       .eq("id", conversationId);
 
     revalidatePath(`/chat/${input.leadId}`);
@@ -484,7 +484,7 @@ export async function sendChatMedia(input: {
       .single();
     await supabase
       .from("conversations")
-      .update({ last_message_at: new Date().toISOString(), status: "aguardando" })
+      .update({ last_message_at: new Date().toISOString(), status: "em_atendimento" })
       .eq("id", conversationId);
 
     revalidatePath(`/chat/${lead.id}`);
@@ -602,9 +602,21 @@ export async function setLeadAutomations(input: { leadId: string; enabled: boole
 export async function markConversationRead(conversationId: string) {
   const ctx = await requireContext();
   const supabase = await createClient();
+  const { data: conversation } = await supabase
+    .from("conversations")
+    .select("status")
+    .eq("id", conversationId)
+    .eq("tenant_id", ctx.tenantId)
+    .maybeSingle();
+
+  const update: { unread_count: number; status?: string } = { unread_count: 0 };
+  if ((conversation as { status?: string } | null)?.status === "aguardando") {
+    update.status = "em_atendimento";
+  }
+
   await supabase
     .from("conversations")
-    .update({ unread_count: 0 })
+    .update(update)
     .eq("id", conversationId)
     .eq("tenant_id", ctx.tenantId);
 }

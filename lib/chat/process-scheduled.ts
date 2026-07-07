@@ -113,7 +113,7 @@ export async function processScheduledMessages(supabase: SupabaseClient): Promis
       if (convId && ok) {
         await supabase
           .from("conversations")
-          .update({ last_message_at: new Date().toISOString(), status: "aguardando" })
+          .update({ last_message_at: new Date().toISOString(), status: "em_atendimento" })
           .eq("id", convId);
       }
 

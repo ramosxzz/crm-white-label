@@ -71,7 +71,7 @@ export function QuickRepliesPicker({
                 {m.title}
               </span>
               <span className="line-clamp-2 text-xs text-muted-foreground">
-                {m.media_type === "audio" ? "🎤 Áudio pronto para enviar" : m.body}
+                {m.media_type === "audio" ? "Áudio pronto para prévia" : m.body}
               </span>
             </DropdownMenuItem>
           ))

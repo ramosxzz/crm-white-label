@@ -64,7 +64,7 @@ as $$
     and (
       params.status_filter is null
       or params.status_filter = 'todas'
-      or c.status = params.status_filter
+      or c.status::text = params.status_filter
     )
     and (
       params.search_text is null

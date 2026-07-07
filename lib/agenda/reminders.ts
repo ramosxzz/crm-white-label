@@ -13,7 +13,7 @@ const WINDOWS = [
 type ApptRow = {
   id: string;
   tenant_id: string;
-  lead_id: string;
+  lead_id: string | null;
   starts_at: string;
   status: string;
   reminders_sent: unknown;
@@ -46,6 +46,7 @@ export async function processAppointmentReminders(supabase: SupabaseClient): Pro
   let sent = 0;
 
   for (const appt of (appts ?? []) as unknown as ApptRow[]) {
+    if (!appt.lead_id) continue;
     const remainingMin = (new Date(appt.starts_at).getTime() - now) / 60000;
     if (remainingMin <= 0) continue;
 
@@ -125,7 +126,7 @@ export async function processAppointmentReminders(supabase: SupabaseClient): Pro
       if (convId && ok) {
         await supabase
           .from("conversations")
-          .update({ last_message_at: new Date().toISOString(), status: "aguardando" })
+          .update({ last_message_at: new Date().toISOString(), status: "em_atendimento" })
           .eq("id", convId);
       }
 

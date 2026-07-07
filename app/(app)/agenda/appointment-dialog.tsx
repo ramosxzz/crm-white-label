@@ -6,6 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createAppointment } from "./actions";
 
+function leadCode(id: string) {
+  return `#${id.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+}
+
 export function AppointmentDialog({
   leads,
   professionals,
@@ -23,9 +27,9 @@ export function AppointmentDialog({
         <form action={createAppointment} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="agenda-lead">Cliente</Label>
-            <select id="agenda-lead" name="lead_id" required className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
-              <option value="">Selecione</option>
-              {leads.map((lead) => <option key={lead.id} value={lead.id}>{lead.name}</option>)}
+            <select id="agenda-lead" name="lead_id" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+              <option value="">Sem cliente vinculado</option>
+              {leads.map((lead) => <option key={lead.id} value={lead.id}>{leadCode(lead.id)} - {lead.name}</option>)}
             </select>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">

@@ -133,6 +133,7 @@ export async function POST(req: NextRequest) {
             channel: "instagram",
             last_message_at: messageAt,
             unread_count: 1,
+            status: "aguardando",
           })
           .select("id")
           .single();
@@ -141,7 +142,7 @@ export async function POST(req: NextRequest) {
         const unread = (existingConv as { unread_count?: number }).unread_count ?? 0;
         await supabase
           .from("conversations")
-          .update({ last_message_at: messageAt, unread_count: unread + 1 })
+          .update({ last_message_at: messageAt, unread_count: unread + 1, status: "aguardando" })
           .eq("id", conversationId);
       }
 
