@@ -4,42 +4,54 @@
 
 @layer base {
   :root {
-    /* Tema claro — neutros quentes + verde floresta (sem neon) */
-    --background: 42 22% 97%;
-    --foreground: 222 18% 14%;
-
-    --card: 40 18% 99%;
-    --card-foreground: 222 18% 14%;
-
-    --popover: 40 18% 99%;
-    --popover-foreground: 222 18% 14%;
-
-    --primary: 222 18% 14%;
-    --primary-foreground: 42 22% 97%;
-
-    --secondary: 42 14% 92%;
-    --secondary-foreground: 222 18% 14%;
-
-    --muted: 42 12% 91%;
-    --muted-foreground: 222 8% 42%;
-
-    --accent: 150 14% 92%;
-    --accent-foreground: 222 18% 14%;
-
-    --destructive: 0 65% 48%;
+    /* Tema claro adaptado do preset OKLCH para Tailwind v3/HSL */
+    --card: 0 0% 100%;
+    --ring: 0 0% 0%;
+    --input: 0 0% 94%;
+    --muted: 0 0% 97%;
+    --accent: 0 0% 94%;
+    --border: 0 0% 92%;
+    --radius: 0.5rem;
+    --chart-1: 45 100% 55%;
+    --chart-2: 252 88% 56%;
+    --chart-3: 0 0% 72%;
+    --chart-4: 0 0% 92%;
+    --chart-5: 0 0% 56%;
+    --popover: 0 0% 99%;
+    --primary: 0 0% 0%;
+    --sidebar: 0 0% 99%;
+    --secondary: 0 0% 94%;
+    --background: 0 0% 99%;
+    --foreground: 0 0% 0%;
+    --destructive: 356 72% 52%;
+    --shadow-blur: 2px;
+    --shadow-color: 0 0% 0%;
+    --sidebar-ring: 0 0% 0%;
+    --shadow-spread: 0px;
+    --shadow-opacity: 0.18;
+    --sidebar-accent: 0 0% 94%;
+    --sidebar-border: 0 0% 94%;
+    --card-foreground: 0 0% 0%;
+    --shadow-offset-x: 0px;
+    --shadow-offset-y: 1px;
+    --sidebar-primary: 0 0% 0%;
+    --muted-foreground: 0 0% 44%;
+    --accent-foreground: 0 0% 0%;
+    --popover-foreground: 0 0% 0%;
+    --primary-foreground: 0 0% 100%;
+    --sidebar-foreground: 0 0% 0%;
+    --secondary-foreground: 0 0% 0%;
     --destructive-foreground: 0 0% 100%;
+    --sidebar-accent-foreground: 0 0% 0%;
+    --sidebar-primary-foreground: 0 0% 100%;
 
     --success: 152 48% 32%;
     --warning: 38 72% 40%;
     --info: 200 50% 38%;
 
-    --border: 42 10% 86%;
-    --input: 42 10% 86%;
-    --ring: 150 42% 34%;
-
     --brand: 150 42% 32%;
     --brand-foreground: 0 0% 100%;
-    --brand-muted: 150 22% 93%;
+    --brand-muted: 0 0% 94%;
 
     --chat-outbound: 150 42% 32%;
     --chat-outbound-foreground: 0 0% 100%;
@@ -49,50 +61,53 @@
 
     --shadow-brand: 0 1px 2px hsl(150 40% 18% / 0.1), 0 6px 18px hsl(150 40% 18% / 0.08);
 
-    --radius: 0.625rem;
-
-    --shadow-elevation-low: 0 1px 0 hsl(40 20% 100% / 0.9), 0 8px 24px hsl(222 18% 14% / 0.05);
-    --shadow-elevation-medium: 0 1px 0 hsl(40 20% 100% / 0.92), 0 16px 40px hsl(222 18% 14% / 0.07);
-    --shadow-elevation-high: 0 1px 0 hsl(40 20% 100% / 0.94), 0 24px 64px hsl(222 18% 14% / 0.1);
+    --shadow-elevation-low: 0 var(--shadow-offset-y) var(--shadow-blur) hsl(var(--shadow-color) / var(--shadow-opacity));
+    --shadow-elevation-medium: 0 1px 2px hsl(var(--shadow-color) / var(--shadow-opacity)), 0 16px 40px hsl(var(--shadow-color) / 0.08);
+    --shadow-elevation-high: 0 1px 2px hsl(var(--shadow-color) / var(--shadow-opacity)), 0 24px 64px hsl(var(--shadow-color) / 0.12);
   }
 
   .dark {
-    /* Tema escuro — verde sálvia (sem neon) */
-    --background: 222 22% 6%;
-    --foreground: 42 18% 94%;
-
-    --card: 222 20% 9%;
-    --card-foreground: 42 18% 94%;
-
-    --popover: 222 20% 9%;
-    --popover-foreground: 42 18% 94%;
-
-    --primary: 42 18% 94%;
-    --primary-foreground: 222 22% 6%;
-
-    --secondary: 222 16% 13%;
-    --secondary-foreground: 42 18% 94%;
-
-    --muted: 222 16% 13%;
-    --muted-foreground: 220 10% 62%;
-
-    --accent: 152 18% 14%;
-    --accent-foreground: 42 18% 94%;
-
-    --destructive: 0 72% 60%;
-    --destructive-foreground: 0 0% 100%;
+    /* Tema escuro adaptado do preset OKLCH para Tailwind v3/HSL */
+    --card: 0 0% 8%;
+    --ring: 0 0% 72%;
+    --input: 0 0% 32%;
+    --muted: 0 0% 23%;
+    --accent: 0 0% 32%;
+    --border: 0 0% 26%;
+    --chart-1: 45 100% 55%;
+    --chart-2: 251 88% 62%;
+    --chart-3: 0 0% 56%;
+    --chart-4: 0 0% 44%;
+    --chart-5: 0 0% 92%;
+    --popover: 0 0% 18%;
+    --primary: 0 0% 100%;
+    --sidebar: 0 0% 18%;
+    --secondary: 0 0% 25%;
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+    --destructive: 356 77% 59%;
+    --sidebar-ring: 0 0% 72%;
+    --sidebar-accent: 0 0% 32%;
+    --sidebar-border: 0 0% 32%;
+    --card-foreground: 0 0% 100%;
+    --sidebar-primary: 0 0% 100%;
+    --muted-foreground: 0 0% 72%;
+    --accent-foreground: 0 0% 100%;
+    --popover-foreground: 0 0% 100%;
+    --primary-foreground: 0 0% 0%;
+    --sidebar-foreground: 0 0% 100%;
+    --secondary-foreground: 0 0% 100%;
+    --destructive-foreground: 0 0% 0%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-primary-foreground: 0 0% 0%;
 
     --success: 152 45% 48%;
     --warning: 38 75% 55%;
     --info: 200 55% 58%;
 
-    --border: 222 14% 18%;
-    --input: 222 14% 17%;
-    --ring: 152 42% 46%;
-
     --brand: 152 45% 48%;
     --brand-foreground: 0 0% 100%;
-    --brand-muted: 152 22% 14%;
+    --brand-muted: 0 0% 16%;
 
     --chat-outbound: 152 42% 40%;
     --chat-outbound-foreground: 0 0% 100%;
@@ -100,7 +115,7 @@
 
     --aqua: 166 38% 52%;
 
-    --shadow-brand: 0 1px 2px hsl(0 0% 0% / 0.25), 0 6px 16px hsl(152 40% 10% / 0.2);
+    --shadow-brand: 0 1px 2px hsl(0 0% 0% / 0.25), 0 6px 16px hsl(0 0% 0% / 0.2);
 
     --shadow-elevation-low: 0 1px 0 hsl(72 20% 100% / 0.05), 0 18px 44px hsl(0 0% 0% / 0.34);
     --shadow-elevation-medium: 0 1px 0 hsl(72 20% 100% / 0.06), 0 28px 76px hsl(0 0% 0% / 0.42);
@@ -133,11 +148,11 @@
     overscroll-behavior-y: none;
     font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
     font-variant-numeric: tabular-nums;
-    background-image: linear-gradient(180deg, hsl(var(--background)) 0%, hsl(42 18% 95%) 100%);
+    background-image: linear-gradient(180deg, hsl(var(--background)) 0%, hsl(0 0% 97%) 100%);
     background-attachment: fixed;
   }
   .dark body {
-    background-image: linear-gradient(180deg, hsl(var(--background)) 0%, hsl(222 20% 8%) 100%);
+    background-image: linear-gradient(180deg, hsl(var(--background)) 0%, hsl(0 0% 4%) 100%);
   }
   body::before {
     content: "";
