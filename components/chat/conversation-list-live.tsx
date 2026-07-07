@@ -23,15 +23,12 @@ export function ConversationListLive({
 
   const refreshContacts = useCallback(async () => {
     try {
-      const next = await fetchConversationItems(tenantId, {
-        query,
-        status: statusFilter === "todas" ? undefined : statusFilter,
-      });
+      const next = await fetchConversationItems(tenantId, { query });
       setItems(next);
     } catch {
       /* mantem lista anterior */
     }
-  }, [query, statusFilter, tenantId]);
+  }, [query, tenantId]);
 
   const syncMissingProfilePictures = useCallback(async (currentItems: ConversationListItem[]) => {
     const leadIds = currentItems
@@ -74,7 +71,7 @@ export function ConversationListLive({
   useEffect(() => {
     const timer = setTimeout(() => void refreshContacts(), 280);
     return () => clearTimeout(timer);
-  }, [query, statusFilter, refreshContacts]);
+  }, [query, refreshContacts]);
 
   useEffect(() => {
     const timer = setTimeout(() => void syncMissingProfilePictures(items), 600);

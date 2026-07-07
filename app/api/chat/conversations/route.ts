@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     const hasSearch = Boolean(search?.trim());
     const conversations = await listConversationItemsForTenant(
       ctx.tenantId,
-      hasSearch ? 200 : 100,
+      hasSearch ? 200 : 300,
       { search, status },
       ctx.tenant.name,
     );
