@@ -33,6 +33,9 @@ export type ConversationListItem = {
   lastPreview: string | null;
   lastDirection: string | null;
   status: ConversationStatus;
+  whatsappAccountId: string | null;
+  tags: string[];
+  stageId: string | null;
 };
 
 export type GroupLabelItem = {

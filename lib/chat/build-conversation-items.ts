@@ -38,6 +38,9 @@ export function buildConversationItems(
       lastPreview: preview?.body ?? null,
       lastDirection: preview?.direction ?? null,
       status: c.status ?? "nao_iniciada",
+      whatsappAccountId: c.whatsapp_account_id ?? null,
+      tags: c.leads?.tags ?? [],
+      stageId: c.leads?.stage_id ?? null,
     };
   });
 }

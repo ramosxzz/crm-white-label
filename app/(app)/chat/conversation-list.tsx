@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo } from "react";
-import { Search, Inbox } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Search, Inbox, RefreshCw, SlidersHorizontal, X } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn, initials } from "@/lib/utils";
@@ -11,10 +11,51 @@ import type { ConversationListItem, ConversationStatus } from "@/lib/chat/types"
 import { CONVERSATION_STATUSES, STATUS_META } from "@/lib/chat/status";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export type { ConversationListItem };
 
 export type StatusFilter = ConversationStatus | "todas";
+
+const ATTENDANCE_WINDOW_HOURS = 24;
+
+type AttendanceWindowFilter = "todos" | "dentro" | "expirada";
+type LastMessagePeriodFilter = "todos" | "hoje" | "7dias" | "30dias";
+type OrderFilter = "recentes" | "antigas";
+
+type AdvancedFilters = {
+  instanceId: string;
+  tag: string;
+  stageId: string;
+  attendanceWindow: AttendanceWindowFilter;
+  lastMessagePeriod: LastMessagePeriodFilter;
+  order: OrderFilter;
+};
+
+const DEFAULT_ADVANCED_FILTERS: AdvancedFilters = {
+  instanceId: "todos",
+  tag: "todos",
+  stageId: "todos",
+  attendanceWindow: "todos",
+  lastMessagePeriod: "todos",
+  order: "recentes",
+};
+
+function isWithinAttendanceWindow(lastAt: string | null): boolean {
+  if (!lastAt) return false;
+  const hours = (Date.now() - new Date(lastAt).getTime()) / (1000 * 60 * 60);
+  return hours <= ATTENDANCE_WINDOW_HOURS;
+}
+
+function isWithinPeriod(lastAt: string | null, period: LastMessagePeriodFilter): boolean {
+  if (period === "todos") return true;
+  if (!lastAt) return false;
+  const days = (Date.now() - new Date(lastAt).getTime()) / (1000 * 60 * 60 * 24);
+  if (period === "hoje") return days <= 1;
+  if (period === "7dias") return days <= 7;
+  return days <= 30;
+}
 
 export function ConversationList({
   items,
@@ -22,15 +63,33 @@ export function ConversationList({
   statusFilter,
   onQueryChange,
   onStatusFilterChange,
+  onRefresh,
+  isRefreshing,
+  instances,
+  stages,
 }: {
   items: ConversationListItem[];
   query: string;
   statusFilter: StatusFilter;
   onQueryChange: (query: string) => void;
   onStatusFilterChange: (status: StatusFilter) => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
+  instances: { id: string; label: string }[];
+  stages: { id: string; name: string }[];
 }) {
   const pathname = usePathname();
   const activeLeadId = pathname.startsWith("/chat/") ? (pathname.split("/")[2] ?? null) : null;
+
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [draftFilters, setDraftFilters] = useState<AdvancedFilters>(DEFAULT_ADVANCED_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState<AdvancedFilters>(DEFAULT_ADVANCED_FILTERS);
+
+  const availableTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of items) for (const tag of c.tags) set.add(tag);
+    return [...set].sort();
+  }, [items]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<ConversationStatus, number> = {
@@ -43,10 +102,23 @@ export function ConversationList({
     return counts;
   }, [items]);
 
+  const activeAdvancedCount = Object.entries(appliedFilters).filter(
+    ([key, value]) => value !== DEFAULT_ADVANCED_FILTERS[key as keyof AdvancedFilters],
+  ).length;
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return items.filter((c) => {
+    const result = items.filter((c) => {
       if (statusFilter !== "todas" && c.status !== statusFilter) return false;
+      if (appliedFilters.instanceId !== "todos" && c.whatsappAccountId !== appliedFilters.instanceId) return false;
+      if (appliedFilters.tag !== "todos" && !c.tags.includes(appliedFilters.tag)) return false;
+      if (appliedFilters.stageId !== "todos" && c.stageId !== appliedFilters.stageId) return false;
+      if (appliedFilters.attendanceWindow !== "todos") {
+        const within = isWithinAttendanceWindow(c.lastAt);
+        if (appliedFilters.attendanceWindow === "dentro" && !within) return false;
+        if (appliedFilters.attendanceWindow === "expirada" && within) return false;
+      }
+      if (!isWithinPeriod(c.lastAt, appliedFilters.lastMessagePeriod)) return false;
       if (!q) return true;
       return (
         c.leadName.toLowerCase().includes(q) ||
@@ -54,7 +126,31 @@ export function ConversationList({
         c.leadPhone.replace(/\D/g, "").includes(q.replace(/\D/g, ""))
       );
     });
-  }, [items, query, statusFilter]);
+
+    result.sort((a, b) => {
+      const aAt = a.lastAt ? Date.parse(a.lastAt) : 0;
+      const bAt = b.lastAt ? Date.parse(b.lastAt) : 0;
+      return appliedFilters.order === "recentes" ? bAt - aAt : aAt - bAt;
+    });
+
+    return result;
+  }, [items, query, statusFilter, appliedFilters]);
+
+  function openFilters() {
+    setDraftFilters(appliedFilters);
+    setFiltersOpen(true);
+  }
+
+  function applyFilters() {
+    setAppliedFilters(draftFilters);
+    setFiltersOpen(false);
+  }
+
+  function clearFilters() {
+    setDraftFilters(DEFAULT_ADVANCED_FILTERS);
+    setAppliedFilters(DEFAULT_ADVANCED_FILTERS);
+    setFiltersOpen(false);
+  }
 
   return (
     <aside
@@ -64,7 +160,35 @@ export function ConversationList({
       )}
     >
       <header className="border-b border-border/50 px-4 py-4">
-        <h2 className="mb-3 font-display text-lg font-semibold tracking-normal">Conversas</h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-display text-lg font-semibold tracking-normal">Conversas</h2>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={openFilters}
+              title="Filtros"
+              className="relative rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              {activeAdvancedCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-brand text-[9px] font-semibold text-brand-foreground">
+                  {activeAdvancedCount}
+                </span>
+              )}
+            </button>
+            {onRefresh && (
+              <button
+                type="button"
+                onClick={onRefresh}
+                disabled={isRefreshing}
+                title="Atualizar conversas"
+                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-60"
+              >
+                <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+              </button>
+            )}
+          </div>
+        </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -194,7 +318,147 @@ export function ConversationList({
           );
         })}
       </div>
+
+      {filtersOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setFiltersOpen(false)} aria-hidden />
+          <div className="relative flex h-full w-full max-w-sm flex-col bg-card shadow-xl">
+            <div className="flex items-center justify-between border-b border-border/60 px-4 py-4">
+              <h3 className="text-base font-semibold">Filtros</h3>
+              <button
+                type="button"
+                onClick={() => setFiltersOpen(false)}
+                className="rounded-md p-1 text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+              <FilterField label="Instancias">
+                <Select
+                  value={draftFilters.instanceId}
+                  onValueChange={(v) => setDraftFilters((f) => ({ ...f, instanceId: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    {instances.map((i) => (
+                      <SelectItem key={i.id} value={i.id}>
+                        {i.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FilterField>
+
+              <FilterField label="Tags">
+                <Select value={draftFilters.tag} onValueChange={(v) => setDraftFilters((f) => ({ ...f, tag: v }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    {availableTags.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FilterField>
+
+              <FilterField label="Negocio na etapa">
+                <Select
+                  value={draftFilters.stageId}
+                  onValueChange={(v) => setDraftFilters((f) => ({ ...f, stageId: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Nenhum selecionado</SelectItem>
+                    {stages.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FilterField>
+
+              <FilterField label="Janela em atendimento">
+                <Select
+                  value={draftFilters.attendanceWindow}
+                  onValueChange={(v) => setDraftFilters((f) => ({ ...f, attendanceWindow: v as AttendanceWindowFilter }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="dentro">Dentro da janela (24h)</SelectItem>
+                    <SelectItem value="expirada">Expirada</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FilterField>
+
+              <FilterField label="Data da ultima mensagem">
+                <Select
+                  value={draftFilters.lastMessagePeriod}
+                  onValueChange={(v) => setDraftFilters((f) => ({ ...f, lastMessagePeriod: v as LastMessagePeriodFilter }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Nenhuma data selecionada</SelectItem>
+                    <SelectItem value="hoje">Hoje</SelectItem>
+                    <SelectItem value="7dias">Ultimos 7 dias</SelectItem>
+                    <SelectItem value="30dias">Ultimos 30 dias</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FilterField>
+
+              <FilterField label="Ordem">
+                <Select
+                  value={draftFilters.order}
+                  onValueChange={(v) => setDraftFilters((f) => ({ ...f, order: v as OrderFilter }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="recentes">Mais recentes</SelectItem>
+                    <SelectItem value="antigas">Mais antigas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FilterField>
+            </div>
+
+            <div className="flex items-center gap-2 border-t border-border/60 px-4 py-4">
+              <Button variant="outline" className="flex-1" onClick={clearFilters}>
+                Limpar filtros
+              </Button>
+              <Button className="flex-1" onClick={applyFilters}>
+                Aplicar filtros
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
+  );
+}
+
+function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-sm font-medium">{label}</p>
+      {children}
+    </div>
   );
 }
 

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { SubmitIconButton } from "@/components/ui/submit-icon-button";
 import { canManageOperationalSetup } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
@@ -104,16 +105,16 @@ export default async function PipelinesPage() {
                             <form action={moveStage}>
                               <input type="hidden" name="id" value={stage.id} />
                               <input type="hidden" name="direction" value="up" />
-                              <Button size="icon" variant="ghost" className="h-8 w-8" disabled={index === 0} title="Mover para cima">
+                              <SubmitIconButton disabled={index === 0} title="Mover para cima">
                                 <ArrowUp className="h-3.5 w-3.5" />
-                              </Button>
+                              </SubmitIconButton>
                             </form>
                             <form action={moveStage}>
                               <input type="hidden" name="id" value={stage.id} />
                               <input type="hidden" name="direction" value="down" />
-                              <Button size="icon" variant="ghost" className="h-8 w-8" disabled={index === stages.length - 1} title="Mover para baixo">
+                              <SubmitIconButton disabled={index === stages.length - 1} title="Mover para baixo">
                                 <ArrowDown className="h-3.5 w-3.5" />
-                              </Button>
+                              </SubmitIconButton>
                             </form>
                             <form action={deleteStage}>
                               <input type="hidden" name="id" value={stage.id} />

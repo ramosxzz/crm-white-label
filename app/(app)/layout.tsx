@@ -37,7 +37,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <>
       <TenantTheme brandColor={ctx.tenant.brand_color} />
       <TenantPageTitle tenantName={ctx.tenant.name} />
-      <div className="flex min-h-screen">
+      <div className="flex h-[100dvh] overflow-hidden">
         <Sidebar
           tenantName={ctx.tenant.name}
           tenantLogoUrl={ctx.tenant.logo_url}
@@ -46,7 +46,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           userName={profile?.full_name ?? "Usuario"}
           userEmail={ctx.userEmail}
         />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <Topbar />
           <main className="flex-1 overflow-auto pb-[calc(4.75rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
         </div>

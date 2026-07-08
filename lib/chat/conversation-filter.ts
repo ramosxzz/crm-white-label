@@ -12,6 +12,7 @@ export type ConversationLeadRow = {
   id: string;
   lead_id: string;
   channel?: string | null;
+  whatsapp_account_id?: string | null;
   last_message_at: string | null;
   unread_count: number | null;
   status?: ConversationStatus | null;
@@ -20,6 +21,8 @@ export type ConversationLeadRow = {
     phone: string | null;
     whatsapp_lid?: string | null;
     custom_fields?: Record<string, unknown> | null;
+    tags?: string[] | null;
+    stage_id?: string | null;
   } | null;
 };
 

@@ -12,13 +12,18 @@ const CONTACT_POLL_MS = 12_000;
 export function ConversationListLive({
   tenantId,
   initialItems,
+  instances,
+  stages,
 }: {
   tenantId: string;
   initialItems: ConversationListItem[];
+  instances: { id: string; label: string }[];
+  stages: { id: string; name: string }[];
 }) {
   const [items, setItems] = useState(initialItems);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("todas");
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const contactRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refreshContacts = useCallback(async () => {
@@ -29,6 +34,15 @@ export function ConversationListLive({
       /* mantem lista anterior */
     }
   }, [query, tenantId]);
+
+  const handleManualRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshContacts();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refreshContacts]);
 
   const syncMissingProfilePictures = useCallback(async (currentItems: ConversationListItem[]) => {
     const leadIds = currentItems
@@ -124,6 +138,10 @@ export function ConversationListLive({
       statusFilter={statusFilter}
       onQueryChange={setQuery}
       onStatusFilterChange={setStatusFilter}
+      onRefresh={handleManualRefresh}
+      isRefreshing={isRefreshing}
+      instances={instances}
+      stages={stages}
     />
   );
 }
