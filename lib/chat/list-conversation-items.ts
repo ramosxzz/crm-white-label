@@ -25,7 +25,12 @@ type ChatConversationRow = {
 type ChatConversationRpcClient = {
   rpc(
     fn: "list_chat_conversations",
-    args: { p_tenant_id: string; p_limit: number },
+    args: {
+      p_tenant_id: string;
+      p_limit: number;
+      p_search: string | null;
+      p_status: string | null;
+    },
   ): Promise<{ data: ChatConversationRow[] | null; error: { message: string } | null }>;
 };
 
@@ -54,6 +59,8 @@ export async function listConversationItemsForTenant(
     rpcClient.rpc("list_chat_conversations", {
       p_tenant_id: tenantId,
       p_limit: limit,
+      p_search: null,
+      p_status: null,
     }),
     supabase
       .from("whatsapp_accounts")
