@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { updateLead } from "@/app/(app)/leads/actions";
 import { ScheduleMeetingButton } from "@/components/leads/schedule-meeting-button";
+import { CallButton } from "@/components/leads/call-button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -672,6 +673,7 @@ export function ChatThread({
             variant="outline"
             size="sm"
           />
+          {!isInstagram && leadPhone && <CallButton leadId={leadId} phone={leadPhone} />}
           <StatusSelector status={status} onChange={changeStatus} />
           <Button asChild variant="outline" size="sm" className="rounded-lg">
             <Link href={`/leads/${leadId}`} prefetch>
