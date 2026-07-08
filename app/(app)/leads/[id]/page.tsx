@@ -12,6 +12,7 @@ import { LeadStageSelect } from "./lead-stage-select";
 import { LeadFilesPanel } from "./lead-files-panel";
 import { LeadDeleteButton } from "@/components/leads/lead-delete-button";
 import { ScheduleMeetingButton } from "@/components/leads/schedule-meeting-button";
+import { CallButton } from "@/components/leads/call-button";
 import { TechnicalProfilePanel } from "./technical-profile-panel";
 import { TaskPanel } from "./task-panel";
 import { NotesPanel } from "./notes-panel";
@@ -132,6 +133,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               professionals={professionals ?? []}
               services={(services ?? []) as { id: string; name: string; duration_minutes: number }[]}
             />
+            {lead.phone && <CallButton leadId={lead.id} phone={lead.phone} />}
             {lead.phone && (
               <Button asChild variant="brand">
                 <Link href={`/chat/${lead.id}`} prefetch>

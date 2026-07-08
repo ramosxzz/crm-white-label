@@ -69,6 +69,18 @@ export async function updateProfileName(fullName: string) {
   revalidatePath("/", "layout");
 }
 
+export async function updateApi4comExtension(extension: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Nao autenticado");
+  const { error } = await supabase
+    .from("profiles")
+    .update({ api4com_extension: extension.trim() || null })
+    .eq("id", user.id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/settings");
+}
+
 export async function updateTenantMetaSettings(input: {
   meta_pixel_id?: string;
   meta_capi_token?: string;

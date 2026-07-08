@@ -52,7 +52,7 @@ export async function sendChatMessage(input: {
 
   const to = normalizeWhatsAppPhone(lead.phone);
   if (to && to !== lead.phone.replace(/\D/g, "")) {
-    await supabase.from("leads").update({ phone: to }).eq("id", lead.id).eq("tenant_id", ctx.tenantId);
+    void supabase.from("leads").update({ phone: to }).eq("id", lead.id).eq("tenant_id", ctx.tenantId);
   }
 
   let accountQuery = supabase
@@ -63,16 +63,18 @@ export async function sendChatMessage(input: {
   if (input.accountId) {
     accountQuery = accountQuery.eq("id", input.accountId);
   }
-  const { data: account } = await accountQuery.limit(1).single();
 
   let conversationId: string | undefined;
-  const { data: conv } = await supabase
-    .from("conversations")
-    .select("id")
-    .eq("tenant_id", ctx.tenantId)
-    .eq("lead_id", lead.id)
-    .eq("channel", "whatsapp")
-    .maybeSingle();
+  const [{ data: account }, { data: conv }] = await Promise.all([
+    accountQuery.limit(1).single(),
+    supabase
+      .from("conversations")
+      .select("id")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("lead_id", lead.id)
+      .eq("channel", "whatsapp")
+      .maybeSingle(),
+  ]);
 
   if (conv?.id) {
     conversationId = conv.id;

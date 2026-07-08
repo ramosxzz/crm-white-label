@@ -452,16 +452,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
     if (!conversationId) continue;
 
-    const media = await persistWhatsAppMedia(supabase, account, {
-      tenantId: account.tenant_id,
-      conversationId,
-      externalId: msg.externalId,
-      mediaUrl: msg.mediaUrl,
-      mediaType: msg.mediaType,
-      mediaBase64: msg.mediaBase64,
-      mediaMimeType: msg.mediaMimeType,
-      mediaFileName: msg.mediaFileName,
-    });
+    const hasMedia = Boolean(msg.mediaType || msg.mediaUrl || msg.mediaBase64);
 
     let repliedMessageId: string | null = null;
     let replyBody = msg.quotedBody ?? null;
@@ -483,36 +474,47 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
 
 
-    await supabase.from("messages").insert({
+    const { data: insertedMsg } = await supabase
+      .from("messages")
+      .insert({
+        tenant_id: account.tenant_id,
+        conversation_id: conversationId,
+        direction: msg.direction,
+        body: msg.body,
+        media_url: hasMedia ? (msg.mediaUrl ?? null) : null,
+        media_type: msg.mediaType ?? null,
+        external_id: msg.externalId || null,
+        reply_to_message_id: repliedMessageId,
+        reply_to_external_id: msg.quotedMessageId ?? null,
+        reply_to_body: replyBody,
+        reply_to_sender_name: replySenderName,
+        status: isInbound ? "delivered" : (msg.messageStatus ?? "sent"),
+        created_at: msg.timestamp,
+      })
+      .select("id")
+      .single();
 
-      tenant_id: account.tenant_id,
-
-      conversation_id: conversationId,
-
-      direction: msg.direction,
-
-      body: msg.body,
-
-      media_url: media.mediaUrl,
-
-      media_type: media.mediaType,
-
-      external_id: msg.externalId || null,
-
-      reply_to_message_id: repliedMessageId,
-
-      reply_to_external_id: msg.quotedMessageId ?? null,
-
-      reply_to_body: replyBody,
-
-      reply_to_sender_name: replySenderName,
-
-      status: isInbound ? "delivered" : (msg.messageStatus ?? "sent"),
-
-      created_at: msg.timestamp,
-
-    });
-
+    // Persiste midia (download/reupload) em segundo plano para nao atrasar a chegada da mensagem.
+    if (hasMedia && insertedMsg?.id) {
+      void persistWhatsAppMedia(supabase, account, {
+        tenantId: account.tenant_id,
+        conversationId,
+        messageId: insertedMsg.id,
+        externalId: msg.externalId,
+        mediaUrl: msg.mediaUrl,
+        mediaType: msg.mediaType,
+        mediaBase64: msg.mediaBase64,
+        mediaMimeType: msg.mediaMimeType,
+        mediaFileName: msg.mediaFileName,
+      })
+        .then((media) =>
+          supabase
+            .from("messages")
+            .update({ media_url: media.mediaUrl, media_type: media.mediaType })
+            .eq("id", insertedMsg.id),
+        )
+        .catch(() => null);
+    }
   }
 
 

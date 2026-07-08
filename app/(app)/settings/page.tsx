@@ -5,16 +5,17 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TenantForm } from "./tenant-form";
 import { ProfileForm } from "./profile-form";
+import { Api4comForm } from "./api4com-form";
 
 export default async function SettingsPage() {
   const ctx = await requireContext();
   const supabase = await createClient();
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name")
+    .select("full_name, api4com_extension")
     .eq("id", ctx.userId)
     .single();
-  const currentProfile = profile as { full_name?: string | null } | null;
+  const currentProfile = profile as { full_name?: string | null; api4com_extension?: string | null } | null;
 
   return (
     <div className="space-y-6 p-6">
@@ -27,6 +28,18 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent>
           <ProfileForm currentName={currentProfile?.full_name ?? ""} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Ligacoes (Api4com)</CardTitle>
+          <CardDescription>
+            Configure seu ramal para usar o botao de ligar direto dos leads.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Api4comForm currentExtension={currentProfile?.api4com_extension ?? ""} />
         </CardContent>
       </Card>
 
