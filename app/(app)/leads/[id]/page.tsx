@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, MessageCircle, Mail, Phone, Calendar } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
+import { listTenantUserOptions } from "@/lib/tenant/users";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +33,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
   if (!lead) notFound();
 
-  const [{ data: stages }, { data: files }, { data: activities }, { data: technicalDefinitions }, { data: tasks }, { data: professionals }, { data: services }, { data: valueItems }] = await Promise.all([
+  const [{ data: stages }, { data: files }, { data: activities }, { data: technicalDefinitions }, { data: tasks }, { data: professionals }, { data: services }, { data: valueItems }, users] = await Promise.all([
     supabase
       .from("pipeline_stages")
       .select("id, name, color")
@@ -79,6 +80,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       .eq("lead_id", lead.id)
       .eq("tenant_id", ctx.tenantId)
       .order("created_at", { ascending: true }),
+    listTenantUserOptions(ctx.tenantId),
   ]);
 
   const authorIds = Array.from(
@@ -131,6 +133,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               leadId={lead.id}
               leadName={lead.name}
               professionals={professionals ?? []}
+              users={users}
               services={(services ?? []) as { id: string; name: string; duration_minutes: number }[]}
             />
             {lead.phone && <CallButton leadId={lead.id} phone={lead.phone} />}

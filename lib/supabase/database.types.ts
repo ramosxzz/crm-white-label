@@ -361,6 +361,7 @@ export interface Appointment {
   id: string;
   tenant_id: string;
   lead_id: string | null;
+  assigned_to: string | null;
   professional_id: string | null;
   service_id: string | null;
   starts_at: string;

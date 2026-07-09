@@ -11,6 +11,7 @@ import {
   Play,
   Check,
   CheckCheck,
+  CheckCircle2,
   ChevronDown,
   Mic,
   Trash2,
@@ -129,6 +130,7 @@ export function ChatThread({
   initialMessages,
   quickMessages = [],
   professionals = [],
+  users = [],
   services = [],
   whatsappAccounts = [],
 }: {
@@ -144,6 +146,7 @@ export function ChatThread({
   initialMessages: ChatMessage[];
   quickMessages?: QuickMessage[];
   professionals?: { id: string; name: string }[];
+  users?: { id: string; name: string }[];
   services?: { id: string; name: string; duration_minutes: number }[];
   whatsappAccounts?: { id: string; phone_number: string; display_name: string | null; provider: string }[];
 }) {
@@ -669,12 +672,26 @@ export function ChatThread({
             leadId={leadId}
             leadName={displayName}
             professionals={professionals}
+            users={users}
             services={services}
             variant="outline"
             size="sm"
           />
           {!isInstagram && leadPhone && <CallButton leadId={leadId} phone={leadPhone} />}
           <StatusSelector status={status} onChange={changeStatus} />
+          {status !== "resolvida" && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-lg border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
+              onClick={() => changeStatus("resolvida")}
+              title="Finalizar conversa como resolvida"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              Finalizar
+            </Button>
+          )}
           <Button asChild variant="outline" size="sm" className="rounded-lg">
             <Link href={`/leads/${leadId}`} prefetch>
               <User className="h-4 w-4" /> Perfil

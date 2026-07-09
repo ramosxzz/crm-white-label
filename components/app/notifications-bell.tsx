@@ -12,29 +12,44 @@ import { cn } from "@/lib/utils";
 import type { Notification } from "@/lib/supabase/database.types";
 import { markAllNotificationsRead, markNotificationRead } from "@/app/(app)/_actions/notifications";
 
-export function NotificationsBell({ initial }: { initial: Notification[] }) {
+export function NotificationsBell({ initial, currentUserId }: { initial: Notification[]; currentUserId: string }) {
   const [items, setItems] = useState<Notification[]>(initial);
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const unread = items.filter((n) => !n.is_read).length;
 
   useEffect(() => {
+    function isVisible(n: Notification) {
+      return !n.user_id || n.user_id === currentUserId;
+    }
+
     const supabase = createClient();
     const channel = supabase
       .channel("notifications-realtime")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications" },
-        (p) => setItems((prev) => [p.new as Notification, ...prev].slice(0, 20)),
+        (p) => {
+          const next = p.new as Notification;
+          if (!isVisible(next)) return;
+          setItems((prev) => [next, ...prev].slice(0, 20));
+        },
       )
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "notifications" },
-        (p) => setItems((prev) => prev.map((n) => (n.id === (p.new as Notification).id ? (p.new as Notification) : n))),
+        (p) => {
+          const next = p.new as Notification;
+          if (!isVisible(next)) {
+            setItems((prev) => prev.filter((n) => n.id !== next.id));
+            return;
+          }
+          setItems((prev) => prev.map((n) => (n.id === next.id ? next : n)));
+        },
       )
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, []);
+  }, [currentUserId]);
 
   function onMarkAllRead() {
     start(async () => {

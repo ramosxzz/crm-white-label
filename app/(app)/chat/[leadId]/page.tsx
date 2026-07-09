@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
+import { listTenantUserOptions } from "@/lib/tenant/users";
 import { displayLeadName } from "@/lib/leads/display";
 import { getCachedWhatsAppProfilePicture } from "@/lib/whatsapp/profile-picture";
 import { listQuickMessages } from "@/app/(app)/settings/quick-messages-actions";
@@ -12,7 +13,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
   const ctx = await requireContext();
   const service = createServiceClient();
 
-  const [leadRes, convoRes, quickMessages, professionalsRes, servicesRes, whatsappAccountsRes] = await Promise.all([
+  const [leadRes, convoRes, quickMessages, professionalsRes, servicesRes, whatsappAccountsRes, users] = await Promise.all([
     service
       .from("leads")
       .select("id, name, phone, automations_enabled, custom_fields")
@@ -47,6 +48,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
       .eq("tenant_id", ctx.tenantId)
       .eq("is_active", true)
       .order("created_at"),
+    listTenantUserOptions(ctx.tenantId),
   ]);
 
   const lead = leadRes.data as {
@@ -127,6 +129,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
       initialMessages={messages}
       quickMessages={quickMessages}
       professionals={professionalsRes.data ?? []}
+      users={users}
       services={(servicesRes.data ?? []) as { id: string; name: string; duration_minutes: number }[]}
       whatsappAccounts={(whatsappAccountsRes.data ?? []) as { id: string; phone_number: string; display_name: string | null; provider: string }[]}
     />

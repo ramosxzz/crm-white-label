@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { canManageOperationalSetup } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
+import { listTenantUserOptions } from "@/lib/tenant/users";
 import { createProfessional, createService, transitionAppointmentStatus } from "./actions";
 import { AppointmentDialog } from "./appointment-dialog";
 import { MeetingOutcomeDialog } from "./meeting-outcome-dialog";
@@ -29,7 +30,7 @@ export default async function AgendaPage({ searchParams }: { searchParams?: Prom
   const day = /^\d{4}-\d{2}-\d{2}$/.test(params?.day ?? "") ? params!.day! : brtDay();
   const nextDay = offsetDay(day, 1);
   const supabase = await createClient();
-  const [{ data: appointments }, { data: leads }, { data: professionals }, { data: services }] = await Promise.all([
+  const [{ data: appointments }, { data: leads }, { data: professionals }, { data: services }, users] = await Promise.all([
     supabase
       .from("appointments")
       .select("id, starts_at, duration_minutes, status, outcome, notes, leads(id, name), professionals(name), services(name)")
@@ -40,12 +41,13 @@ export default async function AgendaPage({ searchParams }: { searchParams?: Prom
     supabase.from("leads").select("id, name").eq("tenant_id", ctx.tenantId).order("name"),
     supabase.from("professionals").select("id, name").eq("tenant_id", ctx.tenantId).eq("is_active", true).order("name"),
     supabase.from("services").select("id, name, duration_minutes").eq("tenant_id", ctx.tenantId).eq("is_active", true).order("name"),
+    listTenantUserOptions(ctx.tenantId),
   ]);
   const canManage = canManageOperationalSetup(ctx.role);
 
   return (
     <div>
-      <PageHeader eyebrow="Atendimento" title="Agenda" description="Horarios internos da equipe" actions={<AppointmentDialog leads={leads ?? []} professionals={professionals ?? []} services={services ?? []} />} />
+      <PageHeader eyebrow="Atendimento" title="Agenda" description="Horarios internos da equipe" actions={<AppointmentDialog leads={leads ?? []} users={users} professionals={professionals ?? []} services={services ?? []} />} />
       <div className="space-y-5 p-6">
         <div className="flex items-center gap-2 border-b border-border/70 pb-4">
           <Button asChild variant="outline" size="icon"><Link href={`/agenda?day=${offsetDay(day, -1)}`}><ChevronLeft className="h-4 w-4" /></Link></Button>

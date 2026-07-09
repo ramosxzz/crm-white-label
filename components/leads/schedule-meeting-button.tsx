@@ -20,6 +20,7 @@ export function ScheduleMeetingButton({
   leadId,
   leadName,
   professionals,
+  users = [],
   services,
   variant = "outline",
   size = "default",
@@ -27,6 +28,7 @@ export function ScheduleMeetingButton({
   leadId: string;
   leadName: string;
   professionals: { id: string; name: string }[];
+  users?: { id: string; name: string }[];
   services: { id: string; name: string; duration_minutes: number }[];
   variant?: "outline" | "brand" | "ghost" | "default";
   size?: "default" | "sm" | "icon";
@@ -62,6 +64,7 @@ export function ScheduleMeetingButton({
         </DialogHeader>
         <form action={onSubmit} className="space-y-4">
           <input type="hidden" name="lead_id" value={leadId} />
+          <input type="hidden" name="lead_name" value={leadName} />
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="sm-start">Data e hora</Label>
@@ -74,19 +77,26 @@ export function ScheduleMeetingButton({
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
+              <Label htmlFor="sm-assignee">Responsavel</Label>
+              <select id="sm-assignee" name="assigned_to" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+                <option value="">Sem responsavel</option>
+                {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1.5">
               <Label htmlFor="sm-professional">Profissional</Label>
               <select id="sm-professional" name="professional_id" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
                 <option value="">Nao definido</option>
                 {professionals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="sm-service">Servico</Label>
-              <select id="sm-service" name="service_id" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
-                <option value="">Nao definido</option>
-                {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="sm-service">Servico</Label>
+            <select id="sm-service" name="service_id" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+              <option value="">Nao definido</option>
+              {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="sm-notes">Observacoes</Label>

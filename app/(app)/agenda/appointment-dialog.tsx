@@ -12,10 +12,12 @@ function leadCode(id: string) {
 
 export function AppointmentDialog({
   leads,
+  users,
   professionals,
   services,
 }: {
   leads: { id: string; name: string }[];
+  users: { id: string; name: string }[];
   professionals: { id: string; name: string }[];
   services: { id: string; name: string; duration_minutes: number }[];
 }) {
@@ -38,19 +40,26 @@ export function AppointmentDialog({
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
+              <Label htmlFor="agenda-assignee">Responsavel</Label>
+              <select id="agenda-assignee" name="assigned_to" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+                <option value="">Sem responsavel</option>
+                {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1.5">
               <Label htmlFor="agenda-professional">Profissional</Label>
               <select id="agenda-professional" name="professional_id" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
                 <option value="">Nao definido</option>
                 {professionals.map((professional) => <option key={professional.id} value={professional.id}>{professional.name}</option>)}
               </select>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="agenda-service">Servico</Label>
-              <select id="agenda-service" name="service_id" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
-                <option value="">Nao definido</option>
-                {services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
-              </select>
-            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="agenda-service">Servico</Label>
+            <select id="agenda-service" name="service_id" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+              <option value="">Nao definido</option>
+              {services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
+            </select>
           </div>
           <div className="space-y-1.5"><Label htmlFor="agenda-notes">Observacoes</Label><Textarea id="agenda-notes" name="notes" /></div>
           <DialogFooter><Button>Agendar</Button></DialogFooter>
