@@ -83,6 +83,14 @@ export function WhatsAppForm({ initial }: { initial: WhatsAppAccount | null }) {
             <li>Se o teste retornar desconectado, reconecte o WhatsApp pelo QR Code no painel Evolution</li>
           </ul>
         )}
+        {provider === "cloud_api" && (
+          <ul className="list-inside list-disc space-y-1 text-xs text-muted-foreground">
+            <li>Use o Phone Number ID e um token permanente com permissoes whatsapp_business_messaging e whatsapp_business_management</li>
+            <li>No App Meta, configure o webhook da Cloud API com a URL exibida em Integrações → WhatsApp</li>
+            <li>O WABA ID é opcional, mas permite o CRM tentar assinar os webhooks da conta automaticamente</li>
+            <li>Para envio fora da janela de 24h, a Meta exige templates aprovados</li>
+          </ul>
+        )}
         <div className="grid gap-3 md:grid-cols-2">
           {fields.map((f) => (
             <div key={f.key} className="space-y-1.5">
@@ -111,7 +119,7 @@ export function WhatsAppForm({ initial }: { initial: WhatsAppAccount | null }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">{msg ?? testMsg}</p>
         <div className="flex gap-2">
-          {(provider === "zapi" || provider === "evolution") && (
+          {(provider === "zapi" || provider === "evolution" || provider === "cloud_api") && (
             <Button
               type="button"
               variant="outline"
@@ -141,6 +149,8 @@ function providerFields(p: WhatsAppProviderKind) {
     return [
       { key: "phone_number_id", label: "Phone Number ID", placeholder: "123456789", secret: false },
       { key: "access_token", label: "Access Token", placeholder: "EAA...", secret: true },
+      { key: "business_account_id", label: "WABA ID (opcional)", placeholder: "123456789", secret: false },
+      { key: "graph_version", label: "Versão Graph API (opcional)", placeholder: "v20.0", secret: false },
       { key: "app_secret", label: "App Secret (opcional)", placeholder: "", secret: true },
     ];
   }

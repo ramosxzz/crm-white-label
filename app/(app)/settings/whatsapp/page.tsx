@@ -16,6 +16,7 @@ export default async function WhatsAppSettingsPage() {
     .order("created_at", { ascending: false });
 
   const webhookBase = await getAppBaseUrl();
+  const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -27,11 +28,11 @@ export default async function WhatsAppSettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4 text-xs">
           <CodeRow label="Cloud API (Meta)" url={`${webhookBase}/api/webhooks/whatsapp/cloud_api`} />
+          <CodeRow label="Verify token (Meta)" url={verifyToken || "WHATSAPP_WEBHOOK_VERIFY_TOKEN nao configurado"} />
           <CodeRow label="Evolution API" url={`${webhookBase}/api/webhooks/whatsapp/evolution`} />
           <CodeRow label="Z-API" url={`${webhookBase}/api/webhooks/whatsapp/zapi`} />
           <p className="border-t border-border/50 pt-3 text-muted-foreground">
-            O <code className="rounded bg-muted px-1 py-0.5">verify_token</code> do Cloud API deve corresponder a variavel de ambiente
-            <code className="mx-1 rounded bg-muted px-1">WHATSAPP_WEBHOOK_VERIFY_TOKEN</code>.
+            Na Meta, configure o produto WhatsApp com a URL da Cloud API e cole exatamente o verify token acima.
           </p>
         </CardContent>
       </Card>

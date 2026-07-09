@@ -106,11 +106,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
   if (provider === "cloud_api") {
 
-    const entry = (payload as { entry?: Array<{ changes?: Array<{ value?: { metadata?: { display_phone_number?: string } } }> }> }).entry?.[0];
+    const entry = (payload as { entry?: Array<{ changes?: Array<{ value?: { metadata?: { display_phone_number?: string; phone_number_id?: string } } }> }> }).entry?.[0];
 
-    const phone = entry?.changes?.[0]?.value?.metadata?.display_phone_number?.replace(/\D/g, "");
+    const metadata = entry?.changes?.[0]?.value?.metadata;
+    const phoneNumberId = metadata?.phone_number_id;
+    const phone = metadata?.display_phone_number?.replace(/\D/g, "");
 
-    const matched = accounts.find((a) => a.phone_number.replace(/\D/g, "") === phone);
+    const matchedByPhoneNumberId = phoneNumberId
+      ? accounts.find((a) => {
+          const creds = a.credentials as { phone_number_id?: string };
+          return creds.phone_number_id === phoneNumberId;
+        })
+      : null;
+    const matchedByPhone = accounts.find((a) => a.phone_number.replace(/\D/g, "") === phone);
+    const matched = matchedByPhoneNumberId ?? matchedByPhone;
 
     if (matched) account = matched;
 
@@ -158,6 +167,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
     }
 
+  }
+
+  if (provider === "cloud_api") {
+    const raw = payload as {
+      entry?: Array<{
+        changes?: Array<{
+          field?: string;
+          value?: {
+            metadata?: { display_phone_number?: string; phone_number_id?: string };
+            messages?: unknown[];
+            statuses?: unknown[];
+          };
+        }>;
+      }>;
+    };
+    const change = raw.entry?.[0]?.changes?.[0];
+    const value = change?.value;
+    void supabase.from("whatsapp_webhook_logs").insert({
+      tenant_id: account.tenant_id,
+      whatsapp_account_id: account.id,
+      event_type: change?.field ?? "messages",
+      from_me: null,
+      contact_phone: value?.metadata?.display_phone_number?.replace(/\D/g, "") ?? null,
+      contact_lid: value?.metadata?.phone_number_id ?? null,
+      parsed_count: (value?.messages?.length ?? 0) + (value?.statuses?.length ?? 0),
+      payload: payload as Record<string, unknown>,
+    });
   }
 
 
@@ -325,6 +361,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
       }
 
+    }
+
+    if (msg.messageStatus && !msg.body && !msg.mediaUrl && !msg.mediaBase64) {
+      continue;
     }
 
 

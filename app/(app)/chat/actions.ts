@@ -14,6 +14,15 @@ function providerErrorMessage(result: { status: string; raw?: unknown }): string
   if (result.raw && typeof result.raw === "object") {
     const r = result.raw as Record<string, unknown>;
     if (typeof r.error === "string") return r.error;
+    if (r.error && typeof r.error === "object") {
+      const error = r.error as Record<string, unknown>;
+      const errorData = error.error_data;
+      if (errorData && typeof errorData === "object") {
+        const details = (errorData as Record<string, unknown>).details;
+        if (typeof details === "string") return details;
+      }
+      if (typeof error.message === "string") return error.message;
+    }
     if (typeof r.message === "string") return r.message;
   }
   return "Falha ao enviar mensagem pelo WhatsApp";

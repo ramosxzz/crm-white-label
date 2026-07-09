@@ -65,6 +65,26 @@ async function syncEvolutionWebhook(input: {
   }
 }
 
+async function syncCloudApiWebhook(input: {
+  provider: WhatsAppProviderKind;
+  credentials: Record<string, unknown>;
+}) {
+  if (input.provider !== "cloud_api") return;
+  try {
+    const { CloudApiProvider } = await import("@/lib/whatsapp/cloud-api");
+    const fakeAccount = {
+      provider: "cloud_api" as const,
+      credentials: input.credentials,
+    } as WhatsAppAccount;
+    const cloud = new CloudApiProvider(fakeAccount);
+    await cloud.getPhoneNumberStatus();
+    await cloud.subscribeWebhookApp();
+    input.credentials.webhooks_synced_at = new Date().toISOString();
+  } catch (err) {
+    console.error("[cloud_api] validar/assinar webhook falhou", err);
+  }
+}
+
 export async function saveWhatsAppAccount(input: {
   id?: string;
   provider: WhatsAppProviderKind;
@@ -80,6 +100,7 @@ export async function saveWhatsAppAccount(input: {
   if (input.is_active) {
     await syncZapiWebhooks(input, ctx.tenantId);
     await syncEvolutionWebhook(input);
+    await syncCloudApiWebhook(input);
   }
 
   if (input.id) {
@@ -135,6 +156,7 @@ export async function setWhatsAppAccountActive(input: { id: string; is_active: b
   if (input.is_active) {
     await syncZapiWebhooks(syncInput, ctx.tenantId);
     await syncEvolutionWebhook(syncInput);
+    await syncCloudApiWebhook(syncInput);
   }
 
   const { error } = await supabase
@@ -154,6 +176,36 @@ export async function testWhatsAppConnection(input: {
   credentials: Record<string, unknown>;
 }) {
   const ctx = await requireContext();
+  if (input.provider === "cloud_api") {
+    const { CloudApiProvider } = await import("@/lib/whatsapp/cloud-api");
+    const fakeAccount = {
+      provider: "cloud_api" as const,
+      credentials: input.credentials,
+    } as WhatsAppAccount;
+
+    try {
+      const cloud = new CloudApiProvider(fakeAccount);
+      const phone = await cloud.getPhoneNumberStatus();
+      let webhookMessage = "Webhook precisa estar cadastrado no App Meta com a URL do CRM.";
+      try {
+        const sub = await cloud.subscribeWebhookApp();
+        webhookMessage = sub.skipped
+          ? "Informe o WABA ID para o CRM tentar assinar a conta nos webhooks automaticamente."
+          : "WABA assinada nos webhooks do app.";
+      } catch (err) {
+        webhookMessage = `Telefone OK, mas a assinatura do webhook falhou: ${(err as Error).message}`;
+      }
+      const displayPhone = phone.display_phone_number ? ` (${phone.display_phone_number})` : "";
+      const quality = phone.quality_rating ? ` Qualidade: ${phone.quality_rating}.` : "";
+      return {
+        ok: true,
+        message: `Cloud API OK: ${phone.verified_name ?? phone.id}${displayPhone}.${quality} ${webhookMessage}`,
+      };
+    } catch (e) {
+      return { ok: false, message: (e as Error).message };
+    }
+  }
+
   if (input.provider === "evolution") {
     const { EvolutionProvider } = await import("@/lib/whatsapp/evolution");
     const fakeAccount = {
