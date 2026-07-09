@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireContext } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
-import { triggerApi4comCall } from "@/lib/integrations/api4com";
+import { Api4comError, triggerApi4comCall } from "@/lib/integrations/api4com";
 
 const bodySchema = z.object({
   leadId: z.string().uuid(),
@@ -43,6 +43,13 @@ export async function POST(request: Request) {
     return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha ao iniciar ligacao";
+    if (error instanceof Api4comError) {
+      return NextResponse.json(
+        { error: message, details: error.details },
+        { status: error.status },
+      );
+    }
+
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

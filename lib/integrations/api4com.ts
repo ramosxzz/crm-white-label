@@ -1,5 +1,31 @@
 const API4COM_BASE_URL = "https://api.api4com.com/api/v1";
 
+export class Api4comError extends Error {
+  status: number;
+  details: string;
+
+  constructor(status: number, details: string) {
+    super(friendlyApi4comError(status, details));
+    this.name = "Api4comError";
+    this.status = status;
+    this.details = details;
+  }
+}
+
+function friendlyApi4comError(status: number, details: string) {
+  const normalized = details.toLowerCase();
+
+  if (status === 422 && normalized.includes("user not registered")) {
+    return "Ramal nao registrado na Api4com. Confira se este ramal existe na Api4com, se pertence ao usuario logado e se o Webphone/extensao esta online antes de ligar.";
+  }
+
+  if (status === 401 || status === 403) {
+    return "Token da Api4com recusado. Confira a credencial da integracao.";
+  }
+
+  return `Falha ao iniciar ligacao na Api4com (${status}).`;
+}
+
 export async function triggerApi4comCall(input: {
   extension: string;
   phone: string;
@@ -23,7 +49,7 @@ export async function triggerApi4comCall(input: {
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`Falha ao iniciar ligacao (${res.status}): ${text}`);
+    throw new Api4comError(res.status, text);
   }
 
   return res.json();
