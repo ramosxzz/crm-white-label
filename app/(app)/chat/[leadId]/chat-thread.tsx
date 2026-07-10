@@ -643,7 +643,7 @@ export function ChatThread({
   return (
     <section className="flex min-h-0 flex-1 bg-[radial-gradient(900px_520px_at_50%_-8%,hsl(var(--brand)/0.07),transparent_68%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--background)))]">
       <div className="flex min-w-0 flex-1 flex-col">
-      <header className="flex shrink-0 flex-col gap-3 border-b border-border/50 bg-card/78 px-5 py-3.5 backdrop-blur-md 2xl:flex-row 2xl:items-center 2xl:justify-between">
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border/50 bg-card/78 px-5 py-3.5 backdrop-blur-md">
         <div className="flex min-w-0 items-center gap-3">
           <Avatar className="h-11 w-11 ring-2 ring-brand/25">
             {leadAvatarUrl && <AvatarImage src={leadAvatarUrl} alt={displayName} />}
@@ -661,23 +661,21 @@ export function ChatThread({
               <span className="truncate font-display text-base font-semibold tracking-normal">{displayName}</span>
               <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
             </button>
-            <p className="truncate text-xs text-muted-foreground">{displayPhone}</p>
           </div>
         </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <div className="flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto">
           <button
             type="button"
             onClick={toggleAutomations}
             title={automationsOn ? "Automações ligadas — clique para pausar" : "Automações pausadas — clique para ligar"}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
+              "grid h-9 w-9 shrink-0 place-items-center rounded-lg border text-xs font-medium transition-colors",
               automationsOn
                 ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                 : "border-border/60 text-muted-foreground hover:bg-muted/40",
             )}
           >
-            {automationsOn ? <Bot className="h-3.5 w-3.5" /> : <BotOff className="h-3.5 w-3.5" />}
-            {automationsOn ? "Automações" : "Pausadas"}
+            {automationsOn ? <Bot className="h-4 w-4" /> : <BotOff className="h-4 w-4" />}
           </button>
           {!isInstagram && whatsappAccounts.length > 0 && (
             <AccountSelector
@@ -693,24 +691,23 @@ export function ChatThread({
             users={users}
             services={services}
             variant="outline"
-            size="sm"
+            size="icon"
           />
-          {!isInstagram && leadPhone && <CallButton leadId={leadId} phone={leadPhone} />}
+          {!isInstagram && leadPhone && <CallButton leadId={leadId} phone={leadPhone} iconOnly />}
           <StatusSelector status={status} onChange={changeStatus} />
           {status !== "resolvida" && (
             <Button
               type="button"
               variant="outline"
-              size="sm"
-              className="rounded-lg border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
+              size="icon"
+              className="shrink-0 rounded-lg border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
               onClick={() => changeStatus("resolvida")}
               title="Finalizar conversa como resolvida"
             >
               <CheckCircle2 className="h-4 w-4" />
-              Finalizar
             </Button>
           )}
-          <LeadDeleteButton leadId={leadId} leadName={displayName} redirectTo="/chat" />
+          <LeadDeleteButton leadId={leadId} leadName={displayName} redirectTo="/chat" size="icon" iconOnly />
         </div>
       </header>
 

@@ -53,7 +53,7 @@ export function ScheduleMeetingButton({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={variant as never} size={size as never}>
+        <Button variant={variant as never} size={size as never} title="Agendar reunião">
           <CalendarPlus className="h-4 w-4" />
           {size !== "icon" && " Agendar reuniao"}
         </Button>

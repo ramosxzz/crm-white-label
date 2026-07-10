@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Phone, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export function CallButton({ leadId, phone }: { leadId: string; phone: string }) {
+export function CallButton({ leadId, phone, iconOnly = false }: { leadId: string; phone: string; iconOnly?: boolean }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -32,9 +32,9 @@ export function CallButton({ leadId, phone }: { leadId: string; phone: string })
 
   return (
     <div className="relative">
-      <Button variant="outline" onClick={handleCall} disabled={pending} title="Ligar via Api4com">
+      <Button variant="outline" size={iconOnly ? "icon" : "default"} onClick={handleCall} disabled={pending} title="Ligar via Api4com">
         {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
-        Ligar
+        {!iconOnly && "Ligar"}
       </Button>
       {done && (
         <p className="absolute right-0 top-full z-10 mt-1 w-64 rounded-md border border-emerald-500/40 bg-card p-2 text-xs text-emerald-600 shadow-md">
