@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { QuickMessage } from "@/lib/supabase/database.types";
 import { QuickRepliesPicker } from "@/components/chat/quick-replies-picker";
 import { createClient } from "@/lib/supabase/client";
@@ -68,6 +69,7 @@ import {
   scheduleChatMessage,
   listScheduledMessages,
   cancelScheduledMessage,
+  updateChatLeadBusiness,
 } from "../actions";
 
 type MediaKind = "image" | "video" | "audio" | "document";
@@ -78,6 +80,9 @@ type QuickMediaDraft = {
 };
 
 type LeadDetails = {
+  pipelineId: string | null;
+  stageId: string | null;
+  assignedTo: string | null;
   email: string | null;
   source: string | null;
   notes: string | null;
@@ -90,6 +95,12 @@ type LeadDetails = {
   assignedName: string | null;
   nextAppointmentAt: string | null;
   openTasksCount: number;
+};
+
+type PipelineOption = {
+  id: string;
+  name: string;
+  stages: { id: string; name: string; color: string | null; position: number | null }[];
 };
 
 function detectMediaKind(mime: string): MediaKind {
@@ -147,6 +158,7 @@ export function ChatThread({
   users = [],
   services = [],
   whatsappAccounts = [],
+  pipelineOptions = [],
   leadDetails,
 }: {
   leadId: string;
@@ -164,6 +176,7 @@ export function ChatThread({
   users?: { id: string; name: string }[];
   services?: { id: string; name: string; duration_minutes: number }[];
   whatsappAccounts?: { id: string; phone_number: string; display_name: string | null; provider: string }[];
+  pipelineOptions?: PipelineOption[];
   leadDetails?: LeadDetails;
 }) {
   const isInstagram = channel === "instagram";
@@ -1183,10 +1196,11 @@ export function ChatThread({
         leadId={leadId}
         leadName={displayName}
         leadPhone={leadPhone}
-        leadAvatarUrl={leadAvatarUrl}
         channel={channel}
         status={status}
         details={leadDetails}
+        users={users}
+        pipelineOptions={pipelineOptions}
         onFinalize={() => changeStatus("resolvida")}
       />
     </section>
@@ -1503,27 +1517,49 @@ function LeadSidePanel({
   leadId,
   leadName,
   leadPhone,
-  leadAvatarUrl,
   channel,
   status,
   details,
+  users,
+  pipelineOptions,
   onFinalize,
 }: {
   leadId: string;
   leadName: string;
   leadPhone: string;
-  leadAvatarUrl?: string | null;
   channel: "whatsapp" | "instagram";
   status: ConversationStatus;
   details?: LeadDetails;
+  users: { id: string; name: string }[];
+  pipelineOptions: PipelineOption[];
   onFinalize: () => void;
 }) {
   const [notes, setNotes] = useState(details?.notes ?? "");
   const [saving, setSaving] = useState(false);
+  const [businessSaving, setBusinessSaving] = useState(false);
+  const [businessDraft, setBusinessDraft] = useState(() => ({
+    valueReais: ((details?.valueCents ?? 0) / 100).toFixed(2).replace(".", ","),
+    pipelineId: details?.pipelineId ?? pipelineOptions[0]?.id ?? "none",
+    stageId: details?.stageId ?? "none",
+    assignedTo: details?.assignedTo ?? "none",
+  }));
+
+  const selectedPipeline =
+    pipelineOptions.find((pipeline) => pipeline.id === businessDraft.pipelineId) ?? pipelineOptions[0] ?? null;
+  const selectedStages = selectedPipeline?.stages ?? [];
 
   useEffect(() => {
     setNotes(details?.notes ?? "");
   }, [details?.notes]);
+
+  useEffect(() => {
+    setBusinessDraft({
+      valueReais: ((details?.valueCents ?? 0) / 100).toFixed(2).replace(".", ","),
+      pipelineId: details?.pipelineId ?? pipelineOptions[0]?.id ?? "none",
+      stageId: details?.stageId ?? "none",
+      assignedTo: details?.assignedTo ?? "none",
+    });
+  }, [details?.valueCents, details?.pipelineId, details?.stageId, details?.assignedTo, pipelineOptions]);
 
   function saveNotes() {
     setSaving(true);
@@ -1532,24 +1568,40 @@ function LeadSidePanel({
       .finally(() => setSaving(false));
   }
 
+  function changePipeline(pipelineId: string) {
+    const pipeline = pipelineOptions.find((option) => option.id === pipelineId);
+    setBusinessDraft((current) => ({
+      ...current,
+      pipelineId,
+      stageId: pipeline?.stages[0]?.id ?? "none",
+    }));
+  }
+
+  function saveBusiness() {
+    const parsed = Number(businessDraft.valueReais.replace(/\./g, "").replace(",", "."));
+    const valueCents = Math.round(Math.max(0, Number.isFinite(parsed) ? parsed : 0) * 100);
+    setBusinessSaving(true);
+    void updateChatLeadBusiness({
+      leadId,
+      valueCents,
+      pipelineId: businessDraft.pipelineId === "none" ? null : businessDraft.pipelineId,
+      stageId: businessDraft.stageId === "none" ? null : businessDraft.stageId,
+      assignedTo: businessDraft.assignedTo === "none" ? null : businessDraft.assignedTo,
+    })
+      .catch((err) => alert((err as Error).message))
+      .finally(() => setBusinessSaving(false));
+  }
+
   return (
     <aside className="hidden w-[360px] shrink-0 overflow-y-auto border-l border-border/60 bg-card/78 backdrop-blur-xl xl:block">
       <div className="border-b border-border/60 p-4">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10 ring-1 ring-border">
-            {leadAvatarUrl && <AvatarImage src={leadAvatarUrl} alt={leadName} />}
-            <AvatarFallback className="bg-brand-muted text-sm font-semibold text-brand dark:bg-brand dark:text-brand-foreground">
-              {initials(leadName)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 flex-1">
-            <Link href={`/leads/${leadId}`} className="truncate font-semibold hover:text-brand" prefetch>
-              {leadName}
-            </Link>
-            <p className="text-xs text-muted-foreground">
-              {channel === "instagram" ? "Instagram Direct" : formatPhone(leadPhone)}
-            </p>
-          </div>
+        <div className="min-w-0">
+          <Link href={`/leads/${leadId}`} className="block truncate text-base font-semibold hover:text-brand" prefetch>
+            {leadName}
+          </Link>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {channel === "instagram" ? "Instagram Direct" : formatPhone(leadPhone)}
+          </p>
         </div>
       </div>
 
@@ -1612,12 +1664,95 @@ function LeadSidePanel({
       </PanelSection>
 
       <PanelSection title="Negócio">
-        <InfoRow label="Valor" value={formatMoney(details?.valueCents ?? 0)} />
-        <InfoRow label="Funil" value={details?.pipelineName || "Funil padrao"} />
-        <InfoRow label="Etapa" value={details?.stageName || "Sem etapa"} />
-        <InfoRow label="Responsável" value={details?.assignedName || "Nao atribuido"} muted={!details?.assignedName} />
-        <InfoRow label="Próxima reunião" value={details?.nextAppointmentAt ? formatShortDate(details.nextAppointmentAt) : "Sem reunião"} muted={!details?.nextAppointmentAt} />
-        <InfoRow label="Tarefas abertas" value={String(details?.openTasksCount ?? 0)} />
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="lead-business-value" className="text-xs text-muted-foreground">
+              Valor
+            </Label>
+            <Input
+              id="lead-business-value"
+              inputMode="decimal"
+              value={businessDraft.valueReais}
+              onChange={(event) => setBusinessDraft((current) => ({ ...current, valueReais: event.target.value }))}
+              className="h-9 bg-background/70 text-right"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Funil</Label>
+            <Select
+              value={businessDraft.pipelineId}
+              onValueChange={changePipeline}
+              disabled={pipelineOptions.length === 0}
+            >
+              <SelectTrigger className="h-9 bg-background/70">
+                <SelectValue placeholder="Selecione o funil" />
+              </SelectTrigger>
+              <SelectContent>
+                {pipelineOptions.length === 0 ? (
+                  <SelectItem value="none">Nenhum funil</SelectItem>
+                ) : (
+                  pipelineOptions.map((pipeline) => (
+                    <SelectItem key={pipeline.id} value={pipeline.id}>
+                      {pipeline.name}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Etapa</Label>
+            <Select
+              value={businessDraft.stageId}
+              onValueChange={(stageId) => setBusinessDraft((current) => ({ ...current, stageId }))}
+              disabled={selectedStages.length === 0}
+            >
+              <SelectTrigger className="h-9 bg-background/70">
+                <SelectValue placeholder="Selecione a etapa" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sem etapa</SelectItem>
+                {selectedStages.map((stage) => (
+                  <SelectItem key={stage.id} value={stage.id}>
+                    {stage.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Responsável</Label>
+            <Select
+              value={businessDraft.assignedTo}
+              onValueChange={(assignedTo) => setBusinessDraft((current) => ({ ...current, assignedTo }))}
+            >
+              <SelectTrigger className="h-9 bg-background/70">
+                <SelectValue placeholder="Selecione o responsável" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Não atribuído</SelectItem>
+                {users.map((user) => (
+                  <SelectItem key={user.id} value={user.id}>
+                    {user.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Button type="button" size="sm" variant="outline" className="w-full" onClick={saveBusiness} disabled={businessSaving}>
+            {businessSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+            Salvar negócio
+          </Button>
+        </div>
+
+        <div className="mt-4 border-t border-border/60 pt-3">
+          <InfoRow label="Próxima reunião" value={details?.nextAppointmentAt ? formatShortDate(details.nextAppointmentAt) : "Sem reunião"} muted={!details?.nextAppointmentAt} />
+          <InfoRow label="Tarefas abertas" value={String(details?.openTasksCount ?? 0)} />
+        </div>
       </PanelSection>
     </aside>
   );

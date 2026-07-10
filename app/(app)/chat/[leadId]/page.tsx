@@ -13,7 +13,16 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
   const ctx = await requireContext();
   const service = createServiceClient();
 
-  const [leadRes, convoRes, quickMessages, professionalsRes, servicesRes, whatsappAccountsRes, users] = await Promise.all([
+  const [
+    leadRes,
+    convoRes,
+    quickMessages,
+    professionalsRes,
+    servicesRes,
+    whatsappAccountsRes,
+    pipelinesRes,
+    users,
+  ] = await Promise.all([
     service
       .from("leads")
       .select("id, name, phone, email, source, notes, tags, value_cents, created_at, assigned_to, pipeline_id, stage_id, automations_enabled, custom_fields")
@@ -48,6 +57,11 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
       .eq("tenant_id", ctx.tenantId)
       .eq("is_active", true)
       .order("created_at"),
+    service
+      .from("pipelines")
+      .select("id, name, pipeline_stages(id, name, color, position)")
+      .eq("tenant_id", ctx.tenantId)
+      .order("name"),
     listTenantUserOptions(ctx.tenantId),
   ]);
 
@@ -182,7 +196,19 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
       users={users}
       services={(servicesRes.data ?? []) as { id: string; name: string; duration_minutes: number }[]}
       whatsappAccounts={(whatsappAccountsRes.data ?? []) as { id: string; phone_number: string; display_name: string | null; provider: string }[]}
+      pipelineOptions={((pipelinesRes.data ?? []) as {
+        id: string;
+        name: string;
+        pipeline_stages?: { id: string; name: string; color: string | null; position: number | null }[];
+      }[]).map((pipeline) => ({
+        id: pipeline.id,
+        name: pipeline.name,
+        stages: [...(pipeline.pipeline_stages ?? [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0)),
+      }))}
       leadDetails={{
+        pipelineId: lead.pipeline_id,
+        stageId: lead.stage_id,
+        assignedTo: lead.assigned_to,
         email: lead.email,
         source: lead.source,
         notes: lead.notes,

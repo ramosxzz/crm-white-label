@@ -598,6 +598,86 @@ export async function cancelScheduledMessage(input: { id: string; leadId: string
   revalidatePath(`/chat/${input.leadId}`);
 }
 
+export async function updateChatLeadBusiness(input: {
+  leadId: string;
+  valueCents: number;
+  pipelineId: string | null;
+  stageId: string | null;
+  assignedTo: string | null;
+}) {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+  const valueCents = Math.max(0, Math.round(Number(input.valueCents) || 0));
+
+  const { data: lead } = await supabase
+    .from("leads")
+    .select("assigned_to")
+    .eq("id", input.leadId)
+    .eq("tenant_id", ctx.tenantId)
+    .single();
+  if (!lead) throw new Error("Lead nao encontrado");
+
+  let pipelineId = input.pipelineId;
+  if (input.stageId) {
+    const { data: stage } = await supabase
+      .from("pipeline_stages")
+      .select("id, pipeline_id")
+      .eq("id", input.stageId)
+      .eq("tenant_id", ctx.tenantId)
+      .single();
+    if (!stage) throw new Error("Etapa nao encontrada");
+    pipelineId = stage.pipeline_id;
+  } else if (pipelineId) {
+    const { data: pipeline } = await supabase
+      .from("pipelines")
+      .select("id")
+      .eq("id", pipelineId)
+      .eq("tenant_id", ctx.tenantId)
+      .single();
+    if (!pipeline) throw new Error("Funil nao encontrado");
+  }
+
+  if (input.assignedTo) {
+    const { data: member } = await supabase
+      .from("tenant_members")
+      .select("user_id")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("user_id", input.assignedTo)
+      .maybeSingle();
+    if (!member) throw new Error("Responsavel nao pertence a este workspace");
+  }
+
+  const { error } = await supabase
+    .from("leads")
+    .update({
+      value_cents: valueCents,
+      pipeline_id: pipelineId,
+      stage_id: input.stageId,
+      assigned_to: input.assignedTo,
+    })
+    .eq("id", input.leadId)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+
+  if ((lead as { assigned_to: string | null }).assigned_to !== input.assignedTo) {
+    const { error: historyError } = await supabase.from("lead_assignment_history").insert({
+      tenant_id: ctx.tenantId,
+      lead_id: input.leadId,
+      from_user_id: (lead as { assigned_to: string | null }).assigned_to,
+      to_user_id: input.assignedTo,
+      assigned_by: ctx.userId,
+      reason: input.assignedTo ? "manual_assign" : "return_to_queue",
+    });
+    if (historyError) throw new Error(historyError.message);
+  }
+
+  revalidatePath("/chat");
+  revalidatePath(`/chat/${input.leadId}`);
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${input.leadId}`);
+  revalidatePath("/kanban");
+}
+
 export async function setLeadAutomations(input: { leadId: string; enabled: boolean }) {
   const ctx = await requireContext();
   const supabase = await createClient();
