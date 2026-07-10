@@ -101,8 +101,8 @@ export function Sidebar({
       </nav>
 
       <div className="shrink-0 border-t border-border/40 p-3">
-        <div className="flex h-12 w-full items-center justify-center gap-3 rounded-xl bg-background/35 px-0 ring-1 ring-border/35 transition-colors duration-150 hover:bg-brand/10 group-hover/sidebar:justify-start group-hover/sidebar:px-2">
-          <Avatar className="h-8 w-8 shrink-0">
+        <div className="flex h-12 w-full items-center justify-center gap-0 rounded-xl bg-background/35 ring-1 ring-border/35 transition-colors duration-150 hover:bg-brand/10 group-hover/sidebar:justify-start group-hover/sidebar:gap-3 group-hover/sidebar:px-2">
+          <Avatar className="h-9 w-9 shrink-0">
             <AvatarFallback className="bg-brand/15 text-[11px] font-semibold text-brand">
               {initials(userName)}
             </AvatarFallback>
@@ -114,7 +114,7 @@ export function Sidebar({
           <Button
             variant="ghost"
             size="icon"
-            className="h-9 w-9 shrink-0 opacity-0 transition-opacity duration-150 group-hover/sidebar:opacity-100"
+            className="h-9 w-0 shrink-0 overflow-hidden p-0 opacity-0 transition-all duration-150 group-hover/sidebar:w-9 group-hover/sidebar:opacity-100"
             onClick={logout}
             aria-label="Sair"
           >
