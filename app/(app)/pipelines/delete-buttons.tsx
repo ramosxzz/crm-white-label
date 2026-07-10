@@ -19,7 +19,13 @@ export function DeletePipelineButton({ pipelineId, pipelineName }: { pipelineId:
       className="h-8 w-8 text-destructive hover:bg-destructive/10"
       title="Excluir funil"
       onClick={() => {
-        if (!confirm(`Excluir o funil "${pipelineName}"? Essa acao nao pode ser desfeita.`)) return;
+        if (
+          !confirm(
+            `Excluir o funil "${pipelineName}"? Os leads nao serao apagados, mas ficarao sem funil/etapa ate serem reorganizados.`,
+          )
+        ) {
+          return;
+        }
         start(async () => {
           try {
             const formData = new FormData();
@@ -50,7 +56,7 @@ export function DeleteStageButton({ stageId, stageName }: { stageId: string; sta
       className="h-8 w-8 text-destructive hover:bg-destructive/10"
       title="Excluir etapa"
       onClick={() => {
-        if (!confirm(`Excluir a etapa "${stageName}"? Essa acao nao pode ser desfeita.`)) return;
+        if (!confirm(`Excluir a etapa "${stageName}"? Os leads dessa etapa continuarao no funil, mas ficarao sem etapa.`)) return;
         start(async () => {
           try {
             const formData = new FormData();
@@ -70,12 +76,6 @@ export function DeleteStageButton({ stageId, stageName }: { stageId: string; sta
 
 function getPipelineErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : "Nao foi possivel concluir a acao.";
-  if (message.includes("funil com leads")) {
-    return "Esse funil ainda tem leads vinculados. Mova os leads para outro funil antes de excluir.";
-  }
-  if (message.includes("etapa com leads")) {
-    return "Essa etapa ainda tem leads vinculados. Mova os leads para outra etapa antes de excluir.";
-  }
   if (message.includes("principal")) {
     return "Defina outro funil como principal antes de excluir este.";
   }

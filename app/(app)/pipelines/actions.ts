@@ -70,8 +70,14 @@ export async function deletePipeline(formData: FormData) {
   const { data: pipeline } = await supabase.from("pipelines").select("is_default").eq("id", id).eq("tenant_id", ctx.tenantId).single();
   if (!pipeline) throw new Error("Funil nao encontrado");
   if (pipeline.is_default) throw new Error("Defina outro funil como principal antes de excluir");
-  const { count } = await supabase.from("leads").select("id", { count: "exact", head: true }).eq("pipeline_id", id).eq("tenant_id", ctx.tenantId);
-  if ((count ?? 0) > 0) throw new Error("Nao e possivel excluir um funil com leads");
+  const { error: leadsError } = await supabase
+    .from("leads")
+    .update({ pipeline_id: null, stage_id: null })
+    .eq("pipeline_id", id)
+    .eq("tenant_id", ctx.tenantId);
+  if (leadsError) throw new Error(leadsError.message);
+  const { error: stagesError } = await supabase.from("pipeline_stages").delete().eq("pipeline_id", id).eq("tenant_id", ctx.tenantId);
+  if (stagesError) throw new Error(stagesError.message);
   const { error } = await supabase.from("pipelines").delete().eq("id", id).eq("tenant_id", ctx.tenantId);
   if (error) throw new Error(error.message);
   refreshPipelines();
@@ -139,12 +145,44 @@ export async function moveStage(formData: FormData) {
   refreshPipelines();
 }
 
+export async function reorderStages(formData: FormData) {
+  const ctx = await requireSetupContext();
+  const pipelineId = idSchema.parse(formData.get("pipeline_id"));
+  const orderedIds = z.array(idSchema).parse(JSON.parse(String(formData.get("ordered_ids") ?? "[]")));
+  if (orderedIds.length === 0) return;
+
+  const supabase = await createClient();
+  const { data: stages } = await supabase
+    .from("pipeline_stages")
+    .select("id")
+    .eq("pipeline_id", pipelineId)
+    .eq("tenant_id", ctx.tenantId);
+  const validIds = new Set((stages ?? []).map((stage) => stage.id));
+  if (orderedIds.some((id) => !validIds.has(id)) || orderedIds.length !== validIds.size) {
+    throw new Error("Ordem de etapas invalida. Recarregue a pagina e tente novamente.");
+  }
+
+  for (const [index, id] of orderedIds.entries()) {
+    const { error } = await supabase
+      .from("pipeline_stages")
+      .update({ position: -1000 - index })
+      .eq("id", id)
+      .eq("tenant_id", ctx.tenantId);
+    if (error) throw new Error(error.message);
+  }
+  for (const [position, id] of orderedIds.entries()) {
+    const { error } = await supabase.from("pipeline_stages").update({ position }).eq("id", id).eq("tenant_id", ctx.tenantId);
+    if (error) throw new Error(error.message);
+  }
+  refreshPipelines();
+}
+
 export async function deleteStage(formData: FormData) {
   const ctx = await requireSetupContext();
   const id = idSchema.parse(formData.get("id"));
   const supabase = await createClient();
-  const { count } = await supabase.from("leads").select("id", { count: "exact", head: true }).eq("stage_id", id).eq("tenant_id", ctx.tenantId);
-  if ((count ?? 0) > 0) throw new Error("Nao e possivel excluir uma etapa com leads");
+  const { error: leadsError } = await supabase.from("leads").update({ stage_id: null }).eq("stage_id", id).eq("tenant_id", ctx.tenantId);
+  if (leadsError) throw new Error(leadsError.message);
   const { error } = await supabase.from("pipeline_stages").delete().eq("id", id).eq("tenant_id", ctx.tenantId);
   if (error) throw new Error(error.message);
   refreshPipelines();
