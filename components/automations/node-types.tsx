@@ -11,6 +11,7 @@ import {
   ListTodo,
   ActivitySquare,
   MoveRight,
+  PhoneCall,
   Shuffle,
   Webhook,
   Sparkles,
@@ -54,6 +55,7 @@ const kindMeta: Record<string, Meta> = {
   move_stage: { label: "Mover etapa", sub: "Ação", icon: MoveRight, accent: "green" },
   assign_lead: { label: "Atribuir lead", sub: "Ação", icon: UserCheck, accent: "orange" },
   create_task: { label: "Criar tarefa", sub: "Ação", icon: ListTodo, accent: "yellow" },
+  api4com_call: { label: "Ligação", sub: "Api4com", icon: PhoneCall, accent: "green" },
   add_tag: { label: "Adicionar tag", sub: "Ação", icon: Tag, accent: "pink" },
   log_activity: { label: "Registrar atividade", sub: "Ação", icon: ActivitySquare, accent: "gray" },
   field_ops: { label: "Operações de campos", sub: "Ação", icon: SlidersHorizontal, accent: "teal" },
@@ -73,6 +75,7 @@ function configPreview(kind: string, config: Record<string, unknown>): string | 
   if (kind === "send_message" && config.message) return `"${String(config.message)}"`;
   if (kind === "wait" && config.minutes) return `Aguardar ${String(config.minutes)} min`;
   if (kind === "create_task" && config.title) return `Tarefa: ${String(config.title)}`;
+  if (kind === "api4com_call" && config.extension) return `Ramal ${String(config.extension)}`;
   if (kind === "add_tag" && config.tag) return `#${String(config.tag)}`;
   if (kind === "move_stage" && config.stage_id) return `→ etapa selecionada`;
   if (kind === "assign_lead" && config.user_id) return `→ responsável`;

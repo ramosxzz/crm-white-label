@@ -124,6 +124,31 @@ export function NodeConfigPanel({ node, onUpdate, onClose }: Props) {
           </>
         )}
 
+        {/* api4com_call */}
+        {kind === "api4com_call" && (
+          <>
+            <div className="space-y-1.5">
+              <Label>Ramal Api4com</Label>
+              <Input
+                placeholder="1000"
+                value={String(config.extension ?? "")}
+                onChange={(e) => set("extension", e.target.value.replace(/\D/g, ""))}
+              />
+              <p className="text-xs text-muted-foreground">
+                O ramal precisa existir na Api4com e estar online no Webphone/extensao.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Observação da ligação</Label>
+              <Input
+                placeholder="Ligação iniciada por automação"
+                value={String(config.note ?? "")}
+                onChange={(e) => set("note", e.target.value)}
+              />
+            </div>
+          </>
+        )}
+
         {/* add_tag */}
         {kind === "add_tag" && (
           <div className="space-y-1.5">

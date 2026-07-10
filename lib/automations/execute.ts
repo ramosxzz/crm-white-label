@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createProvider } from "@/lib/whatsapp/factory";
+import { triggerApi4comCall } from "@/lib/integrations/api4com";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 
@@ -223,6 +224,32 @@ export async function processExecution(
           status: "open",
         });
         result = { task_created: true };
+      } else if (kind === "api4com_call" && leadId) {
+        const extension = String(blockConfig.extension ?? "").replace(/\D/g, "");
+        const phone = normalizeWhatsAppPhone(String(lead.phone ?? ""));
+        if (!extension) {
+          result = { skipped: "ramal Api4com ausente" };
+        } else if (!phone) {
+          result = { skipped: "telefone do lead invalido" };
+        } else {
+          const call = await triggerApi4comCall({
+            extension,
+            phone: `+${phone}`,
+            metadata: { tenant_id: tenantId, lead_id: leadId, automation_execution_id: executionId },
+          });
+          await supabase.from("lead_activities").insert({
+            tenant_id: tenantId,
+            lead_id: leadId,
+            kind: "call",
+            payload: {
+              provider: "api4com",
+              extension,
+              call_id: call.id,
+              note: interpolate(String(blockConfig.note ?? "Ligacao iniciada por automacao"), lead),
+            },
+          });
+          result = { call_started: true, call_id: call.id, extension };
+        }
       } else if (kind === "add_tag" && leadId) {
         const tag = String(blockConfig.tag ?? "");
         if (tag) {

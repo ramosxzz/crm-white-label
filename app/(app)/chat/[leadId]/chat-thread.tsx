@@ -25,6 +25,7 @@ import {
   Pencil,
   Phone,
   Reply,
+  Save,
   X,
   Zap,
 } from "lucide-react";
@@ -76,6 +77,21 @@ type QuickMediaDraft = {
   title: string;
   mediaUrl: string;
   mediaType: MediaKind;
+};
+
+type LeadDetails = {
+  email: string | null;
+  source: string | null;
+  notes: string | null;
+  tags: string[];
+  valueCents: number;
+  createdAt: string;
+  stageName: string | null;
+  stageColor: string | null;
+  pipelineName: string | null;
+  assignedName: string | null;
+  nextAppointmentAt: string | null;
+  openTasksCount: number;
 };
 
 function detectMediaKind(mime: string): MediaKind {
@@ -133,6 +149,7 @@ export function ChatThread({
   users = [],
   services = [],
   whatsappAccounts = [],
+  leadDetails,
 }: {
   leadId: string;
   tenantId: string;
@@ -149,6 +166,7 @@ export function ChatThread({
   users?: { id: string; name: string }[];
   services?: { id: string; name: string; duration_minutes: number }[];
   whatsappAccounts?: { id: string; phone_number: string; display_name: string | null; provider: string }[];
+  leadDetails?: LeadDetails;
 }) {
   const isInstagram = channel === "instagram";
   const displayPhone = isInstagram ? "Instagram Direct" : displayLeadSubtitle(leadPhone);
@@ -183,7 +201,7 @@ export function ChatThread({
   }
 
   const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>(
-    whatsappAccounts.length > 1 ? whatsappAccounts[0]?.id : undefined,
+    whatsappAccounts[0]?.id,
   );
 
   const [conversationId, setConversationId] = useState(initialConversationId);
@@ -624,7 +642,8 @@ export function ChatThread({
   const busy = pending || uploading;
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col bg-[radial-gradient(900px_520px_at_50%_-8%,hsl(var(--brand)/0.07),transparent_68%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--background)))]">
+    <section className="flex min-h-0 flex-1 bg-[radial-gradient(900px_520px_at_50%_-8%,hsl(var(--brand)/0.07),transparent_68%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--background)))]">
+      <div className="flex min-w-0 flex-1 flex-col">
       <header className="flex shrink-0 items-center justify-between border-b border-border/50 bg-card/78 px-5 py-3.5 backdrop-blur-md">
         <div className="flex min-w-0 items-center gap-3">
           <Avatar className="h-11 w-11 ring-2 ring-brand/25">
@@ -661,7 +680,7 @@ export function ChatThread({
             {automationsOn ? <Bot className="h-3.5 w-3.5" /> : <BotOff className="h-3.5 w-3.5" />}
             {automationsOn ? "Automações" : "Pausadas"}
           </button>
-          {!isInstagram && whatsappAccounts.length > 1 && (
+          {!isInstagram && whatsappAccounts.length > 0 && (
             <AccountSelector
               accounts={whatsappAccounts}
               selectedId={selectedAccountId}
@@ -1168,6 +1187,18 @@ export function ChatThread({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
+
+      <LeadSidePanel
+        leadId={leadId}
+        leadName={displayName}
+        leadPhone={leadPhone}
+        leadAvatarUrl={leadAvatarUrl}
+        channel={channel}
+        status={status}
+        details={leadDetails}
+        onFinalize={() => changeStatus("resolvida")}
+      />
     </section>
   );
 }
@@ -1443,6 +1474,157 @@ function formatPhone(phone: string): string {
   return phone;
 }
 
+function formatMoney(cents: number): string {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format((cents || 0) / 100);
+}
+
+function formatShortDate(iso?: string | null): string {
+  if (!iso) return "Sem data";
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function LeadSidePanel({
+  leadId,
+  leadName,
+  leadPhone,
+  leadAvatarUrl,
+  channel,
+  status,
+  details,
+  onFinalize,
+}: {
+  leadId: string;
+  leadName: string;
+  leadPhone: string;
+  leadAvatarUrl?: string | null;
+  channel: "whatsapp" | "instagram";
+  status: ConversationStatus;
+  details?: LeadDetails;
+  onFinalize: () => void;
+}) {
+  const [notes, setNotes] = useState(details?.notes ?? "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setNotes(details?.notes ?? "");
+  }, [details?.notes]);
+
+  function saveNotes() {
+    setSaving(true);
+    void updateLead(leadId, { notes })
+      .catch((err) => alert((err as Error).message))
+      .finally(() => setSaving(false));
+  }
+
+  return (
+    <aside className="hidden w-[360px] shrink-0 overflow-y-auto border-l border-border/60 bg-card/78 backdrop-blur-xl xl:block">
+      <div className="border-b border-border/60 p-4">
+        <div className="flex items-center gap-3">
+          <Avatar className="h-10 w-10 ring-1 ring-border">
+            {leadAvatarUrl && <AvatarImage src={leadAvatarUrl} alt={leadName} />}
+            <AvatarFallback className="bg-brand-muted text-sm font-semibold text-brand dark:bg-brand dark:text-brand-foreground">
+              {initials(leadName)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <Link href={`/leads/${leadId}`} className="truncate font-semibold hover:text-brand" prefetch>
+              {leadName}
+            </Link>
+            <p className="text-xs text-muted-foreground">
+              {channel === "instagram" ? "Instagram Direct" : formatPhone(leadPhone)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <PanelSection title="Ações">
+        <div className="grid grid-cols-2 gap-2">
+          <Button asChild variant="outline" size="sm" className="justify-start">
+            <Link href={`/leads/${leadId}`} prefetch>
+              <Plus className="h-3.5 w-3.5" />
+              Negócio
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm" className="justify-start">
+            <Link href="/automations" prefetch>
+              <Zap className="h-3.5 w-3.5" />
+              Automação
+            </Link>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="col-span-2 justify-start border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
+            onClick={onFinalize}
+            disabled={status === "resolvida"}
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            {status === "resolvida" ? "Conversa resolvida" : "Finalizar atendimento"}
+          </Button>
+        </div>
+      </PanelSection>
+
+      <PanelSection title="Perfil">
+        <InfoRow label="Nome" value={leadName} />
+        <InfoRow label="E-mail" value={details?.email || "Email do lead"} muted={!details?.email} />
+        <InfoRow label="Telefone" value={channel === "instagram" ? "Instagram Direct" : formatPhone(leadPhone)} />
+        <InfoRow label="Origem" value={details?.source || "Nao informada"} muted={!details?.source} />
+        <InfoRow label="Entrada" value={formatShortDate(details?.createdAt)} />
+        {details?.tags?.length ? (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {details.tags.map((tag) => (
+              <span key={tag} className="rounded-md bg-brand/10 px-2 py-1 text-[11px] font-medium text-brand">
+                {tag}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </PanelSection>
+
+      <PanelSection title="Notas">
+        <Textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Anote contexto importante deste lead..."
+          className="min-h-24 resize-none bg-background/70"
+        />
+        <Button type="button" size="sm" variant="outline" className="mt-2 w-full" onClick={saveNotes} disabled={saving}>
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          Salvar notas
+        </Button>
+      </PanelSection>
+
+      <PanelSection title="Negócio">
+        <InfoRow label="Valor" value={formatMoney(details?.valueCents ?? 0)} />
+        <InfoRow label="Funil" value={details?.pipelineName || "Funil padrao"} />
+        <InfoRow label="Etapa" value={details?.stageName || "Sem etapa"} />
+        <InfoRow label="Responsável" value={details?.assignedName || "Nao atribuido"} muted={!details?.assignedName} />
+        <InfoRow label="Próxima reunião" value={details?.nextAppointmentAt ? formatShortDate(details.nextAppointmentAt) : "Sem reunião"} muted={!details?.nextAppointmentAt} />
+        <InfoRow label="Tarefas abertas" value={String(details?.openTasksCount ?? 0)} />
+      </PanelSection>
+    </aside>
+  );
+}
+
+function PanelSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="border-b border-border/60 p-4">
+      <h3 className="mb-3 text-sm font-semibold text-foreground">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function InfoRow({ label, value, muted = false }: { label: string; value: string; muted?: boolean }) {
+  return (
+    <div className="flex items-start justify-between gap-3 py-1.5 text-sm">
+      <span className="shrink-0 text-muted-foreground">{label}</span>
+      <span className={cn("min-w-0 text-right", muted ? "text-muted-foreground" : "text-foreground")}>{value}</span>
+    </div>
+  );
+}
+
 function AccountSelector({
   accounts,
   selectedId,
@@ -1468,6 +1650,7 @@ function AccountSelector({
   if (!current) return null;
 
   const label = current.display_name || formatPhone(current.phone_number);
+  const currentProviderLabel = current.provider === "cloud_api" ? "API Oficial" : current.provider === "evolution" ? "Evolution" : "Z-API";
 
   return (
     <div ref={ref} className="relative">
@@ -1475,14 +1658,23 @@ function AccountSelector({
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-background/60 px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-muted/40"
-        title="Trocar número WhatsApp"
+        title="Escolher por qual API/numero enviar"
       >
         <Phone className="h-3.5 w-3.5 text-emerald-500" />
         <span className="max-w-[120px] truncate">{label}</span>
+        <span className="hidden rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground 2xl:inline">
+          {currentProviderLabel}
+        </span>
         <ChevronDown className="h-3.5 w-3.5 opacity-70" />
       </button>
       {open && (
-        <div className="absolute right-0 z-20 mt-1.5 w-64 overflow-hidden rounded-xl border border-border/60 bg-popover p-1 shadow-elev-2">
+        <div className="absolute right-0 z-20 mt-1.5 w-72 overflow-hidden rounded-xl border border-border/60 bg-popover p-1 shadow-elev-2">
+          <div className="border-b border-border/60 px-2.5 py-2">
+            <p className="text-xs font-semibold">Enviar usando</p>
+            <p className="text-[11px] text-muted-foreground">
+              Troque de API quando a oficial estiver fora da janela de 24h.
+            </p>
+          </div>
           {accounts.map((a) => {
             const active = a.id === (selectedId ?? accounts[0]?.id);
             const providerLabel = a.provider === "cloud_api" ? "API Oficial" : a.provider === "evolution" ? "Evolution" : "Z-API";
