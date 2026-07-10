@@ -9,14 +9,26 @@ export function PwaRegister() {
 
     const register = async () => {
       try {
-        await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+        const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+        await registration.update();
       } catch {
         // PWA continua funcionando como site normal se o navegador bloquear o service worker.
       }
     };
 
+    let refreshing = false;
+    const onControllerChange = () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    };
+
     window.addEventListener("load", register, { once: true });
-    return () => window.removeEventListener("load", register);
+    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+    return () => {
+      window.removeEventListener("load", register);
+      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+    };
   }, []);
 
   return null;

@@ -1,11 +1,18 @@
-const CACHE_NAME = "solaire-crm-shell-v1";
-const SHELL_ASSETS = ["/", "/login", "/manifest.webmanifest", "/icon.svg", "/apple-icon.svg"];
+const CACHE_NAME = "solaire-crm-assets-v2";
+const SAFE_ASSETS = [
+  "/manifest.webmanifest",
+  "/icon.svg",
+  "/apple-icon.svg",
+  "/pwa/icon-192.png",
+  "/pwa/icon-512.png",
+  "/pwa/icon-maskable-512.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => cache.addAll(SHELL_ASSETS))
+      .then((cache) => cache.addAll(SAFE_ASSETS))
       .then(() => self.skipWaiting()),
   );
 });
@@ -28,12 +35,17 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/api/")) return;
 
   if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request).catch(async () => {
-        const cache = await caches.open(CACHE_NAME);
-        return (await cache.match("/login")) ?? Response.error();
-      }),
-    );
+    event.respondWith(fetch(request));
+    return;
+  }
+
+  const isSafeStaticAsset =
+    SAFE_ASSETS.includes(url.pathname) ||
+    url.pathname.startsWith("/brand/") ||
+    url.pathname.startsWith("/pwa/");
+
+  if (!isSafeStaticAsset) {
+    event.respondWith(fetch(request));
     return;
   }
 
