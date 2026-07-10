@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, CheckCircle2, GitBranch, Plus, Save, Star, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, CheckCircle2, GitBranch, Plus, Save, Star } from "lucide-react";
 import { PageHeader } from "@/components/app/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,8 @@ import { SubmitIconButton } from "@/components/ui/submit-icon-button";
 import { canManageOperationalSetup } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
-import { createStage, deletePipeline, deleteStage, moveStage, setDefaultPipeline, updatePipeline, updateStage } from "./actions";
+import { createStage, moveStage, setDefaultPipeline, updatePipeline, updateStage } from "./actions";
+import { DeletePipelineButton, DeleteStageButton } from "./delete-buttons";
 import { PipelineForm } from "./pipeline-form";
 
 type StageRow = { id: string; name: string; color: string | null; position: number };
@@ -70,14 +71,7 @@ export default async function PipelinesPage() {
                             </Button>
                           </form>
                         )}
-                        {!pipeline.is_default && (
-                          <form action={deletePipeline}>
-                            <input type="hidden" name="id" value={pipeline.id} />
-                            <Button size="icon" variant="outline" className="h-8 w-8 text-destructive" title="Excluir funil">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </form>
-                        )}
+                        {!pipeline.is_default && <DeletePipelineButton pipelineId={pipeline.id} pipelineName={pipeline.name} />}
                       </div>
                     )}
                   </div>
@@ -116,12 +110,7 @@ export default async function PipelinesPage() {
                                 <ArrowDown className="h-3.5 w-3.5" />
                               </SubmitIconButton>
                             </form>
-                            <form action={deleteStage}>
-                              <input type="hidden" name="id" value={stage.id} />
-                              <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" title="Excluir etapa">
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </form>
+                            <DeleteStageButton stageId={stage.id} stageName={stage.name} />
                           </div>
                         </>
                       ) : (
