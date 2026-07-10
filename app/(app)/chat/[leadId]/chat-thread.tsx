@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   Send,
   Loader2,
-  Mic2,
   Pause,
   Play,
   Check,
@@ -663,7 +662,7 @@ export function ChatThread({
             </button>
           </div>
         </div>
-        <div className="flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto">
+        <div className="relative z-30 flex min-w-0 shrink-0 items-center gap-2 overflow-visible">
           <button
             type="button"
             onClick={toggleAutomations}
@@ -1353,9 +1352,10 @@ function formatAudioTime(value: number) {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
+const waveformBars = [12, 18, 10, 24, 16, 28, 14, 22, 30, 18, 12, 26, 20, 32, 16, 24, 12, 20, 28, 14, 22, 16];
+
 function AudioMessage({
   src,
-  label,
   outbound,
 }: {
   src: string;
@@ -1366,6 +1366,7 @@ function AudioMessage({
   const [playing, setPlaying] = useState(false);
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [rate, setRate] = useState(1);
 
   function toggle() {
     const audio = audioRef.current;
@@ -1384,72 +1385,96 @@ function AudioMessage({
     setCurrent(value);
   }
 
+  function toggleRate() {
+    const next = rate === 1 ? 1.5 : rate === 1.5 ? 2 : 1;
+    setRate(next);
+    if (audioRef.current) audioRef.current.playbackRate = next;
+  }
+
+  const progress = duration > 0 ? Math.min(100, Math.max(0, (current / duration) * 100)) : 0;
+  const timeLabel = formatAudioTime(duration || current);
+
   return (
-    <div className="min-w-[280px] max-w-[340px]">
+    <div className="w-[244px] max-w-[70vw]">
       <audio
         ref={audioRef}
         src={src}
         preload="metadata"
-        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
+        onLoadedMetadata={(e) => {
+          e.currentTarget.playbackRate = rate;
+          setDuration(e.currentTarget.duration || 0);
+        }}
         onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
-        onEnded={() => setPlaying(false)}
+        onEnded={() => {
+          setPlaying(false);
+          setCurrent(0);
+        }}
       />
       <div
         className={cn(
-          "rounded-xl border p-3",
+          "flex items-center gap-2 rounded-lg px-3 py-2 shadow-sm",
           outbound
-            ? "border-chat-outbound-foreground/15 bg-chat-outbound-foreground/10"
-            : "border-border/60 bg-background/45",
+            ? "bg-sky-400 text-slate-950"
+            : "border border-border/60 bg-muted/80 text-foreground",
         )}
       >
-        <div className="mb-3 flex items-center gap-2">
-          <div
-            className={cn(
-              "grid h-8 w-8 place-items-center rounded-md",
-              outbound ? "bg-chat-outbound-foreground/15" : "bg-brand/10 text-brand",
-            )}
-          >
-            <Mic2 className="h-4 w-4" />
+        <button
+          type="button"
+          onClick={toggle}
+          className={cn(
+            "grid h-8 w-8 shrink-0 place-items-center rounded-full transition-transform active:scale-95",
+            outbound ? "bg-blue-500/35 text-slate-950" : "bg-brand text-brand-foreground",
+          )}
+          aria-label={playing ? "Pausar audio" : "Reproduzir audio"}
+        >
+          {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="ml-0.5 h-3.5 w-3.5" />}
+        </button>
+        <div className="relative min-w-0 flex-1">
+          <div className="flex h-8 items-center gap-[2px]" aria-hidden>
+            {waveformBars.map((height, index) => {
+              const barProgress = ((index + 1) / waveformBars.length) * 100;
+              const active = barProgress <= progress;
+              return (
+                <span
+                  key={`${height}-${index}`}
+                  className={cn(
+                    "w-[3px] rounded-full transition-colors",
+                    outbound
+                      ? active ? "bg-slate-950" : "bg-slate-950/45"
+                      : active ? "bg-brand" : "bg-muted-foreground/45",
+                  )}
+                  style={{ height }}
+                />
+              );
+            })}
           </div>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold">
-              {label?.replace(/^🎤\s*/, "") || "Audio"}
-            </p>
-            <p className={cn("text-[11px]", outbound ? "text-chat-outbound-meta" : "text-muted-foreground")}>
-              Mensagem de voz
-            </p>
-          </div>
+          <input
+            type="range"
+            min={0}
+            max={duration || 1}
+            step={0.1}
+            value={Math.min(current, duration || current)}
+            onChange={(e) => seek(Number(e.target.value))}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            aria-label="Posição do áudio"
+          />
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={toggle}
-            className={cn(
-              "grid h-10 w-10 shrink-0 place-items-center rounded-full transition-transform active:scale-95",
-              outbound ? "bg-chat-outbound-foreground/15" : "bg-brand text-brand-foreground",
-            )}
-            aria-label={playing ? "Pausar audio" : "Reproduzir audio"}
-          >
-            {playing ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4" />}
-          </button>
-          <div className="min-w-0 flex-1">
-            <input
-              type="range"
-              min={0}
-              max={duration || 1}
-              step={0.1}
-              value={Math.min(current, duration || current)}
-              onChange={(e) => seek(Number(e.target.value))}
-              className="h-1.5 w-full accent-brand"
-            />
-            <div className={cn("mt-1 flex justify-between text-[11px]", outbound ? "text-chat-outbound-meta" : "text-muted-foreground")}>
-              <span>{formatAudioTime(current)}</span>
-              <span>{formatAudioTime(duration)}</span>
-            </div>
-          </div>
-        </div>
+        <span className={cn("shrink-0 tabular-nums", outbound ? "text-[11px] font-medium text-slate-950" : "text-[11px] text-muted-foreground")}>
+          {timeLabel}
+        </span>
+        <button
+          type="button"
+          onClick={toggleRate}
+          className={cn(
+            "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none transition-colors",
+            outbound ? "bg-blue-500/30 text-slate-950" : "bg-muted text-foreground",
+          )}
+          aria-label="Alterar velocidade do áudio"
+        >
+          {rate}x
+        </button>
       </div>
     </div>
   );
@@ -1644,11 +1669,11 @@ function AccountSelector({
   const currentProviderLabel = current.provider === "cloud_api" ? "API Oficial" : current.provider === "evolution" ? "Evolution" : "Z-API";
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative z-40 shrink-0">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-background/60 px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-muted/40"
+        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border/60 bg-background/60 px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-muted/40"
         title="Escolher por qual API/numero enviar"
       >
         <Phone className="h-3.5 w-3.5 text-emerald-500" />
@@ -1659,7 +1684,7 @@ function AccountSelector({
         <ChevronDown className="h-3.5 w-3.5 opacity-70" />
       </button>
       {open && (
-        <div className="absolute right-0 z-20 mt-1.5 w-72 overflow-hidden rounded-xl border border-border/60 bg-popover p-1 shadow-elev-2">
+        <div className="absolute right-0 z-50 mt-1.5 w-72 overflow-hidden rounded-xl border border-border/60 bg-popover p-1 shadow-elev-2">
           <div className="border-b border-border/60 px-2.5 py-2">
             <p className="text-xs font-semibold">Enviar usando</p>
             <p className="text-[11px] text-muted-foreground">
