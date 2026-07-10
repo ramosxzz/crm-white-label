@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import Link from "next/link";
 import {
   Send,
-  User,
   Loader2,
   Mic2,
   Pause,
@@ -711,11 +710,6 @@ export function ChatThread({
               Finalizar
             </Button>
           )}
-          <Button asChild variant="outline" size="sm" className="rounded-lg">
-            <Link href={`/leads/${leadId}`} prefetch>
-              <User className="h-4 w-4" /> Perfil
-            </Link>
-          </Button>
           <LeadDeleteButton leadId={leadId} leadName={displayName} redirectTo="/chat" />
         </div>
       </header>
