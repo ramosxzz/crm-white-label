@@ -86,7 +86,7 @@ export default async function DashboardPage() {
       : Promise.resolve({ data: [] }),
     supabase
       .from("tenants")
-      .select("meta_ad_account_id, meta_ads_access_token")
+      .select("meta_ad_account_id, meta_ads_access_token, meta_capi_token")
       .eq("id", ctx.tenantId)
       .single(),
   ]);
@@ -152,7 +152,7 @@ export default async function DashboardPage() {
 
   const metaAds = await getMetaAdsDashboard({
     adAccountId: tenantMeta?.meta_ad_account_id,
-    accessToken: tenantMeta?.meta_ads_access_token,
+    accessToken: tenantMeta?.meta_ads_access_token ?? tenantMeta?.meta_capi_token,
   });
 
   return (

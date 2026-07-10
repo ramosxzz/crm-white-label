@@ -22,7 +22,7 @@ export function FacebookForm({ initialData }: FacebookFormProps) {
   const [pixelId, setPixelId] = useState(initialData.meta_pixel_id || "");
   const [capiToken, setCapiToken] = useState(initialData.meta_capi_token || "");
   const [adAccountId, setAdAccountId] = useState(initialData.meta_ad_account_id || "");
-  const [adsToken, setAdsToken] = useState(initialData.meta_ads_access_token || "");
+  const [adsToken, setAdsToken] = useState(initialData.meta_ads_access_token || initialData.meta_capi_token || "");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -153,7 +153,7 @@ export function FacebookForm({ initialData }: FacebookFormProps) {
                 />
                 <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                   <HelpCircle className="h-3.5 w-3.5" />
-                  Usado somente no servidor para consultar Ads Insights. Nao aparece para atendentes nem no navegador.
+                  Se voce ja usava o mesmo token da CAPI, ele tambem sera aproveitado para o dashboard quando tiver ads_read.
                 </p>
               </div>
 
