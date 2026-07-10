@@ -643,7 +643,7 @@ export function ChatThread({
   return (
     <section className="flex min-h-0 flex-1 bg-[radial-gradient(900px_520px_at_50%_-8%,hsl(var(--brand)/0.07),transparent_68%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--background)))]">
       <div className="flex min-w-0 flex-1 flex-col">
-      <header className="flex shrink-0 items-center justify-between border-b border-border/50 bg-card/78 px-5 py-3.5 backdrop-blur-md">
+      <header className="flex shrink-0 flex-col gap-3 border-b border-border/50 bg-card/78 px-5 py-3.5 backdrop-blur-md 2xl:flex-row 2xl:items-center 2xl:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <Avatar className="h-11 w-11 ring-2 ring-brand/25">
             {leadAvatarUrl && <AvatarImage src={leadAvatarUrl} alt={displayName} />}
@@ -664,7 +664,7 @@ export function ChatThread({
             <p className="truncate text-xs text-muted-foreground">{displayPhone}</p>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={toggleAutomations}
