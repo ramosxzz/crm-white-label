@@ -8,7 +8,7 @@ export default async function FacebookIntegrationPage() {
 
   const { data: tenant } = await supabase
     .from("tenants")
-    .select("meta_pixel_id, meta_capi_token, meta_ad_account_id")
+    .select("meta_pixel_id, meta_capi_token, meta_ad_account_id, meta_ads_access_token")
     .eq("id", ctx.tenantId)
     .single();
 

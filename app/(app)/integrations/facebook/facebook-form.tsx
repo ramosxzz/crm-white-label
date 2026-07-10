@@ -14,6 +14,7 @@ interface FacebookFormProps {
     meta_pixel_id?: string | null;
     meta_capi_token?: string | null;
     meta_ad_account_id?: string | null;
+    meta_ads_access_token?: string | null;
   };
 }
 
@@ -21,6 +22,7 @@ export function FacebookForm({ initialData }: FacebookFormProps) {
   const [pixelId, setPixelId] = useState(initialData.meta_pixel_id || "");
   const [capiToken, setCapiToken] = useState(initialData.meta_capi_token || "");
   const [adAccountId, setAdAccountId] = useState(initialData.meta_ad_account_id || "");
+  const [adsToken, setAdsToken] = useState(initialData.meta_ads_access_token || "");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -36,6 +38,7 @@ export function FacebookForm({ initialData }: FacebookFormProps) {
         meta_pixel_id: pixelId,
         meta_capi_token: capiToken,
         meta_ad_account_id: adAccountId,
+        meta_ads_access_token: adsToken,
       });
       setSuccess(true);
     } catch (err: any) {
@@ -133,6 +136,24 @@ export function FacebookForm({ initialData }: FacebookFormProps) {
                 <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                   <HelpCircle className="h-3.5 w-3.5" />
                   Necessário para a dashboard puxar o custo dos seus anúncios e calcular o ROAS automaticamente.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="ads-token" className="text-sm font-semibold flex items-center gap-1.5">
+                  Token da Marketing API para leitura de anúncios
+                </Label>
+                <textarea
+                  id="ads-token"
+                  rows={4}
+                  placeholder="Cole um token com permissao ads_read para listar campanhas, anúncios e custos"
+                  value={adsToken}
+                  onChange={(e) => setAdsToken(e.target.value)}
+                  className="w-full font-mono text-xs rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                />
+                <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <HelpCircle className="h-3.5 w-3.5" />
+                  Usado somente no servidor para consultar Ads Insights. Nao aparece para atendentes nem no navegador.
                 </p>
               </div>
 

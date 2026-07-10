@@ -86,6 +86,7 @@ export async function updateTenantMetaSettings(input: {
   meta_pixel_id?: string;
   meta_capi_token?: string;
   meta_ad_account_id?: string;
+  meta_ads_access_token?: string;
 }) {
   const ctx = await requireContext();
   if (!["owner", "admin"].includes(ctx.role)) throw new Error("Sem permissao");
@@ -96,9 +97,11 @@ export async function updateTenantMetaSettings(input: {
       meta_pixel_id: input.meta_pixel_id?.trim() || null,
       meta_capi_token: input.meta_capi_token?.trim() || null,
       meta_ad_account_id: input.meta_ad_account_id?.trim() || null,
+      meta_ads_access_token: input.meta_ads_access_token?.trim() || null,
     })
     .eq("id", ctx.tenantId);
   if (error) throw new Error(error.message);
   revalidatePath("/integrations");
   revalidatePath("/integrations/facebook");
+  revalidatePath("/dashboard");
 }

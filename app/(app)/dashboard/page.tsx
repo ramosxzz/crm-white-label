@@ -9,6 +9,7 @@ import {
   buildWeekTrend,
   type LeadsDashboardData,
 } from "@/lib/leads/dashboard-metrics";
+import { getMetaAdsDashboard } from "@/lib/meta/ads-insights";
 
 export default async function DashboardPage() {
   const ctx = await requireContext();
@@ -34,6 +35,7 @@ export default async function DashboardPage() {
     { count: overdueTasks },
     productsResult,
     activeReservationsResult,
+    { data: tenantMeta },
   ] = await Promise.all([
     supabase
       .from("leads")
@@ -82,6 +84,11 @@ export default async function DashboardPage() {
     ctx.tenant.stock_enabled
       ? supabase.from("stock_reservations").select("product_id, quantity").eq("tenant_id", ctx.tenantId).eq("status", "active")
       : Promise.resolve({ data: [] }),
+    supabase
+      .from("tenants")
+      .select("meta_ad_account_id, meta_ads_access_token")
+      .eq("id", ctx.tenantId)
+      .single(),
   ]);
   const products = productsResult.data ?? [];
   const activeReservations = activeReservationsResult.data ?? [];
@@ -143,6 +150,11 @@ export default async function DashboardPage() {
     weekTrend: buildWeekTrend(leadsWeek ?? []),
   };
 
+  const metaAds = await getMetaAdsDashboard({
+    adAccountId: tenantMeta?.meta_ad_account_id,
+    accessToken: tenantMeta?.meta_ads_access_token,
+  });
+
   return (
     <div>
       <PageHeader
@@ -150,7 +162,7 @@ export default async function DashboardPage() {
         title="Central de operações"
         description="Painel diário para acompanhar entradas, conversas e desempenho comercial."
       />
-      <LeadsOpsDashboard data={dashboardData} stockEnabled={ctx.tenant.stock_enabled} />
+      <LeadsOpsDashboard data={dashboardData} stockEnabled={ctx.tenant.stock_enabled} metaAds={metaAds} />
     </div>
   );
 }
