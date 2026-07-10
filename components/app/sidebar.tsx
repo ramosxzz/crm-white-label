@@ -68,20 +68,28 @@ export function Sidebar({
   }
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-card shadow-[inset_-1px_0_0_hsl(var(--foreground)/0.04)] dark:border-border/50 dark:bg-card/75 md:flex">
+    <aside className="group/sidebar hidden w-[4.5rem] shrink-0 overflow-hidden flex-col border-r border-border bg-card shadow-[inset_-1px_0_0_hsl(var(--foreground)/0.04)] transition-[width] duration-200 ease-out hover:w-64 dark:border-border/50 dark:bg-card/75 md:flex">
       <div className="flex items-center border-b border-border/40 px-4 py-4">
         <BrandLogo
           size="sm"
+          showText={false}
           tenantLogoUrl={tenantLogoUrl}
           tenantName={tenantName}
           tagline={tenantTagline}
         />
+        <div className="ml-0 max-w-0 overflow-hidden opacity-0 transition-all duration-150 group-hover/sidebar:ml-2.5 group-hover/sidebar:max-w-[10rem] group-hover/sidebar:opacity-100">
+          <p className="truncate text-sm font-semibold leading-tight">{tenantName}</p>
+          <p className="mt-1 text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+            {tenantTagline?.trim() || "CRM"}
+          </p>
+        </div>
       </div>
 
       <Link
         href="/settings"
         prefetch
-        className="group mx-3 mt-3 flex items-center gap-2.5 rounded-lg border border-border/60 bg-background/40 p-2.5 text-left shadow-[inset_0_1px_0_hsl(var(--foreground)/0.04)] transition-colors duration-150 hover:border-brand/35 hover:bg-brand/10"
+        className="group mx-3 mt-3 flex items-center justify-center gap-2.5 rounded-lg border border-border/60 bg-background/40 p-2.5 text-left shadow-[inset_0_1px_0_hsl(var(--foreground)/0.04)] transition-colors duration-150 hover:border-brand/35 hover:bg-brand/10 group-hover/sidebar:justify-start"
+        title={tenantName}
       >
         <div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-md bg-brand/15 font-display text-xs font-semibold text-brand ring-1 ring-border/50">
           {tenantLogoUrl ? (
@@ -91,20 +99,20 @@ export function Sidebar({
             initials(tenantName)
           )}
         </div>
-        <div className="flex-1 overflow-hidden">
+        <div className="max-w-0 flex-1 overflow-hidden opacity-0 transition-all duration-150 group-hover/sidebar:max-w-[10rem] group-hover/sidebar:opacity-100">
           <p className="truncate text-sm font-semibold leading-tight">{tenantName}</p>
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Workspace</p>
         </div>
       </Link>
 
       <nav className="flex-1 space-y-1 overflow-y-auto p-3 pt-4">
-        <div className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        <div className="mb-1.5 h-4 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground opacity-0 transition-opacity duration-150 group-hover/sidebar:opacity-100">
           Operacao
         </div>
         {visibleNavItems.map((item) => (
           <NavLink key={item.href} item={item} pathname={pathname} />
         ))}
-        <div className="mb-1.5 mt-6 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        <div className="mb-1.5 mt-6 h-4 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground opacity-0 transition-opacity duration-150 group-hover/sidebar:opacity-100">
           Sistema
         </div>
         {secondaryItems.map((item) => (
@@ -113,17 +121,23 @@ export function Sidebar({
       </nav>
 
       <div className="border-t border-border/40 p-3">
-        <div className="flex items-center gap-2.5 rounded-lg p-2">
+        <div className="flex items-center justify-center gap-2.5 rounded-lg p-2 group-hover/sidebar:justify-start">
           <Avatar className="h-9 w-9">
             <AvatarFallback className="bg-brand/15 text-xs font-semibold text-brand">
               {initials(userName)}
             </AvatarFallback>
           </Avatar>
-          <div className="flex-1 overflow-hidden">
+          <div className="max-w-0 flex-1 overflow-hidden opacity-0 transition-all duration-150 group-hover/sidebar:max-w-[10rem] group-hover/sidebar:opacity-100">
             <p className="truncate text-sm font-medium">{userName}</p>
             <p className="truncate text-[11px] text-muted-foreground">{userEmail}</p>
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={logout} aria-label="Sair">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0 opacity-0 transition-opacity duration-150 group-hover/sidebar:opacity-100"
+            onClick={logout}
+            aria-label="Sair"
+          >
             <LogOut className="h-4 w-4" />
           </Button>
         </div>
@@ -146,11 +160,12 @@ function NavLink({
       href={item.href}
       prefetch
       className={cn(
-        "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors duration-150",
+        "group relative flex items-center justify-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors duration-150 group-hover/sidebar:justify-start",
         active
           ? "bg-brand-muted text-foreground dark:bg-brand/10"
           : "text-muted-foreground hover:bg-brand/10 hover:text-foreground dark:hover:bg-brand/15",
       )}
+      title={item.label}
     >
       {active && (
         <span
@@ -164,7 +179,9 @@ function NavLink({
           active ? "text-brand" : "text-muted-foreground group-hover:text-brand",
         )}
       />
-      {item.label}
+      <span className="max-w-0 overflow-hidden truncate whitespace-nowrap opacity-0 transition-all duration-150 group-hover/sidebar:max-w-[10rem] group-hover/sidebar:opacity-100">
+        {item.label}
+      </span>
     </Link>
   );
 }
