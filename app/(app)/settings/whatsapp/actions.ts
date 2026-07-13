@@ -7,6 +7,38 @@ import type { WhatsAppAccount, WhatsAppProviderKind } from "@/lib/supabase/datab
 import { getAppBaseUrl } from "@/lib/app-url";
 import { syncLeadLidsFromZapiChats } from "@/lib/whatsapp/zapi-chats-sync";
 
+function describeConnectionError(error: unknown, credentials?: Record<string, unknown>, serviceLabel = "servico") {
+  const message = error instanceof Error ? error.message : String(error);
+  const cause = error instanceof Error ? (error as Error & { cause?: { code?: string; hostname?: string } }).cause : undefined;
+  const baseUrl = typeof credentials?.base_url === "string" ? credentials.base_url.trim() : "";
+  let host = cause?.hostname;
+  if (!host && baseUrl) {
+    try {
+      host = new URL(baseUrl).hostname;
+    } catch {
+      return `URL Base invalida. Informe a URL completa da Evolution, começando com https://. Valor atual: ${baseUrl}`;
+    }
+  }
+
+  if (message === "fetch failed" || cause?.code) {
+    if (cause?.code === "ENOTFOUND") {
+      return `URL Base nao encontrada no DNS (${host ?? "host desconhecido"}). Confira se o dominio do ${serviceLabel} esta correto e publico.`;
+    }
+    if (cause?.code === "ECONNREFUSED") {
+      return `O ${serviceLabel} recusou a conexao em ${host ?? "host informado"}. Confira se o servidor/porta esta ativo.`;
+    }
+    if (cause?.code === "ETIMEDOUT" || cause?.code === "UND_ERR_CONNECT_TIMEOUT") {
+      return `O ${serviceLabel} demorou demais para responder em ${host ?? "host informado"}. Confira servidor, firewall e URL Base.`;
+    }
+    if (cause?.code === "CERT_HAS_EXPIRED" || cause?.code === "DEPTH_ZERO_SELF_SIGNED_CERT") {
+      return `O certificado SSL da URL do ${serviceLabel} parece invalido em ${host ?? "host informado"}. Use uma URL HTTPS com certificado valido.`;
+    }
+    return `Nao foi possivel conectar no ${serviceLabel}${host ? ` (${host})` : ""}. Confira URL Base, DNS, SSL e firewall. Detalhe tecnico: ${message}`;
+  }
+
+  return message;
+}
+
 async function syncZapiWebhooks(
   input: {
     provider: WhatsAppProviderKind;
@@ -202,7 +234,7 @@ export async function testWhatsAppConnection(input: {
         message: `Cloud API OK: ${phone.verified_name ?? phone.id}${displayPhone}.${quality} ${webhookMessage}`,
       };
     } catch (e) {
-      return { ok: false, message: (e as Error).message };
+      return { ok: false, message: describeConnectionError(e, input.credentials, "Cloud API da Meta") };
     }
   }
 
@@ -234,7 +266,7 @@ export async function testWhatsAppConnection(input: {
         message: "Evolution conectada. Webhook do CRM configurado para receber mensagens.",
       };
     } catch (e) {
-      return { ok: false, message: (e as Error).message };
+      return { ok: false, message: describeConnectionError(e, input.credentials, "Evolution") };
     }
   }
 
@@ -286,6 +318,6 @@ export async function testWhatsAppConnection(input: {
         : `Z-API OK. Verifique celular no painel. Webhook celular: ${sentByMe}. ${lidsSynced} @lid vinculado(s).`,
     };
   } catch (e) {
-    return { ok: false, message: (e as Error).message };
+    return { ok: false, message: describeConnectionError(e, input.credentials, "Z-API") };
   }
 }
