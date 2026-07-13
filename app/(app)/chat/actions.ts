@@ -191,7 +191,6 @@ export async function sendChatMessage(input: {
       .update({ last_message_at: new Date().toISOString(), status: "em_atendimento" })
       .eq("id", conversationId);
 
-    revalidatePath(`/chat/${lead.id}`);
     revalidatePath("/chat");
 
     return {
@@ -349,7 +348,6 @@ export async function sendInstagramMessage(input: {
       .update({ last_message_at: new Date().toISOString(), status: "em_atendimento" })
       .eq("id", conversationId);
 
-    revalidatePath(`/chat/${input.leadId}`);
     revalidatePath("/chat");
 
     return {
@@ -498,7 +496,6 @@ export async function sendChatMedia(input: {
       .update({ last_message_at: new Date().toISOString(), status: "em_atendimento" })
       .eq("id", conversationId);
 
-    revalidatePath(`/chat/${lead.id}`);
     revalidatePath("/chat");
 
     return {

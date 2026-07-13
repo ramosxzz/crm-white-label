@@ -262,7 +262,11 @@ export function ChatThread({
   const [status, setStatus] = useState<ConversationStatus>(initialStatus);
   const [automationsOn, setAutomationsOn] = useState(initialAutomationsEnabled);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
-  const [text, setText] = useState("");
+  const draftStorageKey = `chat-draft:${leadId}`;
+  const [text, setText] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return window.sessionStorage.getItem(draftStorageKey) ?? "";
+  });
   const [quickMediaDraft, setQuickMediaDraft] = useState<QuickMediaDraft | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [pending, start] = useTransition();
@@ -288,6 +292,15 @@ export function ChatThread({
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef(true);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (text) {
+      window.sessionStorage.setItem(draftStorageKey, text);
+    } else {
+      window.sessionStorage.removeItem(draftStorageKey);
+    }
+  }, [draftStorageKey, text]);
 
   const grouped = useMemo(() => {
     const out: { day: string; items: ChatMessage[] }[] = [];

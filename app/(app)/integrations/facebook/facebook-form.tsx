@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/app/page-header";
 import { Input } from "@/components/ui/input";
@@ -19,10 +20,11 @@ interface FacebookFormProps {
 }
 
 export function FacebookForm({ initialData }: FacebookFormProps) {
+  const router = useRouter();
   const [pixelId, setPixelId] = useState(initialData.meta_pixel_id || "");
   const [capiToken, setCapiToken] = useState(initialData.meta_capi_token || "");
   const [adAccountId, setAdAccountId] = useState(initialData.meta_ad_account_id || "");
-  const [adsToken, setAdsToken] = useState(initialData.meta_ads_access_token || initialData.meta_capi_token || "");
+  const [adsToken, setAdsToken] = useState(initialData.meta_ads_access_token || "");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -34,13 +36,21 @@ export function FacebookForm({ initialData }: FacebookFormProps) {
     setError("");
 
     try {
+      const cleanCapiToken = capiToken.trim();
+      const cleanAdsToken = adsToken.trim();
+      if (cleanCapiToken && cleanAdsToken && cleanCapiToken === cleanAdsToken) {
+        setError("O token da Marketing API nao deve ser o mesmo token CAPI do Pixel. Para o dashboard de anuncios, gere um token com ads_read ou ads_management.");
+        return;
+      }
+
       await updateTenantMetaSettings({
-        meta_pixel_id: pixelId,
-        meta_capi_token: capiToken,
-        meta_ad_account_id: adAccountId,
-        meta_ads_access_token: adsToken,
+        meta_pixel_id: pixelId.trim(),
+        meta_capi_token: cleanCapiToken,
+        meta_ad_account_id: adAccountId.trim(),
+        meta_ads_access_token: cleanAdsToken,
       });
       setSuccess(true);
+      router.refresh();
     } catch (err: any) {
       setError(err.message || "Erro ao salvar as configurações.");
     } finally {
@@ -153,7 +163,7 @@ export function FacebookForm({ initialData }: FacebookFormProps) {
                 />
                 <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                   <HelpCircle className="h-3.5 w-3.5" />
-                  O dashboard precisa de um token da Marketing API com ads_read ou ads_management gerado por alguem com acesso a conta de anuncios.
+                  O dashboard usa somente este token para ler anuncios. Ele e diferente do token CAPI do Pixel e precisa ter ads_read ou ads_management.
                 </p>
               </div>
 

@@ -152,7 +152,7 @@ export default async function DashboardPage() {
 
   const metaAds = await getMetaAdsDashboard({
     adAccountId: tenantMeta?.meta_ad_account_id,
-    accessToken: tenantMeta?.meta_ads_access_token ?? tenantMeta?.meta_capi_token,
+    accessToken: tenantMeta?.meta_ads_access_token,
   });
 
   return (
