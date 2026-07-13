@@ -69,6 +69,13 @@ const LEAD_ACTIONS = new Set([
   "omni_lead",
 ]);
 
+const MESSAGING_LEAD_ACTION_PRIORITY = [
+  new Set(["onsite_conversion.messaging_conversation_started_7d"]),
+  new Set(["onsite_conversion.total_messaging_connection"]),
+  new Set(["onsite_conversion.messaging_first_reply"]),
+  new Set(["onsite_conversion.messaging_conversation_replied_7d"]),
+];
+
 const PURCHASE_ACTIONS = new Set([
   "purchase",
   "omni_purchase",
@@ -230,7 +237,7 @@ function normalizeInsightRow(row: MetaInsightRow): MetaAdsRow {
     cpcCents: moneyToCents(row.cpc),
     cpmCents: moneyToCents(row.cpm),
     ctr: round2(Number(row.ctr ?? 0)),
-    leads: extractActionCount(row.actions, LEAD_ACTIONS),
+    leads: extractLeadCount(row.actions),
     purchases: extractActionCount(row.actions, PURCHASE_ACTIONS),
     revenueCents,
     roas: metaRoas > 0 ? round2(metaRoas) : spendCents > 0 ? round2(revenueCents / spendCents) : 0,
@@ -249,6 +256,18 @@ function extractActionCount(actions: MetaAction[] | undefined, actionTypes: Set<
       return action.action_type && actionTypes.has(action.action_type) ? sum + Number(action.value ?? 0) : sum;
     }, 0),
   );
+}
+
+function extractLeadCount(actions: MetaAction[] | undefined) {
+  const explicitLeads = extractActionCount(actions, LEAD_ACTIONS);
+  if (explicitLeads > 0) return explicitLeads;
+
+  for (const messagingActions of MESSAGING_LEAD_ACTION_PRIORITY) {
+    const count = extractActionCount(actions, messagingActions);
+    if (count > 0) return count;
+  }
+
+  return 0;
 }
 
 function extractActionMoney(actions: MetaAction[] | undefined, actionTypes: Set<string>) {

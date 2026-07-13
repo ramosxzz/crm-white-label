@@ -303,8 +303,8 @@ function MetaAdsPanel({ data }: { data: MetaAdsDashboardData }) {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MiniMetric icon={<DollarSign className="h-4 w-4" />} label="Gasto hoje" value={formatCurrencyBRL(data.totals.spendCents)} />
           <MiniMetric icon={<TrendingUp className="h-4 w-4" />} label="ROAS" value={`${data.totals.roas.toFixed(2)}x`} hint={formatCurrencyBRL(data.totals.revenueCents)} />
-          <MiniMetric icon={<Target className="h-4 w-4" />} label="CAC estimado" value={formatCurrencyBRL(data.totals.cacCents)} hint={`${data.totals.purchases || data.totals.leads} conversao(oes)`} />
-          <MiniMetric icon={<MousePointerClick className="h-4 w-4" />} label="Cliques / Leads" value={`${data.totals.clicks} / ${data.totals.leads}`} hint={`${data.totals.impressions} impressoes`} />
+          <MiniMetric icon={<Target className="h-4 w-4" />} label="CAC estimado" value={formatCurrencyBRL(data.totals.cacCents)} hint={`${data.totals.purchases || data.totals.leads} conversa(s)`} />
+          <MiniMetric icon={<MousePointerClick className="h-4 w-4" />} label="Cliques / Conversas" value={`${data.totals.clicks} / ${data.totals.leads}`} hint={`${data.totals.impressions} impressoes`} />
         </div>
 
         {configured && !hasRows ? (
@@ -320,7 +320,7 @@ function MetaAdsPanel({ data }: { data: MetaAdsDashboardData }) {
                     <th className="px-4 py-2.5 font-medium">Anúncio</th>
                     <th className="px-4 py-2.5 font-medium">Campanha</th>
                     <th className="px-4 py-2.5 font-medium text-right">Gasto</th>
-                    <th className="px-4 py-2.5 font-medium text-right">Leads</th>
+                    <th className="px-4 py-2.5 font-medium text-right">Conversas</th>
                     <th className="px-4 py-2.5 font-medium text-right">CAC/CPL</th>
                     <th className="px-4 py-2.5 font-medium text-right">ROAS</th>
                   </tr>
