@@ -21,6 +21,8 @@ export type MetaAdsRow = {
 export type MetaAdsDashboardData = {
   status: MetaAdsStatus;
   error?: string;
+  errorCode?: number;
+  errorType?: string;
   adAccountId?: string | null;
   datePreset: "today";
   updatedAt: string;
@@ -123,7 +125,9 @@ export async function getMetaAdsDashboard(input: {
     if (!response.ok) {
       return {
         ...emptyMetaDashboard("error", adAccountId),
-        error: payload?.error?.message ?? "Nao foi possivel carregar os dados do Meta Ads.",
+        error: translateMetaAdsError(payload?.error?.message),
+        errorCode: payload?.error?.code,
+        errorType: payload?.error?.type,
       };
     }
 
@@ -193,6 +197,21 @@ function emptyMetaDashboard(status: MetaAdsStatus, adAccountId?: string | null):
     },
     rows: [],
   };
+}
+
+function translateMetaAdsError(message?: string) {
+  if (!message) return "Nao foi possivel carregar os dados do Meta Ads.";
+
+  const lower = message.toLowerCase();
+  if (lower.includes("ads_management") || lower.includes("ads_read")) {
+    return "O token salvo nao tem permissao para ler a conta de anuncios. Gere um token da Marketing API com ads_read ou ads_management usando um usuario que tenha acesso a essa conta de anuncios, salve na integracao Meta e tente novamente.";
+  }
+
+  if (lower.includes("invalid oauth") || lower.includes("access token")) {
+    return "O token da Meta esta invalido ou expirou. Gere um novo token de longa duracao e salve novamente na integracao Meta.";
+  }
+
+  return message;
 }
 
 function normalizeInsightRow(row: MetaInsightRow): MetaAdsRow {

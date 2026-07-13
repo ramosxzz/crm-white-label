@@ -153,7 +153,7 @@ export function FacebookForm({ initialData }: FacebookFormProps) {
                 />
                 <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                   <HelpCircle className="h-3.5 w-3.5" />
-                  Se voce ja usava o mesmo token da CAPI, ele tambem sera aproveitado para o dashboard quando tiver ads_read.
+                  O dashboard precisa de um token da Marketing API com ads_read ou ads_management gerado por alguem com acesso a conta de anuncios.
                 </p>
               </div>
 
