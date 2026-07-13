@@ -126,9 +126,52 @@ function mergeMessages(prev: ChatMessage[], incoming: ChatMessage[]): ChatMessag
   const map = new Map<string, ChatMessage>();
   for (const m of prev) map.set(m.id, m);
   for (const m of incoming) map.set(m.id, m);
-  return [...map.values()].sort(
+  return removeResolvedOptimisticMessages([...map.values()]).sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
   );
+}
+
+function isOptimisticMessage(message: ChatMessage) {
+  return message.id.startsWith("opt-") || message.id.startsWith("optimistic-");
+}
+
+function sameOutgoingDraft(optimistic: ChatMessage, real: ChatMessage) {
+  if (!isOptimisticMessage(optimistic) || isOptimisticMessage(real)) return false;
+  if (optimistic.direction !== "outbound" || real.direction !== "outbound") return false;
+
+  const optimisticBody = (optimistic.body ?? "").trim();
+  const realBody = (real.body ?? "").trim();
+  if (optimisticBody !== realBody) return false;
+
+  const optimisticMediaType = optimistic.media_type ?? null;
+  const realMediaType = real.media_type ?? null;
+  if (optimisticMediaType !== realMediaType) return false;
+
+  const optimisticReply = optimistic.reply_to_message_id ?? optimistic.reply_to_external_id ?? null;
+  const realReply = real.reply_to_message_id ?? real.reply_to_external_id ?? null;
+  if (optimisticReply !== realReply) return false;
+
+  const optimisticTime = new Date(optimistic.created_at).getTime();
+  const realTime = new Date(real.created_at).getTime();
+  return Math.abs(realTime - optimisticTime) < 120_000;
+}
+
+function removeResolvedOptimisticMessages(messages: ChatMessage[]) {
+  const realMessages = messages.filter((m) => !isOptimisticMessage(m));
+  const usedRealIds = new Set<string>();
+
+  return messages.filter((message) => {
+    if (!isOptimisticMessage(message)) return true;
+
+    const real = realMessages.find((candidate) => {
+      if (usedRealIds.has(candidate.id)) return false;
+      return sameOutgoingDraft(message, candidate);
+    });
+
+    if (!real) return true;
+    usedRealIds.add(real.id);
+    return false;
+  });
 }
 
 function replyPreview(message: ChatMessage): string {
@@ -368,7 +411,7 @@ export function ChatThread({
         { event: "UPDATE", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
         (payload) => {
           const row = payload.new as ChatMessage;
-          setMessages((prev) => prev.map((m) => (m.id === row.id ? row : m)));
+          setMessages((prev) => mergeMessages(prev, [row]));
         },
       )
       .subscribe();

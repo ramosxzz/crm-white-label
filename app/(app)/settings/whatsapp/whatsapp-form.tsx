@@ -37,7 +37,7 @@ export function WhatsAppForm({ initial }: { initial: WhatsAppAccount | null }) {
         });
         setMsg("Salvo com sucesso");
       } catch (err) {
-        setMsg((err as Error).message);
+        setMsg(formatActionError(err));
       }
     });
   }
@@ -127,8 +127,12 @@ export function WhatsAppForm({ initial }: { initial: WhatsAppAccount | null }) {
               onClick={() => {
                 setTestMsg(null);
                 start(async () => {
-                  const r = await testWhatsAppConnection({ provider, credentials: creds });
-                  setTestMsg(r.ok ? `OK - ${r.message}` : `Erro - ${r.message}`);
+                  try {
+                    const r = await testWhatsAppConnection({ provider, credentials: creds });
+                    setTestMsg(r.ok ? `OK - ${r.message}` : `Erro - ${r.message}`);
+                  } catch (err) {
+                    setTestMsg(`Erro - ${formatActionError(err)}`);
+                  }
                 });
               }}
             >
@@ -142,6 +146,14 @@ export function WhatsAppForm({ initial }: { initial: WhatsAppAccount | null }) {
       </div>
     </form>
   );
+}
+
+function formatActionError(err: unknown) {
+  const message = err instanceof Error ? err.message : String(err);
+  if (message.includes("Server Components render") || message.includes("Failed to find Server Action")) {
+    return "A pagina estava aberta durante uma atualizacao do CRM. Recarregue a pagina e tente novamente.";
+  }
+  return message;
 }
 
 function providerFields(p: WhatsAppProviderKind) {
