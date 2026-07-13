@@ -292,6 +292,7 @@ export function ChatThread({
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef(true);
+  const previousLeadIdRef = useRef(leadId);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -347,16 +348,29 @@ export function ChatThread({
   }, []);
 
   useEffect(() => {
+    const leadChanged = previousLeadIdRef.current !== leadId;
+    previousLeadIdRef.current = leadId;
+
     setConversationId(initialConversationId);
     setStatus(initialStatus);
     setAutomationsOn(initialAutomationsEnabled);
     setMessages(initialMessages);
-    setQuickMediaDraft(null);
-    setText("");
-    setReplyTo(null);
+    if (leadChanged) {
+      setQuickMediaDraft(null);
+      setText(typeof window === "undefined" ? "" : window.sessionStorage.getItem(draftStorageKey) ?? "");
+      setReplyTo(null);
+    }
     shouldStickToBottomRef.current = true;
     requestAnimationFrame(() => scrollToBottom("auto"));
-  }, [leadId, initialConversationId, initialStatus, initialAutomationsEnabled, initialMessages]);
+  }, [
+    leadId,
+    draftStorageKey,
+    initialConversationId,
+    initialStatus,
+    initialAutomationsEnabled,
+    initialMessages,
+    scrollToBottom,
+  ]);
 
   const toggleAutomations = useCallback(() => {
     setAutomationsOn((prev) => {
