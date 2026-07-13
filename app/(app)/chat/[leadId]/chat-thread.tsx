@@ -103,6 +103,14 @@ type PipelineOption = {
   stages: { id: string; name: string; color: string | null; position: number | null }[];
 };
 
+type ScheduledMessage = {
+  id: string;
+  body: string | null;
+  media_url: string | null;
+  media_type: string | null;
+  send_at: string;
+};
+
 function detectMediaKind(mime: string): MediaKind {
   if (mime.startsWith("image")) return "image";
   if (mime.startsWith("video")) return "video";
@@ -196,6 +204,7 @@ export function ChatThread({
   initialStatus = "nao_iniciada",
   initialAutomationsEnabled = true,
   initialMessages,
+  initialScheduledMessages = [],
   quickMessages = [],
   professionals = [],
   users = [],
@@ -214,6 +223,7 @@ export function ChatThread({
   initialStatus?: ConversationStatus;
   initialAutomationsEnabled?: boolean;
   initialMessages: ChatMessage[];
+  initialScheduledMessages?: ScheduledMessage[];
   quickMessages?: QuickMessage[];
   professionals?: { id: string; name: string }[];
   users?: { id: string; name: string }[];
@@ -280,9 +290,7 @@ export function ChatThread({
   const [scheduleMediaUrl, setScheduleMediaUrl] = useState<string | null>(null);
   const [scheduleMediaName, setScheduleMediaName] = useState<string | null>(null);
   const [scheduleUploading, setScheduleUploading] = useState(false);
-  const [pendingScheduled, setPendingScheduled] = useState<
-    { id: string; body: string | null; media_url: string | null; media_type: string | null; send_at: string }[]
-  >([]);
+  const [pendingScheduled, setPendingScheduled] = useState<ScheduledMessage[]>(initialScheduledMessages);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scheduleAudioInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -355,6 +363,7 @@ export function ChatThread({
     setStatus(initialStatus);
     setAutomationsOn(initialAutomationsEnabled);
     setMessages(initialMessages);
+    setPendingScheduled(initialScheduledMessages);
     if (leadChanged) {
       setQuickMediaDraft(null);
       setText(typeof window === "undefined" ? "" : window.sessionStorage.getItem(draftStorageKey) ?? "");
@@ -369,6 +378,7 @@ export function ChatThread({
     initialStatus,
     initialAutomationsEnabled,
     initialMessages,
+    initialScheduledMessages,
     scrollToBottom,
   ]);
 
@@ -720,6 +730,7 @@ export function ChatThread({
       .catch((err) => alert((err as Error).message));
   }
 
+  const nextScheduled = pendingScheduled[0];
   const busy = pending || uploading;
 
   return (
@@ -792,6 +803,49 @@ export function ChatThread({
           <LeadDeleteButton leadId={leadId} leadName={displayName} redirectTo="/chat" size="icon" iconOnly />
         </div>
       </header>
+
+      {nextScheduled && (
+        <div className="shrink-0 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2.5 text-amber-950 dark:bg-amber-500/10 dark:text-amber-100 sm:px-6">
+          <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-amber-500/25 bg-amber-500/12 text-amber-700 dark:text-amber-300">
+                <CalendarClock className="h-4 w-4" />
+              </span>
+              <div className="min-w-0 text-sm">
+                <p className="font-semibold">
+                  {pendingScheduled.length === 1
+                    ? "1 mensagem agendada"
+                    : `${pendingScheduled.length} mensagens agendadas`}
+                  <span className="font-normal text-amber-900/75 dark:text-amber-100/75">
+                    {" "}
+                    para {new Date(nextScheduled.send_at).toLocaleString("pt-BR", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </p>
+                <p className="truncate text-xs text-amber-900/70 dark:text-amber-100/65">
+                  {nextScheduled.media_url ? "Áudio agendado" : nextScheduled.body}
+                </p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 shrink-0 border-amber-500/30 bg-background/40 text-amber-900 hover:bg-amber-500/10 dark:text-amber-100"
+              onClick={() => {
+                refreshPendingScheduled();
+                setScheduleOpen(true);
+              }}
+            >
+              Ver agendadas
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div
         ref={scrollRef}

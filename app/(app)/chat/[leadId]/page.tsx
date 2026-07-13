@@ -21,6 +21,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
     servicesRes,
     whatsappAccountsRes,
     pipelinesRes,
+    scheduledMessagesRes,
     users,
   ] = await Promise.all([
     service
@@ -62,6 +63,13 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
       .select("id, name, pipeline_stages(id, name, color, position)")
       .eq("tenant_id", ctx.tenantId)
       .order("name"),
+    service
+      .from("scheduled_messages")
+      .select("id, body, media_url, media_type, send_at")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("lead_id", leadId)
+      .eq("status", "pending")
+      .order("send_at", { ascending: true }),
     listTenantUserOptions(ctx.tenantId),
   ]);
 
@@ -191,6 +199,13 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
       initialStatus={(convo?.status as ConversationStatus | null) ?? "nao_iniciada"}
       initialAutomationsEnabled={lead.automations_enabled ?? true}
       initialMessages={messages}
+      initialScheduledMessages={(scheduledMessagesRes.data ?? []) as {
+        id: string;
+        body: string | null;
+        media_url: string | null;
+        media_type: string | null;
+        send_at: string;
+      }[]}
       quickMessages={quickMessages}
       professionals={professionalsRes.data ?? []}
       users={users}
