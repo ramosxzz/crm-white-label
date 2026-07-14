@@ -19,6 +19,7 @@ import {
   UserCog,
   Heart,
   PhoneCall,
+  Bot,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -35,6 +36,7 @@ const navItems = [
   { href: "/mensagens-rapidas", label: "Mensagens rápidas", icon: MessageSquareText },
   { href: "/estoque", label: "Estoque", icon: Boxes },
   { href: "/automations", label: "Automacoes", icon: Zap },
+  { href: "/ia-w-mais", label: "IA W+", icon: Bot },
   { href: "/pesquisa-satisfacao", label: "Pesquisa de Satisfação", icon: Heart },
   { href: "/ligacoes", label: "Ligações", icon: PhoneCall },
 ];

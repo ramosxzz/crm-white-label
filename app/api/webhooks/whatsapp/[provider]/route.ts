@@ -25,6 +25,8 @@ import { parseEvolutionMessageStatusUpdates } from "@/lib/whatsapp/evolution-sta
 
 import { isValidBrazilWhatsAppPhone, normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
 
+import { getAiAgentReply } from "@/lib/ai/agent";
+
 import type { WhatsAppAccount, WhatsAppProviderKind } from "@/lib/supabase/database.types";
 
 
@@ -561,6 +563,39 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
             .eq("id", insertedMsg.id),
         )
         .catch(() => null);
+    }
+
+    if (isInbound && insertedMsg?.id && msg.body) {
+      try {
+        const replyText = await getAiAgentReply(supabase, {
+          tenantId: account.tenant_id,
+          leadId,
+          conversationId,
+          incomingBody: msg.body,
+        });
+        if (replyText) {
+          const aiAdapter = createProvider(account);
+          const sendResult = await aiAdapter.send({ to: contactPhone ?? account.phone_number, body: replyText });
+          await supabase.from("messages").insert({
+            tenant_id: account.tenant_id,
+            conversation_id: conversationId,
+            direction: "outbound",
+            body: replyText,
+            status: sendResult.status === "sent" ? "sent" : "failed",
+            error: sendResult.status === "sent" ? null : "Falha ao enviar resposta da IA",
+            external_id: sendResult.externalId ?? null,
+            is_ai_generated: true,
+          });
+          if (sendResult.status === "sent") {
+            await supabase
+              .from("conversations")
+              .update({ last_message_at: new Date().toISOString() })
+              .eq("id", conversationId);
+          }
+        }
+      } catch (err) {
+        console.error("[ia w+] erro ao responder automaticamente:", err);
+      }
     }
   }
 
