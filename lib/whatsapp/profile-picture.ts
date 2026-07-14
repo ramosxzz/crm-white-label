@@ -46,7 +46,12 @@ export async function syncLeadWhatsAppProfilePicture(
   const provider = createProvider(account);
   if (!provider.fetchProfilePicture) return getCachedWhatsAppProfilePicture(lead.custom_fields);
 
-  const pictureUrl = await provider.fetchProfilePicture(lead.phone);
+  let pictureUrl: string | null;
+  try {
+    pictureUrl = await provider.fetchProfilePicture(lead.phone);
+  } catch {
+    return getCachedWhatsAppProfilePicture(lead.custom_fields);
+  }
   const nextFields = {
     ...(lead.custom_fields ?? {}),
     [WHATSAPP_PROFILE_PIC_FETCHED_AT_FIELD]: new Date().toISOString(),
