@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { canManageOperationalSetup } from "@/lib/auth/roles";
+import { canManagePipeline } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { setDefaultPipeline, updatePipeline } from "./actions";
@@ -24,7 +24,7 @@ export default async function PipelinesPage() {
     .eq("tenant_id", ctx.tenantId)
     .order("created_at");
   const pipelines = (data ?? []) as unknown as PipelineRow[];
-  const canManage = canManageOperationalSetup(ctx.role);
+  const canManage = canManagePipeline(ctx.role);
 
   return (
     <div>

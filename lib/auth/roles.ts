@@ -24,6 +24,10 @@ export function canSeeFullDashboard(role: MemberRole) {
   return role !== "vendedor";
 }
 
+export function canManagePipeline(role: MemberRole) {
+  return role === "owner" || role === "admin" || role === "gerente" || role === "vendedor";
+}
+
 export function assertRole(
   role: MemberRole,
   predicate: (role: MemberRole) => boolean,

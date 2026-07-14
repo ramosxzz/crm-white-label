@@ -736,9 +736,9 @@ export function ChatThread({
   return (
     <section className="flex min-h-0 flex-1 bg-[radial-gradient(900px_520px_at_50%_-8%,hsl(var(--brand)/0.07),transparent_68%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--background)))]">
       <div className="flex min-w-0 flex-1 flex-col">
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border/50 bg-card/78 px-5 py-3.5 backdrop-blur-md">
+      <header className="flex shrink-0 flex-col gap-2 border-b border-border/50 bg-card/78 px-3 py-2.5 backdrop-blur-md sm:px-5 sm:py-3.5 md:flex-row md:items-center md:justify-between md:gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <Avatar className="h-11 w-11 ring-2 ring-brand/25">
+          <Avatar className="h-10 w-10 shrink-0 ring-2 ring-brand/25 sm:h-11 sm:w-11">
             {leadAvatarUrl && <AvatarImage src={leadAvatarUrl} alt={displayName} />}
             <AvatarFallback className="bg-brand-muted text-sm font-semibold text-brand dark:bg-brand dark:text-brand-foreground">
               {initials(displayName)}
@@ -756,7 +756,7 @@ export function ChatThread({
             </button>
           </div>
         </div>
-        <div className="relative z-30 flex min-w-0 shrink-0 items-center gap-2 overflow-visible">
+        <div className="relative z-30 -mx-3 flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto px-3 [scrollbar-width:none] sm:mx-0 sm:justify-end sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
           <button
             type="button"
             onClick={toggleAutomations}

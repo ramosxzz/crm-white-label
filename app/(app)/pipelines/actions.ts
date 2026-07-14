@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { assertRole, canManageOperationalSetup } from "@/lib/auth/roles";
+import { assertRole, canManagePipeline } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 
@@ -19,7 +19,7 @@ const stageSchema = z.object({
 
 async function requireSetupContext() {
   const ctx = await requireContext();
-  assertRole(ctx.role, canManageOperationalSetup);
+  assertRole(ctx.role, canManagePipeline);
   return ctx;
 }
 
