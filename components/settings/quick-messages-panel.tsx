@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Loader2, Pencil, Plus, Trash2, Sparkles, Mic, Square, RotateCcw } from "lucide-react";
+import { GripVertical, Loader2, Pencil, Plus, Trash2, Sparkles, Mic, Square, RotateCcw, Upload } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,17 +62,34 @@ export function QuickMessagesPanel({
   const [recordSecs, setRecordSecs] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioPreview, setAudioPreview] = useState<string | null>(null);
+  const [audioMime, setAudioMime] = useState("audio/ogg");
   const [savingAudio, setSavingAudio] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<Blob[]>([]);
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioFileInputRef = useRef<HTMLInputElement | null>(null);
 
   function openAudio() {
     setAudioTitle("");
     setAudioBlob(null);
     setAudioPreview(null);
+    setAudioMime("audio/ogg");
     setRecordSecs(0);
     setAudioOpen(true);
+  }
+
+  function onPickAudioFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("audio/")) {
+      setMsg("Selecione um arquivo de áudio válido.");
+      return;
+    }
+    setAudioBlob(file);
+    setAudioMime(file.type || "audio/mpeg");
+    setAudioPreview(URL.createObjectURL(file));
+    if (!audioTitle.trim()) setAudioTitle(file.name.replace(/\.[^.]+$/, ""));
   }
 
   async function startRecording() {
@@ -119,10 +136,11 @@ export function QuickMessagesPanel({
     void (async () => {
       try {
         const supabase = createClient();
-        const path = `${tenantId}/quick-audio/${crypto.randomUUID()}.ogg`;
+        const ext = audioMime.split("/")[1]?.split(";")[0] || "ogg";
+        const path = `${tenantId}/quick-audio/${crypto.randomUUID()}.${ext}`;
         const { error: upErr } = await supabase.storage
           .from("chat-media")
-          .upload(path, audioBlob, { cacheControl: "3600", upsert: false, contentType: "audio/ogg" });
+          .upload(path, audioBlob, { cacheControl: "3600", upsert: false, contentType: audioMime });
         if (upErr) throw new Error(upErr.message);
         const { data: pub } = supabase.storage.from("chat-media").getPublicUrl(path);
         await createQuickMessage({ title: audioTitle.trim(), media_url: pub.publicUrl, media_type: "audio" });
@@ -290,7 +308,7 @@ export function QuickMessagesPanel({
               Novo áudio rápido
             </DialogTitle>
             <DialogDescription>
-              Grave um áudio pronto para enviar com um clique nas conversas.
+              Grave um áudio ou envie um arquivo pronto para disparar com um clique nas conversas.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -317,9 +335,22 @@ export function QuickMessagesPanel({
                       </Button>
                     </>
                   ) : (
-                    <Button type="button" variant="brand" onClick={startRecording}>
-                      <Mic className="h-4 w-4" /> Iniciar gravação
-                    </Button>
+                    <>
+                      <Button type="button" variant="brand" onClick={startRecording}>
+                        <Mic className="h-4 w-4" /> Iniciar gravação
+                      </Button>
+                      <span className="text-xs text-muted-foreground">ou</span>
+                      <input
+                        ref={audioFileInputRef}
+                        type="file"
+                        accept="audio/*"
+                        className="hidden"
+                        onChange={onPickAudioFile}
+                      />
+                      <Button type="button" variant="outline" onClick={() => audioFileInputRef.current?.click()}>
+                        <Upload className="h-4 w-4" /> Enviar arquivo pronto
+                      </Button>
+                    </>
                   )}
                 </div>
               ) : (

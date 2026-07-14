@@ -21,6 +21,7 @@ import {
   shouldUpgradeMessageStatus,
   type DbMessageStatus,
 } from "@/lib/whatsapp/zapi-status";
+import { parseEvolutionMessageStatusUpdates } from "@/lib/whatsapp/evolution-status";
 
 import { isValidBrazilWhatsAppPhone, normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
 
@@ -226,6 +227,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
       parsed_count: 0,
       payload: payload as Record<string, unknown>,
     });
+
+    const statusUpdates = parseEvolutionMessageStatusUpdates(payload);
+    if (statusUpdates.length > 0) {
+      const applied = await applyMessageStatusUpdates(supabase, account.tenant_id, statusUpdates);
+      return NextResponse.json({ ok: true, parsed: 0, statusUpdates: applied });
+    }
   }
 
   const adapter = createProvider(account);

@@ -1992,7 +1992,7 @@ function MessageStatusLabel({ status }: { status: string }) {
   }
   if (status === "read") {
     return (
-      <span className="inline-flex items-center gap-0.5 font-medium">
+      <span className="inline-flex items-center gap-0.5 font-medium text-sky-400">
         <CheckCheck className="h-3.5 w-3.5" aria-hidden />
         visualizado
       </span>

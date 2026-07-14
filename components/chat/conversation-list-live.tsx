@@ -25,6 +25,18 @@ export function ConversationListLive({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("todas");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const contactRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notificationAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const playNotificationSound = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (window.localStorage.getItem("chat_notification_sound") === "off") return;
+    if (!notificationAudioRef.current) {
+      notificationAudioRef.current = new Audio("/sounds/notification.mp3");
+    }
+    const audio = notificationAudioRef.current;
+    audio.currentTime = 0;
+    void audio.play().catch(() => null);
+  }, []);
 
   const refreshContacts = useCallback(async () => {
     try {
@@ -106,7 +118,21 @@ export function ConversationListLive({
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        (payload) => {
+          const row = payload.new as { direction?: string } | null;
+          if (row?.direction === "inbound") playNotificationSound();
+          scheduleContactsRefresh();
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
           schema: "public",
           table: "messages",
           filter: `tenant_id=eq.${tenantId}`,
@@ -129,7 +155,7 @@ export function ConversationListLive({
       if (contactRefreshTimerRef.current) clearTimeout(contactRefreshTimerRef.current);
       void supabase.removeChannel(channel);
     };
-  }, [tenantId, scheduleContactsRefresh]);
+  }, [tenantId, scheduleContactsRefresh, playNotificationSound]);
 
   return (
     <ConversationList
