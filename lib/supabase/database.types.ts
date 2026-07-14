@@ -98,6 +98,13 @@ export interface Notification {
   created_at: string;
 }
 
+export interface SystemUpdate {
+  id: string;
+  title: string;
+  body: string | null;
+  created_at: string;
+}
+
 export interface LeadIntakeKey {
   id: string;
   tenant_id: string;
@@ -113,6 +120,7 @@ export interface Profile {
   full_name: string | null;
   avatar_url: string | null;
   default_tenant_id: string | null;
+  last_seen_update_at: string;
   created_at: string;
 }
 
@@ -431,6 +439,7 @@ export type Database = {
       appointments: { Row: Appointment; Insert: Partial<Appointment>; Update: Partial<Appointment> };
       stock_reservations: { Row: StockReservation; Insert: Partial<StockReservation>; Update: Partial<StockReservation> };
       notifications: { Row: Notification; Insert: Partial<Notification>; Update: Partial<Notification> };
+      system_updates: { Row: SystemUpdate; Insert: Partial<SystemUpdate>; Update: Partial<SystemUpdate> };
       lead_intake_keys: { Row: LeadIntakeKey; Insert: Partial<LeadIntakeKey>; Update: Partial<LeadIntakeKey> };
       message_templates: { Row: MessageTemplate; Insert: Partial<MessageTemplate>; Update: Partial<MessageTemplate> };
       campaigns: { Row: Campaign; Insert: Partial<Campaign>; Update: Partial<Campaign> };
