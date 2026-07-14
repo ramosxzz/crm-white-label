@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { createClient } from "@/lib/supabase/server";
 
-const APP_SECRET = process.env.META_APP_SECRET!;
+const APP_SECRET = process.env.META_INSTAGRAM_APP_SECRET ?? process.env.META_APP_SECRET!;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!;
 
 function parseSignedRequest(signedRequest: string): { user_id: string } | null {
