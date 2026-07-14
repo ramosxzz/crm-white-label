@@ -44,7 +44,15 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       <header className="mb-6">
         <h1 className="text-2xl font-bold">{product.name}</h1>
         <p className="text-sm text-muted-foreground">
-          SKU: {product.sku ?? "-"} - {formatCurrencyBRL(product.price_cents)} · {product.tone ?? "Sem tonalidade"} · {product.length_cm ? `${product.length_cm} cm` : "Sem comprimento"} · {product.texture ?? "Sem textura"}
+          {[
+            `SKU: ${product.sku ?? "-"}`,
+            formatCurrencyBRL(product.price_cents),
+            product.tone,
+            product.length_cm ? `${product.length_cm} cm` : null,
+            product.texture,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         </p>
       </header>
 
