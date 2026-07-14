@@ -20,6 +20,10 @@ export function canSeeAllLeads(role: MemberRole) {
   return role === "owner" || role === "admin" || role === "gerente";
 }
 
+export function canSeeFullDashboard(role: MemberRole) {
+  return role !== "vendedor";
+}
+
 export function assertRole(
   role: MemberRole,
   predicate: (role: MemberRole) => boolean,

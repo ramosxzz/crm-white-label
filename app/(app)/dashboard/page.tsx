@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { PageHeader } from "@/components/app/page-header";
 import { LeadsOpsDashboard } from "@/components/dashboard/leads-ops-dashboard";
+import { SellerDashboard } from "@/components/dashboard/seller-dashboard";
 import { formatBRTDateLong, getBRTDayBounds, getBRTYesterdayBounds } from "@/lib/date/brt";
 import {
   aggregateSources,
@@ -10,12 +11,67 @@ import {
   type LeadsDashboardData,
 } from "@/lib/leads/dashboard-metrics";
 import { getMetaAdsDashboard } from "@/lib/meta/ads-insights";
+import { canSeeFullDashboard } from "@/lib/auth/roles";
 
 export default async function DashboardPage() {
   const ctx = await requireContext();
   const supabase = await createClient();
   const today = getBRTDayBounds();
   const yesterday = getBRTYesterdayBounds();
+
+  if (!canSeeFullDashboard(ctx.role)) {
+    const [{ count: messagesSentToday }, { data: convos }, { count: assignedLeads }, { count: newAssignedToday }] =
+      await Promise.all([
+        supabase
+          .from("messages")
+          .select("*", { count: "exact", head: true })
+          .eq("tenant_id", ctx.tenantId)
+          .eq("direction", "outbound")
+          .eq("user_id", ctx.userId)
+          .gte("created_at", today.startIso)
+          .lte("created_at", today.endIso),
+        supabase
+          .from("messages")
+          .select("conversation_id")
+          .eq("tenant_id", ctx.tenantId)
+          .eq("direction", "outbound")
+          .eq("user_id", ctx.userId)
+          .gte("created_at", today.startIso)
+          .lte("created_at", today.endIso),
+        supabase
+          .from("leads")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", ctx.tenantId)
+          .eq("assigned_to", ctx.userId),
+        supabase
+          .from("leads")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", ctx.tenantId)
+          .eq("assigned_to", ctx.userId)
+          .gte("created_at", today.startIso)
+          .lte("created_at", today.endIso),
+      ]);
+    const conversationsToday = new Set((convos ?? []).map((m) => m.conversation_id)).size;
+
+    return (
+      <div>
+        <PageHeader
+          eyebrow="Meu desempenho"
+          title="Central de operações"
+          description="Suas métricas de atendimento no dia."
+        />
+        <SellerDashboard
+          data={{
+            dateLabel: formatBRTDateLong(),
+            messagesSentToday: messagesSentToday ?? 0,
+            conversationsToday,
+            assignedLeads: assignedLeads ?? 0,
+            newAssignedToday: newAssignedToday ?? 0,
+          }}
+        />
+      </div>
+    );
+  }
 
   const weekStart = new Date();
   weekStart.setDate(weekStart.getDate() - 6);
