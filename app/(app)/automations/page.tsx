@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { createFlow, updateFlowStatus, deleteFlow } from "./actions";
@@ -85,24 +84,12 @@ export default async function AutomationsPage() {
                   <Input id="name" name="name" placeholder="Ex: Boas-vindas para novos leads" required />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="trigger_kind">Gatilho</Label>
-                  <Select name="trigger_kind" defaultValue="lead_created">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(triggerLabels).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
                   <Label htmlFor="description">Descricao (opcional)</Label>
                   <Input id="description" name="description" placeholder="Para que serve essa automacao?" />
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  O gatilho e escolhido dentro do editor, junto com os demais blocos do fluxo.
+                </p>
                 <Button type="submit" className="w-full">
                   Criar e abrir editor
                 </Button>
@@ -150,7 +137,11 @@ export default async function AutomationsPage() {
 
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Zap className="h-3.5 w-3.5" />
-                      <span>{triggerLabels[flow.trigger_kind as string] ?? flow.trigger_kind}</span>
+                      <span>
+                        {flow.trigger_kind
+                          ? triggerLabels[flow.trigger_kind as string] ?? flow.trigger_kind
+                          : "Sem gatilho definido"}
+                      </span>
                       <span className="ml-auto">{countsByFlow[flow.id] ?? 0} execucoes</span>
                     </div>
 

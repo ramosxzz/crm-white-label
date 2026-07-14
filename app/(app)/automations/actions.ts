@@ -4,14 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
-import type { TriggerKind } from "@/lib/automations/trigger";
 
 export async function createFlow(formData: FormData) {
   const ctx = await requireContext();
   const supabase = await createClient();
 
   const name = String(formData.get("name") || "").trim();
-  const triggerKind = String(formData.get("trigger_kind") || "lead_created") as TriggerKind;
   const description = String(formData.get("description") || "").trim();
 
   if (!name) return;
@@ -22,7 +20,7 @@ export async function createFlow(formData: FormData) {
       tenant_id: ctx.tenantId,
       name,
       description: description || null,
-      trigger_kind: triggerKind,
+      trigger_kind: null,
       status: "draft",
     })
     .select("id")
@@ -30,22 +28,13 @@ export async function createFlow(formData: FormData) {
 
   if (!flow) return;
 
-  // Create initial version with a trigger block pre-configured
+  // Comeca em branco: usuario monta o fluxo livremente no editor,
+  // escolhendo o gatilho (e qualquer outro bloco) quando quiser.
   await supabase.from("automation_versions").insert({
     flow_id: flow.id,
     tenant_id: ctx.tenantId,
     version_number: 1,
-    config: {
-      blocks: [
-        {
-          id: "trigger_1",
-          type: "trigger",
-          position: { x: 250, y: 50 },
-          data: { label: triggerLabelMap[triggerKind] ?? triggerKind, kind: triggerKind, config: {} },
-        },
-      ],
-      connections: [],
-    },
+    config: { blocks: [], connections: [] },
   });
 
   redirect(`/automations/${flow.id}/editor`);
@@ -54,6 +43,16 @@ export async function createFlow(formData: FormData) {
 export async function updateFlowStatus(flowId: string, status: "draft" | "active" | "paused") {
   const ctx = await requireContext();
   const supabase = await createClient();
+
+  if (status === "active") {
+    const { data: flow } = await supabase
+      .from("automation_flows")
+      .select("trigger_kind")
+      .eq("id", flowId)
+      .eq("tenant_id", ctx.tenantId)
+      .maybeSingle();
+    if (!flow?.trigger_kind) return; // sem gatilho no fluxo, nao ha o que ativar
+  }
 
   await supabase
     .from("automation_flows")
@@ -81,10 +80,14 @@ export async function deleteFlow(flowId: string) {
 
 export async function saveFlowVersion(
   flowId: string,
-  config: { blocks: unknown[]; connections: unknown[] },
-) {
+  config: { blocks: { type?: string; data?: { kind?: string } }[]; connections: unknown[] },
+): Promise<{ ok: boolean; error?: string }> {
   const ctx = await requireContext();
   const supabase = await createClient();
+
+  // O gatilho e o que o usuario colocou no canvas, nao uma escolha travada na criacao
+  const triggerBlock = config.blocks.find((b) => b.type === "trigger");
+  const triggerKind = triggerBlock?.data?.kind ?? null;
 
   // Get latest version number
   const { data: latest } = await supabase
@@ -106,22 +109,17 @@ export async function saveFlowVersion(
     published_at: new Date().toISOString(),
   });
 
-  // Activate the flow when saved
+  // So ativa se houver um gatilho no fluxo; sem gatilho o fluxo fica salvo como rascunho
   await supabase
     .from("automation_flows")
-    .update({ status: "active" })
+    .update({ trigger_kind: triggerKind, status: triggerKind ? "active" : "draft" })
     .eq("id", flowId)
     .eq("tenant_id", ctx.tenantId);
 
   revalidatePath(`/automations/${flowId}/editor`);
   revalidatePath("/automations");
-}
 
-const triggerLabelMap: Record<string, string> = {
-  lead_created: "Lead criado",
-  stage_changed: "Etapa alterada",
-  message_received: "Mensagem recebida",
-  appointment_created: "Agendamento criado",
-  appointment_near: "Agendamento proximo",
-  lead_inactive: "Lead inativo",
-};
+  return triggerKind
+    ? { ok: true }
+    : { ok: false, error: "Adicione um bloco de gatilho ao fluxo para poder ativa-lo." };
+}

@@ -102,6 +102,7 @@ export function FlowEditor({
   const [edges, setEdges, onEdgesChange] = useEdgesState(toReactFlowEdges(initialConnections));
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const onConnect = useCallback(
     (params: Connection) =>
@@ -162,6 +163,7 @@ export function FlowEditor({
 
   async function handleSave() {
     setSaving(true);
+    setSaveError(null);
     const blocks = nodes.map((n) => ({
       id: n.id,
       type: n.type ?? "action",
@@ -174,7 +176,8 @@ export function FlowEditor({
       target: e.target,
       sourceHandle: e.sourceHandle ?? null,
     }));
-    await saveFlowVersion(flowId, { blocks, connections });
+    const result = await saveFlowVersion(flowId, { blocks, connections });
+    if (!result.ok) setSaveError(result.error ?? "Nao foi possivel salvar.");
     setSaving(false);
   }
 
@@ -255,7 +258,23 @@ export function FlowEditor({
                 {saving ? "Salvando..." : "Salvar e publicar"}
               </Button>
             </div>
+            {saveError && (
+              <p className="mt-1.5 max-w-[260px] rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-right text-[11px] text-amber-700 dark:text-amber-400">
+                {saveError}
+              </p>
+            )}
           </Panel>
+
+          {nodes.length === 0 && (
+            <Panel position="top-center">
+              <div className="mt-16 flex flex-col items-center gap-1.5 rounded-xl border border-dashed border-border bg-card/90 px-5 py-4 text-center shadow-sm">
+                <p className="text-sm font-medium">Comece arrastando um bloco da esquerda</p>
+                <p className="text-xs text-muted-foreground">
+                  Escolha um Gatilho para iniciar o fluxo, na ordem que fizer sentido para voce.
+                </p>
+              </div>
+            </Panel>
+          )}
         </ReactFlow>
       </div>
 
