@@ -26,6 +26,52 @@ function friendlyApi4comError(status: number, details: string) {
   return `Falha ao iniciar ligacao na Api4com (${status}).`;
 }
 
+export type Api4comCall = {
+  id: string;
+  domain: string;
+  call_type: "inbound" | "outbound" | string;
+  started_at: string;
+  ended_at: string | null;
+  from: string;
+  to: string;
+  duration: number;
+  hangup_cause: string;
+  record_url: string | null;
+  email: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  BINA: string | null;
+  metadata: Record<string, unknown> | null;
+};
+
+export async function fetchApi4comCalls(): Promise<Api4comCall[]> {
+  const token = process.env.API4COM_TOKEN;
+  if (!token) return [];
+
+  const calls: Api4comCall[] = [];
+  let page = 1;
+  let totalPageCount = 1;
+
+  do {
+    const res = await fetch(`${API4COM_BASE_URL}/calls?page=${page}`, {
+      headers: { Authorization: token },
+      cache: "no-store",
+    });
+    if (!res.ok) break;
+
+    const payload = (await res.json().catch(() => null)) as {
+      data?: Api4comCall[];
+      meta?: { totalPageCount?: number };
+    } | null;
+
+    calls.push(...(payload?.data ?? []));
+    totalPageCount = payload?.meta?.totalPageCount ?? 1;
+    page++;
+  } while (page <= totalPageCount && page <= 10);
+
+  return calls;
+}
+
 export async function triggerApi4comCall(input: {
   extension: string;
   phone: string;

@@ -18,6 +18,7 @@ import {
   Zap,
   UserCog,
   Heart,
+  PhoneCall,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -35,6 +36,7 @@ const navItems = [
   { href: "/estoque", label: "Estoque", icon: Boxes },
   { href: "/automations", label: "Automacoes", icon: Zap },
   { href: "/pesquisa-satisfacao", label: "Pesquisa de Satisfação", icon: Heart },
+  { href: "/ligacoes", label: "Ligações", icon: PhoneCall },
 ];
 
 const secondaryItems = [
@@ -50,6 +52,7 @@ export function Sidebar({
   tenantTagline,
   stockEnabled = true,
   satisfactionSurveyEnabled = false,
+  callsDashboardEnabled = false,
   userName,
   userEmail,
 }: {
@@ -58,6 +61,7 @@ export function Sidebar({
   tenantTagline?: string | null;
   stockEnabled?: boolean;
   satisfactionSurveyEnabled?: boolean;
+  callsDashboardEnabled?: boolean;
   userName: string;
   userEmail: string;
 }) {
@@ -65,6 +69,7 @@ export function Sidebar({
   const visibleNavItems = navItems.filter((item) => {
     if (item.href === "/estoque") return stockEnabled;
     if (item.href === "/pesquisa-satisfacao") return satisfactionSurveyEnabled;
+    if (item.href === "/ligacoes") return callsDashboardEnabled;
     return true;
   });
 

@@ -44,6 +44,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           tenantTagline={ctx.tenant.tagline}
           stockEnabled={ctx.tenant.stock_enabled}
           satisfactionSurveyEnabled={ctx.tenant.satisfaction_survey_enabled}
+          callsDashboardEnabled={ctx.tenant.calls_dashboard_enabled}
           userName={profile?.full_name ?? "Usuario"}
           userEmail={ctx.userEmail}
         />

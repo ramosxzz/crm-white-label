@@ -65,6 +65,7 @@ export interface Tenant {
   phone: string | null;
   stock_enabled: boolean;
   satisfaction_survey_enabled: boolean;
+  calls_dashboard_enabled: boolean;
   meta_pixel_id: string | null;
   meta_capi_token: string | null;
   meta_ad_account_id: string | null;
