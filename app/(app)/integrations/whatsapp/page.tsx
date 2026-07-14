@@ -1,3 +1,4 @@
+import { MessageCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,6 +6,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { WhatsAppConnectionsManager } from "@/app/(app)/settings/whatsapp/whatsapp-connections-manager";
 import { getAppBaseUrl } from "@/lib/app-url";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
+import { WhatsAppEmbeddedSignupButton } from "./embedded-signup-button";
 
 export default async function WhatsAppIntegrationPage() {
   const ctx = await requireContext();
@@ -18,6 +20,7 @@ export default async function WhatsAppIntegrationPage() {
 
   const webhookBase = await getAppBaseUrl();
   const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
+  const hasCloudApi = (accounts ?? []).some((a) => a.provider === "cloud_api");
 
   return (
     <div>
@@ -28,6 +31,23 @@ export default async function WhatsAppIntegrationPage() {
         backHref="/integrations"
       />
       <div className="grid gap-6 p-8 xl:grid-cols-[minmax(0,1fr)_360px]">
+        {!hasCloudApi && (
+          <Card className="xl:col-span-2 border-brand/30 bg-brand/5">
+            <CardContent className="flex flex-col items-center gap-4 p-8 text-center sm:flex-row sm:text-left">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 text-white">
+                <MessageCircle className="h-7 w-7" />
+              </div>
+              <div className="flex-1">
+                <p className="font-display text-lg font-semibold">Conectar via WhatsApp Cloud API oficial</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Clique no botao, cadastre seu numero pelo fluxo da Meta e o CRM salva as credenciais
+                  automaticamente. Sem precisar colar token manualmente.
+                </p>
+              </div>
+              <WhatsAppEmbeddedSignupButton />
+            </CardContent>
+          </Card>
+        )}
         <WhatsAppConnectionsManager accounts={(accounts ?? []) as WhatsAppAccount[]} />
         <Card>
           <CardHeader>

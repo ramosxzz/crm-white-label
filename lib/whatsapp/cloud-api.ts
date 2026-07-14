@@ -94,7 +94,7 @@ export class CloudApiProvider implements WhatsAppProvider {
   }
 
   private get graphVersion() {
-    return this.creds.graph_version || process.env.WHATSAPP_GRAPH_VERSION || "v20.0";
+    return this.creds.graph_version || process.env.WHATSAPP_GRAPH_VERSION || "v23.0";
   }
 
   private graphUrl(path: string) {
