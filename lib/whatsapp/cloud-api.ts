@@ -217,14 +217,7 @@ export class CloudApiProvider implements WhatsAppProvider {
     return this.postMessage(body);
   }
 
-  async getPhoneNumberStatus() {
-    const fields = [
-      "id",
-      "display_phone_number",
-      "verified_name",
-      "quality_rating",
-      "code_verification_status",
-    ].join(",");
+  private async fetchPhoneNumberFields(fields: string) {
     const res = await fetch(this.graphUrl(`${this.creds.phone_number_id}?fields=${fields}`), {
       headers: { Authorization: `Bearer ${this.creds.access_token}` },
       cache: "no-store",
@@ -242,6 +235,15 @@ export class CloudApiProvider implements WhatsAppProvider {
       throw new Error(message);
     }
     return data;
+  }
+
+  /** Numeros de teste da Meta nao suportam alguns campos (ex: quality_rating), o que faz o Graph rejeitar a chamada inteira. */
+  async getPhoneNumberStatus() {
+    try {
+      return await this.fetchPhoneNumberFields("id,display_phone_number,verified_name,quality_rating,code_verification_status");
+    } catch {
+      return await this.fetchPhoneNumberFields("id,display_phone_number,verified_name");
+    }
   }
 
   async subscribeWebhookApp() {
