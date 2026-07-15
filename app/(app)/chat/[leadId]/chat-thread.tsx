@@ -27,6 +27,7 @@ import {
   X,
   Zap,
   Camera,
+  PanelRight,
 } from "lucide-react";
 import { updateLead } from "@/app/(app)/leads/actions";
 import { ScheduleMeetingButton } from "@/components/leads/schedule-meeting-button";
@@ -280,6 +281,13 @@ export function ChatThread({
     return window.sessionStorage.getItem(draftStorageKey) ?? "";
   });
   const [quickMediaDraft, setQuickMediaDraft] = useState<QuickMediaDraft | null>(null);
+  // Rastreia qual mensagem rapida foi usada por ultimo, para o gatilho de
+  // automacao "mensagem enviada" poder filtrar por ela. Zera quando o texto
+  // e apagado/trocado manualmente para nao atribuir errado.
+  const [pendingQuickMessageId, setPendingQuickMessageId] = useState<string | null>(null);
+  // Painel de detalhes do lead (tags, negocio, notas): fixo no desktop,
+  // drawer no mobile para o CRM ficar 100% usavel pelo celular.
+  const [sidePanelOpen, setSidePanelOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [pending, start] = useTransition();
   const [uploading, setUploading] = useState(false);
@@ -493,11 +501,20 @@ export function ChatThread({
     setMessages((prev) => [...prev, optimistic]);
     setStatus("em_atendimento");
 
+    const quickMessageId = pendingQuickMessageId;
+    setPendingQuickMessageId(null);
+
     start(async () => {
       try {
         const result = isInstagram
           ? await sendInstagramMessage({ leadId, body })
-          : await sendChatMessage({ leadId, body, accountId: selectedAccountId, replyToMessageId: replyMessageId });
+          : await sendChatMessage({
+              leadId,
+              body,
+              accountId: selectedAccountId,
+              replyToMessageId: replyMessageId,
+              quickMessageId: quickMessageId ?? undefined,
+            });
         if (!conversationId) setConversationId(result.conversationId);
         setMessages((prev) => {
           const withoutOpt = prev.filter((m) => m.id !== optimistic.id);
@@ -616,7 +633,8 @@ export function ChatThread({
     }
   }
 
-  function onPickQuick(m: { title?: string | null; body: string | null; media_url: string | null; media_type: string | null }) {
+  function onPickQuick(m: { id?: string; title?: string | null; body: string | null; media_url: string | null; media_type: string | null }) {
+    setPendingQuickMessageId(m.id ?? null);
     if (m.media_url && m.media_type === "audio") {
       if (isInstagram) {
         alert("Envio de áudio rápido ainda está disponível apenas para WhatsApp.");
@@ -804,6 +822,16 @@ export function ChatThread({
             </Button>
           )}
           <LeadDeleteButton leadId={leadId} leadName={displayName} redirectTo="/chat" size="icon" iconOnly />
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="shrink-0 rounded-lg xl:hidden"
+            onClick={() => setSidePanelOpen(true)}
+            title="Detalhes do contato"
+          >
+            <PanelRight className="h-4 w-4" />
+          </Button>
         </div>
       </header>
 
@@ -1129,7 +1157,10 @@ export function ChatThread({
               rows={1}
               placeholder={isInstagram ? "Responder no Instagram..." : "Digite sua mensagem ou / para mensagens rápidas..."}
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => {
+                setText(e.target.value);
+                setPendingQuickMessageId(null);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -1340,6 +1371,8 @@ export function ChatThread({
         users={users}
         pipelineOptions={pipelineOptions}
         onFinalize={() => changeStatus("resolvida")}
+        mobileOpen={sidePanelOpen}
+        onMobileClose={() => setSidePanelOpen(false)}
       />
     </section>
   );
@@ -1661,6 +1694,8 @@ function LeadSidePanel({
   users,
   pipelineOptions,
   onFinalize,
+  mobileOpen,
+  onMobileClose,
 }: {
   leadId: string;
   leadName: string;
@@ -1671,6 +1706,8 @@ function LeadSidePanel({
   users: { id: string; name: string }[];
   pipelineOptions: PipelineOption[];
   onFinalize: () => void;
+  mobileOpen: boolean;
+  onMobileClose: () => void;
 }) {
   const [notes, setNotes] = useState(details?.notes ?? "");
   const [saving, setSaving] = useState(false);
@@ -1768,8 +1805,19 @@ function LeadSidePanel({
   }
 
   return (
-    <aside className="hidden w-[360px] shrink-0 overflow-y-auto border-l border-border/60 bg-card/78 backdrop-blur-xl xl:block">
-      <div className="border-b border-border/60 p-4">
+    <>
+      {/* Backdrop no mobile quando o drawer esta aberto */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-40 bg-black/50 xl:hidden" onClick={onMobileClose} aria-hidden />
+      )}
+      <aside
+        className={cn(
+          "fixed inset-y-0 right-0 z-50 w-[86vw] max-w-sm shrink-0 overflow-y-auto border-l border-border/60 bg-card backdrop-blur-xl transition-transform duration-200",
+          "xl:static xl:z-auto xl:w-[360px] xl:max-w-none xl:translate-x-0 xl:bg-card/78",
+          mobileOpen ? "translate-x-0" : "translate-x-full xl:translate-x-0",
+        )}
+      >
+      <div className="flex items-center justify-between border-b border-border/60 p-4">
         <div className="min-w-0">
           <Link href={`/leads/${leadId}`} className="block truncate text-base font-semibold hover:text-brand" prefetch>
             {leadName}
@@ -1778,6 +1826,14 @@ function LeadSidePanel({
             {channel === "instagram" ? "Instagram Direct" : formatPhone(leadPhone)}
           </p>
         </div>
+        <button
+          type="button"
+          onClick={onMobileClose}
+          className="shrink-0 rounded-lg p-1.5 text-muted-foreground hover:bg-muted/50 xl:hidden"
+          aria-label="Fechar detalhes"
+        >
+          <X className="h-5 w-5" />
+        </button>
       </div>
 
       <PanelSection title="Ações">
@@ -1964,7 +2020,8 @@ function LeadSidePanel({
           <InfoRow label="Tarefas abertas" value={String(details?.openTasksCount ?? 0)} />
         </div>
       </PanelSection>
-    </aside>
+      </aside>
+    </>
   );
 }
 

@@ -5,6 +5,23 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 
+type FlowBlock = {
+  type?: string;
+  data?: { kind?: string; config?: { triggers?: { kind?: string }[] } };
+};
+
+// O bloco "Inicio" pode acumular varios gatilhos (semantica "OU"). Fluxos
+// salvos antes dessa mudanca guardavam um unico kind direto em data.kind.
+function deriveTriggerKinds(blocks: FlowBlock[]): string[] {
+  const triggerBlock = blocks.find((b) => b.type === "trigger");
+  const grouped = triggerBlock?.data?.config?.triggers
+    ?.map((t) => t.kind)
+    .filter((k): k is string => Boolean(k));
+  if (grouped && grouped.length > 0) return [...new Set(grouped)];
+  const legacyKind = triggerBlock?.data?.kind;
+  return legacyKind && legacyKind !== "trigger_group" ? [legacyKind] : [];
+}
+
 export async function createFlow(formData: FormData) {
   const ctx = await requireContext();
   const supabase = await createClient();
@@ -45,13 +62,12 @@ export async function createFlow(formData: FormData) {
 // o status. Garante que o trabalho no editor nao se perca ao atualizar a pagina.
 export async function saveFlowDraft(
   flowId: string,
-  config: { blocks: { type?: string; data?: { kind?: string } }[]; connections: unknown[] },
+  config: { blocks: FlowBlock[]; connections: unknown[] },
 ): Promise<{ ok: boolean }> {
   const ctx = await requireContext();
   const supabase = await createClient();
 
-  const triggerBlock = config.blocks.find((b) => b.type === "trigger");
-  const triggerKind = triggerBlock?.data?.kind ?? null;
+  const triggerKinds = deriveTriggerKinds(config.blocks);
 
   const { data: latest } = await supabase
     .from("automation_versions")
@@ -84,10 +100,10 @@ export async function saveFlowDraft(
     if (error) return { ok: false };
   }
 
-  // Mantem o gatilho do fluxo em dia (para poder ativar), sem mexer no status.
+  // Mantem os gatilhos do fluxo em dia (para poder ativar), sem mexer no status.
   await supabase
     .from("automation_flows")
-    .update({ trigger_kind: triggerKind })
+    .update({ trigger_kinds: triggerKinds.length > 0 ? triggerKinds : null })
     .eq("id", flowId)
     .eq("tenant_id", ctx.tenantId);
 
@@ -101,11 +117,12 @@ export async function updateFlowStatus(flowId: string, status: "draft" | "active
   if (status === "active") {
     const { data: flow } = await supabase
       .from("automation_flows")
-      .select("trigger_kind")
+      .select("trigger_kinds")
       .eq("id", flowId)
       .eq("tenant_id", ctx.tenantId)
       .maybeSingle();
-    if (!flow?.trigger_kind) return; // sem gatilho no fluxo, nao ha o que ativar
+    const kinds = (flow as { trigger_kinds?: string[] } | null)?.trigger_kinds;
+    if (!kinds || kinds.length === 0) return; // sem gatilho no fluxo, nao ha o que ativar
   }
 
   await supabase
@@ -134,14 +151,13 @@ export async function deleteFlow(flowId: string) {
 
 export async function saveFlowVersion(
   flowId: string,
-  config: { blocks: { type?: string; data?: { kind?: string } }[]; connections: unknown[] },
+  config: { blocks: FlowBlock[]; connections: unknown[] },
 ): Promise<{ ok: boolean; error?: string }> {
   const ctx = await requireContext();
   const supabase = await createClient();
 
   // O gatilho e o que o usuario colocou no canvas, nao uma escolha travada na criacao
-  const triggerBlock = config.blocks.find((b) => b.type === "trigger");
-  const triggerKind = triggerBlock?.data?.kind ?? null;
+  const triggerKinds = deriveTriggerKinds(config.blocks);
 
   // Get latest version number
   const { data: latest } = await supabase
@@ -163,17 +179,18 @@ export async function saveFlowVersion(
     published_at: new Date().toISOString(),
   });
 
-  // So ativa se houver um gatilho no fluxo; sem gatilho o fluxo fica salvo como rascunho
+  // So ativa se houver ao menos um gatilho no fluxo; sem gatilho fica como rascunho
+  const hasTrigger = triggerKinds.length > 0;
   await supabase
     .from("automation_flows")
-    .update({ trigger_kind: triggerKind, status: triggerKind ? "active" : "draft" })
+    .update({ trigger_kinds: hasTrigger ? triggerKinds : null, status: hasTrigger ? "active" : "draft" })
     .eq("id", flowId)
     .eq("tenant_id", ctx.tenantId);
 
   revalidatePath(`/automations/${flowId}/editor`);
   revalidatePath("/automations");
 
-  return triggerKind
+  return hasTrigger
     ? { ok: true }
-    : { ok: false, error: "Adicione um bloco de gatilho ao fluxo para poder ativa-lo." };
+    : { ok: false, error: "Adicione ao menos um gatilho ao fluxo para poder ativa-lo." };
 }

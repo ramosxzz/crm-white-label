@@ -21,6 +21,7 @@ const triggerLabels: Record<string, string> = {
   lead_created: "Lead criado",
   stage_changed: "Etapa alterada",
   message_received: "Mensagem recebida",
+  message_sent: "Mensagem enviada",
   appointment_created: "Agendamento criado",
   appointment_near: "Agendamento proximo",
   lead_inactive: "Lead inativo",
@@ -38,7 +39,7 @@ export default async function AutomationsPage() {
 
   const { data: flows } = await supabase
     .from("automation_flows")
-    .select("id, name, description, trigger_kind, status, updated_at")
+    .select("id, name, description, trigger_kinds, status, updated_at")
     .eq("tenant_id", ctx.tenantId)
     .order("updated_at", { ascending: false });
 
@@ -137,9 +138,9 @@ export default async function AutomationsPage() {
 
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Zap className="h-3.5 w-3.5" />
-                      <span>
-                        {flow.trigger_kind
-                          ? triggerLabels[flow.trigger_kind as string] ?? flow.trigger_kind
+                      <span className="truncate">
+                        {flow.trigger_kinds && flow.trigger_kinds.length > 0
+                          ? flow.trigger_kinds.map((k: string) => triggerLabels[k] ?? k).join(", ")
                           : "Sem gatilho definido"}
                       </span>
                       <span className="ml-auto">{countsByFlow[flow.id] ?? 0} execucoes</span>

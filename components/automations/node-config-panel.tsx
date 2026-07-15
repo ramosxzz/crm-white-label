@@ -13,9 +13,10 @@ type Props = {
   node: Node;
   onUpdate: (config: Record<string, unknown>) => void;
   onClose: () => void;
+  quickMessages?: { id: string; title: string }[];
 };
 
-export function NodeConfigPanel({ node, onUpdate, onClose }: Props) {
+export function NodeConfigPanel({ node, onUpdate, onClose, quickMessages = [] }: Props) {
   const kind = (node.data.kind as string) ?? node.type ?? "";
   const [config, setConfig] = useState<Record<string, unknown>>(
     (node.data.config as Record<string, unknown>) ?? {},
@@ -43,6 +44,82 @@ export function NodeConfigPanel({ node, onUpdate, onClose }: Props) {
       </div>
 
       <div className="space-y-4">
+        {/* create_lead */}
+        {kind === "create_lead" && (
+          <>
+            <div className="space-y-1.5">
+              <Label>Nome</Label>
+              <Input
+                placeholder="{name}"
+                value={String(config.name ?? "")}
+                onChange={(e) => set("name", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Telefone</Label>
+              <Input
+                placeholder="{phone}"
+                value={String(config.phone ?? "")}
+                onChange={(e) => set("phone", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>E-mail (opcional)</Label>
+              <Input
+                placeholder="{email}"
+                value={String(config.email ?? "")}
+                onChange={(e) => set("email", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Origem</Label>
+              <Input
+                placeholder="automacao"
+                value={String(config.source ?? "")}
+                onChange={(e) => set("source", e.target.value)}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Cria um novo lead no funil padrão. Deixe em branco para usar os dados do lead atual.
+            </p>
+          </>
+        )}
+
+        {/* create_deal */}
+        {kind === "create_deal" && (
+          <>
+            <div className="space-y-1.5">
+              <Label>ID do funil (opcional)</Label>
+              <Input
+                placeholder="uuid do funil"
+                value={String(config.pipeline_id ?? "")}
+                onChange={(e) => set("pipeline_id", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>ID da etapa</Label>
+              <Input
+                placeholder="uuid da etapa"
+                value={String(config.stage_id ?? "")}
+                onChange={(e) => set("stage_id", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Valor em centavos (opcional)</Label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="0"
+                value={String(config.value_cents ?? "")}
+                onChange={(e) => set("value_cents", Number(e.target.value))}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Move o lead atual para o funil/etapa informados, criando o negócio.
+            </p>
+          </>
+        )}
+
         {/* send_message */}
         {kind === "send_message" && (
           <div className="space-y-1.5">
@@ -344,8 +421,34 @@ export function NodeConfigPanel({ node, onUpdate, onClose }: Props) {
           </div>
         )}
 
+        {/* message_sent: filtro opcional por mensagem rapida */}
+        {kind === "message_sent" && (
+          <div className="space-y-1.5">
+            <Label>Mensagem rápida (opcional)</Label>
+            <Select
+              value={String(config.quick_message_id ?? "any")}
+              onValueChange={(v) => set("quick_message_id", v === "any" ? undefined : v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Qualquer mensagem enviada" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Qualquer mensagem enviada</SelectItem>
+                {quickMessages.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Se escolher uma mensagem rápida, o gatilho só dispara quando ela for usada para enviar.
+            </p>
+          </div>
+        )}
+
         {/* Triggers: no config needed */}
-        {node.type === "trigger" && (
+        {node.type === "trigger" && kind !== "message_sent" && (
           <p className="text-xs text-muted-foreground italic">
             O gatilho e ativado automaticamente pelo CRM. Nenhuma configuracao necessaria.
           </p>
@@ -359,7 +462,7 @@ export function NodeConfigPanel({ node, onUpdate, onClose }: Props) {
         )}
       </div>
 
-      {node.type !== "trigger" && kind !== "end" && (
+      {(node.type !== "trigger" || kind === "message_sent") && kind !== "end" && (
         <Button size="sm" className="w-full" onClick={handleSave}>
           Aplicar
         </Button>

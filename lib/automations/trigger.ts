@@ -4,9 +4,12 @@ export type TriggerKind =
   | "lead_created"
   | "stage_changed"
   | "message_received"
+  | "message_sent"
   | "appointment_created"
   | "appointment_near"
   | "lead_inactive";
+
+type FlowConfigBlock = { type?: string; data?: { config?: { triggers?: { kind?: string; config?: Record<string, unknown> }[] } } };
 
 export async function fireAutomationTrigger(
   tenantId: string,
@@ -31,7 +34,7 @@ export async function fireAutomationTrigger(
       .from("automation_flows")
       .select("id")
       .eq("tenant_id", tenantId)
-      .eq("trigger_kind", kind)
+      .contains("trigger_kinds", [kind])
       .eq("status", "active");
 
     if (!flows || flows.length === 0) return;
@@ -40,7 +43,7 @@ export async function fireAutomationTrigger(
       // Get latest published version
       const { data: version } = await supabase
         .from("automation_versions")
-        .select("id")
+        .select("id, config")
         .eq("flow_id", flow.id)
         .not("published_at", "is", null)
         .order("version_number", { ascending: false })
@@ -48,6 +51,20 @@ export async function fireAutomationTrigger(
         .maybeSingle();
 
       if (!version) continue;
+
+      // Gatilhos "mensagem enviada" podem ser filtrados por uma mensagem
+      // rapida especifica; so dispara se o payload bater com o que foi
+      // configurado (ou se o gatilho nao tem filtro, dispara sempre).
+      if (kind === "message_sent") {
+        const config = (version as { config?: { blocks?: FlowConfigBlock[] } }).config;
+        const triggerBlock = config?.blocks?.find((b) => b.type === "trigger");
+        const matchingTriggers = triggerBlock?.data?.config?.triggers?.filter((t) => t.kind === kind) ?? [];
+        const anyMatches = matchingTriggers.some((t) => {
+          const requiredId = t.config?.quick_message_id;
+          return !requiredId || requiredId === payload.quick_message_id;
+        });
+        if (matchingTriggers.length > 0 && !anyMatches) continue;
+      }
 
       const idempotencyKey = `${flow.id}:${leadId}:${kind}:${Date.now()}`;
 

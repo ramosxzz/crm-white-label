@@ -7,6 +7,7 @@ import { createProvider } from "@/lib/whatsapp/factory";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 import type { ChatMessage } from "@/lib/chat/types";
+import { fireAutomationTrigger } from "@/lib/automations/trigger";
 
 const LABEL_COLORS = ["#7c3aed", "#2563eb", "#059669", "#dc2626", "#d97706", "#0891b2"];
 
@@ -47,6 +48,7 @@ export async function sendChatMessage(input: {
   body: string;
   accountId?: string;
   replyToMessageId?: string | null;
+  quickMessageId?: string;
 }): Promise<{ conversationId: string; message: ChatMessage }> {
   const ctx = await requireContext();
   const supabase = await createClient();
@@ -149,6 +151,7 @@ export async function sendChatMessage(input: {
       reply_to_sender_name: replyTo
         ? replySenderName ?? (replyTo.direction === "outbound" ? "Você" : lead.name)
         : null,
+      quick_message_id: input.quickMessageId ?? null,
     })
     .select("id")
     .single();
@@ -190,6 +193,10 @@ export async function sendChatMessage(input: {
       .from("conversations")
       .update({ last_message_at: new Date().toISOString(), status: "em_atendimento" })
       .eq("id", conversationId);
+
+    void fireAutomationTrigger(ctx.tenantId, "message_sent", lead.id, {
+      quick_message_id: input.quickMessageId ?? null,
+    });
 
     revalidatePath("/chat");
 
@@ -616,20 +623,21 @@ export async function updateChatLeadBusiness(input: {
   const currentLead = lead as { assigned_to: string | null; stage_id: string | null; won_at: string | null };
 
   let pipelineId = input.pipelineId;
+  let stageId = input.stageId;
   // Marca/limpa won_at ao mover para (ou sair de) uma etapa de ganho.
   let wonAtPatch: { won_at: string | null } | null = null;
-  if (input.stageId) {
+  if (stageId) {
     const { data: stage } = await supabase
       .from("pipeline_stages")
       .select("id, pipeline_id, is_won")
-      .eq("id", input.stageId)
+      .eq("id", stageId)
       .eq("tenant_id", ctx.tenantId)
       .single();
     if (!stage) throw new Error("Etapa nao encontrada");
     pipelineId = stage.pipeline_id;
     const isWon = Boolean((stage as { is_won: boolean }).is_won);
     if (isWon) {
-      if (!currentLead.won_at || currentLead.stage_id !== input.stageId) {
+      if (!currentLead.won_at || currentLead.stage_id !== stageId) {
         wonAtPatch = { won_at: new Date().toISOString() };
       }
     } else {
@@ -647,6 +655,20 @@ export async function updateChatLeadBusiness(input: {
       .eq("tenant_id", ctx.tenantId)
       .single();
     if (!pipeline) throw new Error("Funil nao encontrado");
+
+    // Escolheu um funil mas nao uma etapa: cai na primeira etapa dele, para o
+    // lead nunca "sumir" do kanban (que exige stage_id valido para exibir).
+    if (!stageId) {
+      const { data: firstStage } = await supabase
+        .from("pipeline_stages")
+        .select("id")
+        .eq("tenant_id", ctx.tenantId)
+        .eq("pipeline_id", pipelineId)
+        .order("position")
+        .limit(1)
+        .maybeSingle();
+      stageId = (firstStage as { id: string } | null)?.id ?? null;
+    }
   }
 
   if (input.assignedTo) {
@@ -664,7 +686,7 @@ export async function updateChatLeadBusiness(input: {
     .update({
       value_cents: valueCents,
       pipeline_id: pipelineId,
-      stage_id: input.stageId,
+      stage_id: stageId,
       assigned_to: input.assignedTo,
       ...(wonAtPatch ?? {}),
     })

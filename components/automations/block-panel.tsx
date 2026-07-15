@@ -2,20 +2,10 @@
 
 import {
   Zap,
-  Send,
+  Play,
   GitBranch,
   Clock,
-  Tag,
-  UserCheck,
-  ListTodo,
-  ActivitySquare,
-  MoveRight,
-  PhoneCall,
   Shuffle,
-  Webhook,
-  Sparkles,
-  Code2,
-  SlidersHorizontal,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -30,30 +20,17 @@ type BlockDef = {
 };
 
 const TRIGGERS: BlockDef[] = [
-  { type: "trigger", kind: "lead_created", label: "Lead criado", icon: Zap, chip: "bg-violet-500/15 text-violet-600 dark:text-violet-400" },
-  { type: "trigger", kind: "stage_changed", label: "Etapa alterada", icon: MoveRight, chip: "bg-violet-500/15 text-violet-600 dark:text-violet-400" },
-  { type: "trigger", kind: "message_received", label: "Mensagem recebida", icon: Send, chip: "bg-violet-500/15 text-violet-600 dark:text-violet-400" },
-  { type: "trigger", kind: "appointment_near", label: "Agendamento próximo", icon: Clock, chip: "bg-violet-500/15 text-violet-600 dark:text-violet-400" },
+  { type: "trigger", kind: "trigger_group", label: "Início", icon: Play, chip: "bg-violet-500/15 text-violet-600 dark:text-violet-400" },
 ];
 
 const BASIC: BlockDef[] = [
-  { type: "action", kind: "send_message", label: "Mensagem", icon: Send, chip: "bg-blue-500/15 text-blue-600 dark:text-blue-400" },
   { type: "condition", kind: "condition", label: "Condições", icon: GitBranch, chip: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400" },
   { type: "wait", kind: "wait", label: "Espera", icon: Clock, chip: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
   { type: "action", kind: "randomizer", label: "Randomizador", icon: Shuffle, chip: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400" },
-  { type: "action", kind: "api_call", label: "API", icon: Webhook, chip: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400" },
-  { type: "action", kind: "field_ops", label: "Operações de campos", icon: SlidersHorizontal, chip: "bg-teal-500/15 text-teal-600 dark:text-teal-400" },
-  { type: "action", kind: "ai", label: "IA", icon: Sparkles, chip: "bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-400" },
-  { type: "action", kind: "javascript", label: "JavaScript", icon: Code2, chip: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
 ];
 
 const ACTIONS: BlockDef[] = [
-  { type: "action", kind: "move_stage", label: "Mover etapa", icon: MoveRight, chip: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" },
-  { type: "action", kind: "assign_lead", label: "Atribuir lead", icon: UserCheck, chip: "bg-orange-500/15 text-orange-600 dark:text-orange-400" },
-  { type: "action", kind: "create_task", label: "Criar tarefa", icon: ListTodo, chip: "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400" },
-  { type: "action", kind: "api4com_call", label: "Ligação", icon: PhoneCall, chip: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" },
-  { type: "action", kind: "add_tag", label: "Adicionar tag", icon: Tag, chip: "bg-pink-500/15 text-pink-600 dark:text-pink-400" },
-  { type: "action", kind: "log_activity", label: "Registrar atividade", icon: ActivitySquare, chip: "bg-gray-500/15 text-gray-600 dark:text-gray-300" },
+  { type: "action", kind: "action_group", label: "Ação", icon: Zap, chip: "bg-blue-500/15 text-blue-600 dark:text-blue-400" },
   { type: "end", kind: "end", label: "Encerrar", icon: X, chip: "bg-red-500/15 text-red-600 dark:text-red-400" },
 ];
 

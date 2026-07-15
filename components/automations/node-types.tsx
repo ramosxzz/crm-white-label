@@ -19,7 +19,16 @@ import {
   SlidersHorizontal,
   Play,
   X,
+  Plus,
+  UserPlus,
+  Briefcase,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 type Accent = "violet" | "blue" | "green" | "orange" | "yellow" | "pink" | "gray" | "amber" | "cyan" | "red" | "fuchsia" | "indigo" | "teal";
@@ -47,10 +56,13 @@ const kindMeta: Record<string, Meta> = {
   lead_created: { label: "Lead criado", sub: "Gatilho", icon: Zap, accent: "violet" },
   stage_changed: { label: "Etapa alterada", sub: "Gatilho", icon: MoveRight, accent: "violet" },
   message_received: { label: "Mensagem recebida", sub: "Gatilho", icon: Send, accent: "violet" },
+  message_sent: { label: "Mensagem enviada", sub: "Gatilho", icon: Send, accent: "violet" },
   appointment_created: { label: "Agendamento criado", sub: "Gatilho", icon: Zap, accent: "violet" },
   appointment_near: { label: "Agendamento próximo", sub: "Gatilho", icon: Clock, accent: "violet" },
   lead_inactive: { label: "Lead inativo", sub: "Gatilho", icon: Clock, accent: "violet" },
   // Actions
+  create_lead: { label: "Criar lead", sub: "Ação", icon: UserPlus, accent: "green" },
+  create_deal: { label: "Criar negócio", sub: "Ação", icon: Briefcase, accent: "green" },
   send_message: { label: "Enviar mensagem", sub: "Mensagem", icon: Send, accent: "blue" },
   move_stage: { label: "Mover etapa", sub: "Ação", icon: MoveRight, accent: "green" },
   assign_lead: { label: "Atribuir lead", sub: "Ação", icon: UserCheck, accent: "orange" },
@@ -68,6 +80,34 @@ const kindMeta: Record<string, Meta> = {
   randomizer: { label: "Randomizador", sub: "Controle", icon: Shuffle, accent: "indigo" },
   end: { label: "Encerrar", sub: "Controle", icon: X, accent: "red" },
 };
+
+// Gatilhos disponiveis para adicionar dentro do bloco "Inicio" (varios = "OU").
+export const AVAILABLE_TRIGGERS: { kind: string; label: string; description: string }[] = [
+  { kind: "message_received", label: "Mensagem recebida", description: "Quando uma mensagem é recebida" },
+  { kind: "message_sent", label: "Mensagem enviada", description: "Quando o atendente envia uma mensagem (opcionalmente uma rápida específica)" },
+  { kind: "lead_created", label: "Lead criado", description: "Quando um novo lead é criado" },
+  { kind: "stage_changed", label: "Etapa alterada", description: "Quando a etapa do lead muda" },
+  { kind: "appointment_created", label: "Agendamento criado", description: "Quando um agendamento é criado" },
+  { kind: "appointment_near", label: "Agendamento próximo", description: "Quando um agendamento está próximo" },
+  { kind: "lead_inactive", label: "Lead inativo", description: "Quando o lead fica sem resposta" },
+];
+
+// Sub-acoes disponiveis para adicionar dentro do bloco "Acao" (executadas em sequencia).
+export const AVAILABLE_SUB_ACTIONS: { kind: string; label: string; description: string }[] = [
+  { kind: "create_lead", label: "Criar lead", description: "Cria o lead com as informações guardadas" },
+  { kind: "create_deal", label: "Criar negócio", description: "Cria um novo negócio para o lead" },
+  { kind: "send_message", label: "Enviar mensagem", description: "Envia uma mensagem pelo WhatsApp" },
+  { kind: "move_stage", label: "Mover etapa", description: "Move o lead para outra etapa" },
+  { kind: "assign_lead", label: "Atribuir lead", description: "Atribui o lead a um responsável" },
+  { kind: "add_tag", label: "Adicionar tag", description: "Adiciona uma tag ao lead" },
+  { kind: "create_task", label: "Criar tarefa", description: "Cria uma tarefa para o lead" },
+  { kind: "api4com_call", label: "Ligação", description: "Inicia uma ligação pelo Api4com" },
+  { kind: "log_activity", label: "Registrar atividade", description: "Registra uma atividade no lead" },
+  { kind: "field_ops", label: "Atualizar campo", description: "Atualiza um campo do lead" },
+  { kind: "api_call", label: "Requisição API", description: "Faz uma requisição a uma API externa" },
+  { kind: "ai", label: "IA", description: "Usa IA para gerar uma resposta" },
+  { kind: "javascript", label: "JavaScript", description: "Executa um código customizado" },
+];
 
 type Stats = { success?: number; alert?: number; error?: number };
 
@@ -105,7 +145,98 @@ function Counters({ stats }: { stats: Stats }) {
 
 const HANDLE = "!h-3 !w-3 !rounded-full !border-2 !border-background !bg-brand";
 
+type SubItem = { id: string; kind: string; config?: Record<string, unknown> };
+
+/** Lista embutida de itens ja adicionados (gatilhos ou sub-acoes) + botao para
+ * adicionar mais, no estilo do bloco "Inicio"/"Acao" de referencia. */
+function EmbeddedList({
+  items,
+  options,
+  onAdd,
+  onRemove,
+  onSelect,
+  addLabel,
+  selectedId,
+}: {
+  items: SubItem[];
+  options: { kind: string; label: string; description: string }[];
+  onAdd?: (kind: string) => void;
+  onRemove?: (id: string) => void;
+  onSelect?: (id: string) => void;
+  addLabel: string;
+  selectedId?: string | null;
+}) {
+  return (
+    <div className="space-y-1.5">
+      {items.map((item) => {
+        const opt = options.find((o) => o.kind === item.kind);
+        const meta = kindMeta[item.kind];
+        const Icon = meta?.icon ?? Zap;
+        return (
+          <div
+            key={item.id}
+            onClick={() => onSelect?.(item.id)}
+            className={cn(
+              "nodrag group flex items-start gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors",
+              onSelect ? "cursor-pointer hover:border-brand/40" : "",
+              selectedId === item.id ? "border-brand/50 bg-brand/5" : "border-border/60 bg-muted/40",
+            )}
+          >
+            <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[12px] font-medium leading-tight">{opt?.label ?? meta?.label ?? item.kind}</p>
+              <p className="truncate text-[10px] text-muted-foreground">{opt?.description ?? ""}</p>
+            </div>
+            {onRemove && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove(item.id);
+                }}
+                className="nodrag shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                aria-label="Remover"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        );
+      })}
+
+      {onAdd && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="nodrag flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-brand/50 px-2.5 py-2 text-[12px] font-medium text-brand transition-colors hover:bg-brand/5"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {addLabel}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-64 nodrag">
+            {options.map((opt) => {
+              const Icon = kindMeta[opt.kind]?.icon ?? Zap;
+              return (
+                <DropdownMenuItem key={opt.kind} onSelect={() => onAdd(opt.kind)} className="items-start gap-2 py-2">
+                  <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0">
+                    <p className="text-[12px] font-medium leading-tight">{opt.label}</p>
+                    <p className="text-[10px] text-muted-foreground">{opt.description}</p>
+                  </div>
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
+  );
+}
+
 function FlowNode({
+  id,
   data,
   selected,
   isTrigger,
@@ -113,13 +244,23 @@ function FlowNode({
   isEnd,
 }: NodeProps & { isTrigger?: boolean; isCondition?: boolean; isEnd?: boolean }) {
   const kind = (data.kind as string) ?? (data.type as string);
+  const isTriggerGroup = kind === "trigger_group";
+  const isActionGroup = kind === "action_group";
   const meta = kindMeta[kind] ?? { label: kind, sub: "Bloco", icon: Zap, accent: "gray" as Accent };
-  const accent = ACCENT[meta.accent];
-  const Icon = meta.icon;
-  const label = (data.label as string) ?? meta.label;
+  const accent = isTriggerGroup ? ACCENT.violet : isActionGroup ? ACCENT.blue : ACCENT[meta.accent];
+  const Icon = isTriggerGroup ? Play : isActionGroup ? Zap : meta.icon;
+  const label = isTriggerGroup ? "Início" : isActionGroup ? "Ação" : (data.label as string) ?? meta.label;
   const config = (data.config as Record<string, unknown>) ?? {};
   const stats = (data.stats as Stats) ?? {};
   const preview = configPreview(kind, config);
+
+  const onAddTrigger = data.onAddTrigger as ((triggerId: string, kind: string) => void) | undefined;
+  const onRemoveTrigger = data.onRemoveTrigger as ((triggerId: string) => void) | undefined;
+  const onSelectSubTrigger = data.onSelectSubTrigger as ((triggerId: string) => void) | undefined;
+  const onAddAction = data.onAddAction as ((actionId: string, kind: string) => void) | undefined;
+  const onRemoveAction = data.onRemoveAction as ((actionId: string) => void) | undefined;
+  const onSelectSubAction = data.onSelectSubAction as ((actionId: string) => void) | undefined;
+  const selectedSubId = data.selectedSubId as string | null | undefined;
 
   return (
     <div
@@ -140,20 +281,48 @@ function FlowNode({
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold leading-tight">{label}</p>
-          <p className="text-[11px] text-muted-foreground">{isTrigger ? "Início" : meta.sub}</p>
+          {!isTriggerGroup && !isActionGroup && (
+            <p className="text-[11px] text-muted-foreground">{isTrigger ? "Início" : meta.sub}</p>
+          )}
         </div>
       </div>
 
       {/* Body */}
       <div className="px-3.5 pb-3">
-        {isTrigger ? (
+        {isTriggerGroup ? (
+          <div className="space-y-2">
+            <p className="text-[11px] text-muted-foreground">
+              O gatilho é responsável por acionar a automação. Clique para adicionar um gatilho:
+            </p>
+            <EmbeddedList
+              items={(config.triggers as SubItem[]) ?? []}
+              options={AVAILABLE_TRIGGERS}
+              onAdd={onAddTrigger ? (kind) => onAddTrigger(`trig_${Date.now()}`, kind) : undefined}
+              onRemove={onRemoveTrigger}
+              onSelect={onSelectSubTrigger}
+              selectedId={selectedSubId}
+              addLabel="Adicionar gatilho"
+            />
+          </div>
+        ) : isActionGroup ? (
+          <div className="space-y-2">
+            <p className="text-[11px] text-muted-foreground">Execute ações no sistema. Clique para adicionar ações:</p>
+            <EmbeddedList
+              items={(config.actions as SubItem[]) ?? []}
+              options={AVAILABLE_SUB_ACTIONS}
+              onAdd={onAddAction ? (kind) => onAddAction(`act_${Date.now()}`, kind) : undefined}
+              onRemove={onRemoveAction}
+              onSelect={onSelectSubAction}
+              selectedId={selectedSubId}
+              addLabel="Adicionar ação"
+            />
+          </div>
+        ) : isTrigger ? (
           <p className="rounded-lg bg-muted/50 px-2.5 py-2 text-[11px] text-muted-foreground">
             Quando este evento ocorrer, a automação inicia.
           </p>
         ) : preview ? (
-          <p className="line-clamp-2 rounded-lg bg-muted/40 px-2.5 py-2 text-[11px] text-foreground/80">
-            {preview}
-          </p>
+          <p className="line-clamp-2 rounded-lg bg-muted/40 px-2.5 py-2 text-[11px] text-foreground/80">{preview}</p>
         ) : (
           <p className="rounded-lg border border-dashed border-border/60 px-2.5 py-2 text-[11px] italic text-muted-foreground">
             Clique para configurar
@@ -184,6 +353,19 @@ function FlowNode({
               className="!h-3 !w-3 !rounded-full !border-2 !border-background !bg-red-400"
             />
           </div>
+        </div>
+      )}
+
+      {/* Rodape de conexao (estilo referencia) */}
+      {isTriggerGroup && (
+        <div className="flex items-center justify-end gap-1.5 border-t border-border/60 px-3.5 py-1.5 text-[10px] text-muted-foreground">
+          Quando o evento ocorrer, então
+        </div>
+      )}
+      {isActionGroup && (
+        <div className="space-y-1 border-t border-border/60 px-3.5 py-1.5 text-[10px] text-muted-foreground">
+          <div className="flex items-center justify-end gap-1.5">Caso ocorrer erro na execução da ação</div>
+          <div className="flex items-center justify-end gap-1.5">Próxima passo</div>
         </div>
       )}
 

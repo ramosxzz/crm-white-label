@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -20,7 +20,7 @@ import { Save, Zap, Play, Pause, History } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { TriggerNode, ActionNode, ConditionNode, WaitNode, EndNode } from "./node-types";
+import { TriggerNode, ActionNode, ConditionNode, WaitNode, EndNode, AVAILABLE_SUB_ACTIONS, AVAILABLE_TRIGGERS } from "./node-types";
 import { BlockPanel } from "./block-panel";
 import { NodeConfigPanel } from "./node-config-panel";
 import { saveFlowVersion, saveFlowDraft, updateFlowStatus } from "@/app/(app)/automations/actions";
@@ -91,19 +91,109 @@ export function FlowEditor({
   flowStatus,
   initialBlocks,
   initialConnections,
+  quickMessages,
 }: {
   flowId: string;
   flowName: string;
   flowStatus: string;
   initialBlocks: FlowBlock[];
   initialConnections: FlowEdge[];
+  quickMessages: { id: string; title: string }[];
 }) {
   const [nodes, setNodes, onNodesChange] = useNodesState(toReactFlowNodes(initialBlocks));
   const [edges, setEdges, onEdgesChange] = useEdgesState(toReactFlowEdges(initialConnections));
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [selectedSubId, setSelectedSubId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved">("idle");
+
+  // O bloco "Inicio" acumula gatilhos (semantica OU); o bloco "Acao" acumula
+  // sub-acoes executadas em sequencia. Ambos sao editados por dentro do
+  // proprio no no canvas, entao injetamos os callbacks via `data` apenas na
+  // copia usada para renderizar (o estado `nodes` fica limpo para salvar).
+  function patchNodeConfig(nodeId: string, updater: (config: Record<string, unknown>) => Record<string, unknown>) {
+    setNodes((nds) =>
+      nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, config: updater((n.data.config as Record<string, unknown>) ?? {}) } } : n)),
+    );
+  }
+
+  function addSubTrigger(nodeId: string, triggerId: string, kind: string) {
+    patchNodeConfig(nodeId, (config) => {
+      const triggers = Array.isArray(config.triggers) ? (config.triggers as unknown[]) : [];
+      return { ...config, triggers: [...triggers, { id: triggerId, kind, config: {} }] };
+    });
+  }
+
+  function removeSubTrigger(nodeId: string, triggerId: string) {
+    patchNodeConfig(nodeId, (config) => {
+      const triggers = Array.isArray(config.triggers) ? (config.triggers as { id: string }[]) : [];
+      return { ...config, triggers: triggers.filter((t) => t.id !== triggerId) };
+    });
+    if (selectedSubId === triggerId) setSelectedSubId(null);
+  }
+
+  function updateSubTriggerConfig(nodeId: string, triggerId: string, config: Record<string, unknown>) {
+    patchNodeConfig(nodeId, (nodeConfig) => {
+      const triggers = Array.isArray(nodeConfig.triggers) ? (nodeConfig.triggers as { id: string; kind: string; config?: Record<string, unknown> }[]) : [];
+      return { ...nodeConfig, triggers: triggers.map((t) => (t.id === triggerId ? { ...t, config } : t)) };
+    });
+  }
+
+  function addSubAction(nodeId: string, actionId: string, kind: string) {
+    patchNodeConfig(nodeId, (config) => {
+      const actions = Array.isArray(config.actions) ? (config.actions as unknown[]) : [];
+      return { ...config, actions: [...actions, { id: actionId, kind, config: {} }] };
+    });
+  }
+
+  function removeSubAction(nodeId: string, actionId: string) {
+    patchNodeConfig(nodeId, (config) => {
+      const actions = Array.isArray(config.actions) ? (config.actions as { id: string }[]) : [];
+      return { ...config, actions: actions.filter((a) => a.id !== actionId) };
+    });
+    if (selectedSubId === actionId) setSelectedSubId(null);
+  }
+
+  function updateSubActionConfig(nodeId: string, actionId: string, config: Record<string, unknown>) {
+    patchNodeConfig(nodeId, (nodeConfig) => {
+      const actions = Array.isArray(nodeConfig.actions) ? (nodeConfig.actions as { id: string; kind: string; config?: Record<string, unknown> }[]) : [];
+      return { ...nodeConfig, actions: actions.map((a) => (a.id === actionId ? { ...a, config } : a)) };
+    });
+  }
+
+  const nodesForRender = useMemo(
+    () =>
+      nodes.map((n) => {
+        if (n.type === "trigger") {
+          return {
+            ...n,
+            data: {
+              ...n.data,
+              onAddTrigger: (triggerId: string, kind: string) => addSubTrigger(n.id, triggerId, kind),
+              onRemoveTrigger: (triggerId: string) => removeSubTrigger(n.id, triggerId),
+              onSelectSubTrigger: (triggerId: string) => setSelectedSubId(triggerId),
+              selectedSubId: selectedNode?.id === n.id ? selectedSubId : null,
+            },
+          };
+        }
+        if (n.type === "action" && n.data.kind === "action_group") {
+          return {
+            ...n,
+            data: {
+              ...n.data,
+              onAddAction: (actionId: string, kind: string) => addSubAction(n.id, actionId, kind),
+              onRemoveAction: (actionId: string) => removeSubAction(n.id, actionId),
+              onSelectSubAction: (actionId: string) => setSelectedSubId(actionId),
+              selectedSubId: selectedNode?.id === n.id ? selectedSubId : null,
+            },
+          };
+        }
+        return n;
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nodes, selectedNode, selectedSubId],
+  );
 
   function buildConfig() {
     return {
@@ -175,11 +265,15 @@ export function FlowEditor({
   );
 
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
-    setSelectedNode(node);
+    setSelectedNode((prev) => {
+      if (!prev || prev.id !== node.id) setSelectedSubId(null);
+      return node;
+    });
   }, []);
 
   const onPaneClick = useCallback(() => {
     setSelectedNode(null);
+    setSelectedSubId(null);
   }, []);
 
   function addBlock(type: string, kind: string, label: string) {
@@ -188,13 +282,15 @@ export function FlowEditor({
     const offset = nodes.length;
     const x = 320 + (offset % 3) * 60;
     const y = 120 + offset * 90;
+    const initialConfig =
+      kind === "trigger_group" ? { triggers: [] } : kind === "action_group" ? { actions: [] } : {};
     setNodes((nds) => [
       ...nds,
       {
         id,
         type,
         position: { x, y },
-        data: { label, kind, config: {}, stats: {} },
+        data: { label, kind, config: initialConfig, stats: {} },
       },
     ]);
   }
@@ -231,7 +327,7 @@ export function FlowEditor({
       {/* Canvas */}
       <div className="flex-1 relative">
         <ReactFlow
-          nodes={nodes}
+          nodes={nodesForRender}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
@@ -318,14 +414,65 @@ export function FlowEditor({
         </ReactFlow>
       </div>
 
-      {/* Config panel */}
-      {selectedNode && (
-        <NodeConfigPanel
-          node={selectedNode}
-          onUpdate={(config) => updateNodeConfig(selectedNode.id, config)}
-          onClose={() => setSelectedNode(null)}
-        />
-      )}
+      {/* Config panel: gatilhos nao tem config propria; o bloco "Acao" so mostra
+          o painel quando uma sub-acao especifica esta selecionada. Busca o no
+          atual pelo id (em vez de usar `selectedNode` direto) para nao mostrar
+          dados desatualizados apos adicionar/remover sub-itens. */}
+      {selectedNode && (() => {
+        const liveNode = nodes.find((n) => n.id === selectedNode.id) ?? selectedNode;
+
+        if (liveNode.data.kind === "trigger_group") {
+          if (!selectedSubId) return null;
+          const triggers = ((liveNode.data.config as Record<string, unknown>)?.triggers as
+            | { id: string; kind: string; config?: Record<string, unknown> }[]
+            | undefined) ?? [];
+          const sub = triggers.find((t) => t.id === selectedSubId);
+          if (!sub || sub.kind !== "message_sent") return null;
+          const subOption = AVAILABLE_TRIGGERS.find((o) => o.kind === sub.kind);
+          const syntheticNode: Node = {
+            ...liveNode,
+            data: { ...liveNode.data, kind: sub.kind, config: sub.config ?? {}, label: subOption?.label ?? sub.kind },
+          };
+          return (
+            <NodeConfigPanel
+              node={syntheticNode}
+              quickMessages={quickMessages}
+              onUpdate={(config) => updateSubTriggerConfig(liveNode.id, selectedSubId, config)}
+              onClose={() => setSelectedSubId(null)}
+            />
+          );
+        }
+
+        if (liveNode.data.kind === "action_group") {
+          if (!selectedSubId) return null;
+          const actions = ((liveNode.data.config as Record<string, unknown>)?.actions as
+            | { id: string; kind: string; config?: Record<string, unknown> }[]
+            | undefined) ?? [];
+          const sub = actions.find((a) => a.id === selectedSubId);
+          if (!sub) return null;
+          const subOption = AVAILABLE_SUB_ACTIONS.find((o) => o.kind === sub.kind);
+          const syntheticNode: Node = {
+            ...liveNode,
+            data: { ...liveNode.data, kind: sub.kind, config: sub.config ?? {}, label: subOption?.label ?? sub.kind },
+          };
+          return (
+            <NodeConfigPanel
+              node={syntheticNode}
+              quickMessages={quickMessages}
+              onUpdate={(config) => updateSubActionConfig(liveNode.id, selectedSubId, config)}
+              onClose={() => setSelectedSubId(null)}
+            />
+          );
+        }
+        return (
+          <NodeConfigPanel
+            node={liveNode}
+            quickMessages={quickMessages}
+            onUpdate={(config) => updateNodeConfig(liveNode.id, config)}
+            onClose={() => setSelectedNode(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
