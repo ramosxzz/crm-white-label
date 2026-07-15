@@ -52,7 +52,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Topbar />
           <main className="flex-1 overflow-auto pb-[calc(4.75rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
         </div>
-        <MobileBottomNav />
+        <MobileBottomNav
+          stockEnabled={ctx.tenant.stock_enabled}
+          satisfactionSurveyEnabled={ctx.tenant.satisfaction_survey_enabled}
+          callsDashboardEnabled={ctx.tenant.calls_dashboard_enabled}
+        />
       </div>
     </>
   );

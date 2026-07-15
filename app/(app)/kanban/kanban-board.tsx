@@ -100,8 +100,15 @@ export function KanbanBoard({
   const leadsByStage = useMemo(() => {
     const map = new Map<string, Lead[]>();
     stages.forEach((s) => map.set(s.id, []));
+    const firstStageId = stages[0]?.id;
     leads.forEach((l) => {
-      if (l.stage_id && map.has(l.stage_id)) map.get(l.stage_id)!.push(l);
+      if (l.stage_id && map.has(l.stage_id)) {
+        map.get(l.stage_id)!.push(l);
+      } else if (firstStageId) {
+        // Lead do funil sem etapa valida (ou etapa de outro funil): cai na
+        // primeira coluna para nunca "sumir" da visao do kanban.
+        map.get(firstStageId)!.push(l);
+      }
     });
     map.forEach((arr) => arr.sort((a, b) => a.position - b.position));
     return map;
