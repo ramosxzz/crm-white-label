@@ -37,7 +37,61 @@ export async function createFlow(formData: FormData) {
     config: { blocks: [], connections: [] },
   });
 
+  revalidatePath("/automations");
   redirect(`/automations/${flow.id}/editor`);
+}
+
+// Salva o rascunho do fluxo continuamente (autosave), sem publicar nem mudar
+// o status. Garante que o trabalho no editor nao se perca ao atualizar a pagina.
+export async function saveFlowDraft(
+  flowId: string,
+  config: { blocks: { type?: string; data?: { kind?: string } }[]; connections: unknown[] },
+): Promise<{ ok: boolean }> {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+
+  const triggerBlock = config.blocks.find((b) => b.type === "trigger");
+  const triggerKind = triggerBlock?.data?.kind ?? null;
+
+  const { data: latest } = await supabase
+    .from("automation_versions")
+    .select("id, version_number, published_at")
+    .eq("flow_id", flowId)
+    .eq("tenant_id", ctx.tenantId)
+    .order("version_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const latestRow = latest as { id: string; version_number: number; published_at: string | null } | null;
+
+  if (latestRow && !latestRow.published_at) {
+    // Ja existe um rascunho: atualiza no lugar.
+    const { error } = await supabase
+      .from("automation_versions")
+      .update({ config })
+      .eq("id", latestRow.id)
+      .eq("tenant_id", ctx.tenantId);
+    if (error) return { ok: false };
+  } else {
+    // Ultima versao ja publicada (ou nenhuma): cria um novo rascunho.
+    const nextVersion = (latestRow?.version_number ?? 0) + 1;
+    const { error } = await supabase.from("automation_versions").insert({
+      flow_id: flowId,
+      tenant_id: ctx.tenantId,
+      version_number: nextVersion,
+      config,
+    });
+    if (error) return { ok: false };
+  }
+
+  // Mantem o gatilho do fluxo em dia (para poder ativar), sem mexer no status.
+  await supabase
+    .from("automation_flows")
+    .update({ trigger_kind: triggerKind })
+    .eq("id", flowId)
+    .eq("tenant_id", ctx.tenantId);
+
+  return { ok: true };
 }
 
 export async function updateFlowStatus(flowId: string, status: "draft" | "active" | "paused") {

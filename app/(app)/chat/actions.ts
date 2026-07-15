@@ -608,23 +608,38 @@ export async function updateChatLeadBusiness(input: {
 
   const { data: lead } = await supabase
     .from("leads")
-    .select("assigned_to")
+    .select("assigned_to, stage_id, won_at")
     .eq("id", input.leadId)
     .eq("tenant_id", ctx.tenantId)
     .single();
   if (!lead) throw new Error("Lead nao encontrado");
+  const currentLead = lead as { assigned_to: string | null; stage_id: string | null; won_at: string | null };
 
   let pipelineId = input.pipelineId;
+  // Marca/limpa won_at ao mover para (ou sair de) uma etapa de ganho.
+  let wonAtPatch: { won_at: string | null } | null = null;
   if (input.stageId) {
     const { data: stage } = await supabase
       .from("pipeline_stages")
-      .select("id, pipeline_id")
+      .select("id, pipeline_id, is_won")
       .eq("id", input.stageId)
       .eq("tenant_id", ctx.tenantId)
       .single();
     if (!stage) throw new Error("Etapa nao encontrada");
     pipelineId = stage.pipeline_id;
-  } else if (pipelineId) {
+    const isWon = Boolean((stage as { is_won: boolean }).is_won);
+    if (isWon) {
+      if (!currentLead.won_at || currentLead.stage_id !== input.stageId) {
+        wonAtPatch = { won_at: new Date().toISOString() };
+      }
+    } else {
+      wonAtPatch = { won_at: null };
+    }
+  } else {
+    // Sem etapa: lead sai do pipeline, deixa de ser um ganho.
+    wonAtPatch = { won_at: null };
+  }
+  if (pipelineId) {
     const { data: pipeline } = await supabase
       .from("pipelines")
       .select("id")
@@ -651,12 +666,13 @@ export async function updateChatLeadBusiness(input: {
       pipeline_id: pipelineId,
       stage_id: input.stageId,
       assigned_to: input.assignedTo,
+      ...(wonAtPatch ?? {}),
     })
     .eq("id", input.leadId)
     .eq("tenant_id", ctx.tenantId);
   if (error) throw new Error(error.message);
 
-  if ((lead as { assigned_to: string | null }).assigned_to !== input.assignedTo) {
+  if (currentLead.assigned_to !== input.assignedTo) {
     const { error: historyError } = await supabase.from("lead_assignment_history").insert({
       tenant_id: ctx.tenantId,
       lead_id: input.leadId,
@@ -673,6 +689,37 @@ export async function updateChatLeadBusiness(input: {
   revalidatePath("/leads");
   revalidatePath(`/leads/${input.leadId}`);
   revalidatePath("/kanban");
+}
+
+export async function updateChatLeadTags(input: { leadId: string; tags: string[] }) {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+
+  // Normaliza: trim, remove vazios/duplicados, limita tamanho.
+  const seen = new Set<string>();
+  const tags: string[] = [];
+  for (const raw of input.tags) {
+    const t = String(raw).trim().slice(0, 40);
+    if (!t) continue;
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    tags.push(t);
+    if (tags.length >= 20) break;
+  }
+
+  const { error } = await supabase
+    .from("leads")
+    .update({ tags })
+    .eq("id", input.leadId)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/chat");
+  revalidatePath(`/chat/${input.leadId}`);
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${input.leadId}`);
+  return { tags };
 }
 
 export async function setLeadAutomations(input: { leadId: string; enabled: boolean }) {

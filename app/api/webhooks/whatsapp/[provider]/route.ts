@@ -27,6 +27,8 @@ import { isValidBrazilWhatsAppPhone, normalizeWhatsAppPhone } from "@/lib/whatsa
 
 import { getAiAgentReply } from "@/lib/ai/agent";
 
+import { fireAutomationTrigger } from "@/lib/automations/trigger";
+
 import type { WhatsAppAccount, WhatsAppProviderKind } from "@/lib/supabase/database.types";
 
 
@@ -596,6 +598,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
       } catch (err) {
         console.error("[ia w+] erro ao responder automaticamente:", err);
       }
+    }
+
+    // Dispara automacoes de "mensagem recebida" (respeita o toggle por lead internamente).
+    if (isInbound && leadId) {
+      void fireAutomationTrigger(account.tenant_id, "message_received", leadId, {
+        conversation_id: conversationId,
+        body: msg.body ?? "",
+      });
     }
   }
 

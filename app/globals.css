@@ -56,6 +56,7 @@
     --chat-outbound: 150 42% 32%;
     --chat-outbound-foreground: 0 0% 100%;
     --chat-outbound-meta: 150 12% 88%;
+    --chat-surface: 0 0% 96%;
 
     --aqua: 166 38% 40%;
 
@@ -112,6 +113,7 @@
     --chat-outbound: 152 42% 40%;
     --chat-outbound-foreground: 0 0% 100%;
     --chat-outbound-meta: 152 12% 78%;
+    --chat-surface: 0 0% 7%;
 
     --aqua: 166 38% 52%;
 

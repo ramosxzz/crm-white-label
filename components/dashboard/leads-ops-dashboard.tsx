@@ -15,6 +15,7 @@ import {
   DollarSign,
   TrendingUp,
   AlertTriangle,
+  ShoppingCart,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ import type { LeadsDashboardData } from "@/lib/leads/dashboard-metrics";
 import { formatCurrencyBRL, cn } from "@/lib/utils";
 import { LeadsByStageChart, LeadsPerDayChart, LeadsTodayHourChart } from "@/app/(app)/dashboard/charts";
 import type { MetaAdsDashboardData } from "@/lib/meta/ads-insights";
+import { MetaAdsDateFilter } from "@/components/dashboard/meta-ads-date-filter";
 
 export function LeadsOpsDashboard({
   data,
@@ -280,9 +282,12 @@ function MetaAdsPanel({ data }: { data: MetaAdsDashboardData }) {
             ROAS, CAC, gasto e desempenho de campanhas conectadas ao workspace.
           </CardDescription>
         </div>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/integrations/facebook">Configurar Meta</Link>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <MetaAdsDateFilter current={data.datePreset} />
+          <Button asChild variant="outline" size="sm">
+            <Link href="/integrations/facebook">Configurar Meta</Link>
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4 p-5">
         {!configured && (
@@ -300,16 +305,18 @@ function MetaAdsPanel({ data }: { data: MetaAdsDashboardData }) {
           />
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <MiniMetric icon={<DollarSign className="h-4 w-4" />} label="Gasto hoje" value={formatCurrencyBRL(data.totals.spendCents)} />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+          <MiniMetric icon={<DollarSign className="h-4 w-4" />} label="Gasto" value={formatCurrencyBRL(data.totals.spendCents)} />
+          <MiniMetric icon={<ShoppingCart className="h-4 w-4" />} label="Conversões (Meta)" value={`${data.totals.purchases}`} hint={`${formatCurrencyBRL(data.totals.revenueCents)} em vendas`} />
           <MiniMetric icon={<TrendingUp className="h-4 w-4" />} label="ROAS" value={`${data.totals.roas.toFixed(2)}x`} hint={formatCurrencyBRL(data.totals.revenueCents)} />
-          <MiniMetric icon={<Target className="h-4 w-4" />} label="CAC estimado" value={formatCurrencyBRL(data.totals.cacCents)} hint={`${data.totals.purchases || data.totals.leads} conversa(s)`} />
-          <MiniMetric icon={<MousePointerClick className="h-4 w-4" />} label="Cliques / Conversas" value={`${data.totals.clicks} / ${data.totals.leads}`} hint={`${data.totals.impressions} impressoes`} />
+          <MiniMetric icon={<Users className="h-4 w-4" />} label="CPL" value={formatCurrencyBRL(data.totals.cplCents)} hint={`${data.totals.leads} lead(s) · custo por lead`} />
+          <MiniMetric icon={<Target className="h-4 w-4" />} label="CAC" value={formatCurrencyBRL(data.totals.cacCents)} hint={`${data.totals.purchases} venda(s) · custo por cliente`} />
+          <MiniMetric icon={<MousePointerClick className="h-4 w-4" />} label="Cliques / Leads" value={`${data.totals.clicks} / ${data.totals.leads}`} hint={`${data.totals.impressions} impressoes`} />
         </div>
 
         {configured && !hasRows ? (
           <div className="rounded-xl border border-dashed border-border/70 py-10 text-center text-sm text-muted-foreground">
-            Nenhum anúncio com gasto encontrado hoje.
+            Nenhum anúncio com gasto encontrado no período.
           </div>
         ) : (
           hasRows && (
@@ -320,15 +327,17 @@ function MetaAdsPanel({ data }: { data: MetaAdsDashboardData }) {
                     <th className="px-4 py-2.5 font-medium">Anúncio</th>
                     <th className="px-4 py-2.5 font-medium">Campanha</th>
                     <th className="px-4 py-2.5 font-medium text-right">Gasto</th>
-                    <th className="px-4 py-2.5 font-medium text-right">Conversas</th>
-                    <th className="px-4 py-2.5 font-medium text-right">CAC/CPL</th>
+                    <th className="px-4 py-2.5 font-medium text-right">Leads</th>
+                    <th className="px-4 py-2.5 font-medium text-right">Vendas</th>
+                    <th className="px-4 py-2.5 font-medium text-right">CPL</th>
+                    <th className="px-4 py-2.5 font-medium text-right">CAC</th>
                     <th className="px-4 py-2.5 font-medium text-right">ROAS</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
                   {data.rows.slice(0, 8).map((row) => {
-                    const conversionBase = row.purchases || row.leads;
-                    const costPerConversion = conversionBase > 0 ? Math.round(row.spendCents / conversionBase) : 0;
+                    const cplCents = row.leads > 0 ? Math.round(row.spendCents / row.leads) : 0;
+                    const cacCents = row.purchases > 0 ? Math.round(row.spendCents / row.purchases) : 0;
                     return (
                       <tr key={row.id} className="transition-colors hover:bg-brand/8 dark:hover:bg-brand/12">
                         <td className="max-w-[18rem] px-4 py-3">
@@ -338,7 +347,9 @@ function MetaAdsPanel({ data }: { data: MetaAdsDashboardData }) {
                         <td className="max-w-[16rem] truncate px-4 py-3 text-muted-foreground">{row.campaignName}</td>
                         <td className="px-4 py-3 text-right font-medium">{formatCurrencyBRL(row.spendCents)}</td>
                         <td className="px-4 py-3 text-right tabular-nums">{row.leads}</td>
-                        <td className="px-4 py-3 text-right">{formatCurrencyBRL(costPerConversion)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums">{row.purchases}</td>
+                        <td className="px-4 py-3 text-right">{cplCents > 0 ? formatCurrencyBRL(cplCents) : "—"}</td>
+                        <td className="px-4 py-3 text-right">{cacCents > 0 ? formatCurrencyBRL(cacCents) : "—"}</td>
                         <td className="px-4 py-3 text-right font-semibold">{row.roas.toFixed(2)}x</td>
                       </tr>
                     );

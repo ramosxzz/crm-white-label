@@ -155,7 +155,7 @@ export function ConversationList({
   return (
     <aside
       className={cn(
-        "w-full shrink-0 flex-col border-r border-border bg-card dark:border-border/50 dark:bg-card/62 md:flex md:w-[360px]",
+        "w-full shrink-0 flex-col border-r border-border bg-[hsl(var(--chat-surface))] dark:border-border/50 md:flex md:w-[360px]",
         activeLeadId ? "hidden" : "flex",
       )}
     >

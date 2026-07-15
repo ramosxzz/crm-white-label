@@ -111,6 +111,35 @@ export async function updateLead(id: string, patch: Partial<{
   const data = { ...patch };
   if (data.phone) data.phone = normalizePhone(data.phone);
 
+  // Ao mover para uma etapa de ganho, marca won_at (para contabilizar ganhos do dia);
+  // ao sair de uma etapa de ganho, limpa. Reordenar dentro da mesma etapa nao altera.
+  let stageIsWon = false;
+  if (patch.stage_id) {
+    const [{ data: stageRow }, { data: currentLead }] = await Promise.all([
+      supabase
+        .from("pipeline_stages")
+        .select("is_won")
+        .eq("id", patch.stage_id)
+        .eq("tenant_id", ctx.tenantId)
+        .single(),
+      supabase
+        .from("leads")
+        .select("stage_id, won_at")
+        .eq("id", id)
+        .eq("tenant_id", ctx.tenantId)
+        .single(),
+    ]);
+    stageIsWon = Boolean((stageRow as { is_won: boolean } | null)?.is_won);
+    const cur = currentLead as { stage_id: string | null; won_at: string | null } | null;
+    if (stageIsWon) {
+      if (!cur?.won_at || cur.stage_id !== patch.stage_id) {
+        (data as Record<string, unknown>).won_at = new Date().toISOString();
+      }
+    } else {
+      (data as Record<string, unknown>).won_at = null;
+    }
+  }
+
   const { error } = await supabase
     .from("leads")
     .update(data)
@@ -121,14 +150,7 @@ export async function updateLead(id: string, patch: Partial<{
 
   if (patch.stage_id) {
     try {
-      const { data: stageRow } = await supabase
-        .from("pipeline_stages")
-        .select("is_won")
-        .eq("id", patch.stage_id)
-        .eq("tenant_id", ctx.tenantId)
-        .single();
-
-      if (stageRow?.is_won) {
+      if (stageIsWon) {
         const { data: leadRow } = await supabase
           .from("leads")
           .select("phone, email, value_cents, custom_fields")

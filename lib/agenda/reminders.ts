@@ -5,7 +5,6 @@ import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 
 // Janelas de lembrete (em minutos antes da reunião)
 const WINDOWS = [
-  { key: "12h", max: 720, min: 120, label: "12 horas" },
   { key: "2h", max: 120, min: 30, label: "2 horas" },
   { key: "30m", max: 30, min: 0, label: "30 minutos" },
 ];
@@ -33,7 +32,8 @@ function timeBR(iso: string): string {
 /** Envia confirmações de reunião nas janelas de 12h, 2h e 30min antes. */
 export async function processAppointmentReminders(supabase: SupabaseClient): Promise<number> {
   const now = Date.now();
-  const horizon = new Date(now + 12 * 60 * 60 * 1000).toISOString();
+  // Janela maxima de lembrete e 2h; buscamos um pouco alem para nao perder bordas.
+  const horizon = new Date(now + 150 * 60 * 1000).toISOString();
 
   const { data: appts } = await supabase
     .from("appointments")

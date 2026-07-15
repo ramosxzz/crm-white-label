@@ -1,5 +1,8 @@
 export type MetaAdsStatus = "ready" | "not_configured" | "error";
 
+export const META_DATE_PRESETS = ["today", "yesterday", "last_7d", "last_30d"] as const;
+export type MetaDatePreset = (typeof META_DATE_PRESETS)[number];
+
 export type MetaAdsRow = {
   id: string;
   name: string;
@@ -24,7 +27,7 @@ export type MetaAdsDashboardData = {
   errorCode?: number;
   errorType?: string;
   adAccountId?: string | null;
-  datePreset: "today";
+  datePreset: MetaDatePreset;
   updatedAt: string;
   totals: {
     spendCents: number;
@@ -86,9 +89,13 @@ const PURCHASE_ACTIONS = new Set([
 export async function getMetaAdsDashboard(input: {
   adAccountId?: string | null;
   accessToken?: string | null;
+  datePreset?: MetaDatePreset;
 }): Promise<MetaAdsDashboardData> {
   const adAccountId = normalizeAdAccountId(input.adAccountId);
   const accessToken = input.accessToken?.trim();
+  const datePreset: MetaDatePreset = META_DATE_PRESETS.includes(input.datePreset as MetaDatePreset)
+    ? (input.datePreset as MetaDatePreset)
+    : "today";
 
   if (!adAccountId || !accessToken) {
     return emptyMetaDashboard("not_configured", adAccountId);
@@ -114,7 +121,7 @@ export async function getMetaAdsDashboard(input: {
   const params = new URLSearchParams({
     fields,
     level: "ad",
-    date_preset: "today",
+    date_preset: datePreset,
     limit: "50",
     access_token: accessToken,
   });
@@ -171,7 +178,7 @@ export async function getMetaAdsDashboard(input: {
     return {
       status: "ready",
       adAccountId,
-      datePreset: "today",
+      datePreset,
       updatedAt: new Date().toISOString(),
       totals,
       rows,

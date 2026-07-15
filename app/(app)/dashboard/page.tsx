@@ -3,21 +3,36 @@ import { requireContext } from "@/lib/tenant";
 import { PageHeader } from "@/components/app/page-header";
 import { LeadsOpsDashboard } from "@/components/dashboard/leads-ops-dashboard";
 import { SellerDashboard } from "@/components/dashboard/seller-dashboard";
-import { formatBRTDateLong, getBRTDayBounds, getBRTYesterdayBounds } from "@/lib/date/brt";
+import {
+  formatBRTDateLong,
+  getBRTDayBounds,
+  getBRTDayBoundsFromDateString,
+} from "@/lib/date/brt";
+import { DashboardDateFilter } from "@/components/dashboard/dashboard-date-filter";
 import {
   aggregateSources,
   buildLeadsByHour,
   buildWeekTrend,
   type LeadsDashboardData,
 } from "@/lib/leads/dashboard-metrics";
-import { getMetaAdsDashboard } from "@/lib/meta/ads-insights";
+import { getMetaAdsDashboard, type MetaDatePreset } from "@/lib/meta/ads-insights";
 import { canSeeFullDashboard } from "@/lib/auth/roles";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string; ads?: string }>;
+}) {
   const ctx = await requireContext();
   const supabase = await createClient();
-  const today = getBRTDayBounds();
-  const yesterday = getBRTYesterdayBounds();
+  const todayBounds = getBRTDayBounds();
+  const sp = await searchParams;
+  // Dia selecionado no filtro (default: hoje). Nao permite futuro.
+  const parsed = sp.date ? getBRTDayBoundsFromDateString(sp.date) : null;
+  const today = parsed && parsed.dateStr <= todayBounds.dateStr ? parsed : todayBounds;
+  const selDate = new Date(today.startIso);
+  const yesterday = getBRTDayBounds(new Date(selDate.getTime() - 24 * 60 * 60 * 1000));
+  const dayLabel = formatBRTDateLong(selDate);
 
   if (!canSeeFullDashboard(ctx.role)) {
     const [{ count: messagesSentToday }, { data: convos }, { count: assignedLeads }, { count: newAssignedToday }] =
@@ -62,7 +77,7 @@ export default async function DashboardPage() {
         />
         <SellerDashboard
           data={{
-            dateLabel: formatBRTDateLong(),
+            dateLabel: dayLabel,
             messagesSentToday: messagesSentToday ?? 0,
             conversationsToday,
             assignedLeads: assignedLeads ?? 0,
@@ -83,12 +98,12 @@ export default async function DashboardPage() {
     { data: leadsWeek },
     { data: allLeads },
     { data: stages },
-    { data: wonStages },
     { count: messagesToday },
     { data: convosToday },
     { count: sharedQueueLeads },
     { count: appointmentsToday },
     { count: overdueTasks },
+    { count: wonTodayCount },
     productsResult,
     activeReservationsResult,
     { data: tenantMeta },
@@ -117,7 +132,6 @@ export default async function DashboardPage() {
       .select("id, name, color, position, is_won, is_lost")
       .eq("tenant_id", ctx.tenantId)
       .order("position"),
-    supabase.from("pipeline_stages").select("id").eq("tenant_id", ctx.tenantId).eq("is_won", true),
     supabase
       .from("messages")
       .select("*", { count: "exact", head: true })
@@ -134,6 +148,12 @@ export default async function DashboardPage() {
     supabase.from("leads").select("id", { count: "exact", head: true }).eq("tenant_id", ctx.tenantId).is("assigned_to", null),
     supabase.from("appointments").select("id", { count: "exact", head: true }).eq("tenant_id", ctx.tenantId).gte("starts_at", today.startIso).lte("starts_at", today.endIso),
     supabase.from("tasks").select("id", { count: "exact", head: true }).eq("tenant_id", ctx.tenantId).eq("status", "open").lt("due_at", new Date().toISOString()),
+    supabase
+      .from("leads")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", ctx.tenantId)
+      .gte("won_at", today.startIso)
+      .lte("won_at", today.endIso),
     ctx.tenant.stock_enabled
       ? supabase.from("products").select("id, stock_quantity, min_stock").eq("tenant_id", ctx.tenantId).eq("is_active", true)
       : Promise.resolve({ data: [] }),
@@ -149,7 +169,6 @@ export default async function DashboardPage() {
   const products = productsResult.data ?? [];
   const activeReservations = activeReservationsResult.data ?? [];
 
-  const wonIds = new Set((wonStages ?? []).map((s) => s.id));
   const stageMap = new Map((stages ?? []).map((s) => [s.id, s]));
 
   const pipelineByStage = (stages ?? []).map((s) => ({
@@ -161,7 +180,7 @@ export default async function DashboardPage() {
     isLost: s.is_lost,
   }));
 
-  const wonToday = (leadsToday ?? []).filter((l) => l.stage_id && wonIds.has(l.stage_id)).length;
+  const wonToday = wonTodayCount ?? 0;
   const pipelineValueTodayCents = (leadsToday ?? []).reduce((a, l) => a + (l.value_cents ?? 0), 0);
   const reservedByProduct = new Map<string, number>();
   for (const reservation of activeReservations) {
@@ -170,7 +189,7 @@ export default async function DashboardPage() {
   const lowStockProducts = products.filter((product) => product.stock_quantity - (reservedByProduct.get(product.id) ?? 0) <= product.min_stock).length;
 
   const dashboardData: LeadsDashboardData = {
-    dateLabel: formatBRTDateLong(),
+    dateLabel: dayLabel,
     today: { startIso: today.startIso, endIso: today.endIso },
     kpis: {
       newLeadsToday: leadsToday?.length ?? 0,
@@ -209,6 +228,7 @@ export default async function DashboardPage() {
   const metaAds = await getMetaAdsDashboard({
     adAccountId: tenantMeta?.meta_ad_account_id,
     accessToken: tenantMeta?.meta_ads_access_token,
+    datePreset: sp.ads as MetaDatePreset | undefined,
   });
 
   return (
@@ -217,6 +237,7 @@ export default async function DashboardPage() {
         eyebrow="Leads"
         title="Central de operações"
         description="Painel diário para acompanhar entradas, conversas e desempenho comercial."
+        actions={<DashboardDateFilter selectedDate={today.dateStr} todayStr={todayBounds.dateStr} />}
       />
       <LeadsOpsDashboard data={dashboardData} stockEnabled={ctx.tenant.stock_enabled} metaAds={metaAds} />
     </div>

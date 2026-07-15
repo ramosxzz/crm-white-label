@@ -70,6 +70,7 @@ import {
   listScheduledMessages,
   cancelScheduledMessage,
   updateChatLeadBusiness,
+  updateChatLeadTags,
 } from "../actions";
 
 type MediaKind = "image" | "video" | "audio" | "document";
@@ -734,7 +735,7 @@ export function ChatThread({
   const busy = pending || uploading;
 
   return (
-    <section className="flex min-h-0 flex-1 bg-[radial-gradient(900px_520px_at_50%_-8%,hsl(var(--brand)/0.07),transparent_68%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--background)))]">
+    <section className="flex min-h-0 flex-1 bg-[hsl(var(--chat-surface))]">
       <div className="flex min-w-0 flex-1 flex-col">
       <header className="flex shrink-0 flex-col gap-2 border-b border-border/50 bg-card/78 px-3 py-2.5 backdrop-blur-md sm:px-5 sm:py-3.5 md:flex-row md:items-center md:justify-between md:gap-3">
         <div className="flex min-w-0 items-center gap-3">
@@ -1660,6 +1661,9 @@ function LeadSidePanel({
 }) {
   const [notes, setNotes] = useState(details?.notes ?? "");
   const [saving, setSaving] = useState(false);
+  const [tags, setTags] = useState<string[]>(details?.tags ?? []);
+  const [tagInput, setTagInput] = useState("");
+  const [tagsSaving, setTagsSaving] = useState(false);
   const [businessSaving, setBusinessSaving] = useState(false);
   const [businessDraft, setBusinessDraft] = useState(() => ({
     valueReais: ((details?.valueCents ?? 0) / 100).toFixed(2).replace(".", ","),
@@ -1675,6 +1679,40 @@ function LeadSidePanel({
   useEffect(() => {
     setNotes(details?.notes ?? "");
   }, [details?.notes]);
+
+  useEffect(() => {
+    setTags(details?.tags ?? []);
+  }, [details?.tags]);
+
+  function persistTags(next: string[]) {
+    const prev = tags;
+    setTags(next);
+    setTagsSaving(true);
+    void updateChatLeadTags({ leadId, tags: next })
+      .then((res) => {
+        if (res?.tags) setTags(res.tags);
+      })
+      .catch((err) => {
+        setTags(prev);
+        alert((err as Error).message);
+      })
+      .finally(() => setTagsSaving(false));
+  }
+
+  function addTag() {
+    const t = tagInput.trim();
+    if (!t) return;
+    if (tags.some((x) => x.toLowerCase() === t.toLowerCase())) {
+      setTagInput("");
+      return;
+    }
+    persistTags([...tags, t]);
+    setTagInput("");
+  }
+
+  function removeTag(tag: string) {
+    persistTags(tags.filter((x) => x !== tag));
+  }
 
   useEffect(() => {
     setBusinessDraft({
@@ -1763,15 +1801,50 @@ function LeadSidePanel({
         <InfoRow label="Telefone" value={channel === "instagram" ? "Instagram Direct" : formatPhone(leadPhone)} />
         <InfoRow label="Origem" value={details?.source || "Nao informada"} muted={!details?.source} />
         <InfoRow label="Entrada" value={formatShortDate(details?.createdAt)} />
-        {details?.tags?.length ? (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {details.tags.map((tag) => (
-              <span key={tag} className="rounded-md bg-brand/10 px-2 py-1 text-[11px] font-medium text-brand">
+      </PanelSection>
+
+      <PanelSection title="Tags">
+        <div className="flex flex-wrap gap-1.5">
+          {tags.length ? (
+            tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-1 rounded-md bg-brand/10 py-1 pl-2 pr-1 text-[11px] font-medium text-brand"
+              >
                 {tag}
+                <button
+                  type="button"
+                  onClick={() => removeTag(tag)}
+                  disabled={tagsSaving}
+                  className="grid h-4 w-4 place-items-center rounded-sm text-brand/70 transition hover:bg-brand/20 hover:text-brand disabled:opacity-50"
+                  aria-label={`Remover tag ${tag}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
               </span>
-            ))}
-          </div>
-        ) : null}
+            ))
+          ) : (
+            <span className="text-xs text-muted-foreground">Nenhuma tag ainda.</span>
+          )}
+        </div>
+        <div className="mt-2 flex gap-2">
+          <Input
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addTag();
+              }
+            }}
+            placeholder="Nova tag"
+            className="h-8 bg-background/70 text-sm"
+            disabled={tagsSaving}
+          />
+          <Button type="button" size="sm" variant="outline" onClick={addTag} disabled={tagsSaving || !tagInput.trim()}>
+            {tagsSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+          </Button>
+        </div>
       </PanelSection>
 
       <PanelSection title="Notas">

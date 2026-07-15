@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { TriggerNode, ActionNode, ConditionNode, WaitNode, EndNode } from "./node-types";
 import { BlockPanel } from "./block-panel";
 import { NodeConfigPanel } from "./node-config-panel";
-import { saveFlowVersion, updateFlowStatus } from "@/app/(app)/automations/actions";
+import { saveFlowVersion, saveFlowDraft, updateFlowStatus } from "@/app/(app)/automations/actions";
 
 const nodeTypes = {
   trigger: TriggerNode,
@@ -103,6 +103,55 @@ export function FlowEditor({
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved">("idle");
+
+  function buildConfig() {
+    return {
+      blocks: nodes.map((n) => ({
+        id: n.id,
+        type: n.type ?? "action",
+        position: n.position,
+        data: n.data,
+      })),
+      connections: edges.map((e) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle ?? null,
+      })),
+    };
+  }
+
+  // Autosave: persiste o rascunho no banco do tenant sempre que o fluxo muda,
+  // para nunca perder o trabalho ao atualizar a pagina. Debounce de 1.2s.
+  const didMountRef = useRef(false);
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+    setAutosaveState("saving");
+    const config = buildConfig();
+    const timer = setTimeout(() => {
+      void saveFlowDraft(flowId, config)
+        .then((res) => setAutosaveState(res.ok ? "saved" : "idle"))
+        .catch(() => setAutosaveState("idle"));
+    }, 1200);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, edges, flowId]);
+
+  // Avisa se houver mudanca ainda nao persistida ao tentar sair da pagina.
+  useEffect(() => {
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (autosaveState === "saving") {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [autosaveState]);
 
   const onConnect = useCallback(
     (params: Connection) =>
@@ -164,19 +213,7 @@ export function FlowEditor({
   async function handleSave() {
     setSaving(true);
     setSaveError(null);
-    const blocks = nodes.map((n) => ({
-      id: n.id,
-      type: n.type ?? "action",
-      position: n.position,
-      data: n.data,
-    }));
-    const connections = edges.map((e) => ({
-      id: e.id,
-      source: e.source,
-      target: e.target,
-      sourceHandle: e.sourceHandle ?? null,
-    }));
-    const result = await saveFlowVersion(flowId, { blocks, connections });
+    const result = await saveFlowVersion(flowId, buildConfig());
     if (!result.ok) setSaveError(result.error ?? "Nao foi possivel salvar.");
     setSaving(false);
   }
@@ -252,6 +289,9 @@ export function FlowEditor({
                 <History className="h-3.5 w-3.5" />
                 Logs
               </Link>
+              <span className="px-1 text-[11px] font-medium text-muted-foreground">
+                {autosaveState === "saving" ? "Salvando rascunho..." : autosaveState === "saved" ? "Rascunho salvo" : ""}
+              </span>
               <div className="mx-0.5 h-5 w-px bg-border" />
               <Button size="sm" className="h-8 rounded-lg" onClick={handleSave} disabled={saving}>
                 <Save className="mr-1.5 h-3.5 w-3.5" />
