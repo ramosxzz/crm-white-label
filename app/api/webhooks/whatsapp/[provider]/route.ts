@@ -107,11 +107,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
 
 
-  // So usa o primeiro (unico) resultado sem identificador explicito quando ha
-  // apenas uma conta ativa desse provider — nunca quando ha varias, para nao
-  // vazar mensagens de um tenant para outro por falha de match.
-  let account: WhatsAppAccount = accounts[0];
-  let matchedAccount = accounts.length === 1;
+  // NUNCA assume uma conta por default (nem quando ha so uma ativa): exige
+  // match explicito por identificador (instance/instanceId/phone_number_id).
+  // Sem match, o payload e ignorado — jamais atribuido a um tenant "palpite",
+  // que foi exatamente a causa dos vazamentos anteriores entre tenants.
+  let account: WhatsAppAccount | null = null;
+
+  function norm(v: unknown): string {
+    return String(v ?? "").trim().toLowerCase();
+  }
 
   if (provider === "cloud_api") {
 
@@ -124,16 +128,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
     const matchedByPhoneNumberId = phoneNumberId
       ? accounts.find((a) => {
           const creds = a.credentials as { phone_number_id?: string };
-          return creds.phone_number_id === phoneNumberId;
+          return creds.phone_number_id && norm(creds.phone_number_id) === norm(phoneNumberId);
         })
       : null;
-    const matchedByPhone = accounts.find((a) => a.phone_number.replace(/\D/g, "") === phone);
-    const matched = matchedByPhoneNumberId ?? matchedByPhone;
-
-    if (matched) {
-      account = matched;
-      matchedAccount = true;
-    }
+    const matchedByPhone = phone
+      ? accounts.find((a) => a.phone_number.replace(/\D/g, "") === phone)
+      : null;
+    account = matchedByPhoneNumberId ?? matchedByPhone ?? null;
 
   }
 
@@ -145,18 +146,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
     if (instanceId) {
 
-      const matched = accounts.find((a) => {
+      account = accounts.find((a) => {
 
         const creds = a.credentials as { instance_id?: string };
 
-        return creds.instance_id === instanceId;
+        return creds.instance_id && norm(creds.instance_id) === norm(instanceId);
 
-      });
-
-      if (matched) {
-        account = matched;
-        matchedAccount = true;
-      }
+      }) ?? null;
 
     }
 
@@ -170,24 +166,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
     if (instanceName) {
 
-      const matched = accounts.find((a) => {
+      account = accounts.find((a) => {
 
         const creds = a.credentials as { instance?: string };
 
-        return creds.instance === instanceName;
+        return creds.instance && norm(creds.instance) === norm(instanceName);
 
-      });
-
-      if (matched) {
-        account = matched;
-        matchedAccount = true;
-      }
+      }) ?? null;
 
     }
 
   }
 
-  if (!matchedAccount) {
+  if (!account) {
     console.error(
       `[webhook][${provider}] nao foi possivel identificar a conta do tenant (${accounts.length} contas ativas). Ignorando payload para evitar vazamento entre tenants.`,
     );
