@@ -8,6 +8,7 @@ import { normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 import type { ChatMessage } from "@/lib/chat/types";
 import { fireAutomationTrigger } from "@/lib/automations/trigger";
+import { logLeadActivity } from "@/lib/leads/activity-log";
 
 const LABEL_COLORS = ["#7c3aed", "#2563eb", "#059669", "#dc2626", "#d97706", "#0891b2"];
 
@@ -704,6 +705,50 @@ export async function updateChatLeadBusiness(input: {
       reason: input.assignedTo ? "manual_assign" : "return_to_queue",
     });
     if (historyError) throw new Error(historyError.message);
+
+    let toName: string | null = null;
+    if (input.assignedTo) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", input.assignedTo)
+        .maybeSingle();
+      toName = (profile as { full_name?: string | null } | null)?.full_name ?? null;
+    }
+    void logLeadActivity(supabase, {
+      tenantId: ctx.tenantId,
+      leadId: input.leadId,
+      userId: ctx.userId,
+      kind: "assigned",
+      payload: { to_user_name: toName, unassigned: !input.assignedTo },
+    });
+  }
+
+  // Registra mudanca de etapa na linha do tempo do lead.
+  if (stageId && stageId !== currentLead.stage_id) {
+    const { data: toStage } = await supabase
+      .from("pipeline_stages")
+      .select("name")
+      .eq("id", stageId)
+      .eq("tenant_id", ctx.tenantId)
+      .maybeSingle();
+    let fromName: string | null = null;
+    if (currentLead.stage_id) {
+      const { data: fromStage } = await supabase
+        .from("pipeline_stages")
+        .select("name")
+        .eq("id", currentLead.stage_id)
+        .eq("tenant_id", ctx.tenantId)
+        .maybeSingle();
+      fromName = (fromStage as { name?: string | null } | null)?.name ?? null;
+    }
+    void logLeadActivity(supabase, {
+      tenantId: ctx.tenantId,
+      leadId: input.leadId,
+      userId: ctx.userId,
+      kind: "stage_changed",
+      payload: { from_stage_name: fromName, to_stage_name: (toStage as { name?: string | null } | null)?.name ?? null },
+    });
   }
 
   revalidatePath("/chat");
@@ -730,12 +775,43 @@ export async function updateChatLeadTags(input: { leadId: string; tags: string[]
     if (tags.length >= 20) break;
   }
 
+  const { data: before } = await supabase
+    .from("leads")
+    .select("tags")
+    .eq("id", input.leadId)
+    .eq("tenant_id", ctx.tenantId)
+    .maybeSingle();
+  const prevTags = ((before as { tags?: string[] } | null)?.tags ?? []).map((t) => t.toLowerCase());
+
   const { error } = await supabase
     .from("leads")
     .update({ tags })
     .eq("id", input.leadId)
     .eq("tenant_id", ctx.tenantId);
   if (error) throw new Error(error.message);
+
+  const added = tags.filter((t) => !prevTags.includes(t.toLowerCase()));
+  const removed = ((before as { tags?: string[] } | null)?.tags ?? []).filter(
+    (t) => !tags.some((n) => n.toLowerCase() === t.toLowerCase()),
+  );
+  for (const tag of added) {
+    void logLeadActivity(supabase, {
+      tenantId: ctx.tenantId,
+      leadId: input.leadId,
+      userId: ctx.userId,
+      kind: "tag_added",
+      payload: { tag },
+    });
+  }
+  for (const tag of removed) {
+    void logLeadActivity(supabase, {
+      tenantId: ctx.tenantId,
+      leadId: input.leadId,
+      userId: ctx.userId,
+      kind: "tag_removed",
+      payload: { tag },
+    });
+  }
 
   revalidatePath("/chat");
   revalidatePath(`/chat/${input.leadId}`);

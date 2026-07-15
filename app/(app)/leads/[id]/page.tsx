@@ -1,6 +1,20 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, MessageCircle, Mail, Phone, Calendar } from "lucide-react";
+import {
+  ArrowLeft,
+  MessageCircle,
+  Mail,
+  Phone,
+  Calendar,
+  MoveRight,
+  Tag,
+  UserCheck,
+  StickyNote,
+  Bot,
+  PhoneCall,
+  Sparkles,
+  Activity,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { listTenantUserOptions } from "@/lib/tenant/users";
@@ -192,19 +206,32 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           <CardHeader>
             <CardTitle>Linha do tempo</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            {(activities ?? []).length === 0 && (
+          <CardContent className="text-sm">
+            {(activities ?? []).length === 0 ? (
               <p className="text-muted-foreground">Sem atividades ainda.</p>
+            ) : (
+              <ol className="relative space-y-4 before:absolute before:left-[13px] before:top-2 before:bottom-2 before:w-px before:bg-border">
+                {activities?.map((a) => {
+                  const meta = activityMeta(a);
+                  const Icon = meta.icon;
+                  const author = a.user_id ? authorNames[a.user_id] : null;
+                  return (
+                    <li key={a.id} className="relative flex gap-3 pl-0">
+                      <span className={`z-10 grid h-7 w-7 shrink-0 place-items-center rounded-full ring-4 ring-background ${meta.color}`}>
+                        <Icon className="h-3.5 w-3.5" />
+                      </span>
+                      <div className="min-w-0 flex-1 pt-0.5">
+                        <p className="font-medium leading-snug">{meta.label}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(a.created_at).toLocaleString("pt-BR")}
+                          {author ? ` · ${author}` : ""}
+                        </p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
             )}
-            {activities?.map((a) => (
-              <div key={a.id} className="relative pl-6">
-                <span className="absolute left-0 top-1.5 h-2 w-2 rounded-full bg-brand ring-4 ring-brand/15" />
-                <p className="font-medium">{describeActivity(a)}</p>
-                <p className="text-xs text-muted-foreground">
-                  {new Date(a.created_at).toLocaleString("pt-BR")}
-                </p>
-              </div>
-            ))}
           </CardContent>
         </Card>
       </div>
@@ -212,17 +239,74 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   );
 }
 
-function describeActivity(activity: { kind: string; payload: unknown }): string {
+function activityMeta(activity: { kind: string; payload: unknown }): {
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+} {
   const payload = (activity.payload ?? {}) as Record<string, unknown>;
   switch (activity.kind) {
+    case "stage_changed": {
+      const to = String(payload.to_stage_name ?? "");
+      const from = payload.from_stage_name ? String(payload.from_stage_name) : null;
+      return {
+        label: from ? `Etapa alterada de ${from} para ${to}` : `Movido para ${to}`,
+        icon: MoveRight,
+        color: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+      };
+    }
+    case "tag_added":
+      return {
+        label: `Tag ${String(payload.tag ?? "")} adicionada`,
+        icon: Tag,
+        color: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+      };
+    case "tag_removed":
+      return {
+        label: `Tag ${String(payload.tag ?? "")} removida`,
+        icon: Tag,
+        color: "bg-gray-500/15 text-gray-600 dark:text-gray-300",
+      };
+    case "assigned":
+      return {
+        label: payload.unassigned
+          ? "Responsável removido"
+          : `Responsável alterado para ${String(payload.to_user_name ?? "equipe")}`,
+        icon: UserCheck,
+        color: "bg-violet-500/15 text-violet-600 dark:text-violet-400",
+      };
+    case "call":
+      return {
+        label: `Ligação${payload.extension ? ` (ramal ${String(payload.extension)})` : ""}`,
+        icon: PhoneCall,
+        color: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+      };
     case "note":
-      return `Nota: "${String(payload.text ?? "")}"`;
+      return {
+        label: `Nota: "${String(payload.text ?? "")}"`,
+        icon: StickyNote,
+        color: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+      };
     case "automation":
-      return `Automação: ${String(payload.message ?? payload.ai ?? "executada")}`;
+      return {
+        label: payload.ai
+          ? `IA: ${String(payload.ai)}`
+          : `Automação: ${String(payload.message ?? "executada")}`,
+        icon: payload.ai ? Sparkles : Bot,
+        color: "bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-400",
+      };
     case "technical_profile_updated":
-      return "Perfil técnico atualizado";
+      return {
+        label: "Perfil técnico atualizado",
+        icon: Activity,
+        color: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
+      };
     default:
-      return activity.kind.replaceAll("_", " ");
+      return {
+        label: activity.kind.replaceAll("_", " "),
+        icon: Activity,
+        color: "bg-brand/15 text-brand",
+      };
   }
 }
 

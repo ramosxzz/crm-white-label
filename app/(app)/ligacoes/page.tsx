@@ -34,6 +34,30 @@ export default async function CallsDashboardPage() {
         .filter((v): v is string => typeof v === "string"),
     ),
   );
+
+  // Tentativas por lead/destino: cada ligacao para o mesmo lead (ou, sem lead,
+  // o mesmo numero de destino) conta como uma tentativa de contato.
+  const contactKey = (c: (typeof calls)[number]) =>
+    ((c.metadata as Record<string, unknown> | null)?.lead_id as string | undefined) ?? c.to;
+  const attemptsByKey = new Map<string, number>();
+  for (const c of calls) {
+    const k = contactKey(c);
+    attemptsByKey.set(k, (attemptsByKey.get(k) ?? 0) + 1);
+  }
+  const contactedCount = attemptsByKey.size;
+  const avgAttempts = contactedCount > 0 ? (total / contactedCount).toFixed(1) : "0";
+
+  // Ordinal de cada ligacao entre as tentativas do mesmo lead (1a, 2a, ...),
+  // contando da mais antiga para a mais recente.
+  const ordinalByCall = new Map<string, number>();
+  const running = new Map<string, number>();
+  for (let i = calls.length - 1; i >= 0; i--) {
+    const c = calls[i];
+    const k = contactKey(c);
+    const n = (running.get(k) ?? 0) + 1;
+    running.set(k, n);
+    ordinalByCall.set(c.id, n);
+  }
   const supabase = await createClient();
   const { data: leads } = leadIds.length
     ? await supabase.from("leads").select("id, name").in("id", leadIds).eq("tenant_id", ctx.tenantId)
@@ -44,11 +68,13 @@ export default async function CallsDashboardPage() {
     <div>
       <PageHeader title="Ligações" description="Chamadas realizadas via Api4com" />
 
-      <div className="grid gap-4 p-6 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <KpiCard icon={<PhoneCall className="h-5 w-5" />} label="Total de Ligações" value={String(total)} />
         <KpiCard icon={<Headphones className="h-5 w-5" />} label="Atendidas" value={`${answered} (${answerRate}%)`} />
         <KpiCard icon={<PhoneOff className="h-5 w-5" />} label="Não Atendidas" value={String(notAnswered)} />
         <KpiCard icon={<Clock className="h-5 w-5" />} label="Duração Média" value={formatDuration(avgDurationSeconds)} />
+        <KpiCard icon={<User className="h-5 w-5" />} label="Leads Contatados" value={String(contactedCount)} />
+        <KpiCard icon={<PhoneCall className="h-5 w-5" />} label="Tentativas / Lead" value={avgAttempts} />
       </div>
 
       <div className="px-6 pb-6">
@@ -68,6 +94,7 @@ export default async function CallsDashboardPage() {
                       <th className="px-5 py-3">Ramal</th>
                       <th className="px-5 py-3">Destino</th>
                       <th className="px-5 py-3">Lead</th>
+                      <th className="px-5 py-3">Tentativas</th>
                       <th className="px-5 py-3">Duração</th>
                       <th className="px-5 py-3">Status</th>
                       <th className="px-5 py-3">Gravação</th>
@@ -77,6 +104,8 @@ export default async function CallsDashboardPage() {
                     {calls.slice(0, 100).map((c) => {
                       const leadId = (c.metadata as Record<string, unknown> | null)?.lead_id as string | undefined;
                       const wasAnswered = c.duration > 0;
+                      const attempts = attemptsByKey.get(contactKey(c)) ?? 1;
+                      const ordinal = ordinalByCall.get(c.id) ?? 1;
                       return (
                         <tr key={c.id} className="border-b border-border/40 last:border-0 hover:bg-muted/30">
                           <td className="px-5 py-3 text-muted-foreground">
@@ -92,6 +121,11 @@ export default async function CallsDashboardPage() {
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
+                          </td>
+                          <td className="px-5 py-3">
+                            <Badge variant="secondary" className="tabular-nums" title={`${attempts} tentativa(s) no total`}>
+                              {ordinal}ª de {attempts}
+                            </Badge>
                           </td>
                           <td className="px-5 py-3 tabular-nums">{formatDuration(c.duration)}</td>
                           <td className="px-5 py-3">

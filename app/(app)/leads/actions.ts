@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { normalizePhone } from "@/lib/utils";
 import { fireAutomationTrigger } from "@/lib/automations/trigger";
+import { logLeadActivity } from "@/lib/leads/activity-log";
 
 const leadSchema = z.object({
   name: z.string().min(1, "Nome obrigatorio"),
@@ -114,11 +115,12 @@ export async function updateLead(id: string, patch: Partial<{
   // Ao mover para uma etapa de ganho, marca won_at (para contabilizar ganhos do dia);
   // ao sair de uma etapa de ganho, limpa. Reordenar dentro da mesma etapa nao altera.
   let stageIsWon = false;
+  let stageChange: { fromId: string | null; toId: string; toName: string | null } | null = null;
   if (patch.stage_id) {
     const [{ data: stageRow }, { data: currentLead }] = await Promise.all([
       supabase
         .from("pipeline_stages")
-        .select("is_won")
+        .select("is_won, name")
         .eq("id", patch.stage_id)
         .eq("tenant_id", ctx.tenantId)
         .single(),
@@ -131,6 +133,13 @@ export async function updateLead(id: string, patch: Partial<{
     ]);
     stageIsWon = Boolean((stageRow as { is_won: boolean } | null)?.is_won);
     const cur = currentLead as { stage_id: string | null; won_at: string | null } | null;
+    if (cur && cur.stage_id !== patch.stage_id) {
+      stageChange = {
+        fromId: cur.stage_id,
+        toId: patch.stage_id,
+        toName: (stageRow as { name?: string | null } | null)?.name ?? null,
+      };
+    }
     if (stageIsWon) {
       if (!cur?.won_at || cur.stage_id !== patch.stage_id) {
         (data as Record<string, unknown>).won_at = new Date().toISOString();
@@ -147,6 +156,26 @@ export async function updateLead(id: string, patch: Partial<{
     .eq("tenant_id", ctx.tenantId);
 
   if (error) throw new Error(error.message);
+
+  if (stageChange) {
+    let fromName: string | null = null;
+    if (stageChange.fromId) {
+      const { data: fromStage } = await supabase
+        .from("pipeline_stages")
+        .select("name")
+        .eq("id", stageChange.fromId)
+        .eq("tenant_id", ctx.tenantId)
+        .maybeSingle();
+      fromName = (fromStage as { name?: string | null } | null)?.name ?? null;
+    }
+    void logLeadActivity(supabase, {
+      tenantId: ctx.tenantId,
+      leadId: id,
+      userId: ctx.userId,
+      kind: "stage_changed",
+      payload: { from_stage_name: fromName, to_stage_name: stageChange.toName },
+    });
+  }
 
   if (patch.stage_id) {
     try {
@@ -232,6 +261,25 @@ export async function assignLead(input: {
     reason: input.reason,
   });
   if (historyError) throw new Error(historyError.message);
+
+  if ((lead as { assigned_to: string | null }).assigned_to !== input.toUserId) {
+    let toName: string | null = null;
+    if (input.toUserId) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", input.toUserId)
+        .maybeSingle();
+      toName = (profile as { full_name?: string | null } | null)?.full_name ?? null;
+    }
+    void logLeadActivity(supabase, {
+      tenantId: ctx.tenantId,
+      leadId: input.leadId,
+      userId: ctx.userId,
+      kind: "assigned",
+      payload: { to_user_name: toName, unassigned: !input.toUserId },
+    });
+  }
 
   revalidatePath("/leads");
   revalidatePath("/kanban");
