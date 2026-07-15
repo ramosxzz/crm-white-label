@@ -11,6 +11,7 @@ import {
   FileIcon,
   Image as ImageIcon,
   FileText,
+  Camera,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -93,6 +94,7 @@ export function GroupChatThread({
   const [recording, setRecording] = useState(false);
   const [recordSecs, setRecordSecs] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<Blob[]>([]);
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -207,8 +209,8 @@ export function GroupChatThread({
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (file.size > 25 * 1024 * 1024) {
-      alert("Arquivo muito grande (máximo 25 MB).");
+    if (file.size > 1024 * 1024 * 1024) {
+      alert("Arquivo muito grande (máximo 1 GB).");
       return;
     }
     void uploadAndSend(file, file.name, detectMediaKind(file.type));
@@ -351,6 +353,14 @@ export function GroupChatThread({
           className="hidden"
           onChange={onPickFile}
         />
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={onPickFile}
+        />
         {recording ? (
           <div className="mx-auto flex max-w-4xl items-center gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-2.5">
             <span className="h-3 w-3 animate-pulse rounded-full bg-red-500" />
@@ -375,6 +385,9 @@ export function GroupChatThread({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" side="top" className="w-52">
+                <DropdownMenuItem onSelect={() => cameraInputRef.current?.click()} className="cursor-pointer gap-2.5">
+                  <Camera className="h-4 w-4 text-emerald-500" /> Tirar foto
+                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => openPicker("image/*,video/*")} className="cursor-pointer gap-2.5">
                   <ImageIcon className="h-4 w-4 text-purple-500" /> Foto e vídeo
                 </DropdownMenuItem>

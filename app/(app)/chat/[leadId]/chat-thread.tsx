@@ -26,6 +26,7 @@ import {
   Save,
   X,
   Zap,
+  Camera,
 } from "lucide-react";
 import { updateLead } from "@/app/(app)/leads/actions";
 import { ScheduleMeetingButton } from "@/components/leads/schedule-meeting-button";
@@ -293,6 +294,7 @@ export function ChatThread({
   const [scheduleUploading, setScheduleUploading] = useState(false);
   const [pendingScheduled, setPendingScheduled] = useState<ScheduledMessage[]>(initialScheduledMessages);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const scheduleAudioInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<Blob[]>([]);
@@ -586,8 +588,8 @@ export function ChatThread({
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (file.size > 25 * 1024 * 1024) {
-      alert("Arquivo muito grande (máximo 25 MB).");
+    if (file.size > 1024 * 1024 * 1024) {
+      alert("Arquivo muito grande (máximo 1 GB).");
       return;
     }
     void uploadAndSend(file, file.name, detectMediaKind(file.type));
@@ -695,8 +697,8 @@ export function ChatThread({
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (file.size > 25 * 1024 * 1024) {
-      alert("Arquivo muito grande (máximo 25 MB).");
+    if (file.size > 1024 * 1024 * 1024) {
+      alert("Arquivo muito grande (máximo 1 GB).");
       return;
     }
     void uploadForSchedule(file, file.name);
@@ -955,6 +957,14 @@ export function ChatThread({
           onChange={onPickFile}
         />
         <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={onPickFile}
+        />
+        <input
           ref={scheduleAudioInputRef}
           type="file"
           accept="audio/*"
@@ -1032,6 +1042,9 @@ export function ChatThread({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" side="top" className="w-52">
+                  <DropdownMenuItem onSelect={() => cameraInputRef.current?.click()} className="cursor-pointer gap-2.5">
+                    <Camera className="h-4 w-4 text-emerald-500" /> Tirar foto
+                  </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => openPicker("image/*,video/*")} className="cursor-pointer gap-2.5">
                     <ImageIcon className="h-4 w-4 text-purple-500" /> Foto e vídeo
                   </DropdownMenuItem>
