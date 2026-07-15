@@ -107,7 +107,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
 
 
+  // So usa o primeiro (unico) resultado sem identificador explicito quando ha
+  // apenas uma conta ativa desse provider — nunca quando ha varias, para nao
+  // vazar mensagens de um tenant para outro por falha de match.
   let account: WhatsAppAccount = accounts[0];
+  let matchedAccount = accounts.length === 1;
 
   if (provider === "cloud_api") {
 
@@ -126,7 +130,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
     const matchedByPhone = accounts.find((a) => a.phone_number.replace(/\D/g, "") === phone);
     const matched = matchedByPhoneNumberId ?? matchedByPhone;
 
-    if (matched) account = matched;
+    if (matched) {
+      account = matched;
+      matchedAccount = true;
+    }
 
   }
 
@@ -146,7 +153,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
       });
 
-      if (matched) account = matched;
+      if (matched) {
+        account = matched;
+        matchedAccount = true;
+      }
 
     }
 
@@ -168,10 +178,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
       });
 
-      if (matched) account = matched;
+      if (matched) {
+        account = matched;
+        matchedAccount = true;
+      }
 
     }
 
+  }
+
+  if (!matchedAccount) {
+    console.error(
+      `[webhook][${provider}] nao foi possivel identificar a conta do tenant (${accounts.length} contas ativas). Ignorando payload para evitar vazamento entre tenants.`,
+    );
+    return NextResponse.json({ ok: true, ignored: true }, { status: 200 });
   }
 
   if (provider === "cloud_api") {

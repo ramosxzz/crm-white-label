@@ -26,7 +26,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   const stages = (stagesResult.data ?? []) as unknown as StageRow[];
 
   return (
-    <div className="flex h-[calc(100dvh-3.5rem-4.75rem-env(safe-area-inset-bottom))] min-h-0 overflow-hidden bg-background md:h-[calc(100vh-3.5rem)]">
+    <div className="flex h-[calc(100dvh-3.5rem-4.75rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] min-h-0 overflow-hidden bg-background md:h-[calc(100vh-3.5rem)]">
       <ConversationListLive
         tenantId={ctx.tenantId}
         initialItems={items}

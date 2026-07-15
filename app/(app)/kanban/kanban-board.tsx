@@ -45,10 +45,19 @@ export function KanbanBoard({
   initialLeads: Lead[];
 }) {
   const router = useRouter();
-  const [stages] = useState(initialStages);
+  const [stages, setStages] = useState(initialStages);
   const [leads, setLeads] = useState(initialLeads);
   const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  // Mantem em dia quando o servidor re-renderiza com stages/leads novos
+  // (ex: apos criar uma etapa e navegar de volta para o kanban).
+  useEffect(() => {
+    setStages(initialStages);
+  }, [initialStages]);
+  useEffect(() => {
+    setLeads(initialLeads);
+  }, [initialLeads]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -64,6 +73,23 @@ export function KanbanBoard({
             setLeads((prev) => prev.map((l) => (l.id === (payload.new as Lead).id ? { ...l, ...(payload.new as Lead) } : l)));
           } else if (payload.eventType === "DELETE") {
             setLeads((prev) => prev.filter((l) => l.id !== (payload.old as Lead).id));
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "pipeline_stages", filter: activePipelineId ? `pipeline_id=eq.${activePipelineId}` : undefined },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            setStages((prev) => [...prev, payload.new as Stage].sort((a, b) => a.position - b.position));
+          } else if (payload.eventType === "UPDATE") {
+            setStages((prev) =>
+              prev
+                .map((s) => (s.id === (payload.new as Stage).id ? { ...s, ...(payload.new as Stage) } : s))
+                .sort((a, b) => a.position - b.position),
+            );
+          } else if (payload.eventType === "DELETE") {
+            setStages((prev) => prev.filter((s) => s.id !== (payload.old as Stage).id));
           }
         },
       )

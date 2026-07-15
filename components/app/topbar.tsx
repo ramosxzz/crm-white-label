@@ -24,7 +24,10 @@ export async function Topbar() {
   );
 
   return (
-    <header className="sticky top-0 z-40 flex h-14 items-center justify-end gap-1 border-b border-border bg-card/90 px-6 backdrop-blur-xl dark:border-border/40 dark:bg-background/75">
+    <header
+      className="sticky top-0 z-40 flex h-14 items-center justify-end gap-1 border-b border-border bg-card/90 px-6 backdrop-blur-xl dark:border-border/40 dark:bg-background/75"
+      style={{ paddingTop: "env(safe-area-inset-top)", height: "calc(3.5rem + env(safe-area-inset-top))" }}
+    >
       <ThemeToggle />
       <UpdatesBell updates={updates ?? []} hasUnread={hasUnread} />
       <NotificationsBell initial={data ?? []} currentUserId={ctx.userId} />
