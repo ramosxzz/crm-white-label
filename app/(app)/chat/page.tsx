@@ -2,7 +2,7 @@ import { MessageCircle } from "lucide-react";
 
 export default function ChatPage() {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center bg-muted/10 px-6">
+    <div className="hidden flex-1 flex-col items-center justify-center bg-muted/10 px-6 md:flex">
       <div className="max-w-md text-center">
         <div className="mx-auto mb-5 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/10 text-brand ring-1 ring-brand/20">
           <MessageCircle className="h-7 w-7" />
