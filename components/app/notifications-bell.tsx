@@ -78,7 +78,7 @@ export function NotificationsBell({ initial, currentUserId }: { initial: Notific
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[380px] p-0">
+      <DropdownMenuContent align="end" className="w-[380px] max-w-[calc(100vw-1.5rem)] p-0">
         <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
           <div>
             <p className="font-display text-sm font-semibold">Notificacoes</p>

@@ -38,7 +38,7 @@ export function UpdatesBell({
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[380px] p-0">
+      <DropdownMenuContent align="end" className="w-[380px] max-w-[calc(100vw-1.5rem)] p-0">
         <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
           <Sparkles className="h-4 w-4 text-brand" />
           <div>
