@@ -165,11 +165,13 @@ function sameOutgoingDraft(optimistic: ChatMessage, real: ChatMessage) {
 
   const optimisticBody = (optimistic.body ?? "").trim();
   const realBody = (real.body ?? "").trim();
-  if (optimisticBody !== realBody) return false;
 
   const optimisticMediaType = optimistic.media_type ?? null;
   const realMediaType = real.media_type ?? null;
   if (optimisticMediaType !== realMediaType) return false;
+
+  if (!optimisticMediaType && optimisticBody !== realBody) return false;
+  if (optimisticMediaType && optimisticBody && realBody && optimisticBody !== realBody) return false;
 
   const optimisticReply = optimistic.reply_to_message_id ?? optimistic.reply_to_external_id ?? null;
   const realReply = real.reply_to_message_id ?? real.reply_to_external_id ?? null;
@@ -1912,9 +1914,17 @@ function LeadSidePanel({
   const [tagInput, setTagInput] = useState("");
   const [tagsSaving, setTagsSaving] = useState(false);
   const [businessSaving, setBusinessSaving] = useState(false);
+  const stageOwnerPipelineId = useMemo(() => {
+    if (!details?.stageId) return null;
+    return pipelineOptions.find((pipeline) => pipeline.stages.some((stage) => stage.id === details.stageId))?.id ?? null;
+  }, [details?.stageId, pipelineOptions]);
   const [businessDraft, setBusinessDraft] = useState(() => ({
     valueReais: ((details?.valueCents ?? 0) / 100).toFixed(2).replace(".", ","),
-    pipelineId: details?.pipelineId ?? pipelineOptions[0]?.id ?? "none",
+    pipelineId:
+      details?.pipelineId ??
+      pipelineOptions.find((pipeline) => pipeline.stages.some((stage) => stage.id === details?.stageId))?.id ??
+      pipelineOptions[0]?.id ??
+      "none",
     stageId: details?.stageId ?? "none",
     assignedTo: details?.assignedTo ?? "none",
   }));
@@ -1964,11 +1974,11 @@ function LeadSidePanel({
   useEffect(() => {
     setBusinessDraft({
       valueReais: ((details?.valueCents ?? 0) / 100).toFixed(2).replace(".", ","),
-      pipelineId: details?.pipelineId ?? pipelineOptions[0]?.id ?? "none",
+      pipelineId: details?.pipelineId ?? stageOwnerPipelineId ?? pipelineOptions[0]?.id ?? "none",
       stageId: details?.stageId ?? "none",
       assignedTo: details?.assignedTo ?? "none",
     });
-  }, [details?.valueCents, details?.pipelineId, details?.stageId, details?.assignedTo, pipelineOptions]);
+  }, [details?.valueCents, details?.pipelineId, details?.stageId, details?.assignedTo, pipelineOptions, stageOwnerPipelineId]);
 
   function saveNotes() {
     setSaving(true);

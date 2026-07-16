@@ -139,9 +139,21 @@ async function runAction(
   if (kind === "move_stage" && leadId) {
     const stageId = String(blockConfig.stage_id ?? "");
     if (stageId) {
-      await supabase.from("leads").update({ stage_id: stageId }).eq("id", leadId).eq("tenant_id", tenantId);
+      const { data: stage } = await supabase
+        .from("pipeline_stages")
+        .select("pipeline_id")
+        .eq("id", stageId)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+
+      await supabase
+        .from("leads")
+        .update({ stage_id: stageId, pipeline_id: stage?.pipeline_id ?? null })
+        .eq("id", leadId)
+        .eq("tenant_id", tenantId);
       lead.stage_id = stageId;
-      return { stage_id: stageId };
+      lead.pipeline_id = stage?.pipeline_id ?? null;
+      return { stage_id: stageId, pipeline_id: stage?.pipeline_id ?? null };
     }
     return { skipped: "etapa nao informada" };
   }
