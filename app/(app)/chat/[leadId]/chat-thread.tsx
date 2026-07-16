@@ -28,6 +28,8 @@ import {
   Zap,
   Camera,
   PanelRight,
+  MoreHorizontal,
+  ArrowLeft,
 } from "lucide-react";
 import { updateLead } from "@/app/(app)/leads/actions";
 import { ScheduleMeetingButton } from "@/components/leads/schedule-meeting-button";
@@ -782,19 +784,39 @@ export function ChatThread({
 
   const nextScheduled = pendingScheduled[0];
   const busy = pending || uploading;
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const mobileActionsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!mobileActionsOpen) return;
+    function onClick(e: MouseEvent) {
+      if (mobileActionsRef.current && !mobileActionsRef.current.contains(e.target as Node)) {
+        setMobileActionsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [mobileActionsOpen]);
 
   return (
     <section className="flex min-h-0 flex-1 bg-[hsl(var(--chat-surface))]">
       <div className="flex min-w-0 flex-1 flex-col">
       <header className="flex shrink-0 flex-col gap-2 border-b border-border/50 bg-card/78 px-3 py-2.5 backdrop-blur-md sm:px-5 sm:py-3.5 md:flex-row md:items-center md:justify-between md:gap-3">
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 items-center gap-2.5 md:gap-3">
+          <Link
+            href="/chat"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border/60 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground md:hidden"
+            title="Voltar para conversas"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
           <Avatar className="h-10 w-10 shrink-0 ring-2 ring-brand/25 sm:h-11 sm:w-11">
             {leadAvatarUrl && <AvatarImage src={leadAvatarUrl} alt={displayName} />}
             <AvatarFallback className="bg-brand-muted text-sm font-semibold text-brand dark:bg-brand dark:text-brand-foreground">
               {initials(displayName)}
             </AvatarFallback>
           </Avatar>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <button
               type="button"
               onClick={openRename}
@@ -804,9 +826,21 @@ export function ChatThread({
               <span className="truncate font-display text-base font-semibold tracking-normal">{displayName}</span>
               <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
             </button>
+            <p className="truncate text-xs text-muted-foreground md:hidden">{displayPhone}</p>
           </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-9 w-9 shrink-0 rounded-lg md:hidden"
+            onClick={() => setSidePanelOpen(true)}
+            title="Detalhes do contato"
+          >
+            <PanelRight className="h-4 w-4" />
+          </Button>
         </div>
-        <div className="relative z-30 -mx-3 flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto px-3 [scrollbar-width:none] sm:mx-0 sm:justify-end sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
+
+        <div className="relative z-30 hidden min-w-0 shrink-0 items-center gap-2 md:flex md:justify-end">
           <button
             type="button"
             onClick={toggleAutomations}
@@ -862,6 +896,96 @@ export function ChatThread({
             <PanelRight className="h-4 w-4" />
           </Button>
         </div>
+
+        <div ref={mobileActionsRef} className="relative z-30 md:hidden">
+          <div className="grid grid-cols-[auto,minmax(0,1fr),auto,auto] items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleAutomations}
+              title={automationsOn ? "Automações ligadas" : "Automações pausadas"}
+              className={cn(
+                "grid h-10 w-10 shrink-0 place-items-center rounded-lg border text-xs font-medium transition-colors",
+                automationsOn
+                  ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                  : "border-border/60 text-muted-foreground hover:bg-muted/40",
+              )}
+            >
+              {automationsOn ? <Bot className="h-4 w-4" /> : <BotOff className="h-4 w-4" />}
+            </button>
+
+            {!isInstagram && whatsappAccounts.length > 0 ? (
+              <AccountSelector
+                accounts={whatsappAccounts}
+                selectedId={selectedAccountId}
+                onChange={setSelectedAccountId}
+                className="min-w-0"
+              />
+            ) : (
+              <div />
+            )}
+
+            <StatusSelector status={status} onChange={changeStatus} compact />
+
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 shrink-0 rounded-lg"
+              onClick={() => setMobileActionsOpen((value) => !value)}
+              title="Mais ações"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {mobileActionsOpen && (
+            <div className="absolute right-0 top-full z-50 mt-2 w-[min(22rem,calc(100vw-1.5rem))] rounded-2xl border border-border/70 bg-popover p-2 shadow-elev-2">
+              <div className="grid grid-cols-2 gap-2">
+                <ScheduleMeetingButton
+                  leadId={leadId}
+                  leadName={displayName}
+                  professionals={professionals}
+                  users={users}
+                  services={services}
+                  variant="outline"
+                  size="sm"
+                />
+                {!isInstagram && leadPhone && <CallButton leadId={leadId} phone={leadPhone} />}
+                {status !== "resolvida" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="rounded-lg border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
+                    onClick={() => {
+                      changeStatus("resolvida");
+                      setMobileActionsOpen(false);
+                    }}
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    Finalizar
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-lg"
+                  onClick={() => {
+                    setSidePanelOpen(true);
+                    setMobileActionsOpen(false);
+                  }}
+                >
+                  <PanelRight className="h-4 w-4" />
+                  Detalhes
+                </Button>
+              </div>
+              <div className="mt-2 border-t border-border/60 pt-2">
+                <LeadDeleteButton leadId={leadId} leadName={displayName} redirectTo="/chat" size="sm" iconOnly={false} />
+              </div>
+            </div>
+          )}
+        </div>
       </header>
 
       {nextScheduled && (
@@ -912,7 +1036,7 @@ export function ChatThread({
         onScroll={() => {
           shouldStickToBottomRef.current = isNearBottom();
         }}
-        className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-8"
+        className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-8 sm:py-6"
       >
         {messages.length === 0 && (
           <div className="flex h-full min-h-[280px] flex-col items-center justify-center text-center">
@@ -1005,7 +1129,7 @@ export function ChatThread({
         <div ref={endRef} />
       </div>
 
-      <div className="shrink-0 border-t border-border/50 bg-card/92 px-4 py-3 backdrop-blur-md sm:px-6">
+      <div className="shrink-0 border-t border-border/50 bg-card/92 px-2 py-2 backdrop-blur-md sm:px-6 sm:py-3">
         <input
           ref={fileInputRef}
           type="file"
@@ -1083,7 +1207,7 @@ export function ChatThread({
             </div>
           </div>
         ) : (
-          <form onSubmit={onSubmit} className="relative mx-auto flex max-w-3xl items-end gap-2">
+          <form onSubmit={onSubmit} className="relative mx-auto flex max-w-3xl items-end gap-1.5 sm:gap-2">
             {!isInstagram && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1091,7 +1215,7 @@ export function ChatThread({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-12 w-11 shrink-0 rounded-xl text-muted-foreground hover:text-foreground"
+                    className="h-11 w-10 shrink-0 rounded-xl text-muted-foreground hover:text-foreground sm:h-12 sm:w-11"
                     disabled={busy}
                     title="Anexar"
                   >
@@ -1126,7 +1250,7 @@ export function ChatThread({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-12 w-11 shrink-0 rounded-xl text-muted-foreground hover:text-foreground"
+                className="hidden h-12 w-11 shrink-0 rounded-xl text-muted-foreground hover:text-foreground sm:inline-flex"
                 onClick={openSchedule}
                 disabled={busy}
                 title="Agendar mensagem"
@@ -1136,7 +1260,7 @@ export function ChatThread({
             )}
 
             {quickMediaDraft && (
-              <div className="absolute bottom-full left-16 right-14 mb-2 rounded-2xl border border-border bg-popover p-3 shadow-lg">
+              <div className="absolute bottom-full left-0 right-0 mb-2 rounded-2xl border border-border bg-popover p-3 shadow-lg sm:left-16 sm:right-14">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand/10 text-brand">
                     <Mic className="h-4 w-4" />
@@ -1160,7 +1284,7 @@ export function ChatThread({
             )}
 
             {!quickMediaDraft && quickCommandMatches.length > 0 && (
-              <div className="absolute bottom-full left-16 right-14 mb-2 max-h-72 overflow-y-auto rounded-2xl border border-border bg-popover p-2 shadow-lg">
+              <div className="absolute bottom-full left-0 right-0 mb-2 max-h-72 overflow-y-auto rounded-2xl border border-border bg-popover p-2 shadow-lg sm:left-16 sm:right-14">
                 {quickCommandMatches.map((message) => (
                   <button
                     key={message.id}
@@ -1184,7 +1308,7 @@ export function ChatThread({
 
             <Textarea
               rows={1}
-              placeholder={isInstagram ? "Responder no Instagram..." : "Digite sua mensagem ou / para mensagens rápidas..."}
+              placeholder={isInstagram ? "Responder..." : "Mensagem ou / rápidas..."}
               value={text}
               onChange={(e) => {
                 updateTextDraft(e.target.value);
@@ -1196,14 +1320,14 @@ export function ChatThread({
                   onSubmit(e);
                 }
               }}
-              className="min-h-[48px] max-h-32 flex-1 resize-none rounded-2xl border-border/60 bg-background/70 py-3"
+              className="min-h-[44px] max-h-32 min-w-0 flex-1 resize-none rounded-2xl border-border/60 bg-background/70 py-2.5 text-sm sm:min-h-[48px] sm:py-3 sm:text-base"
             />
             {text.trim() || quickMediaDraft || isInstagram ? (
               <Button
                 type="submit"
                 variant="brand"
                 size="icon"
-                className="h-12 w-12 shrink-0 rounded-xl"
+                className="h-11 w-11 shrink-0 rounded-xl sm:h-12 sm:w-12"
                 disabled={busy || (!text.trim() && !quickMediaDraft)}
               >
                 {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -1213,7 +1337,7 @@ export function ChatThread({
                 type="button"
                 variant="brand"
                 size="icon"
-                className="h-12 w-12 shrink-0 rounded-xl"
+                className="h-11 w-11 shrink-0 rounded-xl sm:h-12 sm:w-12"
                 onClick={() => startRecording("send")}
                 disabled={busy}
                 title="Gravar áudio"
@@ -1411,9 +1535,11 @@ export function ChatThread({
 function StatusSelector({
   status,
   onChange,
+  compact = false,
 }: {
   status: ConversationStatus;
   onChange: (next: ConversationStatus) => void;
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -1435,12 +1561,12 @@ function StatusSelector({
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
+          "inline-flex h-10 max-w-full items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors",
           meta.pill,
         )}
       >
         <Icon className="h-3.5 w-3.5" />
-        {meta.label}
+        <span className={cn("truncate", compact && "hidden min-[390px]:inline")}>{meta.label}</span>
         <ChevronDown className="h-3.5 w-3.5 opacity-70" />
       </button>
       {open && (
@@ -2141,10 +2267,12 @@ function AccountSelector({
   accounts,
   selectedId,
   onChange,
+  className,
 }: {
   accounts: { id: string; phone_number: string; display_name: string | null; provider: string; assigned_to?: string | null }[];
   selectedId: string | undefined;
   onChange: (id: string) => void;
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -2165,15 +2293,15 @@ function AccountSelector({
   const currentProviderLabel = current.provider === "cloud_api" ? "API Oficial" : current.provider === "evolution" ? "Evolution" : "Z-API";
 
   return (
-    <div ref={ref} className="relative z-40 shrink-0">
+    <div ref={ref} className={cn("relative z-40 shrink-0", className)}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border/60 bg-background/60 px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-muted/40"
+        className="inline-flex h-10 w-full shrink-0 items-center gap-1.5 rounded-lg border border-border/60 bg-background/60 px-2.5 text-xs font-medium transition-colors hover:bg-muted/40"
         title="Escolher por qual API/numero enviar"
       >
         <Phone className="h-3.5 w-3.5 text-emerald-500" />
-        <span className="max-w-[120px] truncate">{label}</span>
+        <span className="min-w-0 flex-1 truncate text-left md:max-w-[120px]">{label}</span>
         <span className="hidden rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground 2xl:inline">
           {currentProviderLabel}
         </span>
