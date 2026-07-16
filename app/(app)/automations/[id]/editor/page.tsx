@@ -12,7 +12,7 @@ export default async function AutomationEditorPage({
   const ctx = await requireContext();
   const supabase = await createClient();
 
-  const [{ data: flow }, { data: version }, { data: quickMessages }] = await Promise.all([
+  const [{ data: flow }, { data: version }, { data: quickMessages }, { data: pipelines }] = await Promise.all([
     supabase
       .from("automation_flows")
       .select("id, name, status")
@@ -33,9 +33,26 @@ export default async function AutomationEditorPage({
       .select("id, title")
       .eq("tenant_id", ctx.tenantId)
       .order("sort_order"),
+    supabase
+      .from("pipelines")
+      .select("id, name, pipeline_stages(id, name, position)")
+      .eq("tenant_id", ctx.tenantId)
+      .order("name", { ascending: true }),
   ]);
 
   if (!flow) notFound();
+
+  const pipelineOptions = (pipelines ?? []).map((pipeline) => ({
+    id: pipeline.id,
+    name: pipeline.name,
+    stages: [...(pipeline.pipeline_stages ?? [])]
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+      .map((stage) => ({
+        id: stage.id,
+        name: stage.name,
+        position: stage.position ?? null,
+      })),
+  }));
 
   const config = (version?.config as { blocks?: unknown[]; connections?: unknown[] } | null) ?? {
     blocks: [],
@@ -52,6 +69,7 @@ export default async function AutomationEditorPage({
         (config.connections ?? []) as Parameters<typeof FlowEditor>[0]["initialConnections"]
       }
       quickMessages={quickMessages ?? []}
+      pipelineOptions={pipelineOptions}
     />
   );
 }

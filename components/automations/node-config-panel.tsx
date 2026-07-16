@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { X } from "lucide-react";
 import type { Node } from "@xyflow/react";
 import { Button } from "@/components/ui/button";
@@ -14,13 +14,61 @@ type Props = {
   onUpdate: (config: Record<string, unknown>) => void;
   onClose: () => void;
   quickMessages?: { id: string; title: string }[];
+  pipelineOptions?: PipelineOption[];
 };
 
-export function NodeConfigPanel({ node, onUpdate, onClose, quickMessages = [] }: Props) {
+type PipelineOption = {
+  id: string;
+  name: string;
+  stages: { id: string; name: string; position: number | null }[];
+};
+
+export function NodeConfigPanel({
+  node,
+  onUpdate,
+  onClose,
+  quickMessages = [],
+  pipelineOptions = [],
+}: Props) {
   const kind = (node.data.kind as string) ?? node.type ?? "";
   const [config, setConfig] = useState<Record<string, unknown>>(
     (node.data.config as Record<string, unknown>) ?? {},
   );
+
+  const stageOptions = useMemo(
+    () =>
+      pipelineOptions.flatMap((pipeline) =>
+        [...pipeline.stages]
+          .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+          .map((stage) => ({ ...stage, pipelineId: pipeline.id, pipelineName: pipeline.name })),
+      ),
+    [pipelineOptions],
+  );
+
+  function resolveStageId(value: unknown) {
+    const raw = String(value ?? "").trim();
+    if (!raw) return "";
+    const normalized = raw.toLowerCase();
+    return (
+      stageOptions.find((stage) => stage.id === raw || stage.name.toLowerCase() === normalized)?.id ?? raw
+    );
+  }
+
+  function resolvePipelineId(value: unknown) {
+    const raw = String(value ?? "").trim();
+    if (!raw) return "";
+    const normalized = raw.toLowerCase();
+    return (
+      pipelineOptions.find((pipeline) => pipeline.id === raw || pipeline.name.toLowerCase() === normalized)?.id ?? raw
+    );
+  }
+
+  const selectedPipelineId = resolvePipelineId(config.pipeline_id);
+  const selectedStageId = resolveStageId(config.stage_id);
+  const stagesForSelectedPipeline =
+    selectedPipelineId && pipelineOptions.some((pipeline) => pipeline.id === selectedPipelineId)
+      ? stageOptions.filter((stage) => stage.pipelineId === selectedPipelineId)
+      : stageOptions;
 
   useEffect(() => {
     setConfig((node.data.config as Record<string, unknown>) ?? {});
@@ -31,7 +79,18 @@ export function NodeConfigPanel({ node, onUpdate, onClose, quickMessages = [] }:
   }
 
   function handleSave() {
-    onUpdate(config);
+    const next = { ...config };
+    if (kind === "move_stage" || kind === "create_deal") {
+      const stageId = resolveStageId(next.stage_id);
+      if (stageId) next.stage_id = stageId;
+    }
+    if (kind === "create_deal") {
+      const pipelineId = resolvePipelineId(next.pipeline_id);
+      const selectedStage = stageOptions.find((stage) => stage.id === next.stage_id);
+      if (pipelineId) next.pipeline_id = pipelineId;
+      else if (selectedStage) next.pipeline_id = selectedStage.pipelineId;
+    }
+    onUpdate(next);
   }
 
   return (
@@ -89,20 +148,56 @@ export function NodeConfigPanel({ node, onUpdate, onClose, quickMessages = [] }:
         {kind === "create_deal" && (
           <>
             <div className="space-y-1.5">
-              <Label>ID do funil (opcional)</Label>
-              <Input
-                placeholder="uuid do funil"
-                value={String(config.pipeline_id ?? "")}
-                onChange={(e) => set("pipeline_id", e.target.value)}
-              />
+              <Label>Funil</Label>
+              <Select
+                value={selectedPipelineId || "auto"}
+                onValueChange={(value) => {
+                  if (value === "auto") {
+                    setConfig((prev) => ({ ...prev, pipeline_id: undefined, stage_id: undefined }));
+                    return;
+                  }
+                  const firstStage = stageOptions.find((stage) => stage.pipelineId === value);
+                  setConfig((prev) => ({ ...prev, pipeline_id: value, stage_id: firstStage?.id }));
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Escolha o funil" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Detectar pelo lead</SelectItem>
+                  {pipelineOptions.map((pipeline) => (
+                    <SelectItem key={pipeline.id} value={pipeline.id}>
+                      {pipeline.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>ID da etapa</Label>
-              <Input
-                placeholder="uuid da etapa"
-                value={String(config.stage_id ?? "")}
-                onChange={(e) => set("stage_id", e.target.value)}
-              />
+              <Label>Etapa</Label>
+              <Select
+                value={selectedStageId || "none"}
+                onValueChange={(value) => {
+                  const selectedStage = stageOptions.find((stage) => stage.id === value);
+                  setConfig((prev) => ({
+                    ...prev,
+                    stage_id: value === "none" ? undefined : value,
+                    pipeline_id: selectedStage?.pipelineId ?? prev.pipeline_id,
+                  }));
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Escolha a etapa" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sem etapa</SelectItem>
+                  {stagesForSelectedPipeline.map((stage) => (
+                    <SelectItem key={stage.id} value={stage.id}>
+                      {stage.pipelineName} / {stage.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label>Valor em centavos (opcional)</Label>
@@ -153,14 +248,28 @@ export function NodeConfigPanel({ node, onUpdate, onClose, quickMessages = [] }:
         {/* move_stage */}
         {kind === "move_stage" && (
           <div className="space-y-1.5">
-            <Label>ID da etapa</Label>
-            <Input
-              placeholder="uuid da etapa"
-              value={String(config.stage_id ?? "")}
-              onChange={(e) => set("stage_id", e.target.value)}
-            />
+            <Label>Etapa</Label>
+            <Select
+              value={selectedStageId || "none"}
+              onValueChange={(value) => set("stage_id", value === "none" ? undefined : value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Escolha a etapa" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Selecione uma etapa</SelectItem>
+                {stageOptions.map((stage) => (
+                  <SelectItem key={stage.id} value={stage.id}>
+                    {stage.pipelineName} / {stage.name}
+                  </SelectItem>
+                ))}
+                {selectedStageId && !stageOptions.some((stage) => stage.id === selectedStageId) && (
+                  <SelectItem value={selectedStageId}>Etapa atual nao encontrada</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
             <p className="text-xs text-muted-foreground">
-              Copie o ID da etapa em Funis → Configuracoes.
+              Escolha pelo nome da etapa. O CRM salva o ID automaticamente.
             </p>
           </div>
         )}

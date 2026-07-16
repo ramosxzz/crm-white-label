@@ -47,6 +47,12 @@ type FlowEdge = {
   sourceHandle?: string | null;
 };
 
+type PipelineOption = {
+  id: string;
+  name: string;
+  stages: { id: string; name: string; position: number | null }[];
+};
+
 function toReactFlowNodes(blocks: FlowBlock[]): Node[] {
   return blocks.map((b) => ({
     id: b.id,
@@ -92,6 +98,7 @@ export function FlowEditor({
   initialBlocks,
   initialConnections,
   quickMessages,
+  pipelineOptions,
 }: {
   flowId: string;
   flowName: string;
@@ -99,6 +106,7 @@ export function FlowEditor({
   initialBlocks: FlowBlock[];
   initialConnections: FlowEdge[];
   quickMessages: { id: string; title: string }[];
+  pipelineOptions: PipelineOption[];
 }) {
   const [nodes, setNodes, onNodesChange] = useNodesState(toReactFlowNodes(initialBlocks));
   const [edges, setEdges, onEdgesChange] = useEdgesState(toReactFlowEdges(initialConnections));
@@ -472,6 +480,7 @@ export function FlowEditor({
             <NodeConfigPanel
               node={syntheticNode}
               quickMessages={quickMessages}
+              pipelineOptions={pipelineOptions}
               onUpdate={(config) => updateSubTriggerConfig(liveNode.id, selectedSubId, config)}
               onClose={() => setSelectedSubId(null)}
             />
@@ -494,6 +503,7 @@ export function FlowEditor({
             <NodeConfigPanel
               node={syntheticNode}
               quickMessages={quickMessages}
+              pipelineOptions={pipelineOptions}
               onUpdate={(config) => updateSubActionConfig(liveNode.id, selectedSubId, config)}
               onClose={() => setSelectedSubId(null)}
             />
@@ -503,6 +513,7 @@ export function FlowEditor({
           <NodeConfigPanel
             node={liveNode}
             quickMessages={quickMessages}
+            pipelineOptions={pipelineOptions}
             onUpdate={(config) => updateNodeConfig(liveNode.id, config)}
             onClose={() => setSelectedNode(null)}
           />
