@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CallButton } from "@/components/leads/call-button";
 import { fetchApi4comCalls } from "@/lib/integrations/api4com";
 import { cn } from "@/lib/utils";
 
@@ -136,6 +137,7 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
                       <th className="px-5 py-3">Tentativas</th>
                       <th className="px-5 py-3">Duração</th>
                       <th className="px-5 py-3">Status</th>
+                      <th className="px-5 py-3 text-center">Ligar</th>
                       <th className="px-5 py-3">Gravação</th>
                     </tr>
                   </thead>
@@ -171,6 +173,11 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
                             <Badge variant={wasAnswered ? "success" : "destructive"}>
                               {wasAnswered ? "Atendida" : describeHangupCause(c.hangup_cause)}
                             </Badge>
+                          </td>
+                          <td className="px-5 py-3">
+                            <div className="flex justify-center">
+                              <CallButton leadId={leadId} phone={c.to} iconOnly />
+                            </div>
                           </td>
                           <td className="px-5 py-3">
                             {c.record_url ? (

@@ -6,7 +6,7 @@ import { normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
 import { Api4comError, triggerApi4comCall } from "@/lib/integrations/api4com";
 
 const bodySchema = z.object({
-  leadId: z.string().uuid(),
+  leadId: z.string().uuid().optional(),
   phone: z.string().min(8),
 });
 
@@ -37,7 +37,11 @@ export async function POST(request: Request) {
     const result = await triggerApi4comCall({
       extension,
       phone: `+${phone}`,
-      metadata: { tenant_id: ctx.tenantId, lead_id: parsed.leadId, user_id: ctx.userId },
+      metadata: {
+        tenant_id: ctx.tenantId,
+        user_id: ctx.userId,
+        ...(parsed.leadId ? { lead_id: parsed.leadId } : {}),
+      },
     });
 
     return NextResponse.json(result);

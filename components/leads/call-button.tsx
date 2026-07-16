@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Phone, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export function CallButton({ leadId, phone, iconOnly = false }: { leadId: string; phone: string; iconOnly?: boolean }) {
+export function CallButton({ leadId, phone, iconOnly = false }: { leadId?: string | null; phone: string; iconOnly?: boolean }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -17,7 +17,7 @@ export function CallButton({ leadId, phone, iconOnly = false }: { leadId: string
       const res = await fetch("/api/integrations/api4com/call", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId, phone }),
+        body: JSON.stringify({ leadId: leadId || undefined, phone }),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(data.error ?? "Falha ao iniciar ligacao");
