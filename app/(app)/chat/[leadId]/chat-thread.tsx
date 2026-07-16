@@ -146,7 +146,9 @@ function detectMediaKind(mime: string): MediaKind {
   return "document";
 }
 
-const POLL_MS = 4_000;
+// Realtime ja atualiza em tempo real; o polling e so uma rede de seguranca
+// (caso o realtime perca um evento) e roda devagar e so com a aba visivel.
+const POLL_MS = 30_000;
 
 function dayLabel(iso: string): string {
   const d = new Date(iso);
@@ -523,7 +525,9 @@ export function ChatThread({
   useEffect(() => {
     if (!conversationId) return;
     void syncMessages();
-    const timer = setInterval(() => void syncMessages(), POLL_MS);
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") void syncMessages();
+    }, POLL_MS);
     return () => clearInterval(timer);
   }, [conversationId, syncMessages]);
 
@@ -543,7 +547,9 @@ export function ChatThread({
 
   useEffect(() => {
     void syncLeadDetails();
-    const timer = setInterval(() => void syncLeadDetails(), 6_000);
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") void syncLeadDetails();
+    }, 45_000);
     return () => clearInterval(timer);
   }, [syncLeadDetails]);
 

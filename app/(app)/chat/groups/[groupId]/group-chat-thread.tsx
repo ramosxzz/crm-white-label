@@ -119,7 +119,9 @@ export function GroupChatThread({
   }, [groupId]);
 
   useEffect(() => {
-    const timer = setInterval(() => void sync(), POLL_MS);
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") void sync();
+    }, POLL_MS);
     const onVisible = () => {
       if (document.visibilityState === "visible") void sync();
     };

@@ -7,7 +7,8 @@ import type { ConversationListItem } from "@/lib/chat/types";
 import { ConversationList, type StatusFilter } from "@/app/(app)/chat/conversation-list";
 
 /** Fallback se realtime falhar. */
-const CONTACT_POLL_MS = 5_000;
+// Realtime ja atualiza a lista; polling e rede de seguranca, lento e so visivel.
+const CONTACT_POLL_MS = 30_000;
 
 export function ConversationListLive({
   tenantId,
@@ -108,7 +109,9 @@ export function ConversationListLive({
   }, [items, syncMissingProfilePictures]);
 
   useEffect(() => {
-    const contactTimer = setInterval(() => void refreshContacts(), CONTACT_POLL_MS);
+    const contactTimer = setInterval(() => {
+      if (document.visibilityState === "visible") void refreshContacts();
+    }, CONTACT_POLL_MS);
     return () => {
       clearInterval(contactTimer);
     };
