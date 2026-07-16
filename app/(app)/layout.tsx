@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/app/sidebar";
 import { Topbar } from "@/components/app/topbar";
+import { MaintenanceBanner } from "@/components/app/maintenance-banner";
 import { MobileBottomNav } from "@/components/app/mobile-bottom-nav";
 import { TenantTheme } from "@/components/app/tenant-theme";
 import { TenantPageTitle } from "@/components/app/tenant-page-title";
@@ -50,6 +51,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           userEmail={ctx.userEmail}
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <MaintenanceBanner />
           <Topbar />
           <main className="flex-1 overflow-auto pb-[calc(4.75rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
         </div>

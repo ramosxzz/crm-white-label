@@ -16,14 +16,15 @@ import {
   Panel,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Save, Zap, Play, Pause, History, Trash2 } from "lucide-react";
+import { Save, Zap, Play, Pause, History, Trash2, Pencil, Check } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { TriggerNode, ActionNode, ConditionNode, WaitNode, EndNode, AVAILABLE_SUB_ACTIONS, AVAILABLE_TRIGGERS } from "./node-types";
 import { BlockPanel } from "./block-panel";
 import { NodeConfigPanel } from "./node-config-panel";
-import { saveFlowVersion, saveFlowDraft, updateFlowStatus } from "@/app/(app)/automations/actions";
+import { saveFlowVersion, saveFlowDraft, updateFlowStatus, renameFlow } from "@/app/(app)/automations/actions";
 
 const nodeTypes = {
   trigger: TriggerNode,
@@ -115,6 +116,25 @@ export function FlowEditor({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const [name, setName] = useState(flowName);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(flowName);
+
+  function commitName() {
+    const next = nameDraft.trim();
+    setEditingName(false);
+    if (!next || next === name) {
+      setNameDraft(name);
+      return;
+    }
+    setName(next);
+    void renameFlow(flowId, next).then((res) => {
+      if (!res.ok) {
+        setName(flowName);
+        setNameDraft(flowName);
+      }
+    });
+  }
 
   // O bloco "Inicio" acumula gatilhos (semantica OU); o bloco "Acao" acumula
   // sub-acoes executadas em sequencia. Ambos sao editados por dentro do
@@ -382,7 +402,48 @@ export function FlowEditor({
                 <Zap className="h-4 w-4" />
               </span>
               <div className="leading-tight">
-                <p className="text-sm font-semibold">{flowName}</p>
+                {editingName ? (
+                  <div className="flex items-center gap-1">
+                    <Input
+                      autoFocus
+                      value={nameDraft}
+                      onChange={(e) => setNameDraft(e.target.value)}
+                      onBlur={commitName}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          commitName();
+                        } else if (e.key === "Escape") {
+                          setNameDraft(name);
+                          setEditingName(false);
+                        }
+                      }}
+                      className="h-7 w-48 text-sm"
+                    />
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={commitName}
+                      className="grid h-7 w-7 place-items-center rounded-lg text-emerald-600 hover:bg-muted"
+                      aria-label="Salvar nome"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNameDraft(name);
+                      setEditingName(true);
+                    }}
+                    className="group flex items-center gap-1.5 text-left"
+                    title="Renomear automacao"
+                  >
+                    <span className="text-sm font-semibold">{name}</span>
+                    <Pencil className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                  </button>
+                )}
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
                   {flowStatus === "active" ? "Ativo" : flowStatus === "paused" ? "Pausado" : "Rascunho"}
                 </p>

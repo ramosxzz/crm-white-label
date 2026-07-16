@@ -139,6 +139,25 @@ export async function updateFlowStatus(flowId: string, status: "draft" | "active
   revalidatePath(`/automations/${flowId}/editor`);
 }
 
+export async function renameFlow(flowId: string, name: string): Promise<{ ok: boolean; error?: string }> {
+  const ctx = await requireContext();
+  if (!canManageAutomations(ctx.role)) return { ok: false, error: "Sem permissao para renomear automacoes" };
+  const trimmed = name.trim();
+  if (!trimmed) return { ok: false, error: "O nome nao pode ficar vazio" };
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("automation_flows")
+    .update({ name: trimmed.slice(0, 120) })
+    .eq("id", flowId)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/automations");
+  revalidatePath(`/automations/${flowId}/editor`);
+  return { ok: true };
+}
+
 export async function deleteFlow(flowId: string) {
   const ctx = await requireContext();
   if (!canManageAutomations(ctx.role)) throw new Error("Sem permissao para excluir automacoes");
