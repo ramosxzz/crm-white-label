@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createProvider } from "@/lib/whatsapp/factory";
 import { triggerApi4comCall } from "@/lib/integrations/api4com";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
+import { getWhatsAppAccountForLead } from "@/lib/whatsapp/account-for-lead";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 
 type Block = {
@@ -62,13 +63,8 @@ async function runAction(
     const message = interpolate(String(blockConfig.message ?? ""), lead);
     const leadPhone = String(lead.phone ?? "");
 
-    const { data: account } = await supabase
-      .from("whatsapp_accounts")
-      .select("*")
-      .eq("tenant_id", tenantId)
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle();
+    // Usa a conta do lead (mesmo numero que ele falou), nao a primeira ativa.
+    const account = await getWhatsAppAccountForLead(supabase, tenantId, leadId);
 
     let convId: string | undefined;
     const { data: conv } = await supabase

@@ -204,6 +204,7 @@ export function ChatThread({
   leadAvatarUrl,
   channel = "whatsapp",
   conversationId: initialConversationId,
+  conversationAccountId = null,
   initialStatus = "nao_iniciada",
   initialAutomationsEnabled = true,
   initialMessages,
@@ -223,6 +224,7 @@ export function ChatThread({
   leadAvatarUrl?: string | null;
   channel?: "whatsapp" | "instagram";
   conversationId: string | null;
+  conversationAccountId?: string | null;
   initialStatus?: ConversationStatus;
   initialAutomationsEnabled?: boolean;
   initialMessages: ChatMessage[];
@@ -267,8 +269,13 @@ export function ChatThread({
       .finally(() => setRenaming(false));
   }
 
+  // Pre-seleciona a conta da conversa (o numero em que o lead falou), para a
+  // resposta sair do mesmo numero quando o tenant tem varios. Cai na primeira
+  // conta so quando a conversa ainda nao tem numero vinculado.
   const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>(
-    whatsappAccounts[0]?.id,
+    (conversationAccountId && whatsappAccounts.some((a) => a.id === conversationAccountId)
+      ? conversationAccountId
+      : whatsappAccounts[0]?.id) ?? undefined,
   );
 
   const [conversationId, setConversationId] = useState(initialConversationId);

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createProvider } from "@/lib/whatsapp/factory";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
+import { getWhatsAppAccountForLead } from "@/lib/whatsapp/account-for-lead";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 import type { MediaKind } from "@/lib/whatsapp/provider";
 
@@ -35,13 +36,8 @@ export async function processScheduledMessages(supabase: SupabaseClient): Promis
       const to = normalizeWhatsAppPhone(phone) ?? phone.replace(/\D/g, "");
       if (!to) throw new Error("Lead sem telefone");
 
-      const { data: account } = await supabase
-        .from("whatsapp_accounts")
-        .select("*")
-        .eq("tenant_id", row.tenant_id)
-        .eq("is_active", true)
-        .limit(1)
-        .maybeSingle();
+      // Envia do numero em que o lead conversa, nao da primeira conta ativa.
+      const account = await getWhatsAppAccountForLead(supabase, row.tenant_id, row.lead_id);
       if (!account) throw new Error("Sem conta WhatsApp ativa");
 
       // Conversa

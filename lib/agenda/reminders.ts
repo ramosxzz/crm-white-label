@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createProvider } from "@/lib/whatsapp/factory";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
+import { getWhatsAppAccountForLead } from "@/lib/whatsapp/account-for-lead";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 
 // Janelas de lembrete (em minutos antes da reunião)
@@ -64,13 +65,8 @@ export async function processAppointmentReminders(supabase: SupabaseClient): Pro
       `Podemos confirmar sua presença? ✅`;
 
     try {
-      const { data: account } = await supabase
-        .from("whatsapp_accounts")
-        .select("*")
-        .eq("tenant_id", appt.tenant_id)
-        .eq("is_active", true)
-        .limit(1)
-        .maybeSingle();
+      // Envia do numero em que o lead conversa, nao da primeira conta ativa.
+      const account = await getWhatsAppAccountForLead(supabase, appt.tenant_id, appt.lead_id);
       if (!account) continue;
 
       // Conversa
