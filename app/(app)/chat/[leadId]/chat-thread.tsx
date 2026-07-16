@@ -127,6 +127,18 @@ type LeadCallAttempt = {
   record_url: string | null;
 };
 
+type LeadDetailsRow = {
+  pipeline_id: string | null;
+  stage_id: string | null;
+  assigned_to: string | null;
+  email: string | null;
+  source: string | null;
+  notes: string | null;
+  tags: string[] | null;
+  value_cents: number | null;
+  created_at: string;
+};
+
 function detectMediaKind(mime: string): MediaKind {
   if (mime.startsWith("image")) return "image";
   if (mime.startsWith("video")) return "video";
@@ -200,6 +212,39 @@ function removeResolvedOptimisticMessages(messages: ChatMessage[]) {
   });
 }
 
+function buildLeadDetailsFromRow(
+  row: LeadDetailsRow,
+  previous: LeadDetails | undefined,
+  pipelineOptions: PipelineOption[],
+  users: { id: string; name: string }[],
+): LeadDetails {
+  const stageOwnerPipeline = row.stage_id
+    ? pipelineOptions.find((pipeline) => pipeline.stages.some((stage) => stage.id === row.stage_id))
+    : undefined;
+  const pipelineId = row.pipeline_id ?? stageOwnerPipeline?.id ?? null;
+  const pipeline = pipelineOptions.find((item) => item.id === pipelineId) ?? stageOwnerPipeline;
+  const stage = pipelineOptions.flatMap((item) => item.stages).find((item) => item.id === row.stage_id);
+  const assigned = users.find((user) => user.id === row.assigned_to);
+
+  return {
+    pipelineId,
+    stageId: row.stage_id,
+    assignedTo: row.assigned_to,
+    email: row.email,
+    source: row.source,
+    notes: row.notes,
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    valueCents: row.value_cents ?? 0,
+    createdAt: row.created_at,
+    stageName: stage?.name ?? null,
+    stageColor: stage?.color ?? null,
+    pipelineName: pipeline?.name ?? null,
+    assignedName: assigned?.name ?? null,
+    nextAppointmentAt: previous?.nextAppointmentAt ?? null,
+    openTasksCount: previous?.openTasksCount ?? 0,
+  };
+}
+
 function replyPreview(message: ChatMessage): string {
   const body = message.body?.trim();
   if (body) return body.slice(0, 180);
@@ -232,7 +277,7 @@ export function ChatThread({
   whatsappAccounts = [],
   recentCalls = [],
   pipelineOptions = [],
-  leadDetails,
+  leadDetails: initialLeadDetails,
 }: {
   leadId: string;
   tenantId: string;
@@ -302,6 +347,7 @@ export function ChatThread({
   const [status, setStatus] = useState<ConversationStatus>(initialStatus);
   const [automationsOn, setAutomationsOn] = useState(initialAutomationsEnabled);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const [leadDetails, setLeadDetails] = useState<LeadDetails | undefined>(initialLeadDetails);
   const draftStorageKey = `chat-draft:${leadId}`;
   const [text, setText] = useState(() => {
     if (typeof window === "undefined") return "";
@@ -384,6 +430,21 @@ export function ChatThread({
     }
   }, [conversationId]);
 
+  const syncLeadDetails = useCallback(async () => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("leads")
+      .select("pipeline_id, stage_id, assigned_to, email, source, notes, tags, value_cents, created_at")
+      .eq("id", leadId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+
+    if (!data) return;
+    setLeadDetails((previous) =>
+      buildLeadDetailsFromRow(data as LeadDetailsRow, previous, pipelineOptions, users),
+    );
+  }, [leadId, tenantId, pipelineOptions, users]);
+
   const isNearBottom = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return true;
@@ -404,6 +465,7 @@ export function ChatThread({
     setStatus(initialStatus);
     setAutomationsOn(initialAutomationsEnabled);
     setMessages(initialMessages);
+    setLeadDetails(initialLeadDetails);
     setPendingScheduled(initialScheduledMessages);
     if (leadChanged) {
       setQuickMediaDraft(null);
@@ -421,6 +483,7 @@ export function ChatThread({
     initialStatus,
     initialAutomationsEnabled,
     initialMessages,
+    initialLeadDetails,
     initialScheduledMessages,
     scrollToBottom,
   ]);
@@ -477,6 +540,47 @@ export function ChatThread({
       window.removeEventListener("online", syncIfVisible);
     };
   }, [syncMessages]);
+
+  useEffect(() => {
+    void syncLeadDetails();
+    const timer = setInterval(() => void syncLeadDetails(), 6_000);
+    return () => clearInterval(timer);
+  }, [syncLeadDetails]);
+
+  useEffect(() => {
+    const syncIfVisible = () => {
+      if (document.visibilityState === "visible") void syncLeadDetails();
+    };
+    document.addEventListener("visibilitychange", syncIfVisible);
+    window.addEventListener("focus", syncIfVisible);
+    window.addEventListener("online", syncIfVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", syncIfVisible);
+      window.removeEventListener("focus", syncIfVisible);
+      window.removeEventListener("online", syncIfVisible);
+    };
+  }, [syncLeadDetails]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`lead-${leadId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "leads", filter: `id=eq.${leadId}` },
+        (payload) => {
+          setLeadDetails((previous) =>
+            buildLeadDetailsFromRow(payload.new as LeadDetailsRow, previous, pipelineOptions, users),
+          );
+        },
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") void syncLeadDetails();
+      });
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [leadId, pipelineOptions, syncLeadDetails, users]);
 
   useEffect(() => {
     if (!conversationId) return;

@@ -167,7 +167,7 @@ export async function updateLead(id: string, patch: Partial<{
     const [{ data: stageRow }, { data: currentLead }] = await Promise.all([
       supabase
         .from("pipeline_stages")
-        .select("is_won, name")
+        .select("is_won, name, pipeline_id")
         .eq("id", patch.stage_id)
         .eq("tenant_id", ctx.tenantId)
         .single(),
@@ -178,6 +178,8 @@ export async function updateLead(id: string, patch: Partial<{
         .eq("tenant_id", ctx.tenantId)
         .single(),
     ]);
+    if (!stageRow) throw new Error("Etapa nao encontrada");
+    (data as Record<string, unknown>).pipeline_id = (stageRow as { pipeline_id: string }).pipeline_id;
     stageIsWon = Boolean((stageRow as { is_won: boolean } | null)?.is_won);
     const cur = currentLead as { stage_id: string | null; won_at: string | null } | null;
     if (cur && cur.stage_id !== patch.stage_id) {
