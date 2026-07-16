@@ -853,21 +853,12 @@ export async function setLeadAutomations(input: { leadId: string; enabled: boole
 export async function markConversationRead(conversationId: string) {
   const ctx = await requireContext();
   const supabase = await createClient();
-  const { data: conversation } = await supabase
-    .from("conversations")
-    .select("status")
-    .eq("id", conversationId)
-    .eq("tenant_id", ctx.tenantId)
-    .maybeSingle();
 
-  const update: { unread_count: number; status?: string } = { unread_count: 0 };
-  if ((conversation as { status?: string } | null)?.status === "aguardando") {
-    update.status = "em_atendimento";
-  }
-
+  // Abrir/ler a conversa apenas zera o nao-lido. NAO muda o status: so sai de
+  // "aguardando" quando o atendente de fato responde (ver sendChatMessage).
   await supabase
     .from("conversations")
-    .update(update)
+    .update({ unread_count: 0 })
     .eq("id", conversationId)
     .eq("tenant_id", ctx.tenantId);
 }

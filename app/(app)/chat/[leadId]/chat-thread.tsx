@@ -427,9 +427,9 @@ export function ChatThread({
 
   useEffect(() => {
     if (!conversationId) return;
-    void markConversationRead(conversationId).then(() => {
-      setStatus((prev) => (prev === "aguardando" ? "em_atendimento" : prev));
-    });
+    // So marca como lido (zera nao-lido). Status permanece "aguardando" ate
+    // o atendente responder de fato.
+    void markConversationRead(conversationId);
   }, [conversationId]);
 
   useEffect(() => {
