@@ -16,7 +16,7 @@ import {
   Panel,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Save, Zap, Play, Pause, History } from "lucide-react";
+import { Save, Zap, Play, Pause, History, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -276,6 +276,26 @@ export function FlowEditor({
     setSelectedSubId(null);
   }, []);
 
+  const deleteNode = useCallback(
+    (nodeId: string) => {
+      setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+      setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
+      setSelectedNode((prev) => (prev?.id === nodeId ? null : prev));
+      setSelectedSubId(null);
+    },
+    [setEdges, setNodes],
+  );
+
+  const onNodesDelete = useCallback(
+    (deletedNodes: Node[]) => {
+      const deletedIds = new Set(deletedNodes.map((node) => node.id));
+      setEdges((eds) => eds.filter((e) => !deletedIds.has(e.source) && !deletedIds.has(e.target)));
+      setSelectedNode((prev) => (prev && deletedIds.has(prev.id) ? null : prev));
+      setSelectedSubId(null);
+    },
+    [setEdges],
+  );
+
   function addBlock(type: string, kind: string, label: string) {
     const id = `${type}_${Date.now()}`;
     // Distribui os novos blocos em diagonal suave para evitar sobreposição
@@ -334,9 +354,10 @@ export function FlowEditor({
           onConnect={onConnect}
           onNodeClick={onNodeClick}
           onPaneClick={onPaneClick}
+          onNodesDelete={onNodesDelete}
           nodeTypes={nodeTypes}
           fitView
-          deleteKeyCode="Delete"
+          deleteKeyCode={["Delete", "Backspace"]}
         >
           <Background variant={BackgroundVariant.Dots} gap={18} size={1.5} className="opacity-40" />
           <Controls className="!rounded-xl !border !border-border !bg-card !shadow-lg [&>button]:!border-border [&>button]:!bg-card" />
@@ -388,6 +409,20 @@ export function FlowEditor({
               <span className="px-1 text-[11px] font-medium text-muted-foreground">
                 {autosaveState === "saving" ? "Salvando rascunho..." : autosaveState === "saved" ? "Rascunho salvo" : ""}
               </span>
+              {selectedNode && (
+                <>
+                  <div className="mx-0.5 h-5 w-px bg-border" />
+                  <button
+                    type="button"
+                    onClick={() => deleteNode(selectedNode.id)}
+                    title="Excluir bloco selecionado"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Excluir bloco
+                  </button>
+                </>
+              )}
               <div className="mx-0.5 h-5 w-px bg-border" />
               <Button size="sm" className="h-8 rounded-lg" onClick={handleSave} disabled={saving}>
                 <Save className="mr-1.5 h-3.5 w-3.5" />

@@ -134,7 +134,7 @@ function detectMediaKind(mime: string): MediaKind {
   return "document";
 }
 
-const POLL_MS = 10_000;
+const POLL_MS = 4_000;
 
 function dayLabel(iso: string): string {
   const d = new Date(iso);
@@ -463,11 +463,17 @@ export function ChatThread({
   }, [conversationId, syncMessages]);
 
   useEffect(() => {
-    const onVisible = () => {
+    const syncIfVisible = () => {
       if (document.visibilityState === "visible") void syncMessages();
     };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+    document.addEventListener("visibilitychange", syncIfVisible);
+    window.addEventListener("focus", syncIfVisible);
+    window.addEventListener("online", syncIfVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", syncIfVisible);
+      window.removeEventListener("focus", syncIfVisible);
+      window.removeEventListener("online", syncIfVisible);
+    };
   }, [syncMessages]);
 
   useEffect(() => {
@@ -492,7 +498,9 @@ export function ChatThread({
           setMessages((prev) => mergeMessages(prev, [row]));
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") void syncMessages();
+      });
     return () => {
       void supabase.removeChannel(channel);
     };

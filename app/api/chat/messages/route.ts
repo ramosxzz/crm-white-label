@@ -3,6 +3,22 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import type { ChatMessage } from "@/lib/chat/types";
 
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+};
+
+function json(body: unknown, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE_HEADERS,
+      ...(init?.headers as Record<string, string> | undefined),
+    },
+  });
+}
+
 function mapMessage(row: Record<string, unknown>, namesByUser: Map<string, string>): ChatMessage {
   const userId = typeof row.user_id === "string" ? row.user_id : null;
   return {
@@ -27,7 +43,7 @@ export async function GET(req: NextRequest) {
   const ctx = await requireContext();
   const conversationId = req.nextUrl.searchParams.get("conversationId");
   if (!conversationId) {
-    return NextResponse.json({ error: "conversationId ausente" }, { status: 400 });
+    return json({ error: "conversationId ausente" }, { status: 400 });
   }
 
   const supabase = createServiceClient();
@@ -38,9 +54,9 @@ export async function GET(req: NextRequest) {
     .eq("tenant_id", ctx.tenantId)
     .maybeSingle();
   if (conversationError) {
-    return NextResponse.json({ error: conversationError.message }, { status: 500 });
+    return json({ error: conversationError.message }, { status: 500 });
   }
-  if (!conversation) return NextResponse.json({ messages: [] });
+  if (!conversation) return json({ messages: [] });
 
   const { data, error } = await supabase
     .from("messages")
@@ -50,7 +66,7 @@ export async function GET(req: NextRequest) {
     .order("created_at", { ascending: true })
     .limit(500);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return json({ error: error.message }, { status: 500 });
   }
 
   const userIds = [...new Set((data ?? []).map((row) => row.user_id).filter(Boolean) as string[])];
@@ -65,7 +81,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({
+  return json({
     messages: (data ?? []).map((row) => mapMessage(row as Record<string, unknown>, namesByUser)),
   });
 }

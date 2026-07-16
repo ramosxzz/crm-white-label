@@ -2,6 +2,22 @@ import { NextResponse } from "next/server";
 import { listConversationItemsForTenant } from "@/lib/chat/list-conversation-items";
 import { requireContext } from "@/lib/tenant";
 
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+};
+
+function json(body: unknown, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE_HEADERS,
+      ...(init?.headers as Record<string, string> | undefined),
+    },
+  });
+}
+
 export async function GET(request: Request) {
   try {
     const ctx = await requireContext();
@@ -15,9 +31,9 @@ export async function GET(request: Request) {
       { search, status },
       ctx.tenant.name,
     );
-    return NextResponse.json({ conversations });
+    return json({ conversations });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha ao carregar conversas";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return json({ error: message }, { status: 500 });
   }
 }

@@ -7,7 +7,7 @@ import type { ConversationListItem } from "@/lib/chat/types";
 import { ConversationList, type StatusFilter } from "@/app/(app)/chat/conversation-list";
 
 /** Fallback se realtime falhar. */
-const CONTACT_POLL_MS = 12_000;
+const CONTACT_POLL_MS = 5_000;
 
 export function ConversationListLive({
   tenantId,
@@ -40,12 +40,15 @@ export function ConversationListLive({
 
   const refreshContacts = useCallback(async () => {
     try {
-      const next = await fetchConversationItems(tenantId, { query });
+      const next = await fetchConversationItems(tenantId, {
+        query,
+        status: statusFilter === "todas" ? undefined : statusFilter,
+      });
       setItems(next);
     } catch {
       /* mantem lista anterior */
     }
-  }, [query, tenantId]);
+  }, [query, statusFilter, tenantId]);
 
   const handleManualRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -87,7 +90,7 @@ export function ConversationListLive({
 
   const scheduleContactsRefresh = useCallback(() => {
     if (contactRefreshTimerRef.current) clearTimeout(contactRefreshTimerRef.current);
-    contactRefreshTimerRef.current = setTimeout(() => void refreshContacts(), 1200);
+    contactRefreshTimerRef.current = setTimeout(() => void refreshContacts(), 450);
   }, [refreshContacts]);
 
   useEffect(() => {
@@ -108,6 +111,21 @@ export function ConversationListLive({
     const contactTimer = setInterval(() => void refreshContacts(), CONTACT_POLL_MS);
     return () => {
       clearInterval(contactTimer);
+    };
+  }, [refreshContacts]);
+
+  useEffect(() => {
+    const refreshIfActive = () => {
+      if (document.visibilityState === "visible") void refreshContacts();
+    };
+
+    window.addEventListener("focus", refreshIfActive);
+    window.addEventListener("online", refreshIfActive);
+    document.addEventListener("visibilitychange", refreshIfActive);
+    return () => {
+      window.removeEventListener("focus", refreshIfActive);
+      window.removeEventListener("online", refreshIfActive);
+      document.removeEventListener("visibilitychange", refreshIfActive);
     };
   }, [refreshContacts]);
 
@@ -149,7 +167,9 @@ export function ConversationListLive({
         },
         () => scheduleContactsRefresh(),
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") scheduleContactsRefresh();
+      });
 
     return () => {
       if (contactRefreshTimerRef.current) clearTimeout(contactRefreshTimerRef.current);
