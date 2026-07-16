@@ -1,5 +1,7 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
+import { canManageIntegrations } from "@/lib/auth/roles";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAppBaseUrl } from "@/lib/app-url";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
@@ -7,6 +9,7 @@ import { WhatsAppConnectionsManager } from "./whatsapp-connections-manager";
 
 export default async function WhatsAppSettingsPage() {
   const ctx = await requireContext();
+  if (!canManageIntegrations(ctx.role)) redirect("/settings");
   const supabase = await createClient();
 
   const { data: accounts } = await supabase

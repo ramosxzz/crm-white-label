@@ -41,10 +41,12 @@ export function MobileBottomNav({
   stockEnabled = true,
   satisfactionSurveyEnabled = false,
   callsDashboardEnabled = false,
+  isSeller = false,
 }: {
   stockEnabled?: boolean;
   satisfactionSurveyEnabled?: boolean;
   callsDashboardEnabled?: boolean;
+  isSeller?: boolean;
 }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -52,9 +54,9 @@ export function MobileBottomNav({
   const operationItems: MoreItem[] = [
     { href: "/reunioes", label: "Reuniões", icon: CalendarCheck },
     { href: "/mensagens-rapidas", label: "Mensagens rápidas", icon: MessageSquareText },
-    ...(stockEnabled ? [{ href: "/estoque", label: "Estoque", icon: Boxes }] : []),
-    { href: "/automations", label: "Automações", icon: Zap },
-    { href: "/ia-w-mais", label: "IA W+", icon: Bot },
+    ...(stockEnabled && !isSeller ? [{ href: "/estoque", label: "Estoque", icon: Boxes }] : []),
+    ...(!isSeller ? [{ href: "/automations", label: "Automações", icon: Zap }] : []),
+    ...(!isSeller ? [{ href: "/ia-w-mais", label: "IA W+", icon: Bot }] : []),
     ...(satisfactionSurveyEnabled
       ? [{ href: "/pesquisa-satisfacao", label: "Pesquisa de Satisfação", icon: Heart }]
       : []),
@@ -63,8 +65,8 @@ export function MobileBottomNav({
 
   const systemItems: MoreItem[] = [
     { href: "/pipelines", label: "Funis", icon: GitBranch },
-    { href: "/integrations", label: "Integrações", icon: Plug },
-    { href: "/settings/users", label: "Usuários", icon: UserCog },
+    ...(!isSeller ? [{ href: "/integrations", label: "Integrações", icon: Plug }] : []),
+    ...(!isSeller ? [{ href: "/settings/users", label: "Usuários", icon: UserCog }] : []),
     { href: "/settings", label: "Configurações", icon: Settings },
   ];
 

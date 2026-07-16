@@ -9,6 +9,7 @@ import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 import type { ChatMessage } from "@/lib/chat/types";
 import { fireAutomationTrigger } from "@/lib/automations/trigger";
 import { logLeadActivity } from "@/lib/leads/activity-log";
+import { notifyUser } from "@/lib/notifications/notify";
 
 const LABEL_COLORS = ["#7c3aed", "#2563eb", "#059669", "#dc2626", "#d97706", "#0891b2"];
 
@@ -722,6 +723,23 @@ export async function updateChatLeadBusiness(input: {
       kind: "assigned",
       payload: { to_user_name: toName, unassigned: !input.assignedTo },
     });
+
+    // Avisa quem recebeu o lead.
+    if (input.assignedTo && input.assignedTo !== ctx.userId) {
+      const { data: leadRow } = await supabase
+        .from("leads")
+        .select("name")
+        .eq("id", input.leadId)
+        .maybeSingle();
+      void notifyUser(supabase, {
+        tenantId: ctx.tenantId,
+        userId: input.assignedTo,
+        kind: "lead_assigned",
+        title: "Novo lead atribuido a voce",
+        description: (leadRow as { name?: string } | null)?.name ?? "Um lead foi enviado para voce",
+        link: `/leads/${input.leadId}`,
+      });
+    }
   }
 
   // Registra mudanca de etapa na linha do tempo do lead.

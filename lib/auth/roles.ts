@@ -28,6 +28,20 @@ export function canManagePipeline(role: MemberRole) {
   return role === "owner" || role === "admin" || role === "gerente" || role === "vendedor";
 }
 
+// Estoque, automacoes e configuracoes da empresa: vendedor nao acessa.
+export function canAccessStock(role: MemberRole) {
+  return role !== "vendedor";
+}
+
+// Alinhado com a RLS de automation_flows (apenas owner/admin escrevem).
+export function canManageAutomations(role: MemberRole) {
+  return role === "owner" || role === "admin";
+}
+
+export function canManageCompanySettings(role: MemberRole) {
+  return role === "owner" || role === "admin";
+}
+
 export function assertRole(
   role: MemberRole,
   predicate: (role: MemberRole) => boolean,

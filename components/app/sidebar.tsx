@@ -55,6 +55,7 @@ export function Sidebar({
   stockEnabled = true,
   satisfactionSurveyEnabled = false,
   callsDashboardEnabled = false,
+  isSeller = false,
   userName,
   userEmail,
 }: {
@@ -64,16 +65,23 @@ export function Sidebar({
   stockEnabled?: boolean;
   satisfactionSurveyEnabled?: boolean;
   callsDashboardEnabled?: boolean;
+  isSeller?: boolean;
   userName: string;
   userEmail: string;
 }) {
   const pathname = usePathname();
+  // Vendedor nao gerencia estoque, automacoes, IA W+, integracoes nem usuarios.
+  const sellerBlocked = new Set(["/estoque", "/automations", "/ia-w-mais", "/integrations", "/settings/users"]);
   const visibleNavItems = navItems.filter((item) => {
+    if (isSeller && sellerBlocked.has(item.href)) return false;
     if (item.href === "/estoque") return stockEnabled;
     if (item.href === "/pesquisa-satisfacao") return satisfactionSurveyEnabled;
     if (item.href === "/ligacoes") return callsDashboardEnabled;
     return true;
   });
+  const visibleSecondaryItems = secondaryItems.filter(
+    (item) => !(isSeller && sellerBlocked.has(item.href)),
+  );
 
   async function logout() {
     const supabase = createClient();
@@ -110,7 +118,7 @@ export function Sidebar({
         <div className="h-0 overflow-hidden px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground opacity-0 transition-all duration-150 group-hover/sidebar:mb-1.5 group-hover/sidebar:mt-6 group-hover/sidebar:h-4 group-hover/sidebar:opacity-100">
           Sistema
         </div>
-        {secondaryItems.map((item) => (
+        {visibleSecondaryItems.map((item) => (
           <NavLink key={item.href} item={item} pathname={pathname} />
         ))}
       </nav>

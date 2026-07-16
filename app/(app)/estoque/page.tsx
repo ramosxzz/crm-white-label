@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AlertTriangle, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
+import { canAccessStock } from "@/lib/auth/roles";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrencyBRL } from "@/lib/utils";
 import { PageHeader } from "@/components/app/page-header";
@@ -11,6 +12,7 @@ import { NewProductDialog } from "./new-product-dialog";
 export default async function EstoquePage() {
   const ctx = await requireContext();
   if (!ctx.tenant.stock_enabled) redirect("/dashboard");
+  if (!canAccessStock(ctx.role)) redirect("/dashboard");
 
   const supabase = await createClient();
 

@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
+import { canManageAutomations } from "@/lib/auth/roles";
 import { createFlow, updateFlowStatus, deleteFlow } from "./actions";
 
 const triggerLabels: Record<string, string> = {
@@ -35,6 +36,7 @@ const statusConfig = {
 
 export default async function AutomationsPage() {
   const ctx = await requireContext();
+  const canManage = canManageAutomations(ctx.role);
   const supabase = await createClient();
 
   const { data: flows } = await supabase
@@ -68,6 +70,7 @@ export default async function AutomationsPage() {
         title="Automacoes"
         description="Fluxos automaticos disparados por eventos no CRM."
         actions={
+          !canManage ? null : (
           <Dialog>
             <DialogTrigger asChild>
               <Button>
@@ -97,6 +100,7 @@ export default async function AutomationsPage() {
               </form>
             </DialogContent>
           </Dialog>
+          )
         }
       />
 
@@ -150,11 +154,11 @@ export default async function AutomationsPage() {
                       <Button asChild variant="outline" size="sm" className="flex-1">
                         <Link href={`/automations/${flow.id}/editor`}>
                           <FileEdit className="mr-1.5 h-3.5 w-3.5" />
-                          Editar
+                          {canManage ? "Editar" : "Ver"}
                         </Link>
                       </Button>
 
-                      {flow.status === "active" ? (
+                      {canManage && flow.status === "active" ? (
                         <form
                           action={async () => {
                             "use server";
@@ -178,16 +182,18 @@ export default async function AutomationsPage() {
                         </form>
                       ) : null}
 
-                      <form
-                        action={async () => {
-                          "use server";
-                          await deleteFlow(flow.id);
-                        }}
-                      >
-                        <Button variant="ghost" size="sm" type="submit" className="text-destructive hover:text-destructive">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </form>
+                      {canManage && (
+                        <form
+                          action={async () => {
+                            "use server";
+                            await deleteFlow(flow.id);
+                          }}
+                        >
+                          <Button variant="ghost" size="sm" type="submit" className="text-destructive hover:text-destructive">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </form>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

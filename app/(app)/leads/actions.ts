@@ -9,6 +9,7 @@ import { requireContext } from "@/lib/tenant";
 import { normalizePhone } from "@/lib/utils";
 import { fireAutomationTrigger } from "@/lib/automations/trigger";
 import { logLeadActivity } from "@/lib/leads/activity-log";
+import { notifyUser, getTenantOwnerId } from "@/lib/notifications/notify";
 
 const leadSchema = z.object({
   name: z.string().min(1, "Nome obrigatorio"),
@@ -90,6 +91,21 @@ export async function createLead(formData: FormData) {
     void fireAutomationTrigger(ctx.tenantId, "lead_created", createdLead.id, {
       source: parsed.source,
     });
+
+    // Vendedor criou um lead: avisa o dono (owner) do tenant.
+    if (ctx.role === "vendedor") {
+      const ownerId = await getTenantOwnerId(supabase, ctx.tenantId);
+      if (ownerId && ownerId !== ctx.userId) {
+        void notifyUser(supabase, {
+          tenantId: ctx.tenantId,
+          userId: ownerId,
+          kind: "lead_created_by_seller",
+          title: "Novo lead criado por vendedor",
+          description: parsed.name,
+          link: `/leads/${createdLead.id}`,
+        });
+      }
+    }
   }
 
   revalidatePath("/leads");
@@ -279,6 +295,23 @@ export async function assignLead(input: {
       kind: "assigned",
       payload: { to_user_name: toName, unassigned: !input.toUserId },
     });
+
+    // Avisa quem recebeu o lead (owner/admin enviou para o vendedor).
+    if (input.toUserId && input.toUserId !== ctx.userId) {
+      const { data: leadRow } = await supabase
+        .from("leads")
+        .select("name")
+        .eq("id", input.leadId)
+        .maybeSingle();
+      void notifyUser(supabase, {
+        tenantId: ctx.tenantId,
+        userId: input.toUserId,
+        kind: "lead_assigned",
+        title: "Novo lead atribuido a voce",
+        description: (leadRow as { name?: string } | null)?.name ?? "Um lead foi enviado para voce",
+        link: `/leads/${input.leadId}`,
+      });
+    }
   }
 
   revalidatePath("/leads");

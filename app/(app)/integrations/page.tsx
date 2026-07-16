@@ -7,14 +7,17 @@ import {
   CheckCircle2,
   Circle,
 } from "lucide-react";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
+import { canManageIntegrations } from "@/lib/auth/roles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/app/page-header";
 
 export default async function IntegrationsPage() {
   const ctx = await requireContext();
+  if (!canManageIntegrations(ctx.role)) redirect("/dashboard");
   const supabase = await createClient();
 
   const [{ data: wppAccount }, { data: tenant }, { data: igAccount }] = await Promise.all([

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
+import { canManageAutomations } from "@/lib/auth/roles";
 
 type FlowBlock = {
   type?: string;
@@ -24,6 +25,7 @@ function deriveTriggerKinds(blocks: FlowBlock[]): string[] {
 
 export async function createFlow(formData: FormData) {
   const ctx = await requireContext();
+  if (!canManageAutomations(ctx.role)) throw new Error("Sem permissao para gerenciar automacoes");
   const supabase = await createClient();
 
   const name = String(formData.get("name") || "").trim();
@@ -65,6 +67,7 @@ export async function saveFlowDraft(
   config: { blocks: FlowBlock[]; connections: unknown[] },
 ): Promise<{ ok: boolean }> {
   const ctx = await requireContext();
+  if (!canManageAutomations(ctx.role)) return { ok: false };
   const supabase = await createClient();
 
   const triggerKinds = deriveTriggerKinds(config.blocks);
@@ -112,6 +115,7 @@ export async function saveFlowDraft(
 
 export async function updateFlowStatus(flowId: string, status: "draft" | "active" | "paused") {
   const ctx = await requireContext();
+  if (!canManageAutomations(ctx.role)) throw new Error("Sem permissao para alterar automacoes");
   const supabase = await createClient();
 
   if (status === "active") {
@@ -137,6 +141,7 @@ export async function updateFlowStatus(flowId: string, status: "draft" | "active
 
 export async function deleteFlow(flowId: string) {
   const ctx = await requireContext();
+  if (!canManageAutomations(ctx.role)) throw new Error("Sem permissao para excluir automacoes");
   const supabase = await createClient();
 
   await supabase
@@ -154,6 +159,8 @@ export async function saveFlowVersion(
   config: { blocks: FlowBlock[]; connections: unknown[] },
 ): Promise<{ ok: boolean; error?: string }> {
   const ctx = await requireContext();
+  if (!canManageAutomations(ctx.role))
+    return { ok: false, error: "Sem permissao para gerenciar automacoes" };
   const supabase = await createClient();
 
   // O gatilho e o que o usuario colocou no canvas, nao uma escolha travada na criacao
