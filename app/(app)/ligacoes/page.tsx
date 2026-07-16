@@ -10,9 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CallButton } from "@/components/leads/call-button";
 import { fetchApi4comCalls } from "@/lib/integrations/api4com";
+import { syncLeadStagesFromApi4comCalls } from "@/lib/integrations/api4com-stage-sync";
 import { cn } from "@/lib/utils";
 
 const ANSWERED_CAUSE = "NORMAL_CLEARING";
+type CallLeadRow = { id: string; name: string; pipeline_id: string | null; stage_id: string | null };
+type NameRow = { id: string; name: string };
 
 type SearchParams = { from?: string | string[]; to?: string | string[]; preset?: string | string[] };
 
@@ -70,10 +73,32 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
     ordinalByCall.set(c.id, n);
   }
   const supabase = await createClient();
+  await syncLeadStagesFromApi4comCalls(supabase as any, { tenantId: ctx.tenantId, calls: allCalls });
+
   const { data: leads } = leadIds.length
-    ? await supabase.from("leads").select("id, name").in("id", leadIds).eq("tenant_id", ctx.tenantId)
-    : { data: [] as { id: string; name: string }[] };
-  const leadNames = Object.fromEntries((leads ?? []).map((l) => [l.id, l.name])) as Record<string, string>;
+    ? await (supabase as any).from("leads").select("id, name, pipeline_id, stage_id").in("id", leadIds).eq("tenant_id", ctx.tenantId)
+    : { data: [] as { id: string; name: string; pipeline_id: string | null; stage_id: string | null }[] };
+  const leadRows = (leads ?? []) as CallLeadRow[];
+  const leadNames = Object.fromEntries(leadRows.map((l) => [l.id, l.name])) as Record<string, string>;
+  const leadBusiness = Object.fromEntries(
+    leadRows.map((lead) => [
+      lead.id,
+      {
+        pipelineId: lead.pipeline_id,
+        stageId: lead.stage_id,
+      },
+    ]),
+  ) as Record<string, { pipelineId: string | null; stageId: string | null }>;
+  const { data: pipelines } = await (supabase as any)
+    .from("pipelines")
+    .select("id, name")
+    .eq("tenant_id", ctx.tenantId);
+  const { data: stages } = await (supabase as any)
+    .from("pipeline_stages")
+    .select("id, name")
+    .eq("tenant_id", ctx.tenantId);
+  const pipelineNames = Object.fromEntries(((pipelines ?? []) as NameRow[]).map((pipeline) => [pipeline.id, pipeline.name])) as Record<string, string>;
+  const stageNames = Object.fromEntries(((stages ?? []) as NameRow[]).map((stage) => [stage.id, stage.name])) as Record<string, string>;
 
   return (
     <div>
@@ -134,6 +159,8 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
                       <th className="px-5 py-3">Ramal</th>
                       <th className="px-5 py-3">Destino</th>
                       <th className="px-5 py-3">Lead</th>
+                      <th className="px-5 py-3">Funil</th>
+                      <th className="px-5 py-3">Etapa</th>
                       <th className="px-5 py-3">Tentativas</th>
                       <th className="px-5 py-3">Duração</th>
                       <th className="px-5 py-3">Status</th>
@@ -147,6 +174,7 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
                       const wasAnswered = c.duration > 0;
                       const attempts = attemptsByKey.get(contactKey(c)) ?? 1;
                       const ordinal = ordinalByCall.get(c.id) ?? 1;
+                      const business = leadId ? leadBusiness[leadId] : null;
                       return (
                         <tr key={c.id} className="border-b border-border/40 last:border-0 hover:bg-muted/30">
                           <td className="px-5 py-3 text-muted-foreground">
@@ -159,6 +187,20 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
                               <Link href={`/leads/${leadId}`} prefetch className="inline-flex items-center gap-1 text-brand hover:underline">
                                 <User className="h-3.5 w-3.5" /> {leadNames[leadId] ?? "Ver lead"}
                               </Link>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3">
+                            {business?.pipelineId ? (
+                              <span className="max-w-48 truncate text-muted-foreground">{pipelineNames[business.pipelineId] ?? "-"}</span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3">
+                            {business?.stageId ? (
+                              <Badge variant="outline">{stageNames[business.stageId] ?? "Etapa"}</Badge>
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}

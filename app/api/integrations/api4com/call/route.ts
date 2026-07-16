@@ -3,7 +3,8 @@ import { z } from "zod";
 import { requireContext } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
-import { Api4comError, triggerApi4comCall } from "@/lib/integrations/api4com";
+import { Api4comError, fetchApi4comCalls, triggerApi4comCall } from "@/lib/integrations/api4com";
+import { moveLeadToCallAttemptStage } from "@/lib/integrations/api4com-stage-sync";
 
 const bodySchema = z.object({
   leadId: z.string().uuid().optional(),
@@ -43,6 +44,47 @@ export async function POST(request: Request) {
         ...(parsed.leadId ? { lead_id: parsed.leadId } : {}),
       },
     });
+
+    if (parsed.leadId) {
+      const { count } = await supabase
+        .from("lead_activities")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", ctx.tenantId)
+        .eq("lead_id", parsed.leadId)
+        .eq("kind", "api4com_call_started");
+      const api4comAttemptCount = await fetchApi4comCalls()
+        .then((calls) =>
+          calls.filter((call) => {
+            const metadata = call.metadata as Record<string, unknown> | null;
+            return metadata?.tenant_id === ctx.tenantId && metadata?.lead_id === parsed.leadId;
+          }).length,
+        )
+        .catch(() => 0);
+      const attempt = Math.max(count ?? 0, api4comAttemptCount) + 1;
+
+      await (supabase as any).from("lead_activities").insert({
+        tenant_id: ctx.tenantId,
+        lead_id: parsed.leadId,
+        user_id: ctx.userId,
+        kind: "api4com_call_started",
+        payload: {
+          extension,
+          phone,
+          attempt,
+          api4com_call_id: result.id,
+        },
+      });
+
+      await moveLeadToCallAttemptStage(supabase as any, {
+        tenantId: ctx.tenantId,
+        leadId: parsed.leadId,
+        userId: ctx.userId,
+        attempt,
+        source: "api4com_call_button",
+      }).catch((stageError) => {
+        console.error("api4com_call_stage_sync_failed", stageError);
+      });
+    }
 
     return NextResponse.json(result);
   } catch (error) {
