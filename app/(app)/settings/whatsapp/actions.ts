@@ -122,12 +122,24 @@ export async function saveWhatsAppAccount(input: {
   provider: WhatsAppProviderKind;
   phone_number: string;
   display_name?: string;
+  assigned_to?: string | null;
   credentials: Record<string, unknown>;
   is_active: boolean;
 }) {
   const ctx = await requireContext();
   if (ctx.role === "vendedor") throw new Error("Sem permissao");
   const supabase = await createClient();
+  const assignedTo = input.assigned_to || null;
+
+  if (assignedTo) {
+    const { data: member } = await supabase
+      .from("tenant_members")
+      .select("user_id")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("user_id", assignedTo)
+      .maybeSingle();
+    if (!member) throw new Error("Responsavel nao pertence a este workspace");
+  }
 
   if (input.is_active) {
     await syncZapiWebhooks(input, ctx.tenantId);
@@ -142,6 +154,7 @@ export async function saveWhatsAppAccount(input: {
         provider: input.provider,
         phone_number: input.phone_number.replace(/\D/g, ""),
         display_name: input.display_name ?? null,
+        assigned_to: assignedTo,
         credentials: input.credentials,
         is_active: input.is_active,
       })
@@ -154,6 +167,7 @@ export async function saveWhatsAppAccount(input: {
       provider: input.provider,
       phone_number: input.phone_number.replace(/\D/g, ""),
       display_name: input.display_name ?? null,
+      assigned_to: assignedTo,
       credentials: input.credentials,
       is_active: input.is_active,
     });
@@ -162,6 +176,23 @@ export async function saveWhatsAppAccount(input: {
 
   revalidatePath("/settings/whatsapp");
   revalidatePath("/integrations/whatsapp");
+}
+
+export async function deleteWhatsAppAccount(input: { id: string }) {
+  const ctx = await requireContext();
+  if (ctx.role === "vendedor") throw new Error("Sem permissao");
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("whatsapp_accounts")
+    .delete()
+    .eq("id", input.id)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/settings/whatsapp");
+  revalidatePath("/integrations/whatsapp");
+  revalidatePath("/chat");
 }
 
 export async function setWhatsAppAccountActive(input: { id: string; is_active: boolean }) {

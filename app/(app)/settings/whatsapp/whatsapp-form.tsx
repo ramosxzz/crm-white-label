@@ -8,10 +8,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { WhatsAppAccount, WhatsAppProviderKind } from "@/lib/supabase/database.types";
 import { saveWhatsAppAccount, testWhatsAppConnection } from "./actions";
 
-export function WhatsAppForm({ initial }: { initial: WhatsAppAccount | null }) {
+export function WhatsAppForm({
+  initial,
+  users,
+}: {
+  initial: WhatsAppAccount | null;
+  users: { id: string; name: string }[];
+}) {
   const [provider, setProvider] = useState<WhatsAppProviderKind>(initial?.provider ?? "cloud_api");
   const [phone, setPhone] = useState(initial?.phone_number ?? "");
   const [displayName, setDisplayName] = useState(initial?.display_name ?? "");
+  const [assignedTo, setAssignedTo] = useState(initial?.assigned_to ?? "none");
   const [active, setActive] = useState(initial?.is_active ?? true);
   const [creds, setCreds] = useState<Record<string, string>>(
     (initial?.credentials as Record<string, string> | undefined) ?? {},
@@ -32,6 +39,7 @@ export function WhatsAppForm({ initial }: { initial: WhatsAppAccount | null }) {
           provider,
           phone_number: phone,
           display_name: displayName,
+          assigned_to: assignedTo === "none" ? null : assignedTo,
           credentials: creds,
           is_active: active,
         });
@@ -63,6 +71,25 @@ export function WhatsAppForm({ initial }: { initial: WhatsAppAccount | null }) {
         <div className="space-y-1.5 md:col-span-2">
           <Label>Nome exibido</Label>
           <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+        </div>
+        <div className="space-y-1.5 md:col-span-2">
+          <Label>Responsável pelo número</Label>
+          <Select value={assignedTo} onValueChange={setAssignedTo}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione um vendedor" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Sem responsável</SelectItem>
+              {users.map((user) => (
+                <SelectItem key={user.id} value={user.id}>
+                  {user.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Ajuda o atendimento a usar o número certo quando cada vendedor tem sua própria API.
+          </p>
         </div>
       </div>
 

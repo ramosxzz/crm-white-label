@@ -16,7 +16,9 @@ import {
   type LeadsDashboardData,
 } from "@/lib/leads/dashboard-metrics";
 import { getMetaAdsDashboard, type MetaDatePreset } from "@/lib/meta/ads-insights";
-import { canSeeFullDashboard } from "@/lib/auth/roles";
+import { canSeeFullDashboard, canManageCompanySettings } from "@/lib/auth/roles";
+import { listTenantUserOptions } from "@/lib/tenant/users";
+import { LeadForwardingControl } from "@/components/dashboard/lead-forwarding-control";
 
 export default async function DashboardPage({
   searchParams,
@@ -162,7 +164,7 @@ export default async function DashboardPage({
       : Promise.resolve({ data: [] }),
     supabase
       .from("tenants")
-      .select("meta_ad_account_id, meta_ads_access_token, meta_capi_token")
+      .select("meta_ad_account_id, meta_ads_access_token, meta_capi_token, lead_forward_user_id")
       .eq("id", ctx.tenantId)
       .single(),
   ]);
@@ -231,6 +233,10 @@ export default async function DashboardPage({
     datePreset: sp.ads as MetaDatePreset | undefined,
   });
 
+  const canForward = canManageCompanySettings(ctx.role);
+  const teamUsers = canForward ? await listTenantUserOptions(ctx.tenantId) : [];
+  const forwardUserId = (tenantMeta as { lead_forward_user_id?: string | null } | null)?.lead_forward_user_id ?? null;
+
   return (
     <div>
       <PageHeader
@@ -239,6 +245,11 @@ export default async function DashboardPage({
         description="Painel diário para acompanhar entradas, conversas e desempenho comercial."
         actions={<DashboardDateFilter selectedDate={today.dateStr} todayStr={todayBounds.dateStr} />}
       />
+      {canForward && teamUsers.length > 0 && (
+        <div className="px-8 pt-6">
+          <LeadForwardingControl users={teamUsers} initialForwardUserId={forwardUserId} />
+        </div>
+      )}
       <LeadsOpsDashboard data={dashboardData} stockEnabled={ctx.tenant.stock_enabled} metaAds={metaAds} />
     </div>
   );

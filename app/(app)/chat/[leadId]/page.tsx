@@ -4,6 +4,7 @@ import { requireContext } from "@/lib/tenant";
 import { listTenantUserOptions } from "@/lib/tenant/users";
 import { displayLeadName } from "@/lib/leads/display";
 import { getCachedWhatsAppProfilePicture } from "@/lib/whatsapp/profile-picture";
+import { fetchApi4comCalls } from "@/lib/integrations/api4com";
 import { listQuickMessages } from "@/app/(app)/settings/quick-messages-actions";
 import type { ConversationStatus } from "@/lib/chat/types";
 import { ChatThread } from "./chat-thread";
@@ -23,6 +24,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
     pipelinesRes,
     scheduledMessagesRes,
     users,
+    api4comCalls,
   ] = await Promise.all([
     service
       .from("leads")
@@ -54,7 +56,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
       .order("name"),
     service
       .from("whatsapp_accounts")
-      .select("id, phone_number, display_name, provider")
+      .select("id, phone_number, display_name, provider, assigned_to")
       .eq("tenant_id", ctx.tenantId)
       .eq("is_active", true)
       .order("created_at"),
@@ -71,6 +73,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
       .eq("status", "pending")
       .order("send_at", { ascending: true }),
     listTenantUserOptions(ctx.tenantId),
+    ctx.tenant.calls_dashboard_enabled ? fetchApi4comCalls() : Promise.resolve([]),
   ]);
 
   const lead = leadRes.data as {
@@ -92,6 +95,26 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
   if (!lead) notFound();
 
   const convo = convoRes.data as { id: string; status: string | null; channel: string | null } | null;
+  const leadPhoneDigits = (lead.phone ?? "").replace(/\D/g, "");
+  const recentCalls = api4comCalls
+    .filter((call) => {
+      const meta = call.metadata as Record<string, unknown> | null;
+      if (meta?.tenant_id !== ctx.tenantId) return false;
+      if (meta?.lead_id === leadId) return true;
+      const to = call.to.replace(/\D/g, "");
+      return Boolean(leadPhoneDigits && (to.endsWith(leadPhoneDigits) || leadPhoneDigits.endsWith(to)));
+    })
+    .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())
+    .slice(0, 5)
+    .map((call) => ({
+      id: call.id,
+      started_at: call.started_at,
+      from: call.from,
+      to: call.to,
+      duration: call.duration,
+      hangup_cause: call.hangup_cause,
+      record_url: call.record_url,
+    }));
 
   const [stageRes, pipelineRes, assigneeRes, appointmentRes, openTasksRes] = await Promise.all([
     lead.stage_id
@@ -200,6 +223,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
       initialStatus={(convo?.status as ConversationStatus | null) ?? "nao_iniciada"}
       initialAutomationsEnabled={lead.automations_enabled ?? true}
       initialMessages={messages}
+      currentUserId={ctx.userId}
       initialScheduledMessages={(scheduledMessagesRes.data ?? []) as {
         id: string;
         body: string | null;
@@ -211,7 +235,8 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
       professionals={professionalsRes.data ?? []}
       users={users}
       services={(servicesRes.data ?? []) as { id: string; name: string; duration_minutes: number }[]}
-      whatsappAccounts={(whatsappAccountsRes.data ?? []) as { id: string; phone_number: string; display_name: string | null; provider: string }[]}
+      whatsappAccounts={(whatsappAccountsRes.data ?? []) as { id: string; phone_number: string; display_name: string | null; provider: string; assigned_to: string | null }[]}
+      recentCalls={recentCalls}
       pipelineOptions={((pipelinesRes.data ?? []) as {
         id: string;
         name: string;

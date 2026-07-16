@@ -4,6 +4,7 @@ import { requireContext } from "@/lib/tenant";
 import { canManageIntegrations } from "@/lib/auth/roles";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAppBaseUrl } from "@/lib/app-url";
+import { listTenantUserOptions } from "@/lib/tenant/users";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 import { WhatsAppConnectionsManager } from "./whatsapp-connections-manager";
 
@@ -17,13 +18,14 @@ export default async function WhatsAppSettingsPage() {
     .select("*")
     .eq("tenant_id", ctx.tenantId)
     .order("created_at", { ascending: false });
+  const users = await listTenantUserOptions(ctx.tenantId);
 
   const webhookBase = await getAppBaseUrl();
   const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <WhatsAppConnectionsManager accounts={(accounts ?? []) as WhatsAppAccount[]} />
+      <WhatsAppConnectionsManager accounts={(accounts ?? []) as WhatsAppAccount[]} users={users} />
       <Card>
         <CardHeader>
           <CardTitle>Webhooks</CardTitle>

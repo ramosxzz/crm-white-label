@@ -70,6 +70,7 @@ export interface Tenant {
   meta_capi_token: string | null;
   meta_ad_account_id: string | null;
   meta_ads_access_token: string | null;
+  lead_forward_user_id: string | null;
   created_at: string;
 }
 
@@ -188,6 +189,7 @@ export interface WhatsAppAccount {
   provider: WhatsAppProviderKind;
   phone_number: string;
   display_name: string | null;
+  assigned_to: string | null;
   credentials: Record<string, unknown>;
   webhook_secret: string | null;
   is_active: boolean;

@@ -3,6 +3,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import { normalizeInboundContactName } from "@/lib/leads/contact-name";
 import { displayLeadName } from "@/lib/leads/display";
 import { attachWhatsAppLidToLead, findLeadByContact } from "@/lib/leads/find-by-contact";
+import { forwardNewLead } from "@/lib/leads/forward-new-lead";
 
 type SB = SupabaseClient<Database>;
 
@@ -81,7 +82,11 @@ export async function findOrCreateWhatsAppLead(
     .select("id")
     .single();
 
-  if (!error && created?.id) return created.id;
+  if (!error && created?.id) {
+    // Modo ausente: encaminha o lead novo para o vendedor escolhido, se ativo.
+    await forwardNewLead(supabase, tenantId, created.id);
+    return created.id;
+  }
 
   const retry = await findLeadByContact(supabase, tenantId, {
     phone: contact.phone,

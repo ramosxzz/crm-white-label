@@ -838,6 +838,25 @@ export async function updateChatLeadTags(input: { leadId: string; tags: string[]
   return { tags };
 }
 
+export async function updateChatLeadNotes(input: { leadId: string; notes: string }) {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+  const notes = String(input.notes ?? "").slice(0, 20_000);
+
+  const { error } = await supabase
+    .from("leads")
+    .update({ notes })
+    .eq("id", input.leadId)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/chat");
+  revalidatePath(`/chat/${input.leadId}`);
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${input.leadId}`);
+  return { notes };
+}
+
 export async function setLeadAutomations(input: { leadId: string; enabled: boolean }) {
   const ctx = await requireContext();
   const supabase = await createClient();

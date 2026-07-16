@@ -6,18 +6,28 @@ import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { fetchApi4comCalls } from "@/lib/integrations/api4com";
 import { cn } from "@/lib/utils";
 
 const ANSWERED_CAUSE = "NORMAL_CLEARING";
 
-export default async function CallsDashboardPage() {
+type SearchParams = { from?: string | string[]; to?: string | string[]; preset?: string | string[] };
+
+export default async function CallsDashboardPage({ searchParams }: { searchParams?: Promise<SearchParams> }) {
   const ctx = await requireContext();
   if (!ctx.tenant.calls_dashboard_enabled) notFound();
+  const params = (await searchParams) ?? {};
+  const range = getDateRange(params);
 
   const allCalls = await fetchApi4comCalls();
   const calls = allCalls
     .filter((c) => (c.metadata as Record<string, unknown> | null)?.tenant_id === ctx.tenantId)
+    .filter((c) => {
+      const time = new Date(c.started_at).getTime();
+      return time >= range.from.getTime() && time <= range.to.getTime();
+    })
     .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime());
 
   const total = calls.length;
@@ -67,6 +77,35 @@ export default async function CallsDashboardPage() {
   return (
     <div>
       <PageHeader title="Ligações" description="Chamadas realizadas via Api4com" />
+
+      <form className="mx-6 mt-6 flex flex-wrap items-end gap-3 rounded-xl border border-border/60 bg-card/70 p-4">
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="calls-from">
+            De
+          </label>
+          <Input id="calls-from" name="from" type="date" defaultValue={formatDateInput(range.from)} className="h-9 w-40" />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="calls-to">
+            Até
+          </label>
+          <Input id="calls-to" name="to" type="date" defaultValue={formatDateInput(range.to)} className="h-9 w-40" />
+        </div>
+        <Button type="submit" variant="outline" size="sm">
+          Filtrar
+        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant={range.preset === "today" ? "brand" : "outline"} size="sm">
+            <Link href="/ligacoes?preset=today" prefetch>Hoje</Link>
+          </Button>
+          <Button asChild variant={range.preset === "7d" ? "brand" : "outline"} size="sm">
+            <Link href="/ligacoes?preset=7d" prefetch>7 dias</Link>
+          </Button>
+          <Button asChild variant={range.preset === "30d" ? "brand" : "outline"} size="sm">
+            <Link href="/ligacoes?preset=30d" prefetch>30 dias</Link>
+          </Button>
+        </div>
+      </form>
 
       <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <KpiCard icon={<PhoneCall className="h-5 w-5" />} label="Total de Ligações" value={String(total)} />
@@ -177,6 +216,62 @@ function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function startOfDay(date: Date) {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function endOfDay(date: Date) {
+  const next = new Date(date);
+  next.setHours(23, 59, 59, 999);
+  return next;
+}
+
+function parseDateInput(value: string | undefined) {
+  if (!value) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function getDateRange(params: SearchParams) {
+  const preset = firstParam(params.preset);
+  const today = new Date();
+  if (preset === "today") return { from: startOfDay(today), to: endOfDay(today), preset };
+  if (preset === "30d") {
+    const from = startOfDay(today);
+    from.setDate(from.getDate() - 29);
+    return { from, to: endOfDay(today), preset };
+  }
+  if (preset === "7d") {
+    const from = startOfDay(today);
+    from.setDate(from.getDate() - 6);
+    return { from, to: endOfDay(today), preset };
+  }
+
+  const parsedFrom = parseDateInput(firstParam(params.from));
+  const parsedTo = parseDateInput(firstParam(params.to));
+  const fallbackFrom = startOfDay(today);
+  fallbackFrom.setDate(fallbackFrom.getDate() - 6);
+  return {
+    from: parsedFrom ? startOfDay(parsedFrom) : fallbackFrom,
+    to: parsedTo ? endOfDay(parsedTo) : endOfDay(today),
+    preset: preset ?? "custom",
+  };
+}
+
+function formatDateInput(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 function describeHangupCause(cause: string): string {

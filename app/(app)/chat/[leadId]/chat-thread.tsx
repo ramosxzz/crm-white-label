@@ -72,6 +72,7 @@ import {
   listScheduledMessages,
   cancelScheduledMessage,
   updateChatLeadBusiness,
+  updateChatLeadNotes,
   updateChatLeadTags,
 } from "../actions";
 
@@ -112,6 +113,16 @@ type ScheduledMessage = {
   media_url: string | null;
   media_type: string | null;
   send_at: string;
+};
+
+type LeadCallAttempt = {
+  id: string;
+  started_at: string;
+  from: string;
+  to: string;
+  duration: number;
+  hangup_cause: string;
+  record_url: string | null;
 };
 
 function detectMediaKind(mime: string): MediaKind {
@@ -205,6 +216,7 @@ export function ChatThread({
   channel = "whatsapp",
   conversationId: initialConversationId,
   conversationAccountId = null,
+  currentUserId,
   initialStatus = "nao_iniciada",
   initialAutomationsEnabled = true,
   initialMessages,
@@ -214,6 +226,7 @@ export function ChatThread({
   users = [],
   services = [],
   whatsappAccounts = [],
+  recentCalls = [],
   pipelineOptions = [],
   leadDetails,
 }: {
@@ -225,6 +238,7 @@ export function ChatThread({
   channel?: "whatsapp" | "instagram";
   conversationId: string | null;
   conversationAccountId?: string | null;
+  currentUserId?: string;
   initialStatus?: ConversationStatus;
   initialAutomationsEnabled?: boolean;
   initialMessages: ChatMessage[];
@@ -233,7 +247,8 @@ export function ChatThread({
   professionals?: { id: string; name: string }[];
   users?: { id: string; name: string }[];
   services?: { id: string; name: string; duration_minutes: number }[];
-  whatsappAccounts?: { id: string; phone_number: string; display_name: string | null; provider: string }[];
+  whatsappAccounts?: { id: string; phone_number: string; display_name: string | null; provider: string; assigned_to?: string | null }[];
+  recentCalls?: LeadCallAttempt[];
   pipelineOptions?: PipelineOption[];
   leadDetails?: LeadDetails;
 }) {
@@ -275,7 +290,8 @@ export function ChatThread({
   const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>(
     (conversationAccountId && whatsappAccounts.some((a) => a.id === conversationAccountId)
       ? conversationAccountId
-      : whatsappAccounts[0]?.id) ?? undefined,
+      : (currentUserId ? whatsappAccounts.find((a) => a.assigned_to === currentUserId)?.id : undefined) ??
+        whatsappAccounts[0]?.id) ?? undefined,
   );
 
   const [conversationId, setConversationId] = useState(initialConversationId);
@@ -287,6 +303,7 @@ export function ChatThread({
     if (typeof window === "undefined") return "";
     return window.sessionStorage.getItem(draftStorageKey) ?? "";
   });
+  const textDraftRef = useRef(text);
   const [quickMediaDraft, setQuickMediaDraft] = useState<QuickMediaDraft | null>(null);
   // Rastreia qual mensagem rapida foi usada por ultimo, para o gatilho de
   // automacao "mensagem enviada" poder filtrar por ela. Zera quando o texto
@@ -320,14 +337,16 @@ export function ChatThread({
   const shouldStickToBottomRef = useRef(true);
   const previousLeadIdRef = useRef(leadId);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (text) {
-      window.sessionStorage.setItem(draftStorageKey, text);
-    } else {
-      window.sessionStorage.removeItem(draftStorageKey);
-    }
-  }, [draftStorageKey, text]);
+  const updateTextDraft = useCallback(
+    (value: string) => {
+      textDraftRef.current = value;
+      setText(value);
+      if (typeof window === "undefined") return;
+      if (value) window.sessionStorage.setItem(draftStorageKey, value);
+      else window.sessionStorage.removeItem(draftStorageKey);
+    },
+    [draftStorageKey],
+  );
 
   const grouped = useMemo(() => {
     const out: { day: string; items: ChatMessage[] }[] = [];
@@ -384,7 +403,9 @@ export function ChatThread({
     setPendingScheduled(initialScheduledMessages);
     if (leadChanged) {
       setQuickMediaDraft(null);
-      setText(typeof window === "undefined" ? "" : window.sessionStorage.getItem(draftStorageKey) ?? "");
+      const storedDraft = typeof window === "undefined" ? "" : window.sessionStorage.getItem(draftStorageKey) ?? "";
+      textDraftRef.current = storedDraft;
+      setText(storedDraft);
       setReplyTo(null);
     }
     shouldStickToBottomRef.current = true;
@@ -482,7 +503,7 @@ export function ChatThread({
 
     if (quickMediaDraft) {
       const draft = quickMediaDraft;
-      setText("");
+      updateTextDraft("");
       setQuickMediaDraft(null);
       void sendExistingMedia(draft.mediaUrl, draft.mediaType, body || undefined);
       return;
@@ -502,7 +523,7 @@ export function ChatThread({
         : null,
     };
     shouldStickToBottomRef.current = true;
-    setText("");
+    updateTextDraft("");
     const replyMessageId = replyTo?.id ?? null;
     setReplyTo(null);
     setMessages((prev) => [...prev, optimistic]);
@@ -648,10 +669,11 @@ export function ChatThread({
         return;
       }
       setQuickMediaDraft({ title: m.title ?? "Áudio rápido", mediaUrl: m.media_url, mediaType: "audio" });
-      setText((prev) => (prev.startsWith("/") ? "" : prev));
+      updateTextDraft(textDraftRef.current.startsWith("/") ? "" : textDraftRef.current);
     } else if (m.body) {
       setQuickMediaDraft(null);
-      setText((prev) => (prev.startsWith("/") || !prev.trim() ? m.body! : `${prev.trim()}\n\n${m.body}`));
+      const currentDraft = textDraftRef.current;
+      updateTextDraft(currentDraft.startsWith("/") || !currentDraft.trim() ? m.body! : `${currentDraft.trim()}\n\n${m.body}`);
     }
   }
 
@@ -745,7 +767,7 @@ export function ChatThread({
         setScheduleText("");
         setScheduleMediaUrl(null);
         setScheduleMediaName(null);
-        if (scheduleText.trim() === text.trim()) setText("");
+        if (scheduleText.trim() === text.trim()) updateTextDraft("");
         refreshPendingScheduled();
       })
       .catch((err) => alert((err as Error).message))
@@ -1165,7 +1187,7 @@ export function ChatThread({
               placeholder={isInstagram ? "Responder no Instagram..." : "Digite sua mensagem ou / para mensagens rápidas..."}
               value={text}
               onChange={(e) => {
-                setText(e.target.value);
+                updateTextDraft(e.target.value);
                 setPendingQuickMessageId(null);
               }}
               onKeyDown={(e) => {
@@ -1377,6 +1399,7 @@ export function ChatThread({
         details={leadDetails}
         users={users}
         pipelineOptions={pipelineOptions}
+        recentCalls={recentCalls}
         onFinalize={() => changeStatus("resolvida")}
         mobileOpen={sidePanelOpen}
         onMobileClose={() => setSidePanelOpen(false)}
@@ -1691,6 +1714,37 @@ function formatShortDate(iso?: string | null): string {
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+function formatCallDate(iso: string): string {
+  return new Date(iso).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatDuration(seconds: number): string {
+  if (!seconds || seconds <= 0) return "0s";
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return minutes > 0 ? `${minutes}m ${rest}s` : `${rest}s`;
+}
+
+function describeCallCause(cause: string): string {
+  switch (cause) {
+    case "NO_ANSWER":
+      return "Não atendeu";
+    case "ORIGINATOR_CANCEL":
+      return "Cancelada";
+    case "UNALLOCATED_NUMBER":
+      return "Número inválido";
+    case "NUMBER_CHANGED":
+      return "Número alterado";
+    default:
+      return "Falhou";
+  }
+}
+
 function LeadSidePanel({
   leadId,
   leadName,
@@ -1700,6 +1754,7 @@ function LeadSidePanel({
   details,
   users,
   pipelineOptions,
+  recentCalls,
   onFinalize,
   mobileOpen,
   onMobileClose,
@@ -1712,6 +1767,7 @@ function LeadSidePanel({
   details?: LeadDetails;
   users: { id: string; name: string }[];
   pipelineOptions: PipelineOption[];
+  recentCalls: LeadCallAttempt[];
   onFinalize: () => void;
   mobileOpen: boolean;
   onMobileClose: () => void;
@@ -1782,7 +1838,7 @@ function LeadSidePanel({
 
   function saveNotes() {
     setSaving(true);
-    void updateLead(leadId, { notes })
+    void updateChatLeadNotes({ leadId, notes })
       .catch((err) => alert((err as Error).message))
       .finally(() => setSaving(false));
   }
@@ -1936,6 +1992,37 @@ function LeadSidePanel({
         </Button>
       </PanelSection>
 
+      <PanelSection title="Ligações recentes">
+        {recentCalls.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Nenhuma tentativa recente registrada para este lead.</p>
+        ) : (
+          <div className="space-y-2">
+            {recentCalls.map((call) => {
+              const answered = call.duration > 0;
+              return (
+                <div key={call.id} className="rounded-lg border border-border/60 bg-background/45 p-2.5 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">{formatCallDate(call.started_at)}</span>
+                    <span className={cn("rounded-full px-2 py-0.5", answered ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-300")}>
+                      {answered ? "Atendida" : describeCallCause(call.hangup_cause)}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between text-muted-foreground">
+                    <span>Ramal {call.from || "-"}</span>
+                    <span>{formatDuration(call.duration)}</span>
+                  </div>
+                  {call.record_url && (
+                    <a href={call.record_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-brand hover:underline">
+                      Ouvir gravação
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </PanelSection>
+
       <PanelSection title="Negócio">
         <div className="space-y-3">
           <div className="space-y-1.5">
@@ -2055,7 +2142,7 @@ function AccountSelector({
   selectedId,
   onChange,
 }: {
-  accounts: { id: string; phone_number: string; display_name: string | null; provider: string }[];
+  accounts: { id: string; phone_number: string; display_name: string | null; provider: string; assigned_to?: string | null }[];
   selectedId: string | undefined;
   onChange: (id: string) => void;
 }) {

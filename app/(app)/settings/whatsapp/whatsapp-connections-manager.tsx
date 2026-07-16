@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { ExternalLink, MessageCircle, Plus, Power, Settings, Smartphone, Wifi, WifiOff } from "lucide-react";
+import { ExternalLink, MessageCircle, Plus, Power, Settings, Smartphone, Trash2, UserRound, Wifi, WifiOff } from "lucide-react";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,10 +14,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { setWhatsAppAccountActive } from "./actions";
+import { deleteWhatsAppAccount, setWhatsAppAccountActive } from "./actions";
 import { WhatsAppForm } from "./whatsapp-form";
 
 type Account = WhatsAppAccount;
+type UserOption = { id: string; name: string };
 
 const providerMeta = {
   cloud_api: {
@@ -43,7 +44,7 @@ const providerMeta = {
   },
 } as const;
 
-export function WhatsAppConnectionsManager({ accounts }: { accounts: Account[] }) {
+export function WhatsAppConnectionsManager({ accounts, users }: { accounts: Account[]; users: UserOption[] }) {
   const [selected, setSelected] = useState<Account | null>(null);
   const [creating, setCreating] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -61,6 +62,24 @@ export function WhatsAppConnectionsManager({ accounts }: { accounts: Account[] }
     startTransition(async () => {
       try {
         await setWhatsAppAccountActive({ id: account.id, is_active: !account.is_active });
+      } catch (err) {
+        setMessage((err as Error).message);
+      } finally {
+        setPendingId(null);
+      }
+    });
+  }
+
+  function remove(account: Account) {
+    const label = account.display_name || account.phone_number;
+    if (!window.confirm(`Excluir a conexao ${label}? As conversas antigas ficam salvas, mas este numero deixa de enviar mensagens.`)) {
+      return;
+    }
+    setMessage(null);
+    setPendingId(account.id);
+    startTransition(async () => {
+      try {
+        await deleteWhatsAppAccount({ id: account.id });
       } catch (err) {
         setMessage((err as Error).message);
       } finally {
@@ -103,6 +122,8 @@ export function WhatsAppConnectionsManager({ accounts }: { accounts: Account[] }
               busy={isPending && pendingId === account.id}
               onManage={() => setSelected(account)}
               onToggle={() => toggle(account)}
+              onDelete={() => remove(account)}
+              users={users}
             />
           ))}
         </div>
@@ -114,7 +135,7 @@ export function WhatsAppConnectionsManager({ accounts }: { accounts: Account[] }
             <DialogTitle>Nova conexao WhatsApp</DialogTitle>
             <DialogDescription>Cadastre uma nova conta para atendimento.</DialogDescription>
           </DialogHeader>
-          <WhatsAppForm key="new" initial={null} />
+          <WhatsAppForm key="new" initial={null} users={users} />
         </DialogContent>
       </Dialog>
 
@@ -124,7 +145,7 @@ export function WhatsAppConnectionsManager({ accounts }: { accounts: Account[] }
             <DialogTitle>Gerenciar conexao</DialogTitle>
             <DialogDescription>Altere credenciais, numero e status da conta.</DialogDescription>
           </DialogHeader>
-          {selected && <WhatsAppForm key={selected.id} initial={selected} />}
+          {selected && <WhatsAppForm key={selected.id} initial={selected} users={users} />}
         </DialogContent>
       </Dialog>
     </div>
@@ -136,16 +157,21 @@ function ConnectionCard({
   busy,
   onManage,
   onToggle,
+  onDelete,
+  users,
 }: {
   account: Account;
   busy: boolean;
   onManage: () => void;
   onToggle: () => void;
+  onDelete: () => void;
+  users: UserOption[];
 }) {
   const meta = providerMeta[account.provider];
   const credentials = (account.credentials ?? {}) as Record<string, unknown>;
   const synced = typeof credentials.webhooks_synced_at === "string";
   const status = !account.is_active ? "disabled" : synced ? "connected" : "unstable";
+  const assignedUser = account.assigned_to ? users.find((user) => user.id === account.assigned_to) : null;
 
   return (
     <Card className="overflow-hidden">
@@ -183,13 +209,30 @@ function ConnectionCard({
           <p className="truncate text-sm font-semibold">{account.display_name || account.phone_number}</p>
           <p className="text-sm leading-relaxed text-muted-foreground">{meta.description}</p>
           <p className="font-mono text-xs text-muted-foreground">{account.phone_number}</p>
+          <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <UserRound className="h-3.5 w-3.5" />
+            {assignedUser ? `Responsavel: ${assignedUser.name}` : "Sem responsavel atribuido"}
+          </p>
         </div>
 
         <div className="mt-auto flex items-center justify-between border-t border-border/60 pt-3">
-          <Button variant="ghost" size="sm" onClick={onManage}>
-            <Settings className="h-4 w-4" />
-            Gerenciar
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={onManage}>
+              <Settings className="h-4 w-4" />
+              Gerenciar
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onDelete}
+              disabled={busy}
+              className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              title="Excluir conexao"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
           <button
             type="button"
             onClick={onToggle}

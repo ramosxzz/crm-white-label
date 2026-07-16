@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { canOperateLead, assertRole } from "@/lib/auth/roles";
+import { canOperateLead, assertRole, canManageCompanySettings } from "@/lib/auth/roles";
 import { chooseRoundRobinAttendant } from "@/lib/leads/assignment";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
@@ -10,6 +10,7 @@ import { normalizePhone } from "@/lib/utils";
 import { fireAutomationTrigger } from "@/lib/automations/trigger";
 import { logLeadActivity } from "@/lib/leads/activity-log";
 import { notifyUser, getTenantOwnerId } from "@/lib/notifications/notify";
+import { forwardNewLead } from "@/lib/leads/forward-new-lead";
 
 const leadSchema = z.object({
   name: z.string().min(1, "Nome obrigatorio"),
@@ -20,6 +21,33 @@ const leadSchema = z.object({
   stage_id: z.string().uuid().optional(),
   value_cents: z.number().int().min(0).optional(),
 });
+
+// Modo ausente: define (ou limpa, com null) o vendedor que recebe os novos leads.
+export async function setLeadForwarding(userId: string | null) {
+  const ctx = await requireContext();
+  if (!canManageCompanySettings(ctx.role)) throw new Error("Sem permissao");
+  const supabase = await createClient();
+
+  if (userId) {
+    const { data: member } = await supabase
+      .from("tenant_members")
+      .select("user_id")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!member) throw new Error("Usuario nao pertence a este workspace");
+  }
+
+  const { error } = await supabase
+    .from("tenants")
+    .update({ lead_forward_user_id: userId })
+    .eq("id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/dashboard");
+  revalidatePath("/chat");
+  return { ok: true };
+}
 
 export async function createLead(formData: FormData) {
   const ctx = await requireContext();
@@ -84,7 +112,10 @@ export async function createLead(formData: FormData) {
       });
     }
     try {
-      await autoAssignLead(createdLead.id);
+      // Modo ausente tem prioridade: se ativo, o lead vai direto para o
+      // vendedor escolhido; senao, distribuicao normal (round-robin).
+      const forwarded = await forwardNewLead(supabase, ctx.tenantId, createdLead.id);
+      if (!forwarded) await autoAssignLead(createdLead.id);
     } catch (assignmentError) {
       console.error("Erro ao distribuir lead automaticamente:", assignmentError);
     }
