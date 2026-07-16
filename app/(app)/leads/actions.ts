@@ -270,6 +270,7 @@ export async function updateLead(id: string, patch: Partial<{
   revalidatePath("/leads");
   revalidatePath("/kanban");
   revalidatePath(`/leads/${id}`);
+  revalidatePath(`/chat/${id}`);
 }
 
 export async function moveLeadToStage(leadId: string, stageId: string, position: number) {

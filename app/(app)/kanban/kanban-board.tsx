@@ -120,6 +120,10 @@ export function KanbanBoard({
     return leads.find((l) => l.id === leadId)?.stage_id ?? null;
   }
 
+  function findStageFromDropTarget(targetId: string) {
+    return stages.find((s) => s.id === targetId)?.id ?? findStageOfLead(targetId);
+  }
+
   function onDragStart(e: DragStartEvent) {
     setActiveId(String(e.active.id));
   }
@@ -143,19 +147,26 @@ export function KanbanBoard({
 
     const leadId = String(active.id);
     const lead = leads.find((l) => l.id === leadId);
-    if (!lead || !lead.stage_id) return;
+    if (!lead) return;
 
-    const colLeads = leadsByStage.get(lead.stage_id) ?? [];
     const overId = String(over.id);
+    const targetStageId = findStageFromDropTarget(overId) ?? lead.stage_id ?? stages[0]?.id ?? null;
+    if (!targetStageId) return;
+
+    setLeads((prev) =>
+      prev.map((l) => (l.id === leadId ? { ...l, stage_id: targetStageId } : l)),
+    );
+
+    const colLeads = leadsByStage.get(targetStageId) ?? [];
     let newIndex = colLeads.length;
-    if (overId !== lead.stage_id) {
+    if (overId !== targetStageId) {
       newIndex = colLeads.findIndex((l) => l.id === overId);
       if (newIndex < 0) newIndex = colLeads.length;
     }
     const position = newIndex * 1000;
 
     try {
-      await moveLeadToStage(leadId, lead.stage_id, position);
+      await moveLeadToStage(leadId, targetStageId, position);
     } catch (err) {
       console.error(err);
     }
