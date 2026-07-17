@@ -659,7 +659,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
 
 
-    const { data: insertedMsg } = await supabase
+    const { data: insertedMsg, error: insertMsgError } = await supabase
       .from("messages")
       .insert({
         tenant_id: account.tenant_id,
@@ -678,6 +678,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
       })
       .select("id")
       .single();
+
+    if (insertMsgError) {
+      // 23505 = violacao da unique constraint em external_id: outra entrega
+      // concorrente (retry da Evolution) ja inseriu essa mesma mensagem.
+      // Ignora silenciosamente em vez de duplicar.
+      if (insertMsgError.code === "23505") continue;
+      console.error(`[webhook][${provider}] erro ao inserir mensagem:`, insertMsgError);
+      continue;
+    }
 
     // Persiste midia (download/reupload) em segundo plano para nao atrasar a chegada da mensagem.
     if (hasMedia && insertedMsg?.id) {
