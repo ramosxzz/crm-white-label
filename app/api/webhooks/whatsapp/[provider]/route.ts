@@ -107,14 +107,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
 
 
-  // NUNCA assume uma conta por default (nem quando ha so uma ativa): exige
-  // match explicito por identificador (instance/instanceId/phone_number_id).
-  // Sem match, o payload e ignorado — jamais atribuido a um tenant "palpite",
-  // que foi exatamente a causa dos vazamentos anteriores entre tenants.
   let account: WhatsAppAccount | null = null;
 
   function norm(v: unknown): string {
     return String(v ?? "").trim().toLowerCase();
+  }
+
+  function digits(v: unknown): string {
+    return String(v ?? "").replace(/\D/g, "");
+  }
+
+  function pickSameTenantEvolutionFallback(): WhatsAppAccount | null {
+    if (provider !== "evolution") return null;
+    const tenantIds = new Set(accounts.map((a) => a.tenant_id).filter(Boolean));
+    if (tenantIds.size !== 1) return null;
+
+    const sorted = [...accounts].sort((a, b) => {
+      const bTime = Date.parse(String(b.created_at ?? ""));
+      const aTime = Date.parse(String(a.created_at ?? ""));
+      return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+    });
+    const fallback = sorted[0] as WhatsAppAccount | undefined;
+    if (fallback) {
+      console.warn(
+        `[webhook][evolution] payload sem match exato, mas todas as contas ativas sao do mesmo tenant (${fallback.tenant_id}). Usando conta ${fallback.id}.`,
+      );
+    }
+    return fallback ?? null;
   }
 
   if (provider === "cloud_api") {
@@ -160,23 +179,80 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
   if (provider === "evolution") {
 
-    const raw = payload as { instance?: string; instanceId?: string };
+    const raw = payload as {
+      apikey?: string;
+      instance?: string;
+      instanceName?: string;
+      instanceId?: string;
+      server_url?: string;
+      sender?: string;
+      data?: Record<string, unknown>;
+    };
+    const data = raw.data;
+    const dataInstance = data && typeof data.instance === "object" && data.instance
+      ? (data.instance as { owner?: string; ownerJid?: string })
+      : null;
 
-    const instanceName = raw.instance;
+    const apiKey = norm(raw.apikey);
+    if (apiKey) {
+      account = accounts.find((a) => {
+        const creds = a.credentials as { api_key?: string };
+        return creds.api_key && norm(creds.api_key) === apiKey;
+      }) ?? null;
+    }
 
-    if (instanceName) {
+    const instanceCandidates = [
+      raw.instance,
+      raw.instanceName,
+      raw.instanceId,
+      data?.instance,
+      data?.instanceName,
+      data?.instanceId,
+    ].filter((v): v is string => typeof v === "string" && v.trim().length > 0);
+
+    if (!account && instanceCandidates.length > 0) {
 
       account = accounts.find((a) => {
 
-        const creds = a.credentials as { instance?: string };
+        const creds = a.credentials as { instance?: string; instance_id?: string };
 
-        return creds.instance && norm(creds.instance) === norm(instanceName);
+        return instanceCandidates.some(
+          (candidate) =>
+            (creds.instance && norm(creds.instance) === norm(candidate)) ||
+            (creds.instance_id && norm(creds.instance_id) === norm(candidate)),
+        );
 
       }) ?? null;
 
     }
 
+    const senderCandidates = [
+      raw.sender,
+      data?.sender,
+      data?.owner,
+      data?.ownerJid,
+      dataInstance?.owner,
+      dataInstance?.ownerJid,
+    ].map(digits).filter(Boolean);
+
+    if (!account && senderCandidates.length > 0) {
+      account = accounts.find((a) => {
+        const accountPhone = digits(a.phone_number);
+        return accountPhone && senderCandidates.some((candidate) => candidate.endsWith(accountPhone) || accountPhone.endsWith(candidate));
+      }) ?? null;
+    }
+
+    const serverUrl = norm(raw.server_url);
+    if (!account && serverUrl) {
+      account = accounts.find((a) => {
+        const creds = a.credentials as { base_url?: string };
+        return creds.base_url && norm(creds.base_url).replace(/\/$/, "") === serverUrl.replace(/\/$/, "");
+      }) ?? null;
+    }
+
   }
+
+  account ??= pickSameTenantEvolutionFallback();
 
   if (!account) {
     console.error(

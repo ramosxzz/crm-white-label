@@ -30,7 +30,7 @@ export async function Topbar() {
     >
       <ThemeToggle />
       <UpdatesBell updates={updates ?? []} hasUnread={hasUnread} />
-      <NotificationsBell initial={data ?? []} currentUserId={ctx.userId} />
+      <NotificationsBell initial={data ?? []} currentUserId={ctx.userId} tenantId={ctx.tenantId} />
     </header>
   );
 }

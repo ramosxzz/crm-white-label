@@ -148,7 +148,7 @@ function detectMediaKind(mime: string): MediaKind {
 
 // Realtime ja atualiza em tempo real; o polling e so uma rede de seguranca
 // (caso o realtime perca um evento) e roda devagar e so com a aba visivel.
-const POLL_MS = 30_000;
+const POLL_MS = 90_000;
 
 function dayLabel(iso: string): string {
   const d = new Date(iso);

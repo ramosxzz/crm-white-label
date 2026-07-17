@@ -17,7 +17,7 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { Phone } from "lucide-react";
+import { Phone, Search, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrencyBRL, formatPhoneBR } from "@/lib/utils";
 import { moveLeadToStage } from "../leads/actions";
@@ -48,6 +48,7 @@ export function KanbanBoard({
   const [stages, setStages] = useState(initialStages);
   const [leads, setLeads] = useState(initialLeads);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   // Mantem em dia quando o servidor re-renderiza com stages/leads novos
@@ -115,6 +116,24 @@ export function KanbanBoard({
   }, [leads, stages]);
 
   const activeLead = leads.find((l) => l.id === activeId) ?? null;
+  const normalizedSearch = useMemo(() => normalizeKanbanSearch(search), [search]);
+  const searchDigits = useMemo(() => onlyDigits(search), [search]);
+  const isFiltering = Boolean(normalizedSearch || searchDigits);
+
+  const visibleLeadsByStage = useMemo(() => {
+    if (!isFiltering) return leadsByStage;
+    const map = new Map<string, Lead[]>();
+    stages.forEach((stage) => {
+      const stageLeads = leadsByStage.get(stage.id) ?? [];
+      map.set(stage.id, stageLeads.filter((lead) => leadMatchesSearch(lead, normalizedSearch, searchDigits)));
+    });
+    return map;
+  }, [isFiltering, leadsByStage, normalizedSearch, searchDigits, stages]);
+
+  const visibleLeadCount = useMemo(
+    () => Array.from(visibleLeadsByStage.values()).reduce((total, stageLeads) => total + stageLeads.length, 0),
+    [visibleLeadsByStage],
+  );
 
   function findStageOfLead(leadId: string) {
     return leads.find((l) => l.id === leadId)?.stage_id ?? null;
@@ -181,26 +200,55 @@ export function KanbanBoard({
       onDragEnd={onDragEnd}
     >
       <div className="flex h-full flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <label htmlFor="pipeline-select" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Funil
-          </label>
-          <select
-            id="pipeline-select"
-            value={activePipelineId ?? ""}
-            onChange={(event) => router.push(`/kanban?pipeline=${event.target.value}`)}
-            className="h-9 min-w-64 rounded-md border border-border bg-card px-3 text-sm font-medium outline-none transition-colors focus:border-brand"
-          >
-            {pipelines.length === 0 && <option value="">Nenhum funil configurado</option>}
-            {pipelines.map((pipeline) => <option key={pipeline.id} value={pipeline.id}>{pipeline.name}</option>)}
-          </select>
+        <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-card/50 p-3 backdrop-blur-sm lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <label htmlFor="pipeline-select" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Funil
+            </label>
+            <select
+              id="pipeline-select"
+              value={activePipelineId ?? ""}
+              onChange={(event) => router.push(`/kanban?pipeline=${event.target.value}`)}
+              className="h-9 min-w-0 flex-1 rounded-md border border-border bg-card px-3 text-sm font-medium outline-none transition-colors focus:border-brand sm:min-w-64"
+            >
+              {pipelines.length === 0 && <option value="">Nenhum funil configurado</option>}
+              {pipelines.map((pipeline) => <option key={pipeline.id} value={pipeline.id}>{pipeline.name}</option>)}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative w-full sm:w-[360px]">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Pesquisar lead por nome ou telefone..."
+                className="h-9 w-full rounded-md border border-border bg-background pl-9 pr-9 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-brand focus:ring-2 focus:ring-brand/15"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  aria-label="Limpar pesquisa"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            {isFiltering && (
+              <span className="whitespace-nowrap text-xs font-medium text-muted-foreground">
+                {visibleLeadCount} de {leads.length} lead{leads.length === 1 ? "" : "s"}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex flex-1 gap-4 overflow-x-auto pb-2">
           {stages.map((stage) => {
-            const stageLeads = leadsByStage.get(stage.id) ?? [];
+            const stageLeads = visibleLeadsByStage.get(stage.id) ?? [];
             const total = stageLeads.reduce((acc, l) => acc + (l.value_cents ?? 0), 0);
             return (
-              <Column key={stage.id} stage={stage} leads={stageLeads} total={total} />
+              <Column key={stage.id} stage={stage} leads={stageLeads} total={total} isFiltering={isFiltering} />
             );
           })}
         </div>
@@ -213,7 +261,28 @@ export function KanbanBoard({
   );
 }
 
-function Column({ stage, leads, total }: { stage: Stage; leads: Lead[]; total: number }) {
+function normalizeKanbanSearch(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function onlyDigits(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function leadMatchesSearch(lead: Lead, searchText: string, searchDigits: string) {
+  const searchableText = normalizeKanbanSearch([lead.name, lead.phone, lead.source].filter(Boolean).join(" "));
+  const searchableDigits = onlyDigits([lead.phone, lead.name].filter(Boolean).join(" "));
+  return Boolean(
+    (searchText && searchableText.includes(searchText)) ||
+      (searchDigits && searchableDigits.includes(searchDigits)),
+  );
+}
+
+function Column({ stage, leads, total, isFiltering }: { stage: Stage; leads: Lead[]; total: number; isFiltering: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const color = stage.color ?? "#94a3b8";
   return (
@@ -241,7 +310,7 @@ function Column({ stage, leads, total }: { stage: Stage; leads: Lead[]; total: n
           ))}
           {leads.length === 0 && (
             <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border/70 p-8 text-center text-xs text-muted-foreground">
-              Solte um lead aqui
+              {isFiltering ? "Nenhum lead encontrado nesta etapa" : "Solte um lead aqui"}
             </div>
           )}
         </div>

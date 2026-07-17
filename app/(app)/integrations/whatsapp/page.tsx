@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { WhatsAppConnectionsManager } from "@/app/(app)/settings/whatsapp/whatsapp-connections-manager";
 import { getAppBaseUrl } from "@/lib/app-url";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
+import { listTenantUserOptions } from "@/lib/tenant/users";
 import { WhatsAppEmbeddedSignupButton } from "./embedded-signup-button";
 
 export default async function WhatsAppIntegrationPage() {
@@ -18,6 +19,7 @@ export default async function WhatsAppIntegrationPage() {
     .eq("tenant_id", ctx.tenantId)
     .order("created_at", { ascending: false });
 
+  const users = await listTenantUserOptions(ctx.tenantId);
   const webhookBase = await getAppBaseUrl();
   const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
   const hasCloudApi = (accounts ?? []).some((a) => a.provider === "cloud_api");
@@ -48,7 +50,7 @@ export default async function WhatsAppIntegrationPage() {
             </CardContent>
           </Card>
         )}
-        <WhatsAppConnectionsManager accounts={(accounts ?? []) as WhatsAppAccount[]} />
+        <WhatsAppConnectionsManager accounts={(accounts ?? []) as WhatsAppAccount[]} users={users} />
         <Card>
           <CardHeader>
             <CardTitle>Webhooks</CardTitle>

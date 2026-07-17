@@ -44,7 +44,7 @@ const providerMeta = {
   },
 } as const;
 
-export function WhatsAppConnectionsManager({ accounts, users }: { accounts: Account[]; users: UserOption[] }) {
+export function WhatsAppConnectionsManager({ accounts, users = [] }: { accounts: Account[]; users?: UserOption[] }) {
   const [selected, setSelected] = useState<Account | null>(null);
   const [creating, setCreating] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);

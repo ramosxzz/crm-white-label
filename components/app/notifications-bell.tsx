@@ -12,7 +12,15 @@ import { cn } from "@/lib/utils";
 import type { Notification } from "@/lib/supabase/database.types";
 import { markAllNotificationsRead, markNotificationRead } from "@/app/(app)/_actions/notifications";
 
-export function NotificationsBell({ initial, currentUserId }: { initial: Notification[]; currentUserId: string }) {
+export function NotificationsBell({
+  initial,
+  currentUserId,
+  tenantId,
+}: {
+  initial: Notification[];
+  currentUserId: string;
+  tenantId: string;
+}) {
   const [items, setItems] = useState<Notification[]>(initial);
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
@@ -28,7 +36,7 @@ export function NotificationsBell({ initial, currentUserId }: { initial: Notific
       .channel("notifications-realtime")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications" },
+        { event: "INSERT", schema: "public", table: "notifications", filter: `tenant_id=eq.${tenantId}` },
         (p) => {
           const next = p.new as Notification;
           if (!isVisible(next)) return;
@@ -37,7 +45,7 @@ export function NotificationsBell({ initial, currentUserId }: { initial: Notific
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "notifications" },
+        { event: "UPDATE", schema: "public", table: "notifications", filter: `tenant_id=eq.${tenantId}` },
         (p) => {
           const next = p.new as Notification;
           if (!isVisible(next)) {
@@ -49,7 +57,7 @@ export function NotificationsBell({ initial, currentUserId }: { initial: Notific
       )
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [currentUserId]);
+  }, [currentUserId, tenantId]);
 
   function onMarkAllRead() {
     start(async () => {

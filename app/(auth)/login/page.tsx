@@ -11,6 +11,15 @@ import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { mapSignupError } from "@/lib/auth/signup-errors";
 
+function withTimeout<T>(promise: Promise<T>, ms: number) {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      window.setTimeout(() => reject(new Error("auth_timeout")), ms);
+    }),
+  ]);
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -25,10 +34,19 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
+    try {
+      const { error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+        15000,
+      );
+      if (error) {
+        setLoading(false);
+        setError(mapSignupError(error.message));
+        return;
+      }
+    } catch {
       setLoading(false);
-      setError(mapSignupError(error.message));
+      setError("Nao foi possivel conectar ao servidor de login agora. Tente novamente em alguns minutos.");
       return;
     }
     setRedirecting(true);

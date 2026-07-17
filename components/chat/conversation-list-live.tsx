@@ -8,7 +8,10 @@ import { ConversationList, type StatusFilter } from "@/app/(app)/chat/conversati
 
 /** Fallback se realtime falhar. */
 // Realtime ja atualiza a lista; polling e rede de seguranca, lento e so visivel.
-const CONTACT_POLL_MS = 30_000;
+const CONTACT_POLL_MS = 90_000;
+const CONTACT_REALTIME_REFRESH_MS = 1_200;
+const CONTACT_REFRESH_MIN_INTERVAL_MS = 3_000;
+const CONTACT_ACTIVE_REFRESH_COOLDOWN_MS = 15_000;
 
 export function ConversationListLive({
   tenantId,
@@ -26,6 +29,8 @@ export function ConversationListLive({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("todas");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const contactRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const contactRefreshInFlightRef = useRef(false);
+  const lastContactRefreshAtRef = useRef(0);
   const notificationAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const playNotificationSound = useCallback(() => {
@@ -39,7 +44,12 @@ export function ConversationListLive({
     void audio.play().catch(() => null);
   }, []);
 
-  const refreshContacts = useCallback(async () => {
+  const refreshContacts = useCallback(async (options: { force?: boolean } = {}) => {
+    const now = Date.now();
+    if (contactRefreshInFlightRef.current) return;
+    if (!options.force && now - lastContactRefreshAtRef.current < CONTACT_REFRESH_MIN_INTERVAL_MS) return;
+
+    contactRefreshInFlightRef.current = true;
     try {
       const next = await fetchConversationItems(tenantId, {
         query,
@@ -48,13 +58,16 @@ export function ConversationListLive({
       setItems(next);
     } catch {
       /* mantem lista anterior */
+    } finally {
+      lastContactRefreshAtRef.current = Date.now();
+      contactRefreshInFlightRef.current = false;
     }
   }, [query, statusFilter, tenantId]);
 
   const handleManualRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      await refreshContacts();
+      await refreshContacts({ force: true });
     } finally {
       setIsRefreshing(false);
     }
@@ -91,7 +104,7 @@ export function ConversationListLive({
 
   const scheduleContactsRefresh = useCallback(() => {
     if (contactRefreshTimerRef.current) clearTimeout(contactRefreshTimerRef.current);
-    contactRefreshTimerRef.current = setTimeout(() => void refreshContacts(), 450);
+    contactRefreshTimerRef.current = setTimeout(() => void refreshContacts(), CONTACT_REALTIME_REFRESH_MS);
   }, [refreshContacts]);
 
   useEffect(() => {
@@ -99,7 +112,7 @@ export function ConversationListLive({
   }, [initialItems]);
 
   useEffect(() => {
-    const timer = setTimeout(() => void refreshContacts(), 280);
+    const timer = setTimeout(() => void refreshContacts({ force: true }), 280);
     return () => clearTimeout(timer);
   }, [query, refreshContacts]);
 
@@ -119,7 +132,9 @@ export function ConversationListLive({
 
   useEffect(() => {
     const refreshIfActive = () => {
-      if (document.visibilityState === "visible") void refreshContacts();
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastContactRefreshAtRef.current < CONTACT_ACTIVE_REFRESH_COOLDOWN_MS) return;
+      void refreshContacts();
     };
 
     window.addEventListener("focus", refreshIfActive);
@@ -153,16 +168,6 @@ export function ConversationListLive({
       .on(
         "postgres_changes",
         {
-          event: "UPDATE",
-          schema: "public",
-          table: "messages",
-          filter: `tenant_id=eq.${tenantId}`,
-        },
-        () => scheduleContactsRefresh(),
-      )
-      .on(
-        "postgres_changes",
-        {
           event: "*",
           schema: "public",
           table: "conversations",
@@ -170,9 +175,7 @@ export function ConversationListLive({
         },
         () => scheduleContactsRefresh(),
       )
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") scheduleContactsRefresh();
-      });
+      .subscribe();
 
     return () => {
       if (contactRefreshTimerRef.current) clearTimeout(contactRefreshTimerRef.current);

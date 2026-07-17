@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CallButton } from "@/components/leads/call-button";
 import { fetchApi4comCalls } from "@/lib/integrations/api4com";
-import { syncLeadStagesFromApi4comCalls } from "@/lib/integrations/api4com-stage-sync";
 import { cn } from "@/lib/utils";
 
 const ANSWERED_CAUSE = "NORMAL_CLEARING";
@@ -73,7 +72,6 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
     ordinalByCall.set(c.id, n);
   }
   const supabase = await createClient();
-  await syncLeadStagesFromApi4comCalls(supabase as any, { tenantId: ctx.tenantId, calls: allCalls });
 
   const { data: leads } = leadIds.length
     ? await (supabase as any).from("leads").select("id, name, pipeline_id, stage_id").in("id", leadIds).eq("tenant_id", ctx.tenantId)

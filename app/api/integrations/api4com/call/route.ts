@@ -4,7 +4,6 @@ import { requireContext } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
 import { Api4comError, fetchApi4comCalls, triggerApi4comCall } from "@/lib/integrations/api4com";
-import { moveLeadToCallAttemptStage } from "@/lib/integrations/api4com-stage-sync";
 
 const bodySchema = z.object({
   leadId: z.string().uuid().optional(),
@@ -73,16 +72,6 @@ export async function POST(request: Request) {
           attempt,
           api4com_call_id: result.id,
         },
-      });
-
-      await moveLeadToCallAttemptStage(supabase as any, {
-        tenantId: ctx.tenantId,
-        leadId: parsed.leadId,
-        userId: ctx.userId,
-        attempt,
-        source: "api4com_call_button",
-      }).catch((stageError) => {
-        console.error("api4com_call_stage_sync_failed", stageError);
       });
     }
 

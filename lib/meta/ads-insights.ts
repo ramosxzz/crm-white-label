@@ -64,6 +64,7 @@ type MetaInsightRow = {
 };
 
 const GRAPH_VERSION = "v25.0";
+const META_ADS_FETCH_TIMEOUT_MS = 4_500;
 
 const LEAD_ACTIONS = new Set([
   "lead",
@@ -126,10 +127,13 @@ export async function getMetaAdsDashboard(input: {
     access_token: accessToken,
   });
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), META_ADS_FETCH_TIMEOUT_MS);
+
   try {
     const response = await fetch(
       `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(adAccountId)}/insights?${params.toString()}`,
-      { cache: "no-store" },
+      { cache: "no-store", signal: controller.signal },
     );
     const payload = (await response.json().catch(() => null)) as {
       data?: MetaInsightRow[];
@@ -184,10 +188,19 @@ export async function getMetaAdsDashboard(input: {
       rows,
     };
   } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      return {
+        ...emptyMetaDashboard("error", adAccountId),
+        error: "A Meta demorou para responder. O CRM continuou carregando e voce pode tentar novamente em instantes.",
+      };
+    }
+
     return {
       ...emptyMetaDashboard("error", adAccountId),
       error: error instanceof Error ? error.message : "Erro inesperado ao consultar o Meta Ads.",
     };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

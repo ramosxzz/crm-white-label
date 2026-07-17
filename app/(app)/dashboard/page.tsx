@@ -98,7 +98,7 @@ export default async function DashboardPage({
     { data: leadsToday },
     { data: leadsYesterday },
     { data: leadsWeek },
-    { data: allLeads },
+    { data: stageCounts },
     { data: stages },
     { count: messagesToday },
     { data: convosToday },
@@ -128,7 +128,7 @@ export default async function DashboardPage({
       .select("created_at")
       .eq("tenant_id", ctx.tenantId)
       .gte("created_at", `${weekStartStr}T00:00:00-03:00`),
-    supabase.from("leads").select("stage_id").eq("tenant_id", ctx.tenantId),
+    supabase.rpc("dashboard_stage_counts", { p_tenant_id: ctx.tenantId }),
     supabase
       .from("pipeline_stages")
       .select("id, name, color, position, is_won, is_lost")
@@ -172,12 +172,18 @@ export default async function DashboardPage({
   const activeReservations = activeReservationsResult.data ?? [];
 
   const stageMap = new Map((stages ?? []).map((s) => [s.id, s]));
+  const stageCountMap = new Map(
+    ((stageCounts ?? []) as { stage_id: string | null; lead_count: number | string }[]).map((row) => [
+      row.stage_id,
+      Number(row.lead_count ?? 0),
+    ]),
+  );
 
   const pipelineByStage = (stages ?? []).map((s) => ({
     id: s.id,
     name: s.name,
     color: s.color ?? "#94a3b8",
-    count: (allLeads ?? []).filter((l) => l.stage_id === s.id).length,
+    count: stageCountMap.get(s.id) ?? 0,
     isWon: s.is_won,
     isLost: s.is_lost,
   }));
