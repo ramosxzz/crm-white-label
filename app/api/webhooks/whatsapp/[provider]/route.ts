@@ -107,34 +107,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
 
 
+  // NUNCA assume uma conta por default (nem quando ha so uma ativa, nem quando
+  // todas as contas ativas sao do mesmo tenant): exige match explicito por
+  // identificador (instance/instanceId/apikey/phone_number_id/sender). Sem
+  // match, o payload e ignorado — jamais atribuido a um tenant "palpite", que
+  // foi exatamente a causa dos vazamentos anteriores entre tenants.
   let account: WhatsAppAccount | null = null;
 
   function norm(v: unknown): string {
     return String(v ?? "").trim().toLowerCase();
   }
 
-  function digits(v: unknown): string {
-    return String(v ?? "").replace(/\D/g, "");
-  }
-
-  function pickSameTenantEvolutionFallback(): WhatsAppAccount | null {
-    if (provider !== "evolution") return null;
-    const tenantIds = new Set(accounts.map((a) => a.tenant_id).filter(Boolean));
-    if (tenantIds.size !== 1) return null;
-
-    const sorted = [...accounts].sort((a, b) => {
-      const bTime = Date.parse(String(b.created_at ?? ""));
-      const aTime = Date.parse(String(a.created_at ?? ""));
-      return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
-    });
-    const fallback = sorted[0] as WhatsAppAccount | undefined;
-    if (fallback) {
-      console.warn(
-        `[webhook][evolution] payload sem match exato, mas todas as contas ativas sao do mesmo tenant (${fallback.tenant_id}). Usando conta ${fallback.id}.`,
-      );
-    }
-    return fallback ?? null;
-  }
 
   if (provider === "cloud_api") {
 
@@ -189,9 +172,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
       data?: Record<string, unknown>;
     };
     const data = raw.data;
-    const dataInstance = data && typeof data.instance === "object" && data.instance
-      ? (data.instance as { owner?: string; ownerJid?: string })
-      : null;
 
     const apiKey = norm(raw.apikey);
     if (apiKey) {
@@ -226,21 +206,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
     }
 
-    const senderCandidates = [
-      raw.sender,
-      data?.sender,
-      data?.owner,
-      data?.ownerJid,
-      dataInstance?.owner,
-      dataInstance?.ownerJid,
-    ].map(digits).filter(Boolean);
-
-    if (!account && senderCandidates.length > 0) {
-      account = accounts.find((a) => {
-        const accountPhone = digits(a.phone_number);
-        return accountPhone && senderCandidates.some((candidate) => candidate.endsWith(accountPhone) || accountPhone.endsWith(candidate));
-      }) ?? null;
-    }
+    // NAO usar match por sufixo de telefone (sender/owner/ownerJid via endsWith):
+    // digitos curtos ou formatacao inconsistente (com/sem 55, com/sem 9) podem
+    // colidir por coincidencia entre contas de tenants diferentes. Foi a causa
+    // de um vazamento real (mensagens da Avante Digital atribuidas a Atacado
+    // Moda Sul). So aceitar match exato por instance/instanceId/apikey/base_url.
 
     const serverUrl = norm(raw.server_url);
     if (!account && serverUrl) {
@@ -251,8 +221,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
     }
 
   }
-
-  account ??= pickSameTenantEvolutionFallback();
 
   if (!account) {
     console.error(
