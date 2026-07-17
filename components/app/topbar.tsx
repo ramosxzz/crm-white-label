@@ -4,10 +4,10 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationsBell } from "./notifications-bell";
 import { UpdatesBell } from "./updates-bell";
 
-export async function Topbar() {
+export async function Topbar({ lastSeenUpdateAt }: { lastSeenUpdateAt: string | null }) {
   const ctx = await requireContext();
   const supabase = await createClient();
-  const [{ data }, { data: updates }, { data: profile }] = await Promise.all([
+  const [{ data }, { data: updates }] = await Promise.all([
     supabase
       .from("notifications")
       .select("*")
@@ -16,9 +16,8 @@ export async function Topbar() {
       .order("created_at", { ascending: false })
       .limit(20),
     supabase.from("system_updates").select("*").order("created_at", { ascending: false }).limit(20),
-    supabase.from("profiles").select("last_seen_update_at").eq("id", ctx.userId).single(),
   ]);
-  const lastSeen = profile?.last_seen_update_at ?? null;
+  const lastSeen = lastSeenUpdateAt;
   const hasUnread = Boolean(
     updates?.length && (!lastSeen || new Date(updates[0].created_at) > new Date(lastSeen)),
   );

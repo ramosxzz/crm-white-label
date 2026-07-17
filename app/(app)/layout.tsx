@@ -30,7 +30,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const supabase = await createClient();
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name")
+    .select("full_name, last_seen_update_at")
     .eq("id", ctx.userId)
     .single();
 
@@ -52,7 +52,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <MaintenanceBanner />
-          <Topbar />
+          <Topbar lastSeenUpdateAt={profile?.last_seen_update_at ?? null} />
           <main className="flex-1 overflow-auto pb-[calc(4.75rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
         </div>
         <MobileBottomNav
