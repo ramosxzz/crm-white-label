@@ -109,13 +109,70 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
   // NUNCA assume uma conta por default (nem quando ha so uma ativa, nem quando
   // todas as contas ativas sao do mesmo tenant): exige match explicito por
-  // identificador (instance/instanceId/apikey/phone_number_id/sender). Sem
+  // identificador seguro (instance/instanceId/phone_number_id). Sem
   // match, o payload e ignorado — jamais atribuido a um tenant "palpite", que
   // foi exatamente a causa dos vazamentos anteriores entre tenants.
   let account: WhatsAppAccount | null = null;
 
   function norm(v: unknown): string {
     return String(v ?? "").trim().toLowerCase();
+  }
+
+  function normalizeUrl(v: unknown): string {
+    return norm(v).replace(/\/+$/, "");
+  }
+
+  function stringList(value: unknown): string[] {
+    if (Array.isArray(value)) {
+      return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+    }
+    if (typeof value === "string" && value.trim().length > 0) return [value];
+    return [];
+  }
+
+  function collectNestedStringValues(input: unknown, keys: string[], maxDepth = 4): string[] {
+    const values: string[] = [];
+    const wanted = new Set(keys.map((key) => key.toLowerCase()));
+    const seen = new Set<unknown>();
+
+    function visit(value: unknown, depth: number) {
+      if (!value || depth > maxDepth || typeof value !== "object" || seen.has(value)) return;
+      seen.add(value);
+      for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+        if (wanted.has(key.toLowerCase()) && typeof nested === "string" && nested.trim().length > 0) {
+          values.push(nested);
+        }
+        if (nested && typeof nested === "object") visit(nested, depth + 1);
+      }
+    }
+
+    visit(input, 0);
+    return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+  }
+
+  function getEvolutionAccountIdentities(account: WhatsAppAccount): string[] {
+    const creds = (account.credentials ?? {}) as Record<string, unknown>;
+    return Array.from(new Set([
+      creds.instance,
+      creds.instance_id,
+      creds.instanceName,
+      creds.instanceId,
+      creds.previous_instance,
+      ...stringList(creds.instance_aliases),
+      ...stringList(creds.instanceAliases),
+    ].map(norm).filter(Boolean)));
+  }
+
+  function pickSingleMatch(matches: WhatsAppAccount[], reason: string): WhatsAppAccount | null {
+    const unique = Array.from(new Map(matches.map((item) => [item.id, item])).values());
+    if (unique.length === 1) return unique[0] ?? null;
+    if (unique.length > 1) {
+      console.error(`[webhook][${provider}] match ambiguo (${reason}); payload ignorado para evitar vazamento entre tenants.`, {
+        accountIds: unique.map((item) => item.id),
+        tenantIds: unique.map((item) => item.tenant_id),
+      });
+    }
+    return null;
   }
 
 
@@ -128,13 +185,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
     const phone = metadata?.display_phone_number?.replace(/\D/g, "");
 
     const matchedByPhoneNumberId = phoneNumberId
-      ? accounts.find((a) => {
+      ? pickSingleMatch(accounts.filter((a) => {
           const creds = a.credentials as { phone_number_id?: string };
           return creds.phone_number_id && norm(creds.phone_number_id) === norm(phoneNumberId);
-        })
+        }), "cloud_api.phone_number_id")
       : null;
     const matchedByPhone = phone
-      ? accounts.find((a) => a.phone_number.replace(/\D/g, "") === phone)
+      ? pickSingleMatch(accounts.filter((a) => a.phone_number.replace(/\D/g, "") === phone), "cloud_api.phone")
       : null;
     account = matchedByPhoneNumberId ?? matchedByPhone ?? null;
 
@@ -148,13 +205,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
     if (instanceId) {
 
-      account = accounts.find((a) => {
+      account = pickSingleMatch(accounts.filter((a) => {
 
         const creds = a.credentials as { instance_id?: string };
 
         return creds.instance_id && norm(creds.instance_id) === norm(instanceId);
 
-      }) ?? null;
+      }), "zapi.instance_id");
 
     }
 
@@ -173,14 +230,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
     };
     const data = raw.data;
 
-    const apiKey = norm(raw.apikey);
-    if (apiKey) {
-      account = accounts.find((a) => {
-        const creds = a.credentials as { api_key?: string };
-        return creds.api_key && norm(creds.api_key) === apiKey;
-      }) ?? null;
-    }
-
     const instanceCandidates = [
       raw.instance,
       raw.instanceName,
@@ -188,21 +237,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
       data?.instance,
       data?.instanceName,
       data?.instanceId,
+      ...collectNestedStringValues(payload, [
+        "instance",
+        "instanceName",
+        "instanceId",
+        "instance_id",
+      ]),
     ].filter((v): v is string => typeof v === "string" && v.trim().length > 0);
 
-    if (!account && instanceCandidates.length > 0) {
+    if (instanceCandidates.length > 0) {
 
-      account = accounts.find((a) => {
+      let matches = accounts.filter((a) => {
+        const identities = getEvolutionAccountIdentities(a);
+        return instanceCandidates.some((candidate) => identities.includes(norm(candidate)));
+      });
 
-        const creds = a.credentials as { instance?: string; instance_id?: string };
+      const apiKey = norm(raw.apikey);
+      if (matches.length > 1 && apiKey) {
+        const narrowed = matches.filter((a) => {
+          const creds = a.credentials as { api_key?: string };
+          return creds.api_key && norm(creds.api_key) === apiKey;
+        });
+        if (narrowed.length > 0) matches = narrowed;
+      }
 
-        return instanceCandidates.some(
-          (candidate) =>
-            (creds.instance && norm(creds.instance) === norm(candidate)) ||
-            (creds.instance_id && norm(creds.instance_id) === norm(candidate)),
-        );
+      const serverUrl = normalizeUrl(raw.server_url);
+      if (matches.length > 1 && serverUrl) {
+        const narrowed = matches.filter((a) => {
+          const creds = a.credentials as { base_url?: string };
+          return creds.base_url && normalizeUrl(creds.base_url) === serverUrl;
+        });
+        if (narrowed.length > 0) matches = narrowed;
+      }
 
-      }) ?? null;
+      account = pickSingleMatch(matches, "evolution.instance");
 
     }
 
@@ -210,14 +278,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
     // digitos curtos ou formatacao inconsistente (com/sem 55, com/sem 9) podem
     // colidir por coincidencia entre contas de tenants diferentes. Foi a causa
     // de um vazamento real (mensagens da Avante Digital atribuidas a Atacado
-    // Moda Sul). So aceitar match exato por instance/instanceId/apikey/base_url.
-
-    const serverUrl = norm(raw.server_url);
-    if (!account && serverUrl) {
-      account = accounts.find((a) => {
-        const creds = a.credentials as { base_url?: string };
-        return creds.base_url && norm(creds.base_url).replace(/\/$/, "") === serverUrl.replace(/\/$/, "");
-      }) ?? null;
+    // Moda Sul). Tambem NAO aceitar apikey/base_url como match principal, pois
+    // varias instancias podem compartilhar a mesma API key ou o mesmo servidor.
+    if (!account && instanceCandidates.length === 0) {
+      console.error("[webhook][evolution] payload sem instance/instanceId; ignorado para evitar vazamento entre tenants.");
+    } else if (!account) {
+      console.error("[webhook][evolution] instance nao encontrada em conta ativa; payload ignorado para evitar vazamento entre tenants.", {
+        candidates: instanceCandidates,
+        event: raw.event,
+      });
     }
 
   }
@@ -356,17 +425,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
     if (msg.externalId) {
 
+      // Busca GLOBAL (sem filtro de tenant_id): external_id e o id da mensagem
+      // no WhatsApp e so pode existir uma vez em toda a tabela. Se ja existe em
+      // outro tenant, e reentrega/retry do mesmo evento (Evolution reenvia ate
+      // 10x) batendo em outra conta - nunca deve ser inserida de novo em
+      // tenant nenhum (evita duplicacao e vazamento entre tenants).
       const { data: existingMsg } = await supabase
 
         .from("messages")
 
-        .select("id, body, status, conversation_id")
-
-        .eq("tenant_id", account.tenant_id)
+        .select("id, tenant_id, body, status, conversation_id")
 
         .eq("external_id", msg.externalId)
 
         .maybeSingle();
+
+      if (existingMsg && existingMsg.tenant_id !== account.tenant_id) {
+        console.error(
+          `[webhook][${provider}] external_id ${msg.externalId} ja pertence ao tenant ${existingMsg.tenant_id}, ignorando entrega duplicada para o tenant ${account.tenant_id}.`,
+        );
+        continue;
+      }
 
       if (existingMsg) {
 
