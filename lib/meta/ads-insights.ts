@@ -64,7 +64,8 @@ type MetaInsightRow = {
 };
 
 const GRAPH_VERSION = "v25.0";
-const META_ADS_FETCH_TIMEOUT_MS = 4_500;
+const META_ADS_FETCH_TIMEOUT_MS = 10_000;
+const META_ADS_MAX_ATTEMPTS = 2;
 
 const LEAD_ACTIONS = new Set([
   "lead",
@@ -127,81 +128,90 @@ export async function getMetaAdsDashboard(input: {
     access_token: accessToken,
   });
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), META_ADS_FETCH_TIMEOUT_MS);
+  const url = `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(adAccountId)}/insights?${params.toString()}`;
 
-  try {
-    const response = await fetch(
-      `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(adAccountId)}/insights?${params.toString()}`,
-      { cache: "no-store", signal: controller.signal },
-    );
-    const payload = (await response.json().catch(() => null)) as {
-      data?: MetaInsightRow[];
-      error?: { message?: string; code?: number; type?: string };
-    } | null;
+  let lastError: MetaAdsDashboardData | null = null;
 
-    if (!response.ok) {
+  for (let attempt = 1; attempt <= META_ADS_MAX_ATTEMPTS; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), META_ADS_FETCH_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(url, { cache: "no-store", signal: controller.signal });
+      const payload = (await response.json().catch(() => null)) as {
+        data?: MetaInsightRow[];
+        error?: { message?: string; code?: number; type?: string };
+      } | null;
+
+      if (!response.ok) {
+        return {
+          ...emptyMetaDashboard("error", adAccountId),
+          error: translateMetaAdsError(payload?.error?.message),
+          errorCode: payload?.error?.code,
+          errorType: payload?.error?.type,
+        };
+      }
+
+      const rows = (payload?.data ?? []).map(normalizeInsightRow).sort((a, b) => b.spendCents - a.spendCents);
+      const totals = rows.reduce(
+        (acc, row) => {
+          acc.spendCents += row.spendCents;
+          acc.revenueCents += row.revenueCents;
+          acc.impressions += row.impressions;
+          acc.reach += row.reach;
+          acc.clicks += row.clicks;
+          acc.leads += row.leads;
+          acc.purchases += row.purchases;
+          return acc;
+        },
+        {
+          spendCents: 0,
+          revenueCents: 0,
+          impressions: 0,
+          reach: 0,
+          clicks: 0,
+          leads: 0,
+          purchases: 0,
+          roas: 0,
+          cacCents: 0,
+          cplCents: 0,
+        },
+      );
+
+      totals.roas = totals.spendCents > 0 ? round2(totals.revenueCents / totals.spendCents) : 0;
+      totals.cplCents = totals.leads > 0 ? Math.round(totals.spendCents / totals.leads) : 0;
+      totals.cacCents = totals.purchases > 0 ? Math.round(totals.spendCents / totals.purchases) : totals.cplCents;
+
       return {
-        ...emptyMetaDashboard("error", adAccountId),
-        error: translateMetaAdsError(payload?.error?.message),
-        errorCode: payload?.error?.code,
-        errorType: payload?.error?.type,
+        status: "ready",
+        adAccountId,
+        datePreset,
+        updatedAt: new Date().toISOString(),
+        totals,
+        rows,
       };
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        lastError = {
+          ...emptyMetaDashboard("error", adAccountId),
+          error: "A Meta demorou para responder. O CRM continuou carregando e voce pode tentar novamente em instantes.",
+        };
+      } else {
+        lastError = {
+          ...emptyMetaDashboard("error", adAccountId),
+          error: error instanceof Error ? error.message : "Erro inesperado ao consultar o Meta Ads.",
+        };
+        break;
+      }
+    } finally {
+      clearTimeout(timeout);
     }
-
-    const rows = (payload?.data ?? []).map(normalizeInsightRow).sort((a, b) => b.spendCents - a.spendCents);
-    const totals = rows.reduce(
-      (acc, row) => {
-        acc.spendCents += row.spendCents;
-        acc.revenueCents += row.revenueCents;
-        acc.impressions += row.impressions;
-        acc.reach += row.reach;
-        acc.clicks += row.clicks;
-        acc.leads += row.leads;
-        acc.purchases += row.purchases;
-        return acc;
-      },
-      {
-        spendCents: 0,
-        revenueCents: 0,
-        impressions: 0,
-        reach: 0,
-        clicks: 0,
-        leads: 0,
-        purchases: 0,
-        roas: 0,
-        cacCents: 0,
-        cplCents: 0,
-      },
-    );
-
-    totals.roas = totals.spendCents > 0 ? round2(totals.revenueCents / totals.spendCents) : 0;
-    totals.cplCents = totals.leads > 0 ? Math.round(totals.spendCents / totals.leads) : 0;
-    totals.cacCents = totals.purchases > 0 ? Math.round(totals.spendCents / totals.purchases) : totals.cplCents;
-
-    return {
-      status: "ready",
-      adAccountId,
-      datePreset,
-      updatedAt: new Date().toISOString(),
-      totals,
-      rows,
-    };
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
-      return {
-        ...emptyMetaDashboard("error", adAccountId),
-        error: "A Meta demorou para responder. O CRM continuou carregando e voce pode tentar novamente em instantes.",
-      };
-    }
-
-    return {
-      ...emptyMetaDashboard("error", adAccountId),
-      error: error instanceof Error ? error.message : "Erro inesperado ao consultar o Meta Ads.",
-    };
-  } finally {
-    clearTimeout(timeout);
   }
+
+  return lastError ?? {
+    ...emptyMetaDashboard("error", adAccountId),
+    error: "Erro inesperado ao consultar o Meta Ads.",
+  };
 }
 
 function emptyMetaDashboard(status: MetaAdsStatus, adAccountId?: string | null): MetaAdsDashboardData {
