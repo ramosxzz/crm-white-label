@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import type { WhatsAppAccount, WhatsAppProviderKind } from "@/lib/supabase/database.types";
 import { getAppBaseUrl } from "@/lib/app-url";
@@ -117,6 +117,85 @@ async function syncCloudApiWebhook(input: {
   }
 }
 
+function identityValue(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function identityList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map(identityValue).filter(Boolean);
+  }
+  const single = identityValue(value);
+  return single ? [single] : [];
+}
+
+function getProviderIdentityValues(provider: WhatsAppProviderKind, credentials: Record<string, unknown>): string[] {
+  if (provider === "evolution") {
+    return Array.from(new Set([
+      credentials.instance,
+      credentials.instance_id,
+      credentials.instanceName,
+      credentials.instanceId,
+      credentials.previous_instance,
+      ...identityList(credentials.instance_aliases),
+      ...identityList(credentials.instanceAliases),
+    ].map(identityValue).filter(Boolean)));
+  }
+
+  if (provider === "zapi") {
+    return [credentials.instance_id].map(identityValue).filter(Boolean);
+  }
+
+  if (provider === "cloud_api") {
+    return [credentials.phone_number_id].map(identityValue).filter(Boolean);
+  }
+
+  return [];
+}
+
+function getProviderIdentityLabel(provider: WhatsAppProviderKind) {
+  if (provider === "evolution") return "instância Evolution";
+  if (provider === "zapi") return "instância Z-API";
+  if (provider === "cloud_api") return "ID do número da Cloud API";
+  return "identificador da conexão";
+}
+
+async function assertUniqueActiveWhatsAppIdentity(input: {
+  id?: string;
+  provider: WhatsAppProviderKind;
+  credentials: Record<string, unknown>;
+  is_active: boolean;
+}) {
+  if (!input.is_active) return;
+
+  const values = getProviderIdentityValues(input.provider, input.credentials);
+  if (values.length === 0) {
+    throw new Error(`Informe o ${getProviderIdentityLabel(input.provider)} antes de ativar esta conexão.`);
+  }
+
+  const service = createServiceClient();
+  const { data, error } = await service
+    .from("whatsapp_accounts")
+    .select("id, provider, credentials, is_active")
+    .eq("provider", input.provider)
+    .eq("is_active", true);
+
+  if (error) throw new Error(error.message);
+
+  const duplicate = (data ?? []).find((account) => {
+    if (account.id === input.id) return false;
+    const credentials = (account.credentials ?? {}) as Record<string, unknown>;
+    const accountValues = getProviderIdentityValues(input.provider, credentials);
+    return accountValues.some((value) => values.includes(value));
+  });
+
+  if (duplicate) {
+    throw new Error(
+      `Este ${getProviderIdentityLabel(input.provider)} já está vinculado a outra conexão ativa. Desative/exclua a conexão antiga ou use uma instância exclusiva para esta empresa.`,
+    );
+  }
+}
+
 export async function saveWhatsAppAccount(input: {
   id?: string;
   provider: WhatsAppProviderKind;
@@ -140,6 +219,8 @@ export async function saveWhatsAppAccount(input: {
       .maybeSingle();
     if (!member) throw new Error("Responsavel nao pertence a este workspace");
   }
+
+  await assertUniqueActiveWhatsAppIdentity(input);
 
   if (input.is_active) {
     await syncZapiWebhooks(input, ctx.tenantId);
@@ -214,7 +295,11 @@ export async function setWhatsAppAccountActive(input: { id: string; is_active: b
     provider: (account as WhatsAppAccount).provider,
     phone_number: (account as WhatsAppAccount).phone_number,
     credentials,
+    is_active: input.is_active,
+    id: input.id,
   };
+
+  await assertUniqueActiveWhatsAppIdentity(syncInput);
 
   if (input.is_active) {
     await syncZapiWebhooks(syncInput, ctx.tenantId);

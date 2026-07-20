@@ -28,6 +28,13 @@ export function AppointmentDialog({
         <DialogHeader><DialogTitle>Novo horario</DialogTitle></DialogHeader>
         <form action={createAppointment} className="space-y-4">
           <div className="space-y-1.5">
+            <Label htmlFor="agenda-kind">Tipo</Label>
+            <select id="agenda-kind" name="kind" defaultValue="meeting" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+              <option value="meeting">Reunião</option>
+              <option value="call">Ligação</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
             <Label htmlFor="agenda-lead">Cliente</Label>
             <select id="agenda-lead" name="lead_id" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
               <option value="">Sem cliente vinculado</option>

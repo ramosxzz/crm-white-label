@@ -843,18 +843,21 @@ export async function updateChatLeadNotes(input: { leadId: string; notes: string
   const supabase = await createClient();
   const notes = String(input.notes ?? "").slice(0, 20_000);
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("leads")
     .update({ notes })
     .eq("id", input.leadId)
-    .eq("tenant_id", ctx.tenantId);
+    .eq("tenant_id", ctx.tenantId)
+    .select("notes")
+    .single();
   if (error) throw new Error(error.message);
+  if (!data) throw new Error("Nao foi possivel salvar as notas deste lead.");
 
   revalidatePath("/chat");
   revalidatePath(`/chat/${input.leadId}`);
   revalidatePath("/leads");
   revalidatePath(`/leads/${input.leadId}`);
-  return { notes };
+  return { notes: data.notes ?? "" };
 }
 
 export async function setLeadAutomations(input: { leadId: string; enabled: boolean }) {

@@ -3,28 +3,66 @@ import Link from "next/link";
 import { PhoneCall, PhoneOff, Clock, Headphones, User } from "lucide-react";
 import { requireContext } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
+import { listTenantUserOptions } from "@/lib/tenant/users";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CallButton } from "@/components/leads/call-button";
 import { fetchApi4comCalls } from "@/lib/integrations/api4com";
 import { cn } from "@/lib/utils";
+import { CallsTable, type CallRow } from "./calls-table";
+import { CallsFunnel } from "./calls-funnel";
+import type { CallOutcome } from "./actions";
 
 const ANSWERED_CAUSE = "NORMAL_CLEARING";
-type CallLeadRow = { id: string; name: string; pipeline_id: string | null; stage_id: string | null };
+type CallLeadRow = { id: string; name: string; phone: string | null; pipeline_id: string | null; stage_id: string | null; tags: string[] | null };
 type NameRow = { id: string; name: string };
 
-type SearchParams = { from?: string | string[]; to?: string | string[]; preset?: string | string[] };
+type SearchParams = {
+  from?: string | string[];
+  to?: string | string[];
+  preset?: string | string[];
+  stage?: string | string[];
+  tag?: string | string[];
+};
 
 export default async function CallsDashboardPage({ searchParams }: { searchParams?: Promise<SearchParams> }) {
   const ctx = await requireContext();
   if (!ctx.tenant.calls_dashboard_enabled) notFound();
   const params = (await searchParams) ?? {};
   const range = getDateRange(params);
+  const stageFilter = firstParam(params.stage) || "";
+  const tagFilter = firstParam(params.tag) || "";
 
-  const allCalls = await fetchApi4comCalls();
+  const supabase = await createClient();
+
+  const [allCalls, pipelinesRes, users, outcomesRes] = await Promise.all([
+    fetchApi4comCalls(),
+    supabase
+      .from("pipelines")
+      .select("id, name, pipeline_stages(id, name, color, position)")
+      .eq("tenant_id", ctx.tenantId)
+      .order("name"),
+    listTenantUserOptions(ctx.tenantId),
+    supabase.from("call_attempts").select("api4com_call_id, lead_id, outcome").eq("tenant_id", ctx.tenantId),
+  ]);
+
+  const pipelineOptions = ((pipelinesRes.data ?? []) as {
+    id: string;
+    name: string;
+    pipeline_stages: { id: string; name: string; color: string | null; position: number | null }[] | null;
+  }[]).map((p) => ({
+    id: p.id,
+    name: p.name,
+    stages: (p.pipeline_stages ?? []).slice().sort((a, b) => (a.position ?? 0) - (b.position ?? 0)),
+  }));
+  const allStages = pipelineOptions.flatMap((p) => p.stages);
+
+  const outcomeByCallId = new Map<string, CallOutcome>();
+  for (const row of (outcomesRes.data ?? []) as { api4com_call_id: string | null; lead_id: string | null; outcome: string }[]) {
+    if (row.api4com_call_id) outcomeByCallId.set(row.api4com_call_id, row.outcome as CallOutcome);
+  }
+
   const calls = allCalls
     .filter((c) => (c.metadata as Record<string, unknown> | null)?.tenant_id === ctx.tenantId)
     .filter((c) => {
@@ -48,8 +86,6 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
     ),
   );
 
-  // Tentativas por lead/destino: cada ligacao para o mesmo lead (ou, sem lead,
-  // o mesmo numero de destino) conta como uma tentativa de contato.
   const contactKey = (c: (typeof calls)[number]) =>
     ((c.metadata as Record<string, unknown> | null)?.lead_id as string | undefined) ?? c.to;
   const attemptsByKey = new Map<string, number>();
@@ -60,8 +96,6 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
   const contactedCount = attemptsByKey.size;
   const avgAttempts = contactedCount > 0 ? (total / contactedCount).toFixed(1) : "0";
 
-  // Ordinal de cada ligacao entre as tentativas do mesmo lead (1a, 2a, ...),
-  // contando da mais antiga para a mais recente.
   const ordinalByCall = new Map<string, number>();
   const running = new Map<string, number>();
   for (let i = calls.length - 1; i >= 0; i--) {
@@ -71,32 +105,59 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
     running.set(k, n);
     ordinalByCall.set(c.id, n);
   }
-  const supabase = await createClient();
 
   const { data: leads } = leadIds.length
-    ? await (supabase as any).from("leads").select("id, name, pipeline_id, stage_id").in("id", leadIds).eq("tenant_id", ctx.tenantId)
-    : { data: [] as { id: string; name: string; pipeline_id: string | null; stage_id: string | null }[] };
+    ? await supabase.from("leads").select("id, name, phone, pipeline_id, stage_id, tags").in("id", leadIds).eq("tenant_id", ctx.tenantId)
+    : { data: [] as CallLeadRow[] };
   const leadRows = (leads ?? []) as CallLeadRow[];
-  const leadNames = Object.fromEntries(leadRows.map((l) => [l.id, l.name])) as Record<string, string>;
-  const leadBusiness = Object.fromEntries(
-    leadRows.map((lead) => [
-      lead.id,
-      {
-        pipelineId: lead.pipeline_id,
-        stageId: lead.stage_id,
-      },
-    ]),
-  ) as Record<string, { pipelineId: string | null; stageId: string | null }>;
-  const { data: pipelines } = await (supabase as any)
-    .from("pipelines")
-    .select("id, name")
-    .eq("tenant_id", ctx.tenantId);
-  const { data: stages } = await (supabase as any)
-    .from("pipeline_stages")
-    .select("id, name")
-    .eq("tenant_id", ctx.tenantId);
-  const pipelineNames = Object.fromEntries(((pipelines ?? []) as NameRow[]).map((pipeline) => [pipeline.id, pipeline.name])) as Record<string, string>;
+  const leadById = new Map(leadRows.map((l) => [l.id, l]));
+  const { data: stages } = await supabase.from("pipeline_stages").select("id, name").eq("tenant_id", ctx.tenantId);
   const stageNames = Object.fromEntries(((stages ?? []) as NameRow[]).map((stage) => [stage.id, stage.name])) as Record<string, string>;
+  const pipelineNameById = Object.fromEntries(pipelineOptions.map((p) => [p.id, p.name])) as Record<string, string>;
+
+  const allTags = Array.from(new Set(leadRows.flatMap((l) => l.tags ?? []))).sort();
+
+  const rows: CallRow[] = calls
+    .filter((c) => {
+      if (!stageFilter) return true;
+      const leadId = (c.metadata as Record<string, unknown> | null)?.lead_id as string | undefined;
+      const lead = leadId ? leadById.get(leadId) : null;
+      return lead?.stage_id === stageFilter;
+    })
+    .filter((c) => {
+      if (!tagFilter) return true;
+      const leadId = (c.metadata as Record<string, unknown> | null)?.lead_id as string | undefined;
+      const lead = leadId ? leadById.get(leadId) : null;
+      return (lead?.tags ?? []).includes(tagFilter);
+    })
+    .slice(0, 100)
+    .map((c) => {
+      const leadId = (c.metadata as Record<string, unknown> | null)?.lead_id as string | undefined;
+      const lead = leadId ? leadById.get(leadId) : null;
+      return {
+        id: c.id,
+        startedAt: c.started_at,
+        from: c.from,
+        to: c.to,
+        leadId: leadId ?? null,
+        leadName: lead?.name ?? null,
+        leadPhone: lead?.phone ?? null,
+        pipelineName: lead?.pipeline_id ? pipelineNameById[lead.pipeline_id] ?? null : null,
+        stageName: lead?.stage_id ? stageNames[lead.stage_id] ?? null : null,
+        attempts: attemptsByKey.get(contactKey(c)) ?? 1,
+        ordinal: ordinalByCall.get(c.id) ?? 1,
+        duration: c.duration,
+        wasAnswered: c.duration > 0,
+        hangupLabel: describeHangupCause(c.hangup_cause),
+        recordUrl: c.record_url,
+        outcome: outcomeByCallId.get(c.id) ?? "feita",
+      };
+    });
+
+  const outcomeCounts: Record<string, number> = { feita: total };
+  for (const outcome of outcomeByCallId.values()) {
+    outcomeCounts[outcome] = (outcomeCounts[outcome] ?? 0) + 1;
+  }
 
   return (
     <div>
@@ -104,20 +165,32 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
 
       <form className="mx-6 mt-6 flex flex-wrap items-end gap-3 rounded-xl border border-border/60 bg-card/70 p-4">
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground" htmlFor="calls-from">
-            De
-          </label>
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="calls-from">De</label>
           <Input id="calls-from" name="from" type="date" defaultValue={formatDateInput(range.from)} className="h-9 w-40" />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground" htmlFor="calls-to">
-            Até
-          </label>
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="calls-to">Até</label>
           <Input id="calls-to" name="to" type="date" defaultValue={formatDateInput(range.to)} className="h-9 w-40" />
         </div>
-        <Button type="submit" variant="outline" size="sm">
-          Filtrar
-        </Button>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="calls-stage">Etapa</label>
+          <select id="calls-stage" name="stage" defaultValue={stageFilter} className="h-9 w-44 rounded-md border border-input bg-background px-2.5 text-sm">
+            <option value="">Todas</option>
+            {allStages.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="calls-tag">Tag</label>
+          <select id="calls-tag" name="tag" defaultValue={tagFilter} className="h-9 w-40 rounded-md border border-input bg-background px-2.5 text-sm">
+            <option value="">Todas</option>
+            {allTags.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+        <Button type="submit" variant="outline" size="sm">Filtrar</Button>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant={range.preset === "today" ? "brand" : "outline"} size="sm">
             <Link href="/ligacoes?preset=today" prefetch>Hoje</Link>
@@ -141,100 +214,16 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
       </div>
 
       <div className="px-6 pb-6">
+        <CallsFunnel counts={outcomeCounts} />
+      </div>
+
+      <div className="px-6 pb-6">
         <Card>
           <CardHeader>
             <CardTitle>Histórico de Ligações</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            {calls.length === 0 ? (
-              <p className="p-6 text-sm text-muted-foreground">Nenhuma ligação registrada ainda.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border/60 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      <th className="px-5 py-3">Data</th>
-                      <th className="px-5 py-3">Ramal</th>
-                      <th className="px-5 py-3">Destino</th>
-                      <th className="px-5 py-3">Lead</th>
-                      <th className="px-5 py-3">Funil</th>
-                      <th className="px-5 py-3">Etapa</th>
-                      <th className="px-5 py-3">Tentativas</th>
-                      <th className="px-5 py-3">Duração</th>
-                      <th className="px-5 py-3">Status</th>
-                      <th className="px-5 py-3 text-center">Ligar</th>
-                      <th className="px-5 py-3">Gravação</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {calls.slice(0, 100).map((c) => {
-                      const leadId = (c.metadata as Record<string, unknown> | null)?.lead_id as string | undefined;
-                      const wasAnswered = c.duration > 0;
-                      const attempts = attemptsByKey.get(contactKey(c)) ?? 1;
-                      const ordinal = ordinalByCall.get(c.id) ?? 1;
-                      const business = leadId ? leadBusiness[leadId] : null;
-                      return (
-                        <tr key={c.id} className="border-b border-border/40 last:border-0 hover:bg-muted/30">
-                          <td className="px-5 py-3 text-muted-foreground">
-                            {new Date(c.started_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                          </td>
-                          <td className="px-5 py-3 font-mono">{c.from}</td>
-                          <td className="px-5 py-3 font-mono">{c.to}</td>
-                          <td className="px-5 py-3">
-                            {leadId ? (
-                              <Link href={`/leads/${leadId}`} prefetch className="inline-flex items-center gap-1 text-brand hover:underline">
-                                <User className="h-3.5 w-3.5" /> {leadNames[leadId] ?? "Ver lead"}
-                              </Link>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </td>
-                          <td className="px-5 py-3">
-                            {business?.pipelineId ? (
-                              <span className="max-w-48 truncate text-muted-foreground">{pipelineNames[business.pipelineId] ?? "-"}</span>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </td>
-                          <td className="px-5 py-3">
-                            {business?.stageId ? (
-                              <Badge variant="outline">{stageNames[business.stageId] ?? "Etapa"}</Badge>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </td>
-                          <td className="px-5 py-3">
-                            <Badge variant="secondary" className="tabular-nums" title={`${attempts} tentativa(s) no total`}>
-                              {ordinal}ª de {attempts}
-                            </Badge>
-                          </td>
-                          <td className="px-5 py-3 tabular-nums">{formatDuration(c.duration)}</td>
-                          <td className="px-5 py-3">
-                            <Badge variant={wasAnswered ? "success" : "destructive"}>
-                              {wasAnswered ? "Atendida" : describeHangupCause(c.hangup_cause)}
-                            </Badge>
-                          </td>
-                          <td className="px-5 py-3">
-                            <div className="flex justify-center">
-                              <CallButton leadId={leadId} phone={c.to} iconOnly />
-                            </div>
-                          </td>
-                          <td className="px-5 py-3">
-                            {c.record_url ? (
-                              <a href={c.record_url} target="_blank" rel="noreferrer" className="text-brand hover:underline">
-                                Ouvir
-                              </a>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <CallsTable calls={rows} pipelineOptions={pipelineOptions} users={users} />
           </CardContent>
         </Card>
       </div>

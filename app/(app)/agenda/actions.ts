@@ -18,6 +18,7 @@ const appointmentSchema = z.object({
   starts_at: z.string().min(1),
   duration_minutes: z.number().int().positive(),
   notes: z.string().optional(),
+  kind: z.enum(["meeting", "call"]).default("meeting"),
 });
 
 function refreshAgenda() {
@@ -36,6 +37,7 @@ export async function createAppointment(formData: FormData) {
     starts_at: formData.get("starts_at"),
     duration_minutes: Number(formData.get("duration_minutes") ?? 60),
     notes: formData.get("notes") || undefined,
+    kind: formData.get("kind") || undefined,
   });
   const supabase = await createClient();
   const startsAtIso = new Date(parsed.starts_at).toISOString();
@@ -56,6 +58,7 @@ export async function createAppointment(formData: FormData) {
     starts_at: startsAtIso,
     duration_minutes: parsed.duration_minutes,
     notes: parsed.notes?.trim() || null,
+    kind: parsed.kind,
     created_by: ctx.userId,
   });
   if (error) throw new Error(error.message);
@@ -67,6 +70,51 @@ export async function createAppointment(formData: FormData) {
     startsAtIso,
   });
   refreshAgenda();
+}
+
+const scheduleCallSchema = z.object({
+  lead_id: uuid,
+  starts_at: z.string().min(1),
+  notes: z.string().optional(),
+});
+
+export async function scheduleCall(input: { leadId: string; startsAt: string; notes?: string }) {
+  const ctx = await requireContext();
+  assertRole(ctx.role, canOperateLead);
+  const parsed = scheduleCallSchema.parse({
+    lead_id: input.leadId,
+    starts_at: input.startsAt,
+    notes: input.notes,
+  });
+  const supabase = await createClient();
+  const startsAtIso = new Date(parsed.starts_at).toISOString();
+  const { data: lead } = await supabase
+    .from("leads")
+    .select("name, assigned_to")
+    .eq("id", parsed.lead_id)
+    .eq("tenant_id", ctx.tenantId)
+    .maybeSingle();
+  if (!lead) throw new Error("Lead nao encontrado");
+  const { error } = await supabase.from("appointments").insert({
+    tenant_id: ctx.tenantId,
+    lead_id: parsed.lead_id,
+    assigned_to: lead.assigned_to ?? null,
+    starts_at: startsAtIso,
+    duration_minutes: 15,
+    notes: parsed.notes?.trim() || null,
+    kind: "call",
+    created_by: ctx.userId,
+  });
+  if (error) throw new Error(error.message);
+  await notifyAppointmentAssignee(supabase, {
+    tenantId: ctx.tenantId,
+    assigneeId: lead.assigned_to,
+    leadId: parsed.lead_id,
+    leadName: lead.name ?? null,
+    startsAtIso,
+  });
+  refreshAgenda();
+  revalidatePath("/ligacoes");
 }
 
 export async function updateAppointment(formData: FormData) {
@@ -81,6 +129,7 @@ export async function updateAppointment(formData: FormData) {
     starts_at: formData.get("starts_at"),
     duration_minutes: Number(formData.get("duration_minutes") ?? 60),
     notes: formData.get("notes") || undefined,
+    kind: formData.get("kind") || undefined,
   });
   const supabase = await createClient();
   const { data: current } = await supabase
@@ -172,6 +221,27 @@ export async function setMeetingOutcome(formData: FormData) {
   if (error) throw new Error(error.message);
   refreshAgenda();
   revalidatePath("/reunioes");
+}
+
+export async function listScheduledMessagesForTenant() {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("scheduled_messages")
+    .select("id, lead_id, body, media_url, media_type, send_at, status, leads(id, name, phone)")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("status", "pending")
+    .order("send_at", { ascending: true });
+  return (data ?? []) as {
+    id: string;
+    lead_id: string;
+    body: string | null;
+    media_url: string | null;
+    media_type: string | null;
+    send_at: string;
+    status: string;
+    leads: { id: string; name: string; phone: string | null } | null;
+  }[];
 }
 
 export async function createProfessional(formData: FormData) {
