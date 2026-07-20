@@ -12,10 +12,18 @@ import { fetchApi4comCalls } from "@/lib/integrations/api4com";
 import { cn } from "@/lib/utils";
 import { CallsTable, type CallRow } from "./calls-table";
 import { CallsFunnel } from "./calls-funnel";
-import type { CallOutcome } from "./call-outcomes";
+import { QUALIFIED_TAG, type CallOutcome } from "./call-outcomes";
 
 const ANSWERED_CAUSE = "NORMAL_CLEARING";
-type CallLeadRow = { id: string; name: string; phone: string | null; pipeline_id: string | null; stage_id: string | null; tags: string[] | null };
+type CallLeadRow = {
+  id: string;
+  name: string;
+  phone: string | null;
+  pipeline_id: string | null;
+  stage_id: string | null;
+  tags: string[] | null;
+  quality_stars: number | null;
+};
 type NameRow = { id: string; name: string };
 
 type SearchParams = {
@@ -24,6 +32,7 @@ type SearchParams = {
   preset?: string | string[];
   stage?: string | string[];
   tag?: string | string[];
+  stars?: string | string[];
 };
 
 export default async function CallsDashboardPage({ searchParams }: { searchParams?: Promise<SearchParams> }) {
@@ -33,6 +42,7 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
   const range = getDateRange(params);
   const stageFilter = firstParam(params.stage) || "";
   const tagFilter = firstParam(params.tag) || "";
+  const starsFilter = Number(firstParam(params.stars) || 0);
 
   const supabase = await createClient();
 
@@ -107,7 +117,7 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
   }
 
   const { data: leads } = leadIds.length
-    ? await supabase.from("leads").select("id, name, phone, pipeline_id, stage_id, tags").in("id", leadIds).eq("tenant_id", ctx.tenantId)
+    ? await supabase.from("leads").select("id, name, phone, pipeline_id, stage_id, tags, quality_stars").in("id", leadIds).eq("tenant_id", ctx.tenantId)
     : { data: [] as CallLeadRow[] };
   const leadRows = (leads ?? []) as CallLeadRow[];
   const leadById = new Map(leadRows.map((l) => [l.id, l]));
@@ -130,6 +140,12 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
       const lead = leadId ? leadById.get(leadId) : null;
       return (lead?.tags ?? []).includes(tagFilter);
     })
+    .filter((c) => {
+      if (!starsFilter) return true;
+      const leadId = (c.metadata as Record<string, unknown> | null)?.lead_id as string | undefined;
+      const lead = leadId ? leadById.get(leadId) : null;
+      return (lead?.quality_stars ?? 0) >= starsFilter;
+    })
     .slice(0, 100)
     .map((c) => {
       const leadId = (c.metadata as Record<string, unknown> | null)?.lead_id as string | undefined;
@@ -144,6 +160,8 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
         leadPhone: lead?.phone ?? null,
         pipelineName: lead?.pipeline_id ? pipelineNameById[lead.pipeline_id] ?? null : null,
         stageName: lead?.stage_id ? stageNames[lead.stage_id] ?? null : null,
+        tags: lead?.tags ?? [],
+        qualityStars: lead?.quality_stars ?? 0,
         attempts: attemptsByKey.get(contactKey(c)) ?? 1,
         ordinal: ordinalByCall.get(c.id) ?? 1,
         duration: c.duration,
@@ -154,8 +172,15 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
       };
     });
 
-  const outcomeCounts: Record<string, number> = { feita: total };
+  // "Qualificado" e tag do lead, nao resultado de ligacao - conta leads
+  // distintos com essa tag entre os que apareceram nas ligacoes do periodo.
+  const qualifiedLeadsCount = new Set(
+    leadIds.filter((id) => (leadById.get(id)?.tags ?? []).some((t) => t.toLowerCase() === QUALIFIED_TAG)),
+  ).size;
+
+  const outcomeCounts: Record<string, number> = { feita: total, qualificado: qualifiedLeadsCount };
   for (const outcome of outcomeByCallId.values()) {
+    if (outcome === "qualificado") continue;
     outcomeCounts[outcome] = (outcomeCounts[outcome] ?? 0) + 1;
   }
 
@@ -187,6 +212,15 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
             <option value="">Todas</option>
             {allTags.map((t) => (
               <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="calls-stars">Qualidade mín.</label>
+          <select id="calls-stars" name="stars" defaultValue={String(starsFilter)} className="h-9 w-36 rounded-md border border-input bg-background px-2.5 text-sm">
+            <option value="0">Qualquer</option>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <option key={n} value={n}>{"★".repeat(n)}</option>
             ))}
           </select>
         </div>

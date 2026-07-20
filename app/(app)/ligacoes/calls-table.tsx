@@ -1,16 +1,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import { User, PanelRightOpen } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CallButton } from "@/components/leads/call-button";
 import { WhatsAppCallButton } from "@/components/leads/whatsapp-call-button";
+import { StarRating } from "@/components/leads/star-rating";
 import { CallLeadPanel } from "./call-lead-panel";
-import { logCallOutcome } from "./actions";
-import { CALL_OUTCOME_LABEL, type CallOutcome } from "./call-outcomes";
+import { logCallOutcome, setLeadQualityStars } from "./actions";
+import { CALL_OUTCOME_LABEL, SELECTABLE_CALL_OUTCOMES, type CallOutcome } from "./call-outcomes";
 
 type PipelineOption = { id: string; name: string; stages: { id: string; name: string; color: string | null; position: number | null }[] };
 
@@ -24,6 +24,8 @@ export type CallRow = {
   leadPhone: string | null;
   pipelineName: string | null;
   stageName: string | null;
+  tags: string[];
+  qualityStars: number;
   attempts: number;
   ordinal: number;
   duration: number;
@@ -52,12 +54,19 @@ export function CallsTable({
   const [openLead, setOpenLead] = useState<{ id: string; name: string } | null>(null);
   const [, startTransition] = useTransition();
   const [localOutcome, setLocalOutcome] = useState<Record<string, CallOutcome>>({});
+  const [localStars, setLocalStars] = useState<Record<string, number>>({});
 
   function changeOutcome(call: CallRow, outcome: CallOutcome) {
     setLocalOutcome((prev) => ({ ...prev, [call.id]: outcome }));
     startTransition(() => {
       void logCallOutcome({ leadId: call.leadId ?? undefined, apiCallId: call.id, outcome }).catch(() => null);
     });
+  }
+
+  function changeStars(call: CallRow, stars: number) {
+    if (!call.leadId) return;
+    setLocalStars((prev) => ({ ...prev, [call.id]: stars }));
+    void setLeadQualityStars({ leadId: call.leadId, stars }).catch(() => null);
   }
 
   if (calls.length === 0) {
@@ -73,6 +82,8 @@ export function CallsTable({
               <th className="px-5 py-3">Data</th>
               <th className="px-5 py-3">Destino</th>
               <th className="px-5 py-3">Lead</th>
+              <th className="px-5 py-3">Tags</th>
+              <th className="px-5 py-3">Qualidade</th>
               <th className="px-5 py-3">Funil</th>
               <th className="px-5 py-3">Etapa</th>
               <th className="px-5 py-3">Tentativas</th>
@@ -104,6 +115,24 @@ export function CallsTable({
                   )}
                 </td>
                 <td className="px-5 py-3">
+                  {c.tags.length > 0 ? (
+                    <div className="flex max-w-40 flex-wrap gap-1">
+                      {c.tags.map((tag) => (
+                        <Badge key={tag} variant="outline" className="text-[11px]">{tag}</Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </td>
+                <td className="px-5 py-3">
+                  {c.leadId ? (
+                    <StarRating value={localStars[c.id] ?? c.qualityStars} onChange={(stars) => changeStars(c, stars)} />
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </td>
+                <td className="px-5 py-3">
                   <span className="max-w-48 truncate text-muted-foreground">{c.pipelineName ?? "-"}</span>
                 </td>
                 <td className="px-5 py-3">
@@ -122,8 +151,8 @@ export function CallsTable({
                   <Select value={localOutcome[c.id] ?? c.outcome} onValueChange={(v) => changeOutcome(c, v as CallOutcome)}>
                     <SelectTrigger className="h-8 w-40"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {Object.entries(CALL_OUTCOME_LABEL).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      {SELECTABLE_CALL_OUTCOMES.map((value) => (
+                        <SelectItem key={value} value={value}>{CALL_OUTCOME_LABEL[value]}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

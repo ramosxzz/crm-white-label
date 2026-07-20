@@ -11,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { updateChatLeadBusiness, updateChatLeadNotes, updateChatLeadTags, scheduleChatMessage, cancelScheduledMessage } from "../chat/actions";
 import { scheduleCall, createAppointment } from "../agenda/actions";
-import { getLeadCallPanelData } from "./actions";
+import { getLeadCallPanelData, setLeadQualityStars } from "./actions";
 import { LeadTimeline } from "@/components/leads/lead-timeline";
+import { StarRating } from "@/components/leads/star-rating";
 
 type PipelineOption = {
   id: string;
@@ -59,6 +60,7 @@ export function CallLeadPanel({
   const [meetingNotes, setMeetingNotes] = useState("");
   const [meetingSaving, setMeetingSaving] = useState(false);
   const [meetingDone, setMeetingDone] = useState(false);
+  const [stars, setStars] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,6 +70,7 @@ export function CallLeadPanel({
         if (cancelled) return;
         setNotes(data.lead.notes ?? "");
         setTags(data.lead.tags ?? []);
+        setStars(data.lead.quality_stars ?? 0);
         setBusiness({
           valueReais: ((data.lead.value_cents ?? 0) / 100).toFixed(2).replace(".", ","),
           pipelineId: data.lead.pipeline_id ?? "none",
@@ -246,6 +249,16 @@ export function CallLeadPanel({
                   {businessSaving ? "Salvando..." : "Salvar negócio"}
                 </Button>
               </div>
+            </Section>
+
+            <Section title="Qualidade do lead">
+              <StarRating
+                value={stars}
+                onChange={(next) => {
+                  setStars(next);
+                  void setLeadQualityStars({ leadId, stars: next }).catch((err) => alert((err as Error).message));
+                }}
+              />
             </Section>
 
             <Section title="Tags">

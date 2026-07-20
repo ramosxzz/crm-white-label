@@ -13,7 +13,7 @@ export async function getLeadCallPanelData(leadId: string) {
   const [{ data: lead }, { data: scheduledMessages }] = await Promise.all([
     supabase
       .from("leads")
-      .select("id, name, phone, notes, tags, value_cents, pipeline_id, stage_id, assigned_to")
+      .select("id, name, phone, notes, tags, value_cents, pipeline_id, stage_id, assigned_to, quality_stars")
       .eq("id", leadId)
       .eq("tenant_id", ctx.tenantId)
       .maybeSingle(),
@@ -37,6 +37,7 @@ export async function getLeadCallPanelData(leadId: string) {
       pipeline_id: string | null;
       stage_id: string | null;
       assigned_to: string | null;
+      quality_stars: number | null;
     },
     scheduledMessages: (scheduledMessages ?? []) as {
       id: string;
@@ -55,6 +56,26 @@ const logCallOutcomeSchema = z.object({
   outcome: z.enum(["feita", "sem_resposta", "passou_valor", "qualificado", "fechado", "perdido"]),
   notes: z.string().optional(),
 });
+
+export async function setLeadQualityStars(input: { leadId: string; stars: number }) {
+  const ctx = await requireContext();
+  const stars = z.number().int().min(0).max(5).parse(input.stars);
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("leads")
+    .update({ quality_stars: stars })
+    .eq("id", input.leadId)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+  void logLeadActivity(supabase, {
+    tenantId: ctx.tenantId,
+    leadId: input.leadId,
+    userId: ctx.userId,
+    kind: "quality_stars_set",
+    payload: { stars },
+  });
+  revalidatePath("/ligacoes");
+}
 
 export async function logCallOutcome(input: {
   leadId?: string;
