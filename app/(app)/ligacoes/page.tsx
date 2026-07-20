@@ -13,6 +13,7 @@ import { isCallAnswered } from "@/lib/integrations/call-answered";
 import { cn } from "@/lib/utils";
 import { CallsTable, type CallRow } from "./calls-table";
 import { CallsFunnel } from "./calls-funnel";
+import { RefreshButton } from "@/components/app/refresh-button";
 import { QUALIFIED_TAG, type CallOutcome } from "./call-outcomes";
 
 const ANSWERED_CAUSE = "NORMAL_CLEARING";
@@ -189,7 +190,7 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
 
   return (
     <div>
-      <PageHeader title="Ligações" description="Chamadas realizadas via Api4com" />
+      <PageHeader title="Ligações" description="Chamadas realizadas via Api4com" actions={<RefreshButton title="Atualizar ligações" />} />
 
       <form className="mx-6 mt-6 flex flex-wrap items-end gap-3 rounded-xl border border-border/60 bg-card/70 p-4">
         <div className="space-y-1.5">

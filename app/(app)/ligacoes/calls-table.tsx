@@ -1,15 +1,17 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { User, PanelRightOpen } from "lucide-react";
+import { User, PanelRightOpen, Plus, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CallButton } from "@/components/leads/call-button";
 import { WhatsAppCallButton } from "@/components/leads/whatsapp-call-button";
 import { StarRating } from "@/components/leads/star-rating";
 import { CallLeadPanel } from "./call-lead-panel";
 import { logCallOutcome, setLeadQualityStars, setLeadStage } from "./actions";
+import { updateChatLeadTags } from "../chat/actions";
 import { CALL_OUTCOME_LABEL, SELECTABLE_CALL_OUTCOMES, type CallOutcome } from "./call-outcomes";
 
 type PipelineOption = { id: string; name: string; stages: { id: string; name: string; color: string | null; position: number | null }[] };
@@ -59,6 +61,34 @@ export function CallsTable({
   const [localStars, setLocalStars] = useState<Record<string, number>>({});
   const [localStage, setLocalStage] = useState<Record<string, { stageId: string; stageName: string }>>({});
   const [stageSaving, setStageSaving] = useState<string | null>(null);
+  const [localTags, setLocalTags] = useState<Record<string, string[]>>({});
+  const [tagInputOpenId, setTagInputOpenId] = useState<string | null>(null);
+  const [tagDraft, setTagDraft] = useState("");
+
+  function addTag(call: CallRow) {
+    if (!call.leadId) return;
+    const value = tagDraft.trim();
+    if (!value) return;
+    const current = localTags[call.id] ?? call.tags;
+    if (current.some((t) => t.toLowerCase() === value.toLowerCase())) {
+      setTagDraft("");
+      setTagInputOpenId(null);
+      return;
+    }
+    const next = [...current, value];
+    setLocalTags((prev) => ({ ...prev, [call.id]: next }));
+    setTagDraft("");
+    setTagInputOpenId(null);
+    void updateChatLeadTags({ leadId: call.leadId, tags: next }).catch(() => null);
+  }
+
+  function removeTag(call: CallRow, tag: string) {
+    if (!call.leadId) return;
+    const current = localTags[call.id] ?? call.tags;
+    const next = current.filter((t) => t !== tag);
+    setLocalTags((prev) => ({ ...prev, [call.id]: next }));
+    void updateChatLeadTags({ leadId: call.leadId, tags: next }).catch(() => null);
+  }
 
   function changeOutcome(call: CallRow, outcome: CallOutcome) {
     setLocalOutcome((prev) => ({ ...prev, [call.id]: outcome }));
@@ -128,15 +158,52 @@ export function CallsTable({
                   )}
                 </td>
                 <td className="px-5 py-3">
-                  {c.tags.length > 0 ? (
-                    <div className="flex max-w-40 flex-wrap gap-1">
-                      {c.tags.map((tag) => (
-                        <Badge key={tag} variant="outline" className="text-[11px]">{tag}</Badge>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
+                  <div className="flex max-w-48 flex-wrap items-center gap-1">
+                    {(localTags[c.id] ?? c.tags).map((tag) => (
+                      <Badge key={tag} variant="outline" className="gap-1 text-[11px]">
+                        {tag}
+                        {c.leadId && (
+                          <button type="button" onClick={() => removeTag(c, tag)}>
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        )}
+                      </Badge>
+                    ))}
+                    {c.leadId && (
+                      tagInputOpenId === c.id ? (
+                        <Input
+                          autoFocus
+                          value={tagDraft}
+                          onChange={(e) => setTagDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addTag(c);
+                            }
+                            if (e.key === "Escape") {
+                              setTagInputOpenId(null);
+                              setTagDraft("");
+                            }
+                          }}
+                          onBlur={() => addTag(c)}
+                          placeholder="Nova tag"
+                          className="h-6 w-24 px-1.5 text-[11px]"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTagInputOpenId(c.id);
+                            setTagDraft("");
+                          }}
+                          className="rounded-full border border-dashed border-border/70 p-0.5 text-muted-foreground hover:border-brand hover:text-brand"
+                          title="Adicionar tag"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </button>
+                      )
+                    )}
+                  </div>
                 </td>
                 <td className="px-5 py-3">
                   {c.leadId ? (
