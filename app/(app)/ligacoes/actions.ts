@@ -77,6 +77,61 @@ export async function setLeadQualityStars(input: { leadId: string; stars: number
   revalidatePath("/ligacoes");
 }
 
+export async function setLeadStage(input: { leadId: string; stageId: string }) {
+  const ctx = await requireContext();
+  const stageId = z.string().uuid().parse(input.stageId);
+  const supabase = await createClient();
+
+  const { data: stage } = await supabase
+    .from("pipeline_stages")
+    .select("id, name, pipeline_id, is_won")
+    .eq("id", stageId)
+    .eq("tenant_id", ctx.tenantId)
+    .maybeSingle();
+  if (!stage) throw new Error("Etapa nao encontrada");
+
+  const { data: lead } = await supabase
+    .from("leads")
+    .select("stage_id, won_at")
+    .eq("id", input.leadId)
+    .eq("tenant_id", ctx.tenantId)
+    .maybeSingle();
+  if (!lead) throw new Error("Lead nao encontrado");
+
+  const isWon = Boolean((stage as { is_won: boolean }).is_won);
+  const wonAtPatch = isWon
+    ? lead.stage_id !== stageId
+      ? { won_at: new Date().toISOString() }
+      : {}
+    : { won_at: null };
+
+  const { error } = await supabase
+    .from("leads")
+    .update({ stage_id: stageId, pipeline_id: stage.pipeline_id, ...wonAtPatch })
+    .eq("id", input.leadId)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+
+  let fromName: string | null = null;
+  if (lead.stage_id) {
+    const { data: fromStage } = await supabase
+      .from("pipeline_stages")
+      .select("name")
+      .eq("id", lead.stage_id)
+      .eq("tenant_id", ctx.tenantId)
+      .maybeSingle();
+    fromName = (fromStage as { name?: string | null } | null)?.name ?? null;
+  }
+  void logLeadActivity(supabase, {
+    tenantId: ctx.tenantId,
+    leadId: input.leadId,
+    userId: ctx.userId,
+    kind: "stage_changed",
+    payload: { from_stage_name: fromName, to_stage_name: stage.name },
+  });
+  revalidatePath("/ligacoes");
+}
+
 export async function logCallOutcome(input: {
   leadId?: string;
   apiCallId?: string;

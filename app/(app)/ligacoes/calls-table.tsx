@@ -9,7 +9,7 @@ import { CallButton } from "@/components/leads/call-button";
 import { WhatsAppCallButton } from "@/components/leads/whatsapp-call-button";
 import { StarRating } from "@/components/leads/star-rating";
 import { CallLeadPanel } from "./call-lead-panel";
-import { logCallOutcome, setLeadQualityStars } from "./actions";
+import { logCallOutcome, setLeadQualityStars, setLeadStage } from "./actions";
 import { CALL_OUTCOME_LABEL, SELECTABLE_CALL_OUTCOMES, type CallOutcome } from "./call-outcomes";
 
 type PipelineOption = { id: string; name: string; stages: { id: string; name: string; color: string | null; position: number | null }[] };
@@ -22,7 +22,9 @@ export type CallRow = {
   leadId: string | null;
   leadName: string | null;
   leadPhone: string | null;
+  pipelineId: string | null;
   pipelineName: string | null;
+  stageId: string | null;
   stageName: string | null;
   tags: string[];
   qualityStars: number;
@@ -55,6 +57,8 @@ export function CallsTable({
   const [, startTransition] = useTransition();
   const [localOutcome, setLocalOutcome] = useState<Record<string, CallOutcome>>({});
   const [localStars, setLocalStars] = useState<Record<string, number>>({});
+  const [localStage, setLocalStage] = useState<Record<string, { stageId: string; stageName: string }>>({});
+  const [stageSaving, setStageSaving] = useState<string | null>(null);
 
   function changeOutcome(call: CallRow, outcome: CallOutcome) {
     setLocalOutcome((prev) => ({ ...prev, [call.id]: outcome }));
@@ -67,6 +71,15 @@ export function CallsTable({
     if (!call.leadId) return;
     setLocalStars((prev) => ({ ...prev, [call.id]: stars }));
     void setLeadQualityStars({ leadId: call.leadId, stars }).catch(() => null);
+  }
+
+  function changeStage(call: CallRow, stageId: string, stageName: string) {
+    if (!call.leadId) return;
+    setLocalStage((prev) => ({ ...prev, [call.id]: { stageId, stageName } }));
+    setStageSaving(call.id);
+    void setLeadStage({ leadId: call.leadId, stageId })
+      .catch((err) => alert((err as Error).message))
+      .finally(() => setStageSaving((prev) => (prev === call.id ? null : prev)));
   }
 
   if (calls.length === 0) {
@@ -136,7 +149,39 @@ export function CallsTable({
                   <span className="max-w-48 truncate text-muted-foreground">{c.pipelineName ?? "-"}</span>
                 </td>
                 <td className="px-5 py-3">
-                  {c.stageName ? <Badge variant="outline">{c.stageName}</Badge> : <span className="text-muted-foreground">-</span>}
+                  {c.leadId ? (
+                    (() => {
+                      const currentStage = localStage[c.id];
+                      const stageId = currentStage?.stageId ?? c.stageId ?? "";
+                      const pipeline = pipelineOptions.find((p) => p.id === c.pipelineId);
+                      const stageOptions = pipeline?.stages ?? [];
+                      const hasCurrentInOptions = stageOptions.some((s) => s.id === stageId);
+                      return (
+                        <Select
+                          value={stageId}
+                          onValueChange={(next) => {
+                            const label = stageOptions.find((s) => s.id === next)?.name ?? "";
+                            changeStage(c, next, label);
+                          }}
+                          disabled={stageOptions.length === 0 || stageSaving === c.id}
+                        >
+                          <SelectTrigger className="h-8 w-44"><SelectValue placeholder="Sem etapa" /></SelectTrigger>
+                          <SelectContent>
+                            {!hasCurrentInOptions && stageId && (
+                              <SelectItem value={stageId}>{currentStage?.stageName ?? c.stageName ?? "Etapa atual"}</SelectItem>
+                            )}
+                            {stageOptions.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      );
+                    })()
+                  ) : c.stageName ? (
+                    <Badge variant="outline">{c.stageName}</Badge>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
                 </td>
                 <td className="px-5 py-3">
                   <Badge variant="secondary" className="tabular-nums" title={`${c.attempts} tentativa(s) no total`}>
