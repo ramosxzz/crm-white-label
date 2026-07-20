@@ -2019,11 +2019,14 @@ function LeadSidePanel({
   onMobileClose: () => void;
 }) {
   const [notes, setNotes] = useState(details?.notes ?? "");
+  const [notesDirty, setNotesDirty] = useState(false);
+  const confirmedNotesRef = useRef<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [tags, setTags] = useState<string[]>(details?.tags ?? []);
   const [tagInput, setTagInput] = useState("");
   const [tagsSaving, setTagsSaving] = useState(false);
   const [businessSaving, setBusinessSaving] = useState(false);
+  const [businessDirty, setBusinessDirty] = useState(false);
   const stageOwnerPipelineId = useMemo(() => {
     if (!details?.stageId) return null;
     return pipelineOptions.find((pipeline) => pipeline.stages.some((stage) => stage.id === details.stageId))?.id ?? null;
@@ -2044,8 +2047,19 @@ function LeadSidePanel({
   const selectedStages = selectedPipeline?.stages ?? [];
 
   useEffect(() => {
+    confirmedNotesRef.current = null;
     setNotes(details?.notes ?? "");
-  }, [details?.notes]);
+    setNotesDirty(false);
+    setBusinessDirty(false);
+  }, [leadId]);
+
+  useEffect(() => {
+    if (notesDirty || saving) return;
+    const incomingNotes = details?.notes ?? "";
+    if (confirmedNotesRef.current !== null && incomingNotes !== confirmedNotesRef.current) return;
+    confirmedNotesRef.current = null;
+    setNotes(incomingNotes);
+  }, [details?.notes, notesDirty, saving]);
 
   useEffect(() => {
     setTags(details?.tags ?? []);
@@ -2082,23 +2096,30 @@ function LeadSidePanel({
   }
 
   useEffect(() => {
+    if (businessDirty || businessSaving) return;
     setBusinessDraft({
       valueReais: ((details?.valueCents ?? 0) / 100).toFixed(2).replace(".", ","),
       pipelineId: details?.pipelineId ?? stageOwnerPipelineId ?? pipelineOptions[0]?.id ?? "none",
       stageId: details?.stageId ?? "none",
       assignedTo: details?.assignedTo ?? "none",
     });
-  }, [details?.valueCents, details?.pipelineId, details?.stageId, details?.assignedTo, pipelineOptions, stageOwnerPipelineId]);
+  }, [details?.valueCents, details?.pipelineId, details?.stageId, details?.assignedTo, pipelineOptions, stageOwnerPipelineId, businessDirty, businessSaving]);
 
   function saveNotes() {
     setSaving(true);
     void updateChatLeadNotes({ leadId, notes })
+      .then((res) => {
+        confirmedNotesRef.current = res.notes;
+        setNotes(res.notes);
+        setNotesDirty(false);
+      })
       .catch((err) => alert((err as Error).message))
       .finally(() => setSaving(false));
   }
 
   function changePipeline(pipelineId: string) {
     const pipeline = pipelineOptions.find((option) => option.id === pipelineId);
+    setBusinessDirty(true);
     setBusinessDraft((current) => ({
       ...current,
       pipelineId,
@@ -2117,6 +2138,7 @@ function LeadSidePanel({
       stageId: businessDraft.stageId === "none" ? null : businessDraft.stageId,
       assignedTo: businessDraft.assignedTo === "none" ? null : businessDraft.assignedTo,
     })
+      .then(() => setBusinessDirty(false))
       .catch((err) => alert((err as Error).message))
       .finally(() => setBusinessSaving(false));
   }
@@ -2236,7 +2258,10 @@ function LeadSidePanel({
       <PanelSection title="Notas">
         <Textarea
           value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          onChange={(e) => {
+            setNotes(e.target.value);
+            setNotesDirty(true);
+          }}
           placeholder="Anote contexto importante deste lead..."
           className="min-h-24 resize-none bg-background/70"
         />
@@ -2287,7 +2312,10 @@ function LeadSidePanel({
               id="lead-business-value"
               inputMode="decimal"
               value={businessDraft.valueReais}
-              onChange={(event) => setBusinessDraft((current) => ({ ...current, valueReais: event.target.value }))}
+              onChange={(event) => {
+                setBusinessDirty(true);
+                setBusinessDraft((current) => ({ ...current, valueReais: event.target.value }));
+              }}
               className="h-9 bg-background/70 text-right"
             />
           </div>
@@ -2320,7 +2348,10 @@ function LeadSidePanel({
             <Label className="text-xs text-muted-foreground">Etapa</Label>
             <Select
               value={businessDraft.stageId}
-              onValueChange={(stageId) => setBusinessDraft((current) => ({ ...current, stageId }))}
+              onValueChange={(stageId) => {
+                setBusinessDirty(true);
+                setBusinessDraft((current) => ({ ...current, stageId }));
+              }}
               disabled={selectedStages.length === 0}
             >
               <SelectTrigger className="h-9 bg-background/70">
@@ -2341,7 +2372,10 @@ function LeadSidePanel({
             <Label className="text-xs text-muted-foreground">Responsável</Label>
             <Select
               value={businessDraft.assignedTo}
-              onValueChange={(assignedTo) => setBusinessDraft((current) => ({ ...current, assignedTo }))}
+              onValueChange={(assignedTo) => {
+                setBusinessDirty(true);
+                setBusinessDraft((current) => ({ ...current, assignedTo }));
+              }}
             >
               <SelectTrigger className="h-9 bg-background/70">
                 <SelectValue placeholder="Selecione o responsável" />
