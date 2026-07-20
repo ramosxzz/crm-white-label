@@ -81,7 +81,7 @@ export function CallLeadPanel({
     };
   }, [leadId]);
 
-  const selectedPipeline = pipelineOptions.find((p) => p.id === business.pipelineId) ?? pipelineOptions[0] ?? null;
+  const selectedPipeline = pipelineOptions.find((p) => p.id === business.pipelineId) ?? null;
   const selectedStages = selectedPipeline?.stages ?? [];
 
   function saveNotes() {
@@ -207,6 +207,7 @@ export function CallLeadPanel({
                   <Select value={business.pipelineId} onValueChange={(pipelineId) => setBusiness((c) => ({ ...c, pipelineId, stageId: "none" }))}>
                     <SelectTrigger className="h-9"><SelectValue placeholder="Funil" /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="none">Sem funil</SelectItem>
                       {pipelineOptions.map((p) => (
                         <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                       ))}
