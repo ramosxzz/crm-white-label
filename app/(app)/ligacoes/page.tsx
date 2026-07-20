@@ -12,7 +12,7 @@ import { fetchApi4comCalls } from "@/lib/integrations/api4com";
 import { cn } from "@/lib/utils";
 import { CallsTable, type CallRow } from "./calls-table";
 import { CallsFunnel } from "./calls-funnel";
-import type { CallOutcome } from "./actions";
+import type { CallOutcome } from "./call-outcomes";
 
 const ANSWERED_CAUSE = "NORMAL_CLEARING";
 type CallLeadRow = { id: string; name: string; phone: string | null; pipeline_id: string | null; stage_id: string | null; tags: string[] | null };

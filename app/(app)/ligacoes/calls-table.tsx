@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CallButton } from "@/components/leads/call-button";
 import { WhatsAppCallButton } from "@/components/leads/whatsapp-call-button";
 import { CallLeadPanel } from "./call-lead-panel";
-import { CALL_OUTCOME_LABEL, logCallOutcome, type CallOutcome } from "./actions";
+import { logCallOutcome } from "./actions";
+import { CALL_OUTCOME_LABEL, type CallOutcome } from "./call-outcomes";
 
 type PipelineOption = { id: string; name: string; stages: { id: string; name: string; color: string | null; position: number | null }[] };
 
