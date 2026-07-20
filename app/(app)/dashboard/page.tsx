@@ -16,6 +16,7 @@ import {
   type LeadsDashboardData,
 } from "@/lib/leads/dashboard-metrics";
 import { getMetaAdsDashboard, type MetaDatePreset } from "@/lib/meta/ads-insights";
+import { getMetaAdsCrmSales } from "@/lib/meta/crm-attribution";
 import { canSeeFullDashboard, canManageCompanySettings } from "@/lib/auth/roles";
 import { listTenantUserOptions } from "@/lib/tenant/users";
 import { LeadForwardingControl } from "@/components/dashboard/lead-forwarding-control";
@@ -238,6 +239,20 @@ export default async function DashboardPage({
     accessToken: tenantMeta?.meta_ads_access_token,
     datePreset: sp.ads as MetaDatePreset | undefined,
   });
+  if (metaAds.status === "ready" && metaAds.rows.length > 0) {
+    const crmSalesByAd = await getMetaAdsCrmSales(supabase, ctx.tenantId, metaAds.datePreset);
+    let crmSalesTotal = 0;
+    let crmRevenueTotal = 0;
+    metaAds.rows = metaAds.rows.map((row) => {
+      const attribution = crmSalesByAd.get(row.id);
+      if (!attribution) return row;
+      crmSalesTotal += attribution.sales;
+      crmRevenueTotal += attribution.revenueCents;
+      return { ...row, crmSales: attribution.sales, crmRevenueCents: attribution.revenueCents };
+    });
+    metaAds.totals.crmSales = crmSalesTotal;
+    metaAds.totals.crmRevenueCents = crmRevenueTotal;
+  }
 
   const canForward = canManageCompanySettings(ctx.role);
   const teamUsers = canForward ? await listTenantUserOptions(ctx.tenantId) : [];

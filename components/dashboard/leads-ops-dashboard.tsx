@@ -16,6 +16,7 @@ import {
   TrendingUp,
   AlertTriangle,
   ShoppingCart,
+  BadgeCheck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -312,6 +313,12 @@ function MetaAdsPanel({ data }: { data: MetaAdsDashboardData }) {
           <MiniMetric icon={<Users className="h-4 w-4" />} label="CPL" value={formatCurrencyBRL(data.totals.cplCents)} hint={`${data.totals.leads} lead(s) · custo por lead`} />
           <MiniMetric icon={<Target className="h-4 w-4" />} label="CAC" value={formatCurrencyBRL(data.totals.cacCents)} hint={`${data.totals.purchases} venda(s) · custo por cliente`} />
           <MiniMetric icon={<MousePointerClick className="h-4 w-4" />} label="Cliques / Leads" value={`${data.totals.clicks} / ${data.totals.leads}`} hint={`${data.totals.impressions} impressoes`} />
+          <MiniMetric
+            icon={<BadgeCheck className="h-4 w-4" />}
+            label="Vendas no CRM"
+            value={`${data.totals.crmSales ?? 0}`}
+            hint={`${formatCurrencyBRL(data.totals.crmRevenueCents ?? 0)} · negócios ganhos com anúncio vinculado`}
+          />
         </div>
 
         {configured && !hasRows ? (
@@ -328,7 +335,8 @@ function MetaAdsPanel({ data }: { data: MetaAdsDashboardData }) {
                     <th className="px-4 py-2.5 font-medium">Campanha</th>
                     <th className="px-4 py-2.5 font-medium text-right">Gasto</th>
                     <th className="px-4 py-2.5 font-medium text-right">Leads</th>
-                    <th className="px-4 py-2.5 font-medium text-right">Vendas</th>
+                    <th className="px-4 py-2.5 font-medium text-right">Vendas (Meta)</th>
+                    <th className="px-4 py-2.5 font-medium text-right">Vendas (CRM)</th>
                     <th className="px-4 py-2.5 font-medium text-right">CPL</th>
                     <th className="px-4 py-2.5 font-medium text-right">CAC</th>
                     <th className="px-4 py-2.5 font-medium text-right">ROAS</th>
@@ -348,6 +356,12 @@ function MetaAdsPanel({ data }: { data: MetaAdsDashboardData }) {
                         <td className="px-4 py-3 text-right font-medium">{formatCurrencyBRL(row.spendCents)}</td>
                         <td className="px-4 py-3 text-right tabular-nums">{row.leads}</td>
                         <td className="px-4 py-3 text-right tabular-nums">{row.purchases}</td>
+                        <td className="px-4 py-3 text-right">
+                          <span className="tabular-nums font-semibold">{row.crmSales ?? 0}</span>
+                          {(row.crmRevenueCents ?? 0) > 0 && (
+                            <p className="text-xs text-muted-foreground">{formatCurrencyBRL(row.crmRevenueCents ?? 0)}</p>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-right">{cplCents > 0 ? formatCurrencyBRL(cplCents) : "—"}</td>
                         <td className="px-4 py-3 text-right">{cacCents > 0 ? formatCurrencyBRL(cacCents) : "—"}</td>
                         <td className="px-4 py-3 text-right font-semibold">{row.roas.toFixed(2)}x</td>

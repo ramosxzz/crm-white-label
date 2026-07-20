@@ -19,6 +19,8 @@ export type MetaAdsRow = {
   purchases: number;
   revenueCents: number;
   roas: number;
+  crmSales?: number;
+  crmRevenueCents?: number;
 };
 
 export type MetaAdsDashboardData = {
@@ -40,6 +42,8 @@ export type MetaAdsDashboardData = {
     roas: number;
     cacCents: number;
     cplCents: number;
+    crmSales?: number;
+    crmRevenueCents?: number;
   };
   rows: MetaAdsRow[];
 };
