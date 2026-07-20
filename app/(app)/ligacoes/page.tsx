@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fetchApi4comCalls } from "@/lib/integrations/api4com";
+import { isCallAnswered } from "@/lib/integrations/call-answered";
 import { cn } from "@/lib/utils";
 import { CallsTable, type CallRow } from "./calls-table";
 import { CallsFunnel } from "./calls-funnel";
@@ -82,7 +83,7 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
     .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime());
 
   const total = calls.length;
-  const answered = calls.filter((c) => c.duration > 0).length;
+  const answered = calls.filter((c) => isCallAnswered(c.duration)).length;
   const notAnswered = total - answered;
   const answerRate = total > 0 ? Math.round((answered / total) * 100) : 0;
   const totalTalkSeconds = calls.reduce((acc, c) => acc + c.duration, 0);
@@ -167,7 +168,7 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
         attempts: attemptsByKey.get(contactKey(c)) ?? 1,
         ordinal: ordinalByCall.get(c.id) ?? 1,
         duration: c.duration,
-        wasAnswered: c.duration > 0,
+        wasAnswered: isCallAnswered(c.duration),
         hangupLabel: describeHangupCause(c.hangup_cause),
         recordUrl: c.record_url,
         outcome: outcomeByCallId.get(c.id) ?? "feita",

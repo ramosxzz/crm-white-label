@@ -28,7 +28,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
   ] = await Promise.all([
     service
       .from("leads")
-      .select("id, name, phone, email, source, notes, tags, value_cents, created_at, assigned_to, pipeline_id, stage_id, automations_enabled, custom_fields")
+      .select("id, name, phone, email, source, notes, tags, value_cents, created_at, assigned_to, pipeline_id, stage_id, automations_enabled, custom_fields, quality_stars")
       .eq("id", leadId)
       .eq("tenant_id", ctx.tenantId)
       .single(),
@@ -91,6 +91,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
     stage_id: string | null;
     automations_enabled: boolean | null;
     custom_fields: Record<string, unknown> | null;
+    quality_stars: number | null;
   } | null;
   if (!lead) notFound();
 
@@ -262,6 +263,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
         assignedName: (assigneeRes.data as { full_name?: string | null } | null)?.full_name ?? null,
         nextAppointmentAt: (appointmentRes.data as { starts_at?: string } | null)?.starts_at ?? null,
         openTasksCount: openTasksRes.count ?? 0,
+        qualityStars: lead.quality_stars ?? 0,
       }}
     />
   );

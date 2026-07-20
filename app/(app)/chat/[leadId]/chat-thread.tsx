@@ -32,6 +32,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { updateLead } from "@/app/(app)/leads/actions";
+import { setLeadQualityStars } from "@/app/(app)/ligacoes/actions";
 import { ScheduleMeetingButton } from "@/components/leads/schedule-meeting-button";
 import { CallButton } from "@/components/leads/call-button";
 import {
@@ -64,6 +65,8 @@ import { displayLeadName, displayLeadSubtitle } from "@/lib/leads/display";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LeadDeleteButton } from "@/components/leads/lead-delete-button";
 import { LeadTimeline } from "@/components/leads/lead-timeline";
+import { StarRating } from "@/components/leads/star-rating";
+import { isCallAnswered } from "@/lib/integrations/call-answered";
 import {
   sendChatMessage,
   sendInstagramMessage,
@@ -102,6 +105,7 @@ type LeadDetails = {
   assignedName: string | null;
   nextAppointmentAt: string | null;
   openTasksCount: number;
+  qualityStars: number;
 };
 
 type PipelineOption = {
@@ -138,6 +142,7 @@ type LeadDetailsRow = {
   tags: string[] | null;
   value_cents: number | null;
   created_at: string;
+  quality_stars: number | null;
 };
 
 function detectMediaKind(mime: string): MediaKind {
@@ -245,6 +250,7 @@ function buildLeadDetailsFromRow(
     assignedName: assigned?.name ?? null,
     nextAppointmentAt: previous?.nextAppointmentAt ?? null,
     openTasksCount: previous?.openTasksCount ?? 0,
+    qualityStars: row.quality_stars ?? 0,
   };
 }
 
@@ -437,7 +443,7 @@ export function ChatThread({
     const supabase = createClient();
     const { data } = await supabase
       .from("leads")
-      .select("pipeline_id, stage_id, assigned_to, email, source, notes, tags, value_cents, created_at")
+      .select("pipeline_id, stage_id, assigned_to, email, source, notes, tags, value_cents, created_at, quality_stars")
       .eq("id", leadId)
       .eq("tenant_id", tenantId)
       .maybeSingle();
@@ -2027,6 +2033,7 @@ function LeadSidePanel({
   const [tagInput, setTagInput] = useState("");
   const [tagsSaving, setTagsSaving] = useState(false);
   const [businessSaving, setBusinessSaving] = useState(false);
+  const [localStars, setLocalStars] = useState<number | null>(null);
   const [businessDirty, setBusinessDirty] = useState(false);
   const stageOwnerPipelineId = useMemo(() => {
     if (!details?.stageId) return null;
@@ -2052,6 +2059,7 @@ function LeadSidePanel({
     setNotes(details?.notes ?? "");
     setNotesDirty(false);
     setBusinessDirty(false);
+    setLocalStars(null);
   }, [leadId]);
 
   useEffect(() => {
@@ -2278,7 +2286,7 @@ function LeadSidePanel({
         ) : (
           <div className="space-y-2">
             {recentCalls.map((call) => {
-              const answered = call.duration > 0;
+              const answered = isCallAnswered(call.duration);
               return (
                 <div key={call.id} className="rounded-lg border border-border/60 bg-background/45 p-2.5 text-xs">
                   <div className="flex items-center justify-between gap-2">
@@ -2301,6 +2309,16 @@ function LeadSidePanel({
             })}
           </div>
         )}
+      </PanelSection>
+
+      <PanelSection title="Qualidade do lead">
+        <StarRating
+          value={localStars ?? details?.qualityStars ?? 0}
+          onChange={(next) => {
+            setLocalStars(next);
+            void setLeadQualityStars({ leadId, stars: next }).catch((err) => alert((err as Error).message));
+          }}
+        />
       </PanelSection>
 
       <PanelSection title="Negócio">
