@@ -75,6 +75,9 @@ export function CallLeadPanel({
         });
         setScheduledMessages(data.scheduledMessages);
       })
+      .catch((err) => {
+        if (!cancelled) alert((err as Error).message);
+      })
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
