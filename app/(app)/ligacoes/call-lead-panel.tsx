@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { updateChatLeadBusiness, updateChatLeadNotes, updateChatLeadTags, scheduleChatMessage, cancelScheduledMessage } from "../chat/actions";
 import { scheduleCall, createAppointment } from "../agenda/actions";
 import { getLeadCallPanelData } from "./actions";
+import { LeadTimeline } from "@/components/leads/lead-timeline";
 
 type PipelineOption = {
   id: string;
@@ -322,6 +323,10 @@ export function CallLeadPanel({
                   {meetingSaving ? "Agendando..." : meetingDone ? "Agendado!" : `Agendar ${meetingKind === "call" ? "ligação" : "reunião"}`}
                 </Button>
               </div>
+            </Section>
+
+            <Section title="Histórico">
+              <LeadTimeline leadId={leadId} />
             </Section>
           </div>
         )}

@@ -2402,6 +2402,10 @@ function LeadSidePanel({
           <InfoRow label="Tarefas abertas" value={String(details?.openTasksCount ?? 0)} />
         </div>
       </PanelSection>
+
+      <PanelSection title="Histórico">
+        <LeadTimeline leadId={leadId} />
+      </PanelSection>
       </aside>
     </>
   );

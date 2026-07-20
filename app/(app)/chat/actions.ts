@@ -569,6 +569,14 @@ export async function scheduleChatMessage(input: {
     .single();
   if (error) throw new Error(error.message);
 
+  void logLeadActivity(supabase, {
+    tenantId: ctx.tenantId,
+    leadId: input.leadId,
+    userId: ctx.userId,
+    kind: "message_scheduled",
+    payload: { send_at: when.toISOString() },
+  });
+
   revalidatePath(`/chat/${input.leadId}`);
   return { id: (data as { id: string }).id };
 }
@@ -1279,4 +1287,44 @@ export async function sendGroupMessage(input: { groupId: string; body: string })
     createdAt: messageAt,
     externalId,
   };
+}
+
+export type LeadTimelineEntry = {
+  id: string;
+  kind: string;
+  payload: Record<string, unknown>;
+  userId: string | null;
+  userName: string | null;
+  createdAt: string;
+};
+
+export async function listLeadTimeline(leadId: string): Promise<LeadTimelineEntry[]> {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("lead_activities")
+    .select("id, kind, payload, user_id, created_at")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("lead_id", leadId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  const rows = (data ?? []) as { id: string; kind: string; payload: Record<string, unknown> | null; user_id: string | null; created_at: string }[];
+
+  const userIds = Array.from(new Set(rows.map((r) => r.user_id).filter((v): v is string => Boolean(v))));
+  const namesByUser = new Map<string, string>();
+  if (userIds.length > 0) {
+    const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", userIds);
+    for (const profile of profiles ?? []) {
+      if (profile.full_name) namesByUser.set(profile.id, profile.full_name);
+    }
+  }
+
+  return rows.map((r) => ({
+    id: r.id,
+    kind: r.kind,
+    payload: r.payload ?? {},
+    userId: r.user_id,
+    userName: r.user_id ? namesByUser.get(r.user_id) ?? null : null,
+    createdAt: r.created_at,
+  }));
 }

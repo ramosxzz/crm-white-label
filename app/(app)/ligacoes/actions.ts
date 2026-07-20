@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireContext } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
-import type { CallOutcome } from "./call-outcomes";
+import { logLeadActivity } from "@/lib/leads/activity-log";
+import { CALL_OUTCOME_LABEL, type CallOutcome } from "./call-outcomes";
 
 export async function getLeadCallPanelData(leadId: string) {
   const ctx = await requireContext();
@@ -90,6 +91,15 @@ export async function logCallOutcome(input: {
       created_by: ctx.userId,
     });
     if (error) throw new Error(error.message);
+  }
+  if (parsed.leadId) {
+    void logLeadActivity(supabase, {
+      tenantId: ctx.tenantId,
+      leadId: parsed.leadId,
+      userId: ctx.userId,
+      kind: "call_logged",
+      payload: { outcome: parsed.outcome, outcome_label: CALL_OUTCOME_LABEL[parsed.outcome] },
+    });
   }
   revalidatePath("/ligacoes");
 }

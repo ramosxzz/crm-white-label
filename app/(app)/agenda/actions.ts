@@ -8,6 +8,7 @@ import { assertRole, canManageOperationalSetup, canOperateLead } from "@/lib/aut
 import { createClient } from "@/lib/supabase/server";
 import type { AppointmentStatus } from "@/lib/supabase/database.types";
 import { requireContext } from "@/lib/tenant";
+import { logLeadActivity } from "@/lib/leads/activity-log";
 
 const uuid = z.string().uuid();
 const appointmentSchema = z.object({
@@ -62,6 +63,15 @@ export async function createAppointment(formData: FormData) {
     created_by: ctx.userId,
   });
   if (error) throw new Error(error.message);
+  if (parsed.lead_id) {
+    void logLeadActivity(supabase, {
+      tenantId: ctx.tenantId,
+      leadId: parsed.lead_id,
+      userId: ctx.userId,
+      kind: parsed.kind === "call" ? "call_scheduled" : "meeting_scheduled",
+      payload: { starts_at: startsAtIso },
+    });
+  }
   await notifyAppointmentAssignee(supabase, {
     tenantId: ctx.tenantId,
     assigneeId: parsed.assigned_to,
@@ -106,6 +116,13 @@ export async function scheduleCall(input: { leadId: string; startsAt: string; no
     created_by: ctx.userId,
   });
   if (error) throw new Error(error.message);
+  void logLeadActivity(supabase, {
+    tenantId: ctx.tenantId,
+    leadId: parsed.lead_id,
+    userId: ctx.userId,
+    kind: "call_scheduled",
+    payload: { starts_at: startsAtIso },
+  });
   await notifyAppointmentAssignee(supabase, {
     tenantId: ctx.tenantId,
     assigneeId: lead.assigned_to,
@@ -175,13 +192,23 @@ export async function transitionAppointmentStatus(formData: FormData) {
   const id = uuid.parse(formData.get("id"));
   const target = z.enum(["confirmed", "completed", "cancelled", "no_show"]).parse(formData.get("status"));
   const supabase = await createClient();
-  const { data: appointment } = await supabase.from("appointments").select("status").eq("id", id).eq("tenant_id", ctx.tenantId).single();
+  const { data: appointment } = await supabase.from("appointments").select("status, lead_id, kind").eq("id", id).eq("tenant_id", ctx.tenantId).single();
   if (!appointment) throw new Error("Horario nao encontrado");
   if (!canTransitionAppointment(appointment.status as AppointmentStatus, target)) {
     throw new Error("Transicao de status invalida");
   }
   const { error } = await supabase.from("appointments").update({ status: target }).eq("id", id).eq("tenant_id", ctx.tenantId);
   if (error) throw new Error(error.message);
+  const leadId = (appointment as { lead_id: string | null }).lead_id;
+  if (leadId) {
+    void logLeadActivity(supabase, {
+      tenantId: ctx.tenantId,
+      leadId,
+      userId: ctx.userId,
+      kind: (appointment as { kind?: string }).kind === "call" ? "call_status_changed" : "meeting_status_changed",
+      payload: { status: target },
+    });
+  }
   refreshAgenda();
 }
 
@@ -213,12 +240,23 @@ export async function setMeetingOutcome(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const { data: appointment } = await supabase.from("appointments").select("lead_id, kind").eq("id", id).eq("tenant_id", ctx.tenantId).maybeSingle();
   const { error } = await supabase
     .from("appointments")
     .update(update)
     .eq("id", id)
     .eq("tenant_id", ctx.tenantId);
   if (error) throw new Error(error.message);
+  const leadId = (appointment as { lead_id: string | null } | null)?.lead_id;
+  if (leadId) {
+    void logLeadActivity(supabase, {
+      tenantId: ctx.tenantId,
+      leadId,
+      userId: ctx.userId,
+      kind: (appointment as { kind?: string } | null)?.kind === "call" ? "call_outcome" : "meeting_outcome",
+      payload: { outcome },
+    });
+  }
   refreshAgenda();
   revalidatePath("/reunioes");
 }
