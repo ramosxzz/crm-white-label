@@ -63,6 +63,7 @@ import { cn, initials } from "@/lib/utils";
 import { displayLeadName, displayLeadSubtitle } from "@/lib/leads/display";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LeadDeleteButton } from "@/components/leads/lead-delete-button";
+import { LeadTimeline } from "@/components/leads/lead-timeline";
 import {
   sendChatMessage,
   sendInstagramMessage,
