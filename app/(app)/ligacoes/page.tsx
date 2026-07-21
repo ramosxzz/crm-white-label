@@ -14,6 +14,8 @@ import { cn } from "@/lib/utils";
 import { CallsTable, type CallRow } from "./calls-table";
 import { CallsFunnel } from "./calls-funnel";
 import { RefreshButton } from "@/components/app/refresh-button";
+import { listScheduledCallsForTenant } from "../agenda/actions";
+import { ScheduledCallsPanel } from "./scheduled-calls-panel";
 import { QUALIFIED_TAG, type CallOutcome } from "./call-outcomes";
 
 const ANSWERED_CAUSE = "NORMAL_CLEARING";
@@ -48,7 +50,7 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
 
   const supabase = await createClient();
 
-  const [allCalls, pipelinesRes, users, outcomesRes] = await Promise.all([
+  const [allCalls, pipelinesRes, users, outcomesRes, scheduledCalls] = await Promise.all([
     fetchApi4comCalls(),
     supabase
       .from("pipelines")
@@ -57,6 +59,7 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
       .order("name"),
     listTenantUserOptions(ctx.tenantId),
     supabase.from("call_attempts").select("api4com_call_id, lead_id, outcome").eq("tenant_id", ctx.tenantId),
+    listScheduledCallsForTenant(),
   ]);
 
   const pipelineOptions = ((pipelinesRes.data ?? []) as {
@@ -172,7 +175,6 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
         wasAnswered: isCallAnswered(c.duration),
         hangupLabel: describeHangupCause(c.hangup_cause),
         recordUrl: c.record_url,
-        outcome: outcomeByCallId.get(c.id) ?? "feita",
       };
     });
 
@@ -251,8 +253,9 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
         <KpiCard icon={<PhoneCall className="h-5 w-5" />} label="Tentativas / Lead" value={avgAttempts} />
       </div>
 
-      <div className="px-6 pb-6">
+      <div className="grid gap-4 px-6 pb-6 lg:grid-cols-2">
         <CallsFunnel counts={outcomeCounts} />
+        <ScheduledCallsPanel calls={scheduledCalls} />
       </div>
 
       <div className="px-6 pb-6">

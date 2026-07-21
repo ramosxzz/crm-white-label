@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { User, PanelRightOpen, Plus, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,8 @@ import { CallButton } from "@/components/leads/call-button";
 import { WhatsAppCallButton } from "@/components/leads/whatsapp-call-button";
 import { StarRating } from "@/components/leads/star-rating";
 import { CallLeadPanel } from "./call-lead-panel";
-import { logCallOutcome, setLeadQualityStars, setLeadStage } from "./actions";
+import { setLeadQualityStars, setLeadStage } from "./actions";
 import { updateChatLeadTags } from "../chat/actions";
-import { CALL_OUTCOME_LABEL, SELECTABLE_CALL_OUTCOMES, type CallOutcome } from "./call-outcomes";
 
 type PipelineOption = { id: string; name: string; stages: { id: string; name: string; color: string | null; position: number | null }[] };
 
@@ -36,7 +35,6 @@ export type CallRow = {
   wasAnswered: boolean;
   hangupLabel: string;
   recordUrl: string | null;
-  outcome: CallOutcome;
 };
 
 function formatDuration(seconds: number): string {
@@ -56,8 +54,6 @@ export function CallsTable({
   users: { id: string; name: string }[];
 }) {
   const [openLead, setOpenLead] = useState<{ id: string; name: string } | null>(null);
-  const [, startTransition] = useTransition();
-  const [localOutcome, setLocalOutcome] = useState<Record<string, CallOutcome>>({});
   const [localStars, setLocalStars] = useState<Record<string, number>>({});
   const [localStage, setLocalStage] = useState<Record<string, { stageId: string; stageName: string }>>({});
   const [stageSaving, setStageSaving] = useState<string | null>(null);
@@ -88,13 +84,6 @@ export function CallsTable({
     const next = current.filter((t) => t !== tag);
     setLocalTags((prev) => ({ ...prev, [call.id]: next }));
     void updateChatLeadTags({ leadId: call.leadId, tags: next }).catch(() => null);
-  }
-
-  function changeOutcome(call: CallRow, outcome: CallOutcome) {
-    setLocalOutcome((prev) => ({ ...prev, [call.id]: outcome }));
-    startTransition(() => {
-      void logCallOutcome({ leadId: call.leadId ?? undefined, apiCallId: call.id, outcome }).catch(() => null);
-    });
   }
 
   function changeStars(call: CallRow, stars: number) {
@@ -132,7 +121,6 @@ export function CallsTable({
               <th className="px-5 py-3">Tentativas</th>
               <th className="px-5 py-3">Duração</th>
               <th className="px-5 py-3">Status</th>
-              <th className="px-5 py-3">Resultado</th>
               <th className="px-5 py-3 text-center">Ações</th>
               <th className="px-5 py-3">Gravação</th>
             </tr>
@@ -258,16 +246,6 @@ export function CallsTable({
                 <td className="px-5 py-3 tabular-nums">{formatDuration(c.duration)}</td>
                 <td className="px-5 py-3">
                   <Badge variant={c.wasAnswered ? "success" : "destructive"}>{c.wasAnswered ? "Atendida" : c.hangupLabel}</Badge>
-                </td>
-                <td className="px-5 py-3">
-                  <Select value={localOutcome[c.id] ?? c.outcome} onValueChange={(v) => changeOutcome(c, v as CallOutcome)}>
-                    <SelectTrigger className="h-8 w-40"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {SELECTABLE_CALL_OUTCOMES.map((value) => (
-                        <SelectItem key={value} value={value}>{CALL_OUTCOME_LABEL[value]}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </td>
                 <td className="px-5 py-3">
                   <div className="flex justify-center gap-1.5">

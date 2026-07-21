@@ -282,6 +282,37 @@ export async function listScheduledMessagesForTenant() {
   }[];
 }
 
+export async function listScheduledCallsForTenant() {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("appointments")
+    .select("id, lead_id, starts_at, notes, status, leads(id, name, phone)")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("kind", "call")
+    .in("status", ["scheduled", "confirmed"])
+    .order("starts_at", { ascending: true });
+  return (data ?? []) as {
+    id: string;
+    lead_id: string | null;
+    starts_at: string;
+    notes: string | null;
+    status: string;
+    leads: { id: string; name: string; phone: string | null } | null;
+  }[];
+}
+
+export async function cancelAppointment(input: { id: string }) {
+  const ctx = await requireContext();
+  assertRole(ctx.role, canOperateLead);
+  const id = uuid.parse(input.id);
+  const supabase = await createClient();
+  const { error } = await supabase.from("appointments").update({ status: "cancelled" }).eq("id", id).eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+  refreshAgenda();
+  revalidatePath("/ligacoes");
+}
+
 export async function createProfessional(formData: FormData) {
   const ctx = await requireContext();
   assertRole(ctx.role, canManageOperationalSetup);
