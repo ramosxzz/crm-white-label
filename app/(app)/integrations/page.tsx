@@ -20,13 +20,13 @@ export default async function IntegrationsPage() {
   if (!canManageIntegrations(ctx.role)) redirect("/dashboard");
   const supabase = await createClient();
 
-  const [{ data: wppAccount }, { data: tenant }, { data: igAccount }] = await Promise.all([
-    supabase.from("whatsapp_accounts").select("id, is_active").eq("tenant_id", ctx.tenantId).maybeSingle(),
+  const [{ data: wppAccounts }, { data: tenant }, { data: igAccount }] = await Promise.all([
+    supabase.from("whatsapp_accounts").select("id, is_active").eq("tenant_id", ctx.tenantId).eq("is_active", true).limit(1),
     supabase.from("tenants").select("meta_pixel_id").eq("id", ctx.tenantId).single(),
     supabase.from("instagram_accounts").select("id, is_active").eq("tenant_id", ctx.tenantId).maybeSingle(),
   ]);
 
-  const wppOn = !!wppAccount?.is_active;
+  const wppOn = (wppAccounts?.length ?? 0) > 0;
   const metaOn = !!tenant?.meta_pixel_id;
   const igOn = !!igAccount?.is_active;
 
