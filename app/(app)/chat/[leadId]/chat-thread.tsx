@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import { updateLead } from "@/app/(app)/leads/actions";
 import { setLeadQualityStars } from "@/app/(app)/ligacoes/actions";
-import { scheduleCall } from "@/app/(app)/agenda/actions";
+import { scheduleCall, listScheduledCallsForLead } from "@/app/(app)/agenda/actions";
 import { ScheduleMeetingButton } from "@/components/leads/schedule-meeting-button";
 import { CallButton } from "@/components/leads/call-button";
 import {
@@ -386,6 +386,7 @@ export function ChatThread({
   const [scheduleMediaName, setScheduleMediaName] = useState<string | null>(null);
   const [scheduleUploading, setScheduleUploading] = useState(false);
   const [pendingScheduled, setPendingScheduled] = useState<ScheduledMessage[]>(initialScheduledMessages);
+  const [pendingScheduledCalls, setPendingScheduledCalls] = useState<{ id: string; starts_at: string; notes: string | null }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const scheduleAudioInputRef = useRef<HTMLInputElement>(null);
@@ -861,6 +862,14 @@ export function ChatThread({
     void listScheduledMessages(leadId).then(setPendingScheduled).catch(() => {});
   }
 
+  function refreshPendingScheduledCalls() {
+    void listScheduledCallsForLead(leadId).then(setPendingScheduledCalls).catch(() => {});
+  }
+
+  useEffect(() => {
+    refreshPendingScheduledCalls();
+  }, [leadId]);
+
   function openSchedule() {
     // pré-preenche com o texto digitado e horário +1h
     setScheduleText(text);
@@ -891,7 +900,7 @@ export function ChatThread({
       void scheduleCall({ leadId, startsAt: new Date(scheduleAt).toISOString(), notes: scheduleText.trim() || undefined })
         .then(() => {
           setScheduleText("");
-          refreshPendingScheduled();
+          refreshPendingScheduledCalls();
         })
         .catch((err) => alert((err as Error).message))
         .finally(() => setScheduling(false));
@@ -1166,6 +1175,46 @@ export function ChatThread({
                 refreshPendingScheduled();
                 setScheduleOpen(true);
               }}
+            >
+              Ver agendadas
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {pendingScheduledCalls.length > 0 && (
+        <div className="shrink-0 border-b border-brand/20 bg-brand/10 px-4 py-2.5 text-brand-foreground sm:px-6">
+          <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-brand/25 bg-brand/12 text-brand">
+                <Phone className="h-4 w-4" />
+              </span>
+              <div className="min-w-0 text-sm">
+                <p className="font-semibold text-foreground">
+                  {pendingScheduledCalls.length === 1
+                    ? "1 ligação agendada"
+                    : `${pendingScheduledCalls.length} ligações agendadas`}
+                  <span className="font-normal text-muted-foreground">
+                    {" "}
+                    para {new Date(pendingScheduledCalls[0].starts_at).toLocaleString("pt-BR", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </p>
+                {pendingScheduledCalls[0].notes && (
+                  <p className="truncate text-xs text-muted-foreground">{pendingScheduledCalls[0].notes}</p>
+                )}
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 shrink-0"
+              onClick={() => setScheduleOpen(true)}
             >
               Ver agendadas
             </Button>

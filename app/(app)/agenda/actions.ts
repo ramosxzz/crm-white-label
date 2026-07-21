@@ -302,6 +302,20 @@ export async function listScheduledCallsForTenant() {
   }[];
 }
 
+export async function listScheduledCallsForLead(leadId: string) {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("appointments")
+    .select("id, starts_at, notes, status")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("lead_id", leadId)
+    .eq("kind", "call")
+    .in("status", ["scheduled", "confirmed"])
+    .order("starts_at", { ascending: true });
+  return (data ?? []) as { id: string; starts_at: string; notes: string | null; status: string }[];
+}
+
 export async function cancelAppointment(input: { id: string }) {
   const ctx = await requireContext();
   assertRole(ctx.role, canOperateLead);

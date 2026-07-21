@@ -8,11 +8,12 @@ import { canManageOperationalSetup } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { listTenantUserOptions } from "@/lib/tenant/users";
-import { createProfessional, createService, listScheduledMessagesForTenant, transitionAppointmentStatus } from "./actions";
+import { createProfessional, createService, listScheduledCallsForTenant, listScheduledMessagesForTenant, transitionAppointmentStatus } from "./actions";
 import { AppointmentDialog } from "./appointment-dialog";
 import { MeetingOutcomeDialog } from "./meeting-outcome-dialog";
 import { MonthCalendar } from "./month-calendar";
 import { ScheduledMessagesPanel } from "./scheduled-messages-panel";
+import { ScheduledCallsPanel } from "../ligacoes/scheduled-calls-panel";
 
 const statusLabel = { scheduled: "Agendado", confirmed: "Confirmado", completed: "Concluido", cancelled: "Cancelado", no_show: "Nao compareceu" };
 
@@ -50,7 +51,7 @@ export default async function AgendaPage({ searchParams }: { searchParams?: Prom
   const month = monthOf(day);
   const { start: monthStart, end: monthEnd } = monthRange(month);
   const supabase = await createClient();
-  const [{ data: appointments }, { data: monthAppointments }, { data: leads }, { data: professionals }, { data: services }, users, scheduledMessages] = await Promise.all([
+  const [{ data: appointments }, { data: monthAppointments }, { data: leads }, { data: professionals }, { data: services }, users, scheduledMessages, scheduledCalls] = await Promise.all([
     supabase
       .from("appointments")
       .select("id, starts_at, duration_minutes, status, outcome, notes, kind, leads(id, name), professionals(name), services(name)")
@@ -69,6 +70,7 @@ export default async function AgendaPage({ searchParams }: { searchParams?: Prom
     supabase.from("services").select("id, name, duration_minutes").eq("tenant_id", ctx.tenantId).eq("is_active", true).order("name"),
     listTenantUserOptions(ctx.tenantId),
     listScheduledMessagesForTenant(),
+    listScheduledCallsForTenant(),
   ]);
   const daysWithAppointments = new Set(
     (monthAppointments ?? []).map((a) =>
@@ -149,7 +151,10 @@ export default async function AgendaPage({ searchParams }: { searchParams?: Prom
           </div>
         </div>
 
-        <ScheduledMessagesPanel messages={scheduledMessages} />
+        <div className="grid gap-5 md:grid-cols-2">
+          <ScheduledCallsPanel calls={scheduledCalls} />
+          <ScheduledMessagesPanel messages={scheduledMessages} />
+        </div>
 
         {canManage && (
           <div className="grid gap-5 border-t border-border/70 pt-5 md:grid-cols-2">
