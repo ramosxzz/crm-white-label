@@ -632,9 +632,11 @@ export function ChatThread({
 
     if (quickMediaDraft) {
       const draft = quickMediaDraft;
+      const quickMessageId = pendingQuickMessageId;
       updateTextDraft("");
       setQuickMediaDraft(null);
-      void sendExistingMedia(draft.mediaUrl, draft.mediaType, body || undefined);
+      setPendingQuickMessageId(null);
+      void sendExistingMedia(draft.mediaUrl, draft.mediaType, body || undefined, quickMessageId ?? undefined);
       return;
     }
 
@@ -769,7 +771,7 @@ export function ChatThread({
     void uploadAndSend(file, file.name, detectMediaKind(file.type));
   }
 
-  async function sendExistingMedia(url: string, kind: MediaKind, caption?: string) {
+  async function sendExistingMedia(url: string, kind: MediaKind, caption?: string, quickMessageId?: string) {
     setUploading(true);
     shouldStickToBottomRef.current = true;
     const optimisticId = `opt-${Date.now()}`;
@@ -779,7 +781,7 @@ export function ChatThread({
     ]);
     setStatus("em_atendimento");
     try {
-      const result = await sendChatMedia({ leadId, mediaUrl: url, mediaKind: kind, caption, accountId: selectedAccountId });
+      const result = await sendChatMedia({ leadId, mediaUrl: url, mediaKind: kind, caption, accountId: selectedAccountId, quickMessageId });
       if (!conversationId) setConversationId(result.conversationId);
       setMessages((prev) => mergeMessages(prev.filter((m) => m.id !== optimisticId), [result.message]));
     } catch (err) {

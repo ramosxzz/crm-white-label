@@ -388,6 +388,7 @@ export async function sendChatMedia(input: {
   mimeType?: string;
   caption?: string;
   accountId?: string;
+  quickMessageId?: string;
 }): Promise<{ conversationId: string; message: ChatMessage }> {
   const ctx = await requireContext();
   const supabase = await createClient();
@@ -464,6 +465,7 @@ export async function sendChatMedia(input: {
       media_url: input.mediaUrl,
       media_type: input.mediaKind,
       status: "pending",
+      quick_message_id: input.quickMessageId ?? null,
     })
     .select("id")
     .single();
@@ -504,6 +506,10 @@ export async function sendChatMedia(input: {
       .from("conversations")
       .update({ last_message_at: new Date().toISOString(), status: "em_atendimento" })
       .eq("id", conversationId);
+
+    void fireAutomationTrigger(ctx.tenantId, "message_sent", lead.id, {
+      quick_message_id: input.quickMessageId ?? null,
+    });
 
     revalidatePath("/chat");
 
