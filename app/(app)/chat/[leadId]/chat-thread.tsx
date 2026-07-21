@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { updateLead } from "@/app/(app)/leads/actions";
 import { setLeadQualityStars } from "@/app/(app)/ligacoes/actions";
+import { scheduleCall } from "@/app/(app)/agenda/actions";
 import { ScheduleMeetingButton } from "@/components/leads/schedule-meeting-button";
 import { CallButton } from "@/components/leads/call-button";
 import {
@@ -380,6 +381,7 @@ export function ChatThread({
   const [scheduleAt, setScheduleAt] = useState("");
   const [scheduleText, setScheduleText] = useState("");
   const [scheduling, setScheduling] = useState(false);
+  const [scheduleKind, setScheduleKind] = useState<"message" | "call">("message");
   const [scheduleMediaUrl, setScheduleMediaUrl] = useState<string | null>(null);
   const [scheduleMediaName, setScheduleMediaName] = useState<string | null>(null);
   const [scheduleUploading, setScheduleUploading] = useState(false);
@@ -883,9 +885,20 @@ export function ChatThread({
   }
 
   function submitSchedule() {
+    if (!scheduleAt) return;
+    if (scheduleKind === "call") {
+      setScheduling(true);
+      void scheduleCall({ leadId, startsAt: new Date(scheduleAt).toISOString(), notes: scheduleText.trim() || undefined })
+        .then(() => {
+          setScheduleText("");
+          refreshPendingScheduled();
+        })
+        .catch((err) => alert((err as Error).message))
+        .finally(() => setScheduling(false));
+      return;
+    }
     const body = scheduleText.trim();
     if (!body && !scheduleMediaUrl) return;
-    if (!scheduleAt) return;
     setScheduling(true);
     void scheduleChatMessage({
       leadId,
@@ -1521,13 +1534,23 @@ export function ChatThread({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarClock className="h-5 w-5 text-amber-500" />
-              Agendar mensagem
+              {scheduleKind === "call" ? "Agendar ligação" : "Agendar mensagem"}
             </DialogTitle>
             <DialogDescription>
-              A mensagem será enviada automaticamente pelo WhatsApp no horário escolhido.
+              {scheduleKind === "call"
+                ? "A ligação entra na sua lista de ligações agendadas para o horário escolhido."
+                : "A mensagem será enviada automaticamente pelo WhatsApp no horário escolhido."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="flex gap-2">
+              <Button type="button" size="sm" variant={scheduleKind === "message" ? "brand" : "outline"} className="flex-1" onClick={() => setScheduleKind("message")}>
+                Mensagem
+              </Button>
+              <Button type="button" size="sm" variant={scheduleKind === "call" ? "brand" : "outline"} className="flex-1" onClick={() => setScheduleKind("call")}>
+                Ligação
+              </Button>
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="schedule-at">Data e hora</Label>
               <Input
@@ -1538,15 +1561,16 @@ export function ChatThread({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="schedule-text">Mensagem</Label>
+              <Label htmlFor="schedule-text">{scheduleKind === "call" ? "Observação (opcional)" : "Mensagem"}</Label>
               <Textarea
                 id="schedule-text"
                 rows={4}
-                placeholder="Escreva a mensagem a ser enviada (opcional se anexar áudio)..."
+                placeholder={scheduleKind === "call" ? "Ex: retornar sobre valores..." : "Escreva a mensagem a ser enviada (opcional se anexar áudio)..."}
                 value={scheduleText}
                 onChange={(e) => setScheduleText(e.target.value)}
               />
             </div>
+            {scheduleKind === "message" && (
             <div className="space-y-1.5">
               <Label>Áudio (opcional)</Label>
               {scheduleMediaUrl ? (
@@ -1595,6 +1619,7 @@ export function ChatThread({
                 </div>
               )}
             </div>
+            )}
             {pendingScheduled.length > 0 && (
               <div className="space-y-1.5 border-t border-border/50 pt-3">
                 <Label>Agendadas para este lead</Label>
@@ -1633,7 +1658,7 @@ export function ChatThread({
             <Button
               variant="brand"
               onClick={submitSchedule}
-              disabled={scheduling || scheduleUploading || (!scheduleText.trim() && !scheduleMediaUrl) || !scheduleAt}
+              disabled={scheduling || scheduleUploading || !scheduleAt || (scheduleKind === "message" && !scheduleText.trim() && !scheduleMediaUrl)}
             >
               {scheduling ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
               Agendar

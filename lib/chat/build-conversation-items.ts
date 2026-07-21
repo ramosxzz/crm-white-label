@@ -41,6 +41,7 @@ export function buildConversationItems(
       whatsappAccountId: c.whatsapp_account_id ?? null,
       tags: c.leads?.tags ?? [],
       stageId: c.leads?.stage_id ?? null,
+      leadCreatedAt: c.leads?.created_at ?? null,
     };
   });
 }

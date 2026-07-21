@@ -128,7 +128,7 @@ async function listFilteredConversationItemsForTenant(
 
   let query = supabase
     .from("conversations")
-    .select("id, lead_id, channel, whatsapp_account_id, last_message_at, unread_count, status, leads!inner(name, phone, whatsapp_lid, custom_fields, tags, stage_id)")
+    .select("id, lead_id, channel, whatsapp_account_id, last_message_at, unread_count, status, leads!inner(name, phone, whatsapp_lid, custom_fields, tags, stage_id, created_at)")
     .eq("tenant_id", tenantId)
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(cappedLimit);

@@ -23,6 +23,7 @@ const ATTENDANCE_WINDOW_HOURS = 24;
 type AttendanceWindowFilter = "todos" | "dentro" | "expirada";
 type LastMessagePeriodFilter = "todos" | "hoje" | "7dias" | "30dias";
 type OrderFilter = "recentes" | "antigas";
+type ArrivedFilter = "todos" | "hoje";
 
 type AdvancedFilters = {
   instanceId: string;
@@ -31,6 +32,7 @@ type AdvancedFilters = {
   attendanceWindow: AttendanceWindowFilter;
   lastMessagePeriod: LastMessagePeriodFilter;
   order: OrderFilter;
+  arrived: ArrivedFilter;
 };
 
 const DEFAULT_ADVANCED_FILTERS: AdvancedFilters = {
@@ -40,7 +42,15 @@ const DEFAULT_ADVANCED_FILTERS: AdvancedFilters = {
   attendanceWindow: "todos",
   lastMessagePeriod: "todos",
   order: "recentes",
+  arrived: "todos",
 };
+
+function isLeadFromToday(createdAt: string | null): boolean {
+  if (!createdAt) return false;
+  const created = new Date(createdAt);
+  const now = new Date();
+  return created.toDateString() === now.toDateString();
+}
 
 function isWithinAttendanceWindow(lastAt: string | null): boolean {
   if (!lastAt) return false;
@@ -119,6 +129,7 @@ export function ConversationList({
         if (appliedFilters.attendanceWindow === "expirada" && within) return false;
       }
       if (!isWithinPeriod(c.lastAt, appliedFilters.lastMessagePeriod)) return false;
+      if (appliedFilters.arrived === "hoje" && !isLeadFromToday(c.leadCreatedAt)) return false;
       if (!q) return true;
       return (
         c.leadName.toLowerCase().includes(q) ||
@@ -418,6 +429,21 @@ export function ConversationList({
                     <SelectItem value="hoje">Hoje</SelectItem>
                     <SelectItem value="7dias">Ultimos 7 dias</SelectItem>
                     <SelectItem value="30dias">Ultimos 30 dias</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FilterField>
+
+              <FilterField label="Lead chegou">
+                <Select
+                  value={draftFilters.arrived}
+                  onValueChange={(v) => setDraftFilters((f) => ({ ...f, arrived: v as ArrivedFilter }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Qualquer data</SelectItem>
+                    <SelectItem value="hoje">Hoje</SelectItem>
                   </SelectContent>
                 </Select>
               </FilterField>

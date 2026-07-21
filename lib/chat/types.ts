@@ -36,6 +36,7 @@ export type ConversationListItem = {
   whatsappAccountId: string | null;
   tags: string[];
   stageId: string | null;
+  leadCreatedAt: string | null;
 };
 
 export type GroupLabelItem = {

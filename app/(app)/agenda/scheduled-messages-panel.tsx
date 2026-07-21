@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { MessageSquare, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CallButton } from "@/components/leads/call-button";
+import { WhatsAppCallButton } from "@/components/leads/whatsapp-call-button";
 import { cancelScheduledMessage } from "../chat/actions";
 
 type ScheduledMessageRow = {
@@ -45,9 +47,17 @@ export function ScheduledMessagesPanel({ messages }: { messages: ScheduledMessag
                 {new Date(m.send_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
               </p>
             </div>
-            <button type="button" onClick={() => cancel(m.id, m.lead_id)} className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted/50 hover:text-destructive" title="Cancelar">
-              <X className="h-4 w-4" />
-            </button>
+            <div className="flex shrink-0 items-center gap-1.5">
+              {m.leads?.phone && (
+                <>
+                  <CallButton leadId={m.lead_id} phone={m.leads.phone} iconOnly />
+                  <WhatsAppCallButton phone={m.leads.phone} iconOnly />
+                </>
+              )}
+              <button type="button" onClick={() => cancel(m.id, m.lead_id)} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted/50 hover:text-destructive" title="Cancelar">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         ))}
       </CardContent>

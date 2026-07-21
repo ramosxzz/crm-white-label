@@ -23,6 +23,7 @@ export type ConversationLeadRow = {
     custom_fields?: Record<string, unknown> | null;
     tags?: string[] | null;
     stage_id?: string | null;
+    created_at?: string | null;
   } | null;
 };
 
