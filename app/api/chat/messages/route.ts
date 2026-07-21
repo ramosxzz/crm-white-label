@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
-import { getAllowedWhatsappAccountIds } from "@/lib/chat/list-conversation-items";
+import { getBlockedWhatsappAccountIds } from "@/lib/chat/list-conversation-items";
 import type { ChatMessage } from "@/lib/chat/types";
 
 const NO_STORE_HEADERS = {
@@ -59,15 +59,12 @@ export async function GET(req: NextRequest) {
   }
   if (!conversation) return json({ messages: [] });
 
-  const allowedAccountIds = await getAllowedWhatsappAccountIds(ctx.tenantId, ctx.userId, ctx.role);
-  if (allowedAccountIds) {
-    const conv = conversation as { whatsapp_account_id: string | null; lead_id: string };
-    let hasAccess = conv.whatsapp_account_id ? allowedAccountIds.includes(conv.whatsapp_account_id) : false;
-    if (!hasAccess && !conv.whatsapp_account_id) {
-      const { data: lead } = await supabase.from("leads").select("assigned_to").eq("id", conv.lead_id).maybeSingle();
-      hasAccess = (lead as { assigned_to: string | null } | null)?.assigned_to === ctx.userId;
+  const blockedAccountIds = await getBlockedWhatsappAccountIds(ctx.tenantId, ctx.userId, ctx.role);
+  if (blockedAccountIds) {
+    const conv = conversation as { whatsapp_account_id: string | null };
+    if (conv.whatsapp_account_id && blockedAccountIds.includes(conv.whatsapp_account_id)) {
+      return json({ error: "Sem acesso a esta conversa" }, { status: 403 });
     }
-    if (!hasAccess) return json({ error: "Sem acesso a esta conversa" }, { status: 403 });
   }
 
   const { data, error } = await supabase
