@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { listTenantUserOptions } from "@/lib/tenant/users";
+import { getAllowedWhatsappAccountIds } from "@/lib/chat/list-conversation-items";
 import { displayLeadName } from "@/lib/leads/display";
 import { getCachedWhatsAppProfilePicture } from "@/lib/whatsapp/profile-picture";
 import { fetchApi4comCalls } from "@/lib/integrations/api4com";
@@ -95,7 +96,15 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
   } | null;
   if (!lead) notFound();
 
-  const convo = convoRes.data as { id: string; status: string | null; channel: string | null } | null;
+  const convo = convoRes.data as { id: string; status: string | null; channel: string | null; whatsapp_account_id: string | null } | null;
+
+  const allowedAccountIds = await getAllowedWhatsappAccountIds(ctx.tenantId, ctx.userId, ctx.role);
+  if (allowedAccountIds) {
+    const hasAccess = convo?.whatsapp_account_id
+      ? allowedAccountIds.includes(convo.whatsapp_account_id)
+      : lead.assigned_to === ctx.userId;
+    if (!hasAccess) notFound();
+  }
   const leadPhoneDigits = (lead.phone ?? "").replace(/\D/g, "");
   const recentCalls = api4comCalls
     .filter((call) => {
@@ -236,7 +245,9 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
       professionals={professionalsRes.data ?? []}
       users={users}
       services={(servicesRes.data ?? []) as { id: string; name: string; duration_minutes: number }[]}
-      whatsappAccounts={(whatsappAccountsRes.data ?? []) as { id: string; phone_number: string; display_name: string | null; provider: string; assigned_to: string | null }[]}
+      whatsappAccounts={((whatsappAccountsRes.data ?? []) as { id: string; phone_number: string; display_name: string | null; provider: string; assigned_to: string | null }[]).filter(
+        (a) => !allowedAccountIds || allowedAccountIds.includes(a.id),
+      )}
       recentCalls={recentCalls}
       pipelineOptions={((pipelinesRes.data ?? []) as {
         id: string;

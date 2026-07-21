@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
+import { getAllowedWhatsappAccountIds } from "@/lib/chat/list-conversation-items";
 import type { ChatMessage } from "@/lib/chat/types";
 
 const NO_STORE_HEADERS = {
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest) {
   const supabase = createServiceClient();
   const { data: conversation, error: conversationError } = await supabase
     .from("conversations")
-    .select("id")
+    .select("id, whatsapp_account_id, lead_id")
     .eq("id", conversationId)
     .eq("tenant_id", ctx.tenantId)
     .maybeSingle();
@@ -57,6 +58,17 @@ export async function GET(req: NextRequest) {
     return json({ error: conversationError.message }, { status: 500 });
   }
   if (!conversation) return json({ messages: [] });
+
+  const allowedAccountIds = await getAllowedWhatsappAccountIds(ctx.tenantId, ctx.userId, ctx.role);
+  if (allowedAccountIds) {
+    const conv = conversation as { whatsapp_account_id: string | null; lead_id: string };
+    let hasAccess = conv.whatsapp_account_id ? allowedAccountIds.includes(conv.whatsapp_account_id) : false;
+    if (!hasAccess && !conv.whatsapp_account_id) {
+      const { data: lead } = await supabase.from("leads").select("assigned_to").eq("id", conv.lead_id).maybeSingle();
+      hasAccess = (lead as { assigned_to: string | null } | null)?.assigned_to === ctx.userId;
+    }
+    if (!hasAccess) return json({ error: "Sem acesso a esta conversa" }, { status: 403 });
+  }
 
   const { data, error } = await supabase
     .from("messages")

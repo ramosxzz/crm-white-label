@@ -3,6 +3,28 @@ import type { ConversationLeadRow } from "@/lib/chat/conversation-filter";
 import type { ConversationListItem } from "@/lib/chat/types";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
+import { canSeeAllLeads } from "@/lib/auth/roles";
+import type { MemberRole } from "@/lib/supabase/database.types";
+
+/**
+ * Vendedor/atendente so pode ver conversas que chegaram no numero WhatsApp
+ * atribuido a ele - nunca as de outros vendedores ou numeros da empresa.
+ * Owner/admin/gerente veem tudo (retorna null = sem restricao).
+ */
+export async function getAllowedWhatsappAccountIds(
+  tenantId: string,
+  userId: string,
+  role: MemberRole,
+): Promise<string[] | null> {
+  if (canSeeAllLeads(role)) return null;
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from("whatsapp_accounts")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("assigned_to", userId);
+  return (data ?? []).map((row) => row.id);
+}
 
 type ChatConversationRow = {
   id: string;
@@ -44,6 +66,7 @@ export async function listConversationItemsForTenant(
   limit = 100,
   filters: ConversationListFilters = {},
   tenantName?: string | null,
+  allowedWhatsappAccountIds?: string[] | null,
 ): Promise<ConversationListItem[]> {
   const supabase = createServiceClient();
   const rpcClient = supabase as unknown as ChatConversationRpcClient;
@@ -52,7 +75,7 @@ export async function listConversationItemsForTenant(
   const hasFilters = Boolean(search || (status && status !== "todas"));
 
   if (hasFilters) {
-    return listFilteredConversationItemsForTenant(tenantId, limit, { search, status }, tenantName);
+    return listFilteredConversationItemsForTenant(tenantId, limit, { search, status }, tenantName, allowedWhatsappAccountIds);
   }
 
   const [{ data: rows, error }, { data: waAccount }] = await Promise.all([
@@ -100,12 +123,22 @@ export async function listConversationItemsForTenant(
       direction: row.last_direction ?? "inbound",
     }));
 
-  return buildConversationItems(
+  const items = buildConversationItems(
     conversationRows,
     messagePreviews,
     (waAccount as WhatsAppAccount | null) ?? null,
     { tenantName },
   );
+  return filterByAllowedAccounts(items, allowedWhatsappAccountIds);
+}
+
+function filterByAllowedAccounts(
+  items: ConversationListItem[],
+  allowedWhatsappAccountIds?: string[] | null,
+): ConversationListItem[] {
+  if (!allowedWhatsappAccountIds) return items;
+  const allowed = new Set(allowedWhatsappAccountIds);
+  return items.filter((item) => item.whatsappAccountId !== null && allowed.has(item.whatsappAccountId));
 }
 
 async function listFilteredConversationItemsForTenant(
@@ -113,6 +146,7 @@ async function listFilteredConversationItemsForTenant(
   limit: number,
   filters: { search: string; status: string },
   tenantName?: string | null,
+  allowedWhatsappAccountIds?: string[] | null,
 ): Promise<ConversationListItem[]> {
   const supabase = createServiceClient();
   const cappedLimit = Math.min(Math.max(limit, 1), 300);
@@ -155,12 +189,13 @@ async function listFilteredConversationItemsForTenant(
   const conversationIds = conversationRows.map((row) => row.id);
   const messagePreviews = await fetchLatestMessagePreviews(tenantId, conversationIds);
 
-  return buildConversationItems(
+  const items = buildConversationItems(
     conversationRows,
     messagePreviews,
     (waAccount as WhatsAppAccount | null) ?? null,
     { tenantName },
   );
+  return filterByAllowedAccounts(items, allowedWhatsappAccountIds);
 }
 
 async function findMatchingLeadIds(tenantId: string, search: string): Promise<string[]> {

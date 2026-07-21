@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listConversationItemsForTenant } from "@/lib/chat/list-conversation-items";
+import { listConversationItemsForTenant, getAllowedWhatsappAccountIds } from "@/lib/chat/list-conversation-items";
 import { requireContext } from "@/lib/tenant";
 
 const NO_STORE_HEADERS = {
@@ -25,11 +25,13 @@ export async function GET(request: Request) {
     const search = url.searchParams.get("q");
     const status = url.searchParams.get("status");
     const hasSearch = Boolean(search?.trim());
+    const allowedAccountIds = await getAllowedWhatsappAccountIds(ctx.tenantId, ctx.userId, ctx.role);
     const conversations = await listConversationItemsForTenant(
       ctx.tenantId,
       hasSearch ? 200 : 300,
       { search, status },
       ctx.tenant.name,
+      allowedAccountIds,
     );
     return json({ conversations });
   } catch (error) {

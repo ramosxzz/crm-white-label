@@ -1,5 +1,5 @@
 import { requireContext } from "@/lib/tenant";
-import { listConversationItemsForTenant } from "@/lib/chat/list-conversation-items";
+import { listConversationItemsForTenant, getAllowedWhatsappAccountIds } from "@/lib/chat/list-conversation-items";
 import { ConversationListLive } from "@/components/chat/conversation-list-live";
 import { createClient } from "@/lib/supabase/server";
 
@@ -9,8 +9,10 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   type InstanceRow = { id: string; display_name: string | null; phone_number: string };
   type StageRow = { id: string; name: string };
 
+  const allowedAccountIds = await getAllowedWhatsappAccountIds(ctx.tenantId, ctx.userId, ctx.role);
+
   const [items, instancesResult, stagesResult] = await Promise.all([
-    listConversationItemsForTenant(ctx.tenantId, 300, {}, ctx.tenant.name),
+    listConversationItemsForTenant(ctx.tenantId, 300, {}, ctx.tenant.name, allowedAccountIds),
     supabase
       .from("whatsapp_accounts")
       .select("id, display_name, phone_number")
@@ -22,7 +24,8 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       .eq("pipelines.tenant_id", ctx.tenantId)
       .order("position"),
   ]);
-  const instances = (instancesResult.data ?? []) as unknown as InstanceRow[];
+  const allInstances = (instancesResult.data ?? []) as unknown as InstanceRow[];
+  const instances = allowedAccountIds ? allInstances.filter((i) => allowedAccountIds.includes(i.id)) : allInstances;
   const stages = (stagesResult.data ?? []) as unknown as StageRow[];
 
   return (
