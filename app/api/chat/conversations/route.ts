@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { listConversationItemsForTenant, getBlockedWhatsappAccountIds } from "@/lib/chat/list-conversation-items";
+import { fetchLeadCallCountsForTenant } from "@/lib/integrations/call-counts";
 import { requireContext } from "@/lib/tenant";
 
 const NO_STORE_HEADERS = {
@@ -33,7 +34,15 @@ export async function GET(request: Request) {
       ctx.tenant.name,
       blockedAccountIds,
     );
-    return json({ conversations });
+    const callCounts = await fetchLeadCallCountsForTenant(ctx.tenantId, {
+      includeApi4com: ctx.tenant.calls_dashboard_enabled,
+    });
+    return json({
+      conversations: conversations.map((conversation) => ({
+        ...conversation,
+        callCount: callCounts[conversation.leadId] ?? 0,
+      })),
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha ao carregar conversas";
     return json({ error: message }, { status: 500 });

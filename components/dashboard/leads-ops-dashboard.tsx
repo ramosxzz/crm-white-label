@@ -270,6 +270,8 @@ export function LeadsOpsDashboard({
 function MetaAdsPanel({ data }: { data: MetaAdsDashboardData }) {
   const configured = data.status !== "not_configured";
   const hasRows = data.rows.length > 0;
+  const hasMetaLeads = data.totals.leads > 0;
+  const hasCrmAttribution = (data.totals.crmSales ?? 0) > 0 || (data.totals.crmRevenueCents ?? 0) > 0;
 
   return (
     <Card className="border-border/60 bg-card/80">
@@ -306,13 +308,20 @@ function MetaAdsPanel({ data }: { data: MetaAdsDashboardData }) {
           />
         )}
 
+        {data.status === "ready" && hasMetaLeads && !hasCrmAttribution && (
+          <MetaNotice
+            title="Atribuição do CRM em aprendizado"
+            message="A Meta retornou leads/conversas no período, mas nenhum negócio ganho do CRM está vinculado a um anúncio ainda. Novas conversas vindas de anúncio serão salvas com a referência da campanha para calcular vendas e ROAS do CRM."
+          />
+        )}
+
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
           <MiniMetric icon={<DollarSign className="h-4 w-4" />} label="Gasto" value={formatCurrencyBRL(data.totals.spendCents)} />
           <MiniMetric icon={<ShoppingCart className="h-4 w-4" />} label="Conversões (Meta)" value={`${data.totals.purchases}`} hint={`${formatCurrencyBRL(data.totals.revenueCents)} em vendas`} />
           <MiniMetric icon={<TrendingUp className="h-4 w-4" />} label="ROAS" value={`${data.totals.roas.toFixed(2)}x`} hint={formatCurrencyBRL(data.totals.revenueCents)} />
           <MiniMetric icon={<Users className="h-4 w-4" />} label="CPL" value={formatCurrencyBRL(data.totals.cplCents)} hint={`${data.totals.leads} lead(s) · custo por lead`} />
           <MiniMetric icon={<Target className="h-4 w-4" />} label="CAC" value={formatCurrencyBRL(data.totals.cacCents)} hint={`${data.totals.purchases} venda(s) · custo por cliente`} />
-          <MiniMetric icon={<MousePointerClick className="h-4 w-4" />} label="Cliques / Leads" value={`${data.totals.clicks} / ${data.totals.leads}`} hint={`${data.totals.impressions} impressoes`} />
+          <MiniMetric icon={<MousePointerClick className="h-4 w-4" />} label="Cliques / Conversas" value={`${data.totals.clicks} / ${data.totals.leads}`} hint={`${data.totals.impressions} impressoes`} />
           <MiniMetric
             icon={<BadgeCheck className="h-4 w-4" />}
             label="Vendas no CRM"

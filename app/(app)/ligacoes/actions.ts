@@ -112,6 +112,11 @@ export async function setLeadStage(input: { leadId: string; stageId: string }) {
     .eq("tenant_id", ctx.tenantId);
   if (error) throw new Error(error.message);
 
+  if (wonAtPatch.won_at) {
+    const { notifyMetaLeadWon } = await import("@/lib/meta/notify-lead-won");
+    void notifyMetaLeadWon(supabase, ctx.tenantId, input.leadId);
+  }
+
   let fromName: string | null = null;
   if (lead.stage_id) {
     const { data: fromStage } = await supabase

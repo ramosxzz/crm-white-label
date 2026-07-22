@@ -40,8 +40,12 @@ export function NotesPanel({
     const value = text.trim();
     if (!value) return;
     startTransition(async () => {
-      await addLeadNote({ leadId, text: value });
-      setText("");
+      try {
+        await addLeadNote({ leadId, text: value });
+        setText("");
+      } catch (err) {
+        alert((err as Error).message || "Nao foi possivel salvar a nota.");
+      }
     });
   }
 

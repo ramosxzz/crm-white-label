@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
-import { Search, Inbox, RefreshCw, SlidersHorizontal, X } from "lucide-react";
+import { Search, Inbox, Phone, RefreshCw, SlidersHorizontal, X } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn, initials } from "@/lib/utils";
@@ -316,16 +316,19 @@ export function ConversationList({
                   <p className={cn("truncate text-sm", c.unread > 0 ? "font-semibold" : "font-medium")}>
                     {c.leadName}
                   </p>
-                  {c.lastAt && (
-                    <span
-                      className={cn(
-                        "shrink-0 text-[11px]",
-                        c.unread > 0 ? "font-medium text-brand" : "text-muted-foreground",
-                      )}
-                    >
-                      {formatDistanceToNow(new Date(c.lastAt), { locale: ptBR, addSuffix: false })}
-                    </span>
-                  )}
+                  <div className="flex shrink-0 items-center gap-2">
+                    <CallAttemptMarker count={c.callCount ?? 0} />
+                    {c.lastAt && (
+                      <span
+                        className={cn(
+                          "shrink-0 text-[11px]",
+                          c.unread > 0 ? "font-medium text-brand" : "text-muted-foreground",
+                        )}
+                      >
+                        {formatDistanceToNow(new Date(c.lastAt), { locale: ptBR, addSuffix: false })}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-0.5 flex items-center justify-between gap-2">
                   <p
@@ -541,5 +544,28 @@ function StatusPill({
       {label}
       <span className="tabular-nums opacity-70">{count}</span>
     </button>
+  );
+}
+
+function CallAttemptMarker({ count }: { count: number }) {
+  if (count <= 0) {
+    return (
+      <span
+        title="Nenhuma ligação feita"
+        aria-label="Nenhuma ligação feita"
+        className="inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-amber-400 ring-2 ring-background"
+      />
+    );
+  }
+
+  return (
+    <span
+      title={`${count} tentativa${count === 1 ? "" : "s"} de ligação`}
+      aria-label={`${count} tentativa${count === 1 ? "" : "s"} de ligação`}
+      className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-emerald-300"
+    >
+      <Phone className="h-2.5 w-2.5" />
+      {count}
+    </span>
   );
 }

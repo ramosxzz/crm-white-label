@@ -20,16 +20,18 @@ ssh "${VPS_USER}@${VPS_HOST}" "set -e; mkdir -p /opt/solaire-crm/backups; if [ -
 echo "Sincronizando arquivos para ${VPS_HOST}:${REMOTE_DIR}..."
 rsync -az --delete \
   --exclude '.git' \
+  --exclude '.claude' \
   --exclude '.next' \
   --exclude '.open-next' \
   --exclude 'node_modules' \
   --exclude '.env.local' \
   --exclude '.env.production' \
+  --exclude 'supabase/.temp' \
   --exclude 'tsconfig.tsbuildinfo' \
   ./ "${VPS_USER}@${VPS_HOST}:${REMOTE_DIR}/"
 
 echo "Reconstruindo container na VPS..."
-ssh "${VPS_USER}@${VPS_HOST}" "set -e; cd '${REMOTE_DIR}'; test -f .env.production; set -a; . ./.env.production; set +a; docker compose -f '${REMOTE_COMPOSE}' up -d --build"
+ssh "${VPS_USER}@${VPS_HOST}" "set -e; cd '${REMOTE_DIR}'; test -f .env.production; set -a; . ./.env.production; set +a; docker compose -f '${REMOTE_COMPOSE}' up -d --build app"
 
 echo "Verificando saude do CRM..."
 ssh "${VPS_USER}@${VPS_HOST}" "set -e; curl -fsS http://127.0.0.1:3000/api/health >/dev/null"

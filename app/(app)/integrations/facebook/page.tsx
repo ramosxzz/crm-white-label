@@ -13,6 +13,13 @@ export default async function FacebookIntegrationPage() {
     .single();
 
   return (
-    <FacebookForm initialData={tenant || {}} />
+    <FacebookForm
+      initialData={{
+        meta_pixel_id: tenant?.meta_pixel_id ?? null,
+        meta_ad_account_id: tenant?.meta_ad_account_id ?? null,
+        has_capi_token: Boolean(tenant?.meta_capi_token),
+        has_ads_access_token: Boolean(tenant?.meta_ads_access_token),
+      }}
+    />
   );
 }

@@ -710,6 +710,11 @@ export async function updateChatLeadBusiness(input: {
     .eq("tenant_id", ctx.tenantId);
   if (error) throw new Error(error.message);
 
+  if (wonAtPatch?.won_at) {
+    const { notifyMetaLeadWon } = await import("@/lib/meta/notify-lead-won");
+    void notifyMetaLeadWon(supabase, ctx.tenantId, input.leadId, valueCents);
+  }
+
   if (currentLead.assigned_to !== input.assignedTo) {
     const { error: historyError } = await supabase.from("lead_assignment_history").insert({
       tenant_id: ctx.tenantId,
@@ -1333,4 +1338,41 @@ export async function listLeadTimeline(leadId: string): Promise<LeadTimelineEntr
     userName: r.user_id ? namesByUser.get(r.user_id) ?? null : null,
     createdAt: r.created_at,
   }));
+}
+
+/**
+ * Thread compacta pra painel flutuante (kanban/ligacoes) - so o essencial
+ * pra ler e responder, sem carregar a pagina inteira de chat.
+ */
+export async function getLeadChatThread(leadId: string): Promise<{
+  conversationId: string | null;
+  messages: ChatMessage[];
+}> {
+  const ctx = await requireContext();
+  const supabase = createServiceClient();
+
+  const { data: conv } = await supabase
+    .from("conversations")
+    .select("id")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("lead_id", leadId)
+    .eq("channel", "whatsapp")
+    .order("last_message_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!conv) return { conversationId: null, messages: [] };
+
+  const { data } = await supabase
+    .from("messages")
+    .select("id, external_id, body, direction, created_at, status, media_url, media_type, user_id")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("conversation_id", conv.id)
+    .order("created_at", { ascending: true })
+    .limit(50);
+
+  return {
+    conversationId: conv.id,
+    messages: ((data ?? []) as ChatMessage[]).map((m) => ({ ...m, direction: m.direction })),
+  };
 }

@@ -79,6 +79,25 @@ export async function addLeadNote(input: { leadId: string; text: string }) {
   const text = input.text.trim();
   if (!text) throw new Error("Nota vazia");
   const supabase = await createClient();
+  const { data: lead, error: leadError } = await supabase
+    .from("leads")
+    .select("notes")
+    .eq("id", input.leadId)
+    .eq("tenant_id", ctx.tenantId)
+    .single();
+  if (leadError || !lead) throw new Error("Lead nao encontrado");
+
+  const timestamp = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+  const currentNotes = typeof lead.notes === "string" ? lead.notes.trim() : "";
+  const nextNotes = currentNotes ? `${currentNotes}\n\n[${timestamp}] ${text}` : `[${timestamp}] ${text}`;
+
+  const { error: updateError } = await supabase
+    .from("leads")
+    .update({ notes: nextNotes })
+    .eq("id", input.leadId)
+    .eq("tenant_id", ctx.tenantId);
+  if (updateError) throw new Error(updateError.message);
+
   const { error } = await supabase.from("lead_activities").insert({
     tenant_id: ctx.tenantId,
     lead_id: input.leadId,

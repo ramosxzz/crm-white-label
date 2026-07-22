@@ -37,6 +37,7 @@ export type ConversationListItem = {
   tags: string[];
   stageId: string | null;
   leadCreatedAt: string | null;
+  callCount?: number;
 };
 
 export type GroupLabelItem = {

@@ -91,17 +91,36 @@ export async function updateTenantMetaSettings(input: {
   const ctx = await requireContext();
   if (!["owner", "admin"].includes(ctx.role)) throw new Error("Sem permissao");
   const supabase = await createClient();
+
+  const { data: currentTenant, error: currentError } = await supabase
+    .from("tenants")
+    .select("meta_capi_token, meta_ads_access_token")
+    .eq("id", ctx.tenantId)
+    .single();
+  if (currentError) throw new Error(currentError.message);
+
+  const capiToken = input.meta_capi_token?.trim();
+  const adsAccessToken = input.meta_ads_access_token?.trim();
+  const adAccountId = normalizeMetaAdAccountId(input.meta_ad_account_id);
+
   const { error } = await supabase
     .from("tenants")
     .update({
       meta_pixel_id: input.meta_pixel_id?.trim() || null,
-      meta_capi_token: input.meta_capi_token?.trim() || null,
-      meta_ad_account_id: input.meta_ad_account_id?.trim() || null,
-      meta_ads_access_token: input.meta_ads_access_token?.trim() || null,
+      meta_capi_token: capiToken || currentTenant?.meta_capi_token || null,
+      meta_ad_account_id: adAccountId,
+      meta_ads_access_token: adsAccessToken || currentTenant?.meta_ads_access_token || null,
     })
     .eq("id", ctx.tenantId);
   if (error) throw new Error(error.message);
   revalidatePath("/integrations");
   revalidatePath("/integrations/facebook");
   revalidatePath("/dashboard");
+}
+
+function normalizeMetaAdAccountId(value?: string | null) {
+  const raw = value?.trim();
+  if (!raw) return null;
+  const digits = raw.replace(/^act_/i, "").replace(/\D/g, "");
+  return digits || null;
 }

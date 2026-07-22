@@ -1,5 +1,6 @@
 import { requireContext } from "@/lib/tenant";
 import { listConversationItemsForTenant, getBlockedWhatsappAccountIds } from "@/lib/chat/list-conversation-items";
+import { fetchLeadCallCountsForTenant } from "@/lib/integrations/call-counts";
 import { ConversationListLive } from "@/components/chat/conversation-list-live";
 import { createClient } from "@/lib/supabase/server";
 
@@ -11,8 +12,9 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
 
   const blockedAccountIds = await getBlockedWhatsappAccountIds(ctx.tenantId, ctx.userId, ctx.role);
 
-  const [items, instancesResult, stagesResult] = await Promise.all([
+  const [items, callCounts, instancesResult, stagesResult] = await Promise.all([
     listConversationItemsForTenant(ctx.tenantId, 300, {}, ctx.tenant.name, blockedAccountIds),
+    fetchLeadCallCountsForTenant(ctx.tenantId, { includeApi4com: ctx.tenant.calls_dashboard_enabled }),
     supabase
       .from("whatsapp_accounts")
       .select("id, display_name, phone_number")
@@ -32,7 +34,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
     <div className="flex h-[calc(100dvh-3.5rem-4.75rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] min-h-0 overflow-hidden bg-background md:h-[calc(100vh-3.5rem)]">
       <ConversationListLive
         tenantId={ctx.tenantId}
-        initialItems={items}
+        initialItems={items.map((item) => ({ ...item, callCount: callCounts[item.leadId] ?? 0 }))}
         instances={instances.map((i) => ({
           id: i.id,
           label: i.display_name || i.phone_number,

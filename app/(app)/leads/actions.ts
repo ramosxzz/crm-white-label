@@ -226,45 +226,9 @@ export async function updateLead(id: string, patch: Partial<{
     });
   }
 
-  if (patch.stage_id) {
-    try {
-      if (stageIsWon) {
-        const { data: leadRow } = await supabase
-          .from("leads")
-          .select("phone, email, value_cents, custom_fields")
-          .eq("id", id)
-          .eq("tenant_id", ctx.tenantId)
-          .single();
-
-        if (leadRow) {
-          const { data: tenantRow } = await supabase
-            .from("tenants")
-            .select("meta_pixel_id, meta_capi_token")
-            .eq("id", ctx.tenantId)
-            .single();
-
-          const pixelId = tenantRow?.meta_pixel_id || process.env.META_PIXEL_ID;
-          const capiToken = tenantRow?.meta_capi_token || process.env.META_CAPI_TOKEN;
-          const customFields = (leadRow as any).custom_fields || {};
-          const adId = customFields.meta_ad_id;
-
-          if (pixelId && capiToken) {
-            const { sendMetaConversionEvent } = await import("@/lib/meta/meta-capi");
-            await sendMetaConversionEvent({
-              pixelId,
-              accessToken: capiToken,
-              eventName: "Purchase",
-              phone: leadRow.phone,
-              email: leadRow.email,
-              valueCents: patch.value_cents ?? leadRow.value_cents ?? 0,
-              adId: adId,
-            });
-          }
-        }
-      }
-    } catch (e) {
-      console.error("Erro ao enviar evento CAPI do Meta:", e);
-    }
+  if (patch.stage_id && stageIsWon) {
+    const { notifyMetaLeadWon } = await import("@/lib/meta/notify-lead-won");
+    void notifyMetaLeadWon(supabase, ctx.tenantId, id, patch.value_cents ?? null);
   }
 
   revalidatePath("/leads");
@@ -277,6 +241,25 @@ export async function moveLeadToStage(leadId: string, stageId: string, position:
   const ctx = await requireContext();
   await updateLead(leadId, { stage_id: stageId, position });
   void fireAutomationTrigger(ctx.tenantId, "stage_changed", leadId, { stage_id: stageId });
+}
+
+export async function moveLeadsToStage(leadIds: string[], stageId: string) {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+  const { data: existing } = await supabase
+    .from("leads")
+    .select("id, position")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("stage_id", stageId)
+    .order("position", { ascending: false })
+    .limit(1);
+  let position = ((existing?.[0] as { position?: number } | undefined)?.position ?? 0) + 1000;
+
+  for (const leadId of leadIds) {
+    await updateLead(leadId, { stage_id: stageId, position });
+    position += 1000;
+    void fireAutomationTrigger(ctx.tenantId, "stage_changed", leadId, { stage_id: stageId });
+  }
 }
 
 export async function assignLead(input: {

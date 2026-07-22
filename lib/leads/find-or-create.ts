@@ -7,6 +7,59 @@ import { forwardNewLead } from "@/lib/leads/forward-new-lead";
 
 type SB = SupabaseClient<Database>;
 
+type ReferralInput = {
+  sourceId: string;
+  sourceType: string;
+  sourceUrl?: string;
+  headline?: string;
+  body?: string;
+  mediaType?: string;
+  imageUrl?: string;
+  videoUrl?: string;
+} | null | undefined;
+
+const META_AD_ID_KEYS = [
+  "meta_ad_id",
+  "meta_source_id",
+  "ad_id",
+  "source_id",
+  "ctwa_ad_id",
+  "whatsapp_ad_id",
+];
+
+function hasMetaAdId(fields: Record<string, any>) {
+  return META_AD_ID_KEYS.some((key) => {
+    const value = fields[key];
+    return typeof value === "string" ? Boolean(value.trim()) : value != null;
+  });
+}
+
+function buildMetaReferralFields(referral: NonNullable<ReferralInput>) {
+  return {
+    meta_ad_id: referral.sourceId,
+    meta_source_id: referral.sourceId,
+    meta_source_type: referral.sourceType,
+    meta_ad_type: referral.sourceType,
+    meta_referral_captured_at: new Date().toISOString(),
+    ...(referral.sourceUrl ? { meta_source_url: referral.sourceUrl } : {}),
+    ...(referral.headline ? { meta_ad_headline: referral.headline } : {}),
+    ...(referral.body ? { meta_ad_body: referral.body } : {}),
+    ...(referral.mediaType ? { meta_ad_media_type: referral.mediaType } : {}),
+    ...(referral.imageUrl ? { meta_ad_image_url: referral.imageUrl } : {}),
+    ...(referral.videoUrl ? { meta_ad_video_url: referral.videoUrl } : {}),
+  };
+}
+
+function mergeMissingFields(currentFields: Record<string, any>, nextFields: Record<string, any>) {
+  const merged = { ...currentFields };
+  for (const [key, value] of Object.entries(nextFields)) {
+    if (merged[key] == null || merged[key] === "") {
+      merged[key] = value;
+    }
+  }
+  return merged;
+}
+
 export async function findOrCreateWhatsAppLead(
   supabase: SB,
   tenantId: string,
@@ -17,16 +70,7 @@ export async function findOrCreateWhatsAppLead(
     ignoredNames?: Array<string | null | undefined>;
     stageId?: string | null;
     pipelineId?: string | null;
-    referral?: {
-      sourceId: string;
-      sourceType: string;
-      sourceUrl?: string;
-      headline?: string;
-      body?: string;
-      mediaType?: string;
-      imageUrl?: string;
-      videoUrl?: string;
-    } | null;
+    referral?: ReferralInput;
   },
 ): Promise<string | null> {
   const existing = await findLeadByContact(supabase, tenantId, {
@@ -39,17 +83,16 @@ export async function findOrCreateWhatsAppLead(
     }
     if (contact.referral) {
       const currentFields = (existing as any).custom_fields || {};
-      if (!currentFields.meta_ad_id) {
+      const referralFields = buildMetaReferralFields(contact.referral);
+      const nextFields = hasMetaAdId(currentFields)
+        ? mergeMissingFields(currentFields, referralFields)
+        : { ...currentFields, ...referralFields };
+
+      if (JSON.stringify(nextFields) !== JSON.stringify(currentFields)) {
         await supabase
           .from("leads")
           .update({
-            custom_fields: {
-              ...currentFields,
-              meta_ad_id: contact.referral.sourceId,
-              meta_ad_type: contact.referral.sourceType,
-              ...(contact.referral.headline ? { meta_ad_headline: contact.referral.headline } : {}),
-              ...(contact.referral.body ? { meta_ad_body: contact.referral.body } : {}),
-            }
+            custom_fields: nextFields,
           })
           .eq("id", existing.id);
       }
@@ -59,10 +102,7 @@ export async function findOrCreateWhatsAppLead(
 
   const customFields: Record<string, any> = {};
   if (contact.referral) {
-    customFields.meta_ad_id = contact.referral.sourceId;
-    customFields.meta_ad_type = contact.referral.sourceType;
-    if (contact.referral.headline) customFields.meta_ad_headline = contact.referral.headline;
-    if (contact.referral.body) customFields.meta_ad_body = contact.referral.body;
+    Object.assign(customFields, buildMetaReferralFields(contact.referral));
   }
 
   const contactName = normalizeInboundContactName(contact.name, contact.ignoredNames);

@@ -3,6 +3,22 @@ import type { MetaDatePreset } from "./ads-insights";
 
 export type MetaAdCrmSales = { sales: number; revenueCents: number; leads: number };
 
+type LeadAttributionRow = {
+  custom_fields: Record<string, unknown> | null;
+  created_at: string | null;
+  won_at: string | null;
+  value_cents: number | null;
+};
+
+const META_AD_ID_KEYS = [
+  "meta_ad_id",
+  "meta_source_id",
+  "ad_id",
+  "source_id",
+  "ctwa_ad_id",
+  "whatsapp_ad_id",
+];
+
 function datePresetRange(preset: MetaDatePreset): { startIso: string; endIso: string } {
   const now = new Date();
   const startOfDay = (d: Date) => {
@@ -34,10 +50,24 @@ function datePresetRange(preset: MetaDatePreset): { startIso: string; endIso: st
   return { startIso: startOfDay(now).toISOString(), endIso: endOfDay(now).toISOString() };
 }
 
+function isWithinRange(value: string | null | undefined, startIso: string, endIso: string) {
+  return Boolean(value && value >= startIso && value <= endIso);
+}
+
+function pickMetaAdId(fields: Record<string, unknown> | null | undefined) {
+  if (!fields) return null;
+  for (const key of META_AD_ID_KEYS) {
+    const value = fields[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return null;
+}
+
 /**
  * Vendas (leads ganhos) do CRM atribuidas ao anuncio de origem, via
- * custom_fields.meta_ad_id gravado no lead a partir do referral do
- * Click-to-WhatsApp. Diferente de MetaAdsRow.purchases (pixel da Meta),
+ * custom_fields gravado no lead a partir do referral do Click-to-WhatsApp.
+ * Diferente de MetaAdsRow.purchases (pixel da Meta),
  * que normalmente fica zerado em negocios que fecham por WhatsApp/ligacao
  * em vez de checkout.
  */
@@ -49,21 +79,25 @@ export async function getMetaAdsCrmSales(
   const { startIso, endIso } = datePresetRange(datePreset);
   const { data } = await supabase
     .from("leads")
-    .select("custom_fields, won_at, value_cents")
+    .select("custom_fields, created_at, won_at, value_cents")
     .eq("tenant_id", tenantId)
-    .not("custom_fields->>meta_ad_id", "is", null);
+    .not("custom_fields", "is", null);
 
   const byAd = new Map<string, MetaAdCrmSales>();
-  for (const row of (data ?? []) as { custom_fields: Record<string, unknown> | null; won_at: string | null; value_cents: number | null }[]) {
-    const adId = row.custom_fields?.meta_ad_id as string | undefined;
+  for (const row of (data ?? []) as LeadAttributionRow[]) {
+    const adId = pickMetaAdId(row.custom_fields);
     if (!adId) continue;
     const entry = byAd.get(adId) ?? { sales: 0, revenueCents: 0, leads: 0 };
-    entry.leads += 1;
-    if (row.won_at && row.won_at >= startIso && row.won_at <= endIso) {
+    if (isWithinRange(row.created_at, startIso, endIso)) {
+      entry.leads += 1;
+    }
+    if (isWithinRange(row.won_at, startIso, endIso)) {
       entry.sales += 1;
       entry.revenueCents += row.value_cents ?? 0;
     }
-    byAd.set(adId, entry);
+    if (entry.leads > 0 || entry.sales > 0 || entry.revenueCents > 0) {
+      byAd.set(adId, entry);
+    }
   }
   return byAd;
 }

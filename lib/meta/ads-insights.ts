@@ -75,6 +75,9 @@ const LEAD_ACTIONS = new Set([
   "lead",
   "onsite_conversion.lead_grouped",
   "offsite_conversion.fb_pixel_lead",
+  "offsite_complete_registration_add_meta_leads",
+  "offsite_search_add_meta_leads",
+  "offsite_content_view_add_meta_leads",
   "omni_lead",
 ]);
 
@@ -150,7 +153,7 @@ export async function getMetaAdsDashboard(input: {
       if (!response.ok) {
         return {
           ...emptyMetaDashboard("error", adAccountId),
-          error: translateMetaAdsError(payload?.error?.message),
+          error: translateMetaAdsError(payload?.error),
           errorCode: payload?.error?.code,
           errorType: payload?.error?.type,
         };
@@ -240,16 +243,21 @@ function emptyMetaDashboard(status: MetaAdsStatus, adAccountId?: string | null):
   };
 }
 
-function translateMetaAdsError(message?: string) {
+function translateMetaAdsError(error?: { message?: string; code?: number; type?: string }) {
+  const message = error?.message;
   if (!message) return "Nao foi possivel carregar os dados do Meta Ads.";
 
   const lower = message.toLowerCase();
-  if (lower.includes("ads_management") || lower.includes("ads_read")) {
+  if (error?.code === 190 || lower.includes("invalid oauth") || lower.includes("access token")) {
+    return "O token da Marketing API esta invalido ou expirou. Gere um novo token de longa duracao com ads_read ou ads_management e salve novamente na integracao Meta.";
+  }
+
+  if (error?.code === 200 || lower.includes("ads_management") || lower.includes("ads_read")) {
     return "O token salvo nao tem permissao para ler a conta de anuncios. Gere um token da Marketing API com ads_read ou ads_management usando um usuario que tenha acesso a essa conta de anuncios, salve na integracao Meta e tente novamente.";
   }
 
-  if (lower.includes("invalid oauth") || lower.includes("access token")) {
-    return "O token da Meta esta invalido ou expirou. Gere um novo token de longa duracao e salve novamente na integracao Meta.";
+  if (error?.code === 100 || lower.includes("unsupported get request") || lower.includes("object with id")) {
+    return "A conta de anuncios nao foi encontrada para esse token. Confira se o ID da conta esta correto e se o usuario/token tem acesso a ela no Business Manager.";
   }
 
   return message;
@@ -281,7 +289,9 @@ function normalizeInsightRow(row: MetaInsightRow): MetaAdsRow {
 function normalizeAdAccountId(value?: string | null) {
   const raw = value?.trim();
   if (!raw) return null;
-  return raw.startsWith("act_") ? raw : `act_${raw.replace(/\D/g, "")}`;
+  if (raw.startsWith("act_")) return `act_${raw.replace(/^act_/i, "").replace(/\D/g, "")}`;
+  const digits = raw.replace(/\D/g, "");
+  return digits ? `act_${digits}` : null;
 }
 
 function extractActionCount(actions: MetaAction[] | undefined, actionTypes: Set<string>) {

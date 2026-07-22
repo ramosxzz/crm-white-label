@@ -13,18 +13,18 @@ import { Chrome, HelpCircle, Save, CheckCircle } from "lucide-react";
 interface FacebookFormProps {
   initialData: {
     meta_pixel_id?: string | null;
-    meta_capi_token?: string | null;
     meta_ad_account_id?: string | null;
-    meta_ads_access_token?: string | null;
+    has_capi_token?: boolean;
+    has_ads_access_token?: boolean;
   };
 }
 
 export function FacebookForm({ initialData }: FacebookFormProps) {
   const router = useRouter();
   const [pixelId, setPixelId] = useState(initialData.meta_pixel_id || "");
-  const [capiToken, setCapiToken] = useState(initialData.meta_capi_token || "");
+  const [capiToken, setCapiToken] = useState("");
   const [adAccountId, setAdAccountId] = useState(initialData.meta_ad_account_id || "");
-  const [adsToken, setAdsToken] = useState(initialData.meta_ads_access_token || "");
+  const [adsToken, setAdsToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -86,7 +86,7 @@ export function FacebookForm({ initialData }: FacebookFormProps) {
               {success && (
                 <div className="flex items-center gap-3 p-4 rounded-lg bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-sm font-medium">
                   <CheckCircle className="h-5 w-5 shrink-0" />
-                  Configurações salvas com sucesso! O rastreamento dinâmico já está ativo.
+                  Configurações salvas com sucesso. Tokens em branco foram preservados.
                 </div>
               )}
 
@@ -121,14 +121,18 @@ export function FacebookForm({ initialData }: FacebookFormProps) {
                 <textarea
                   id="capi-token"
                   rows={4}
-                  placeholder="Cole aqui o token de acesso de longa duração gerado no Meta (começa com EAA...)"
+                  placeholder={
+                    initialData.has_capi_token
+                      ? "Token CAPI já salvo. Cole um novo aqui somente se quiser trocar."
+                      : "Cole aqui o token de acesso gerado no Meta (começa com EAA...)"
+                  }
                   value={capiToken}
                   onChange={(e) => setCapiToken(e.target.value)}
                   className="w-full font-mono text-xs rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 />
                 <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                   <HelpCircle className="h-3.5 w-3.5" />
-                  Gerado na aba "Configurações" do seu Pixel, dentro da seção "API de Conversões" no painel do Meta.
+                  Gerado na aba "Configurações" do seu Pixel, dentro da seção "API de Conversões" no painel do Meta. Deixe em branco para manter o token salvo.
                 </p>
               </div>
 
@@ -156,14 +160,18 @@ export function FacebookForm({ initialData }: FacebookFormProps) {
                 <textarea
                   id="ads-token"
                   rows={4}
-                  placeholder="Cole um token com permissao ads_read para listar campanhas, anúncios e custos"
+                  placeholder={
+                    initialData.has_ads_access_token
+                      ? "Token da Marketing API já salvo. Cole um novo aqui somente se quiser trocar."
+                      : "Cole um token com permissao ads_read para listar campanhas, anúncios e custos"
+                  }
                   value={adsToken}
                   onChange={(e) => setAdsToken(e.target.value)}
                   className="w-full font-mono text-xs rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 />
                 <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                   <HelpCircle className="h-3.5 w-3.5" />
-                  O dashboard usa somente este token para ler anuncios. Ele e diferente do token CAPI do Pixel e precisa ter ads_read ou ads_management.
+                  O dashboard usa somente este token para ler anuncios. Ele e diferente do token CAPI do Pixel, precisa ter ads_read ou ads_management e fica preservado se este campo for deixado em branco.
                 </p>
               </div>
 

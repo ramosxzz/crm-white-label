@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { PageHeader } from "@/components/app/page-header";
+import { fetchLeadCallCountsForTenant } from "@/lib/integrations/call-counts";
 import { KanbanBoard } from "./kanban-board";
 
 export default async function KanbanPage({ searchParams }: { searchParams?: Promise<{ pipeline?: string }> }) {
@@ -34,6 +35,10 @@ export default async function KanbanPage({ searchParams }: { searchParams?: Prom
       ])
     : [{ data: [] }, { data: [] }];
 
+  const callCounts = await fetchLeadCallCountsForTenant(ctx.tenantId, {
+    includeApi4com: ctx.tenant.calls_dashboard_enabled,
+  });
+
   return (
     <div className="flex h-screen flex-col">
       <PageHeader eyebrow="Pipeline" title="Kanban" description="Arraste os leads entre os estagios" />
@@ -44,6 +49,7 @@ export default async function KanbanPage({ searchParams }: { searchParams?: Prom
           activePipelineId={activePipeline?.id ?? null}
           initialStages={stages ?? []}
           initialLeads={leads ?? []}
+          callCounts={callCounts}
         />
       </div>
     </div>

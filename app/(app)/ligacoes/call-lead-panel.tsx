@@ -14,6 +14,7 @@ import { scheduleCall, createAppointment } from "../agenda/actions";
 import { getLeadCallPanelData, setLeadQualityStars } from "./actions";
 import { LeadTimeline } from "@/components/leads/lead-timeline";
 import { StarRating } from "@/components/leads/star-rating";
+import { MiniChatPanel } from "@/components/leads/mini-chat-panel";
 
 type PipelineOption = {
   id: string;
@@ -203,6 +204,10 @@ export function CallLeadPanel({
           <div className="p-6 text-sm text-muted-foreground">Carregando...</div>
         ) : (
           <div className="space-y-6 p-4">
+            <Section title="Conversa">
+              <MiniChatPanel leadId={leadId} leadName={leadName} onClose={() => {}} embedded />
+            </Section>
+
             <Section title="Negócio">
               <div className="space-y-3">
                 <div>

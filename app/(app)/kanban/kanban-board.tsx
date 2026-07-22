@@ -17,14 +17,16 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { Phone, Plus, Search, SlidersHorizontal, X } from "lucide-react";
+import { CheckSquare, MessageSquare, Phone, PhoneOff, Plus, Search, SlidersHorizontal, Square, X } from "lucide-react";
+import { MiniChatPanel } from "@/components/leads/mini-chat-panel";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrencyBRL, formatPhoneBR, cn } from "@/lib/utils";
-import { moveLeadToStage } from "../leads/actions";
+import { moveLeadToStage, moveLeadsToStage } from "../leads/actions";
 import { CallButton } from "@/components/leads/call-button";
 import { WhatsAppCallButton } from "@/components/leads/whatsapp-call-button";
 import { StarRating } from "@/components/leads/star-rating";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { setLeadQualityStars } from "../ligacoes/actions";
 import { updateChatLeadTags } from "../chat/actions";
@@ -87,11 +89,13 @@ export function KanbanBoard({
   activePipelineId,
   initialStages,
   initialLeads,
+  callCounts = {},
 }: {
   pipelines: { id: string; name: string; is_default: boolean }[];
   activePipelineId: string | null;
   initialStages: Stage[];
   initialLeads: Lead[];
+  callCounts?: Record<string, number>;
 }) {
   const router = useRouter();
   const [stages, setStages] = useState(initialStages);
@@ -101,7 +105,61 @@ export function KanbanBoard({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState<KanbanFilters>(DEFAULT_KANBAN_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<KanbanFilters>(DEFAULT_KANBAN_FILTERS);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkStageId, setBulkStageId] = useState("");
+  const [bulkMoving, setBulkMoving] = useState(false);
+  const [chatLead, setChatLead] = useState<{ id: string; name: string } | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  function toggleSelectMode() {
+    setSelectMode((prev) => {
+      if (prev) setSelectedIds(new Set());
+      return !prev;
+    });
+  }
+
+  function toggleLeadSelected(leadId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(leadId)) next.delete(leadId);
+      else next.add(leadId);
+      return next;
+    });
+  }
+
+  function toggleStageSelected(leadIds: string[]) {
+    if (leadIds.length === 0) return;
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const allSelected = leadIds.every((leadId) => next.has(leadId));
+      for (const leadId of leadIds) {
+        if (allSelected) next.delete(leadId);
+        else next.add(leadId);
+      }
+      return next;
+    });
+  }
+
+  async function applyBulkMove() {
+    if (!bulkStageId || selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    const previousLeads = leads;
+    setBulkMoving(true);
+    setLeads((prev) => prev.map((l) => (ids.includes(l.id) ? { ...l, stage_id: bulkStageId } : l)));
+    try {
+      await moveLeadsToStage(ids, bulkStageId);
+      setSelectedIds(new Set());
+      setBulkStageId("");
+      router.refresh();
+    } catch (err) {
+      console.error(err);
+      setLeads(previousLeads);
+      alert("Nao foi possivel mover os leads selecionados.");
+    } finally {
+      setBulkMoving(false);
+    }
+  }
 
   const availableTags = useMemo(() => {
     const set = new Set<string>();
@@ -346,14 +404,72 @@ export function KanbanBoard({
                 {visibleLeadCount} de {leads.length} lead{leads.length === 1 ? "" : "s"}
               </span>
             )}
+            <button
+              type="button"
+              onClick={toggleSelectMode}
+              className={cn(
+                "flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors",
+                selectMode
+                  ? "border-brand/60 bg-brand/10 text-brand"
+                  : "border-border bg-card text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+              )}
+            >
+              {selectMode ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+              Selecionar
+            </button>
           </div>
         </div>
+
+        {selectMode && (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-brand/40 bg-brand/5 p-3">
+            <span className="text-xs font-medium text-muted-foreground">
+              {selectedIds.size > 0
+                ? `${selectedIds.size} lead${selectedIds.size === 1 ? "" : "s"} selecionado${selectedIds.size === 1 ? "" : "s"}`
+                : "Selecione os leads que quer mover"}
+            </span>
+            <select
+              value={bulkStageId}
+              onChange={(e) => setBulkStageId(e.target.value)}
+              className="h-9 rounded-md border border-input bg-background px-2.5 text-sm"
+              disabled={selectedIds.size === 0 || bulkMoving}
+            >
+              <option value="">Mover para etapa...</option>
+              {stages.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+            <Button size="sm" onClick={applyBulkMove} disabled={!bulkStageId || bulkMoving || selectedIds.size === 0}>
+              {bulkMoving ? "Movendo..." : "Mover selecionados"}
+            </Button>
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+              disabled={selectedIds.size === 0 || bulkMoving}
+              className="text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              Limpar seleção
+            </button>
+          </div>
+        )}
+
         <div className="flex flex-1 gap-4 overflow-x-auto pb-2">
           {stages.map((stage) => {
             const stageLeads = visibleLeadsByStage.get(stage.id) ?? [];
             const total = stageLeads.reduce((acc, l) => acc + (l.value_cents ?? 0), 0);
             return (
-              <Column key={stage.id} stage={stage} leads={stageLeads} total={total} isFiltering={isFiltering} />
+              <Column
+                key={stage.id}
+                stage={stage}
+                leads={stageLeads}
+                total={total}
+                isFiltering={isFiltering}
+                selectMode={selectMode}
+                selectedIds={selectedIds}
+                onToggleSelected={toggleLeadSelected}
+                onToggleStageSelected={toggleStageSelected}
+                callCounts={callCounts}
+                onOpenChat={(lead) => setChatLead(lead)}
+              />
             );
           })}
         </div>
@@ -363,6 +479,10 @@ export function KanbanBoard({
         {activeLead && <LeadCard lead={activeLead} dragging />}
       </DragOverlay>
     </DndContext>
+
+    {chatLead && (
+      <MiniChatPanel leadId={chatLead.id} leadName={chatLead.name} onClose={() => setChatLead(null)} />
+    )}
 
     {filtersOpen && (
       <div className="fixed inset-0 z-50 flex justify-end">
@@ -477,9 +597,34 @@ function leadMatchesSearch(lead: Lead, searchText: string, searchDigits: string)
   );
 }
 
-function Column({ stage, leads, total, isFiltering }: { stage: Stage; leads: Lead[]; total: number; isFiltering: boolean }) {
+function Column({
+  stage,
+  leads,
+  total,
+  isFiltering,
+  selectMode,
+  selectedIds,
+  onToggleSelected,
+  onToggleStageSelected,
+  callCounts,
+  onOpenChat,
+}: {
+  stage: Stage;
+  leads: Lead[];
+  total: number;
+  isFiltering: boolean;
+  selectMode: boolean;
+  selectedIds: Set<string>;
+  onToggleSelected: (leadId: string) => void;
+  onToggleStageSelected: (leadIds: string[]) => void;
+  callCounts: Record<string, number>;
+  onOpenChat: (lead: { id: string; name: string }) => void;
+}) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const color = stage.color ?? "#94a3b8";
+  const stageLeadIds = leads.map((lead) => lead.id);
+  const selectedInStage = stageLeadIds.filter((leadId) => selectedIds.has(leadId)).length;
+  const allStageSelected = stageLeadIds.length > 0 && selectedInStage === stageLeadIds.length;
   return (
     <div
       ref={setNodeRef}
@@ -488,20 +633,46 @@ function Column({ stage, leads, total, isFiltering }: { stage: Stage; leads: Lea
       }`}
     >
       <div className="flex items-center justify-between border-b border-border/70 p-4">
-        <div className="flex items-center gap-2.5">
+        <div className="min-w-0 flex items-center gap-2.5">
           <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color, boxShadow: `0 0 12px ${color}80` }} />
-          <span className="font-display text-sm font-semibold">{stage.name}</span>
+          <span className="truncate font-display text-sm font-semibold">{stage.name}</span>
           <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
             {leads.length}
           </span>
+          {selectMode && selectedInStage > 0 && (
+            <span className="rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-semibold text-brand">
+              {selectedInStage} sel.
+            </span>
+          )}
         </div>
-        <span className="font-mono text-[11px] text-muted-foreground">{formatCurrencyBRL(total)}</span>
+        <div className="flex shrink-0 items-center gap-2">
+          {selectMode && leads.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onToggleStageSelected(stageLeadIds)}
+              className="rounded-md border border-border/70 p-1.5 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+              title={allStageSelected ? "Desmarcar etapa" : "Selecionar etapa inteira"}
+            >
+              {allStageSelected ? <CheckSquare className="h-3.5 w-3.5 text-brand" /> : <Square className="h-3.5 w-3.5" />}
+            </button>
+          )}
+          <span className="font-mono text-[11px] text-muted-foreground">{formatCurrencyBRL(total)}</span>
+        </div>
       </div>
 
       <SortableContext items={leads.map((l) => l.id)} strategy={verticalListSortingStrategy}>
         <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-3">
           {leads.map((l) => (
-            <LeadCard key={l.id} lead={l} stageColor={color} />
+            <LeadCard
+              key={l.id}
+              lead={l}
+              stageColor={color}
+              selectMode={selectMode}
+              selected={selectedIds.has(l.id)}
+              onToggleSelected={onToggleSelected}
+              callCount={callCounts[l.id] ?? 0}
+              onOpenChat={onOpenChat}
+            />
           ))}
           {leads.length === 0 && (
             <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border/70 p-8 text-center text-xs text-muted-foreground">
@@ -514,9 +685,28 @@ function Column({ stage, leads, total, isFiltering }: { stage: Stage; leads: Lea
   );
 }
 
-function LeadCard({ lead, dragging, stageColor }: { lead: Lead; dragging?: boolean; stageColor?: string }) {
+function LeadCard({
+  lead,
+  dragging,
+  stageColor,
+  selectMode = false,
+  selected = false,
+  onToggleSelected,
+  callCount = 0,
+  onOpenChat,
+}: {
+  lead: Lead;
+  dragging?: boolean;
+  stageColor?: string;
+  selectMode?: boolean;
+  selected?: boolean;
+  onToggleSelected?: (leadId: string) => void;
+  callCount?: number;
+  onOpenChat?: (lead: { id: string; name: string }) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
+    disabled: selectMode,
   });
   const [stars, setStars] = useState(lead.quality_stars ?? 0);
   const [tags, setTags] = useState<string[]>(lead.tags ?? []);
@@ -563,15 +753,51 @@ function LeadCard({ lead, dragging, stageColor }: { lead: Lead; dragging?: boole
       style={style}
       {...attributes}
       {...listeners}
-      className="group cursor-grab rounded-lg border border-border/70 bg-card p-3.5 shadow-elev-1 transition-colors duration-150 hover:border-brand/35 hover:shadow-elev-2 active:cursor-grabbing"
+      className={cn(
+        "group rounded-lg border border-border/70 bg-card p-3.5 shadow-elev-1 transition-colors duration-150 hover:border-brand/35 hover:shadow-elev-2",
+        selectMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
+        selected && "border-brand/60 ring-1 ring-brand/30",
+      )}
+      onClick={selectMode ? () => onToggleSelected?.(lead.id) : undefined}
     >
-      <Link
-        href={`/leads/${lead.id}`}
-        onPointerDown={(e) => e.stopPropagation()}
-        className="block font-medium leading-tight transition-colors group-hover:text-brand"
-      >
-        {lead.name}
-      </Link>
+      <div className="flex items-start justify-between gap-2">
+        {selectMode && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelected?.(lead.id);
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="mt-0.5 shrink-0 text-muted-foreground hover:text-brand"
+          >
+            {selected ? <CheckSquare className="h-4 w-4 text-brand" /> : <Square className="h-4 w-4" />}
+          </button>
+        )}
+        <Link
+          href={`/leads/${lead.id}`}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => selectMode && e.preventDefault()}
+          className="block min-w-0 flex-1 font-medium leading-tight transition-colors group-hover:text-brand"
+        >
+          {lead.name}
+        </Link>
+        {callCount === 0 ? (
+          <span
+            className="mt-0.5 flex shrink-0 items-center gap-1 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-500"
+            title="Nunca recebeu ligação"
+          >
+            <PhoneOff className="h-2.5 w-2.5" /> Nunca ligou
+          </span>
+        ) : (
+          <span
+            className="mt-0.5 flex shrink-0 items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+            title={`${callCount} tentativa(s) de ligação`}
+          >
+            <Phone className="h-2.5 w-2.5" /> {callCount}
+          </span>
+        )}
+      </div>
       {lead.phone && (
         <div className="mt-2 flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
           <Phone className="h-3 w-3" />
@@ -639,6 +865,14 @@ function LeadCard({ lead, dragging, stageColor }: { lead: Lead; dragging?: boole
         <div className="mt-2 flex items-center gap-1.5 border-t border-border/50 pt-2.5" onPointerDown={(e) => e.stopPropagation()}>
           <CallButton leadId={lead.id} phone={lead.phone} iconOnly />
           <WhatsAppCallButton phone={lead.phone} iconOnly />
+          <button
+            type="button"
+            onClick={() => onOpenChat?.({ id: lead.id, name: lead.name })}
+            className="grid h-7 w-7 place-items-center rounded-md border border-border/70 text-muted-foreground transition-colors hover:border-brand/40 hover:text-brand"
+            title="Abrir conversa"
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+          </button>
         </div>
       )}
     </div>

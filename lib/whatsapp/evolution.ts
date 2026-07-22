@@ -19,6 +19,60 @@ function text(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+function firstText(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    const normalized = text(value);
+    if (normalized) return normalized;
+  }
+  return undefined;
+}
+
+function pickExternalAdReply(messageObj: any) {
+  const candidates = [
+    messageObj?.referral,
+    messageObj?.externalAdReply,
+    messageObj?.contextInfo?.externalAdReply,
+    messageObj?.messageContextInfo?.externalAdReply,
+    messageObj?.extendedTextMessage?.contextInfo?.externalAdReply,
+    messageObj?.imageMessage?.contextInfo?.externalAdReply,
+    messageObj?.videoMessage?.contextInfo?.externalAdReply,
+    messageObj?.documentMessage?.contextInfo?.externalAdReply,
+    messageObj?.audioMessage?.contextInfo?.externalAdReply,
+    messageObj?.stickerMessage?.contextInfo?.externalAdReply,
+    messageObj?.buttonsResponseMessage?.contextInfo?.externalAdReply,
+    messageObj?.templateButtonReplyMessage?.contextInfo?.externalAdReply,
+    messageObj?.listResponseMessage?.contextInfo?.externalAdReply,
+  ];
+
+  return candidates.find((candidate) => candidate && typeof candidate === "object") ?? null;
+}
+
+function normalizeReferral(messageObj: any) {
+  const rawReferral = pickExternalAdReply(messageObj);
+  const sourceId = firstText(
+    rawReferral?.sourceId,
+    rawReferral?.source_id,
+    rawReferral?.sourceID,
+    rawReferral?.adId,
+    rawReferral?.ad_id,
+    rawReferral?.ctwaAdId,
+    rawReferral?.ctwa_ad_id,
+  );
+
+  if (!sourceId) return null;
+
+  return {
+    sourceId,
+    sourceType: firstText(rawReferral?.sourceType, rawReferral?.source_type, rawReferral?.sourceTypeV2) ?? "ad",
+    sourceUrl: firstText(rawReferral?.sourceUrl, rawReferral?.source_url, rawReferral?.thumbnailUrl),
+    headline: firstText(rawReferral?.headline, rawReferral?.title),
+    body: firstText(rawReferral?.body, rawReferral?.description),
+    mediaType: firstText(rawReferral?.mediaType, rawReferral?.media_type),
+    imageUrl: firstText(rawReferral?.imageUrl, rawReferral?.image_url, rawReferral?.thumbnailUrl, rawReferral?.jpegThumbnail),
+    videoUrl: firstText(rawReferral?.videoUrl, rawReferral?.video_url),
+  };
+}
+
 export class EvolutionProvider implements WhatsAppProvider {
   readonly kind = "evolution" as const;
   constructor(private account: WhatsAppAccount) {}
@@ -241,7 +295,17 @@ export class EvolutionProvider implements WhatsAppProvider {
     }
 
     const messageObj = msgObj;
-    const contextInfo = msgObj?.extendedTextMessage?.contextInfo ?? msgObj?.contextInfo;
+    const contextInfo =
+      msgObj?.extendedTextMessage?.contextInfo ??
+      msgObj?.imageMessage?.contextInfo ??
+      msgObj?.videoMessage?.contextInfo ??
+      msgObj?.documentMessage?.contextInfo ??
+      msgObj?.audioMessage?.contextInfo ??
+      msgObj?.stickerMessage?.contextInfo ??
+      msgObj?.buttonsResponseMessage?.contextInfo ??
+      msgObj?.templateButtonReplyMessage?.contextInfo ??
+      msgObj?.listResponseMessage?.contextInfo ??
+      msgObj?.contextInfo;
     const quoted = contextInfo?.quotedMessage;
     const quotedBody =
       text(quoted?.conversation) ??
@@ -255,20 +319,7 @@ export class EvolutionProvider implements WhatsAppProvider {
       (quoted?.videoMessage ? "🎬 Vídeo" : undefined) ??
       (quoted?.documentMessage ? "📎 Documento" : undefined) ??
       (quoted?.stickerMessage ? "🎭 Figurinha" : undefined);
-    let normalizedReferral = null;
-    const rawReferral = messageObj?.referral ?? messageObj?.extendedTextMessage?.contextInfo?.externalAdReply;
-    if (rawReferral && (rawReferral.sourceId || rawReferral.source_id)) {
-      normalizedReferral = {
-        sourceId: String(rawReferral.sourceId ?? rawReferral.source_id),
-        sourceType: String(rawReferral.sourceType ?? rawReferral.source_type ?? "ad"),
-        sourceUrl: rawReferral.sourceUrl ?? rawReferral.source_url ?? undefined,
-        headline: rawReferral.headline ?? undefined,
-        body: rawReferral.body ?? undefined,
-        mediaType: rawReferral.mediaType ?? rawReferral.media_type ?? undefined,
-        imageUrl: rawReferral.imageUrl ?? rawReferral.image_url ?? undefined,
-        videoUrl: rawReferral.videoUrl ?? rawReferral.video_url ?? undefined,
-      };
-    }
+    const normalizedReferral = normalizeReferral(messageObj);
 
     return [
       {
