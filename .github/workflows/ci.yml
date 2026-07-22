@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging]
   pull_request:
     branches: [main]
 
@@ -32,3 +32,49 @@ jobs:
       - run: npm run build
 
       - run: npm test
+
+  deploy:
+    needs: build-and-test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set target service by branch
+        id: target
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "service=app" >> "$GITHUB_OUTPUT"
+            echo "healthcheck_container=solaire-crm" >> "$GITHUB_OUTPUT"
+          else
+            echo "service=app-staging" >> "$GITHUB_OUTPUT"
+            echo "healthcheck_container=solaire-crm-staging" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Sync code to VPS
+        run: |
+          rsync -az --filter=':- .gitignore' --exclude '.git' --exclude '.env*' --exclude 'supabase/.temp' \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            ./ "${{ secrets.VPS_SSH_USER }}@${{ secrets.VPS_HOST }}:/opt/solaire-crm/app-src/"
+
+      - name: Build and restart container (production)
+        if: steps.target.outputs.service == 'app'
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_SSH_USER }}@${{ secrets.VPS_HOST }}" \
+            "cd /opt/solaire-crm/app-src && docker compose -f docker-compose.vps.yml --env-file .env.production up -d --build app"
+
+      - name: Build and restart container (staging)
+        if: steps.target.outputs.service == 'app-staging'
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_SSH_USER }}@${{ secrets.VPS_HOST }}" \
+            "cd /opt/solaire-crm/app-src && set -a && . ./.env.staging && export STAGING_NEXT_PUBLIC_APP_URL=\$NEXT_PUBLIC_APP_URL STAGING_NEXT_PUBLIC_SUPABASE_URL=\$NEXT_PUBLIC_SUPABASE_URL STAGING_NEXT_PUBLIC_SUPABASE_ANON_KEY=\$NEXT_PUBLIC_SUPABASE_ANON_KEY && docker compose -f docker-compose.vps.yml --env-file .env.production up -d --build app-staging"
+
+      - name: Health check
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_SSH_USER }}@${{ secrets.VPS_HOST }}" \
+            "docker exec n8n-caddy-1 wget -qO- http://${{ steps.target.outputs.service }}:3000/api/health"
