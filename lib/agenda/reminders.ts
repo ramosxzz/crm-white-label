@@ -16,6 +16,7 @@ type ApptRow = {
   lead_id: string | null;
   starts_at: string;
   status: string;
+  kind: string | null;
   reminders_sent: unknown;
   leads: { name: string | null; phone: string | null } | null;
 };
@@ -38,7 +39,7 @@ export async function processAppointmentReminders(supabase: SupabaseClient): Pro
 
   const { data: appts } = await supabase
     .from("appointments")
-    .select("id, tenant_id, lead_id, starts_at, status, reminders_sent, leads(name, phone)")
+    .select("id, tenant_id, lead_id, starts_at, status, kind, reminders_sent, leads(name, phone)")
     .in("status", ["scheduled", "confirmed"])
     .gt("starts_at", new Date(now).toISOString())
     .lt("starts_at", horizon)
@@ -60,9 +61,12 @@ export async function processAppointmentReminders(supabase: SupabaseClient): Pro
     if (!to) continue;
 
     const firstName = (appt.leads?.name ?? "").split(" ")[0] || "tudo bem";
-    const body =
-      `Olá ${firstName}! 👋 Passando para lembrar da sua reunião marcada para ${timeBR(appt.starts_at)}.\n\n` +
-      `Podemos confirmar sua presença? ✅`;
+    const isCall = appt.kind === "call";
+    const body = isCall
+      ? `Olá ${firstName}! 👋 Passando para lembrar da nossa ligação agendada para ${timeBR(appt.starts_at)}.\n\n` +
+        `Podemos confirmar? ✅`
+      : `Olá ${firstName}! 👋 Passando para lembrar da sua reunião marcada para ${timeBR(appt.starts_at)}.\n\n` +
+        `Podemos confirmar sua presença? ✅`;
 
     try {
       // Envia do numero em que o lead conversa, nao da primeira conta ativa.

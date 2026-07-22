@@ -23,7 +23,7 @@ const ATTENDANCE_WINDOW_HOURS = 24;
 type AttendanceWindowFilter = "todos" | "dentro" | "expirada";
 type LastMessagePeriodFilter = "todos" | "hoje" | "7dias" | "30dias";
 type OrderFilter = "recentes" | "antigas";
-type ArrivedFilter = "todos" | "hoje";
+type ArrivedFilter = "todos" | "hoje" | "ontem" | "personalizado";
 
 type AdvancedFilters = {
   instanceId: string;
@@ -33,6 +33,7 @@ type AdvancedFilters = {
   lastMessagePeriod: LastMessagePeriodFilter;
   order: OrderFilter;
   arrived: ArrivedFilter;
+  arrivedDate: string;
 };
 
 const DEFAULT_ADVANCED_FILTERS: AdvancedFilters = {
@@ -43,13 +44,30 @@ const DEFAULT_ADVANCED_FILTERS: AdvancedFilters = {
   lastMessagePeriod: "todos",
   order: "recentes",
   arrived: "todos",
+  arrivedDate: "",
 };
 
-function isLeadFromToday(createdAt: string | null): boolean {
+function isSameDay(a: Date, b: Date): boolean {
+  return a.toDateString() === b.toDateString();
+}
+
+function matchesArrivedFilter(createdAt: string | null, filter: ArrivedFilter, customDate: string): boolean {
+  if (filter === "todos") return true;
   if (!createdAt) return false;
   const created = new Date(createdAt);
-  const now = new Date();
-  return created.toDateString() === now.toDateString();
+  if (filter === "hoje") return isSameDay(created, new Date());
+  if (filter === "ontem") {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return isSameDay(created, yesterday);
+  }
+  if (filter === "personalizado") {
+    if (!customDate) return true;
+    const [y, m, d] = customDate.split("-").map(Number);
+    if (!y || !m || !d) return true;
+    return isSameDay(created, new Date(y, m - 1, d));
+  }
+  return true;
 }
 
 function isWithinAttendanceWindow(lastAt: string | null): boolean {
@@ -129,7 +147,7 @@ export function ConversationList({
         if (appliedFilters.attendanceWindow === "expirada" && within) return false;
       }
       if (!isWithinPeriod(c.lastAt, appliedFilters.lastMessagePeriod)) return false;
-      if (appliedFilters.arrived === "hoje" && !isLeadFromToday(c.leadCreatedAt)) return false;
+      if (!matchesArrivedFilter(c.leadCreatedAt, appliedFilters.arrived, appliedFilters.arrivedDate)) return false;
       if (!q) return true;
       return (
         c.leadName.toLowerCase().includes(q) ||
@@ -444,8 +462,18 @@ export function ConversationList({
                   <SelectContent>
                     <SelectItem value="todos">Qualquer data</SelectItem>
                     <SelectItem value="hoje">Hoje</SelectItem>
+                    <SelectItem value="ontem">Ontem</SelectItem>
+                    <SelectItem value="personalizado">Data personalizada</SelectItem>
                   </SelectContent>
                 </Select>
+                {draftFilters.arrived === "personalizado" && (
+                  <Input
+                    type="date"
+                    className="mt-2"
+                    value={draftFilters.arrivedDate}
+                    onChange={(e) => setDraftFilters((f) => ({ ...f, arrivedDate: e.target.value }))}
+                  />
+                )}
               </FilterField>
 
               <FilterField label="Ordem">
