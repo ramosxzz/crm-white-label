@@ -44,20 +44,37 @@ export type Api4comCall = {
   metadata: Record<string, unknown> | null;
 };
 
+// Cache curto em memoria: o polling do chat chama fetchApi4comCalls a cada
+// ~1.2s quando ha atividade, e cada chamada varre ate 10 paginas da API da
+// Api4com sem cache. Uma falha/timeout transitorio em qualquer pagina fazia o
+// contador de ligacoes cair pra 0 (bolinha oscilando entre verde e amarelo) e
+// voltar no poll seguinte. TTL curto reduz a carga na API externa e evita que
+// uma falha isolada apague o resultado ja calculado.
+const CALLS_CACHE_TTL_MS = 20_000;
+let callsCache: { data: Api4comCall[]; expiresAt: number } | null = null;
+
 export async function fetchApi4comCalls(): Promise<Api4comCall[]> {
   const token = process.env.API4COM_TOKEN;
   if (!token) return [];
 
+  if (callsCache && callsCache.expiresAt > Date.now()) {
+    return callsCache.data;
+  }
+
   const calls: Api4comCall[] = [];
   let page = 1;
   let totalPageCount = 1;
+  let hadFailure = false;
 
   do {
     const res = await fetch(`${API4COM_BASE_URL}/calls?page=${page}`, {
       headers: { Authorization: token },
       cache: "no-store",
     });
-    if (!res.ok) break;
+    if (!res.ok) {
+      hadFailure = true;
+      break;
+    }
 
     const payload = (await res.json().catch(() => null)) as {
       data?: Api4comCall[];
@@ -69,6 +86,13 @@ export async function fetchApi4comCalls(): Promise<Api4comCall[]> {
     page++;
   } while (page <= totalPageCount && page <= 10);
 
+  // Falha parcial (ex: pagina 2 caiu): mantem o cache anterior em vez de
+  // publicar uma lista truncada que faria o contador oscilar pra baixo.
+  if (hadFailure && callsCache) {
+    return callsCache.data;
+  }
+
+  callsCache = { data: calls, expiresAt: Date.now() + CALLS_CACHE_TTL_MS };
   return calls;
 }
 
