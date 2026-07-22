@@ -18,3 +18,11 @@
     Referrer-Policy strict-origin-when-cross-origin
   }
 }
+
+staging.{$APP_DOMAIN} {
+  encode zstd gzip
+  reverse_proxy app-staging:3000
+  basicauth {
+    staging {$STAGING_BASICAUTH_HASH}
+  }
+}
