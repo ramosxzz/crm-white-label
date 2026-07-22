@@ -17,10 +17,17 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { Phone, Search, SlidersHorizontal, X } from "lucide-react";
+import { Phone, Plus, Search, SlidersHorizontal, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrencyBRL, formatPhoneBR, cn } from "@/lib/utils";
 import { moveLeadToStage } from "../leads/actions";
+import { CallButton } from "@/components/leads/call-button";
+import { WhatsAppCallButton } from "@/components/leads/whatsapp-call-button";
+import { StarRating } from "@/components/leads/star-rating";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { setLeadQualityStars } from "../ligacoes/actions";
+import { updateChatLeadTags } from "../chat/actions";
 
 type Stage = { id: string; name: string; color: string | null; position: number };
 type Lead = {
@@ -511,11 +518,45 @@ function LeadCard({ lead, dragging, stageColor }: { lead: Lead; dragging?: boole
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
   });
+  const [stars, setStars] = useState(lead.quality_stars ?? 0);
+  const [tags, setTags] = useState<string[]>(lead.tags ?? []);
+  const [tagOpen, setTagOpen] = useState(false);
+  const [tagDraft, setTagDraft] = useState("");
   const style = {
     transform: CSS.Translate.toString(transform),
     transition,
     opacity: isDragging || dragging ? 0.4 : 1,
   };
+
+  function changeStars(next: number) {
+    setStars(next);
+    void setLeadQualityStars({ leadId: lead.id, stars: next }).catch(() => null);
+  }
+
+  function addTag() {
+    const value = tagDraft.trim();
+    if (!value) {
+      setTagOpen(false);
+      return;
+    }
+    if (tags.some((t) => t.toLowerCase() === value.toLowerCase())) {
+      setTagDraft("");
+      setTagOpen(false);
+      return;
+    }
+    const next = [...tags, value];
+    setTags(next);
+    setTagDraft("");
+    setTagOpen(false);
+    void updateChatLeadTags({ leadId: lead.id, tags: next }).catch(() => null);
+  }
+
+  function removeTag(tag: string) {
+    const next = tags.filter((t) => t !== tag);
+    setTags(next);
+    void updateChatLeadTags({ leadId: lead.id, tags: next }).catch(() => null);
+  }
+
   return (
     <div
       ref={setNodeRef}
@@ -537,6 +578,54 @@ function LeadCard({ lead, dragging, stageColor }: { lead: Lead; dragging?: boole
           {formatPhoneBR(lead.phone)}
         </div>
       )}
+
+      <div className="mt-2 flex items-center gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
+        <StarRating value={stars} onChange={changeStars} size="sm" />
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-1" onPointerDown={(e) => e.stopPropagation()}>
+        {tags.map((tag) => (
+          <Badge key={tag} variant="outline" className="gap-1 text-[10px]">
+            {tag}
+            <button type="button" onClick={() => removeTag(tag)}>
+              <X className="h-2.5 w-2.5" />
+            </button>
+          </Badge>
+        ))}
+        {tagOpen ? (
+          <Input
+            autoFocus
+            value={tagDraft}
+            onChange={(e) => setTagDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addTag();
+              }
+              if (e.key === "Escape") {
+                setTagOpen(false);
+                setTagDraft("");
+              }
+            }}
+            onBlur={addTag}
+            placeholder="Nova tag"
+            className="h-6 w-20 px-1.5 text-[10px]"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setTagOpen(true);
+              setTagDraft("");
+            }}
+            className="rounded-full border border-dashed border-border/70 p-0.5 text-muted-foreground hover:border-brand hover:text-brand"
+            title="Adicionar tag"
+          >
+            <Plus className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+
       <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-2.5 text-[11px]">
         {lead.source ? (
           <span className="rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground">{lead.source}</span>
@@ -545,6 +634,13 @@ function LeadCard({ lead, dragging, stageColor }: { lead: Lead; dragging?: boole
           {formatCurrencyBRL(lead.value_cents)}
         </span>
       </div>
+
+      {lead.phone && (
+        <div className="mt-2 flex items-center gap-1.5 border-t border-border/50 pt-2.5" onPointerDown={(e) => e.stopPropagation()}>
+          <CallButton leadId={lead.id} phone={lead.phone} iconOnly />
+          <WhatsAppCallButton phone={lead.phone} iconOnly />
+        </div>
+      )}
     </div>
   );
 }
