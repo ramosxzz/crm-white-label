@@ -27,7 +27,7 @@ export default async function KanbanPage({ searchParams }: { searchParams?: Prom
           .order("position"),
         supabase
           .from("leads")
-          .select("id, name, phone, value_cents, stage_id, position, source")
+          .select("id, name, phone, value_cents, stage_id, position, source, tags, quality_stars, created_at")
           .eq("tenant_id", ctx.tenantId)
           .eq("pipeline_id", activePipeline.id)
           .order("position"),

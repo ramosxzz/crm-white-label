@@ -17,9 +17,9 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { Phone, Search, X } from "lucide-react";
+import { Phone, Search, SlidersHorizontal, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { formatCurrencyBRL, formatPhoneBR } from "@/lib/utils";
+import { formatCurrencyBRL, formatPhoneBR, cn } from "@/lib/utils";
 import { moveLeadToStage } from "../leads/actions";
 
 type Stage = { id: string; name: string; color: string | null; position: number };
@@ -31,7 +31,49 @@ type Lead = {
   stage_id: string | null;
   position: number;
   source: string | null;
+  tags: string[] | null;
+  quality_stars: number | null;
+  created_at: string;
 };
+
+type ArrivedFilter = "todos" | "hoje" | "ontem" | "personalizado";
+
+type KanbanFilters = {
+  tag: string;
+  minStars: number;
+  arrived: ArrivedFilter;
+  arrivedDate: string;
+};
+
+const DEFAULT_KANBAN_FILTERS: KanbanFilters = {
+  tag: "todos",
+  minStars: 0,
+  arrived: "todos",
+  arrivedDate: "",
+};
+
+function isSameDay(a: Date, b: Date): boolean {
+  return a.toDateString() === b.toDateString();
+}
+
+function matchesArrivedFilter(createdAt: string | null, filter: ArrivedFilter, customDate: string): boolean {
+  if (filter === "todos") return true;
+  if (!createdAt) return false;
+  const created = new Date(createdAt);
+  if (filter === "hoje") return isSameDay(created, new Date());
+  if (filter === "ontem") {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return isSameDay(created, yesterday);
+  }
+  if (filter === "personalizado") {
+    if (!customDate) return true;
+    const [y, m, d] = customDate.split("-").map(Number);
+    if (!y || !m || !d) return true;
+    return isSameDay(created, new Date(y, m - 1, d));
+  }
+  return true;
+}
 
 export function KanbanBoard({
   pipelines,
@@ -49,7 +91,43 @@ export function KanbanBoard({
   const [leads, setLeads] = useState(initialLeads);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [draftFilters, setDraftFilters] = useState<KanbanFilters>(DEFAULT_KANBAN_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState<KanbanFilters>(DEFAULT_KANBAN_FILTERS);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const availableTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const l of leads) for (const tag of l.tags ?? []) set.add(tag);
+    return [...set].sort();
+  }, [leads]);
+
+  const activeFilterCount = Object.entries(appliedFilters).filter(
+    ([key, value]) => value !== DEFAULT_KANBAN_FILTERS[key as keyof KanbanFilters],
+  ).length;
+
+  function openFilters() {
+    setDraftFilters(appliedFilters);
+    setFiltersOpen(true);
+  }
+
+  function applyFilters() {
+    setAppliedFilters(draftFilters);
+    setFiltersOpen(false);
+  }
+
+  function clearFilters() {
+    setDraftFilters(DEFAULT_KANBAN_FILTERS);
+    setAppliedFilters(DEFAULT_KANBAN_FILTERS);
+    setFiltersOpen(false);
+  }
+
+  function leadMatchesFilters(lead: Lead) {
+    if (appliedFilters.tag !== "todos" && !(lead.tags ?? []).includes(appliedFilters.tag)) return false;
+    if (appliedFilters.minStars > 0 && (lead.quality_stars ?? 0) < appliedFilters.minStars) return false;
+    if (!matchesArrivedFilter(lead.created_at, appliedFilters.arrived, appliedFilters.arrivedDate)) return false;
+    return true;
+  }
 
   // Mantem em dia quando o servidor re-renderiza com stages/leads novos
   // (ex: apos criar uma etapa e navegar de volta para o kanban).
@@ -118,17 +196,24 @@ export function KanbanBoard({
   const activeLead = leads.find((l) => l.id === activeId) ?? null;
   const normalizedSearch = useMemo(() => normalizeKanbanSearch(search), [search]);
   const searchDigits = useMemo(() => onlyDigits(search), [search]);
-  const isFiltering = Boolean(normalizedSearch || searchDigits);
+  const hasSearch = Boolean(normalizedSearch || searchDigits);
+  const isFiltering = hasSearch || activeFilterCount > 0;
 
   const visibleLeadsByStage = useMemo(() => {
     if (!isFiltering) return leadsByStage;
     const map = new Map<string, Lead[]>();
     stages.forEach((stage) => {
       const stageLeads = leadsByStage.get(stage.id) ?? [];
-      map.set(stage.id, stageLeads.filter((lead) => leadMatchesSearch(lead, normalizedSearch, searchDigits)));
+      map.set(
+        stage.id,
+        stageLeads.filter(
+          (lead) =>
+            (!hasSearch || leadMatchesSearch(lead, normalizedSearch, searchDigits)) && leadMatchesFilters(lead),
+        ),
+      );
     });
     return map;
-  }, [isFiltering, leadsByStage, normalizedSearch, searchDigits, stages]);
+  }, [isFiltering, hasSearch, leadsByStage, normalizedSearch, searchDigits, stages, appliedFilters]);
 
   const visibleLeadCount = useMemo(
     () => Array.from(visibleLeadsByStage.values()).reduce((total, stageLeads) => total + stageLeads.length, 0),
@@ -192,6 +277,7 @@ export function KanbanBoard({
   }
 
   return (
+    <>
     <DndContext
       sensors={sensors}
       collisionDetection={closestCorners}
@@ -236,6 +322,18 @@ export function KanbanBoard({
                 </button>
               )}
             </div>
+            <button
+              type="button"
+              onClick={openFilters}
+              className="relative flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-border bg-card px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+            >
+              <SlidersHorizontal className="h-4 w-4" /> Filtros
+              {activeFilterCount > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-brand text-[10px] font-semibold text-brand-foreground">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
             {isFiltering && (
               <span className="whitespace-nowrap text-xs font-medium text-muted-foreground">
                 {visibleLeadCount} de {leads.length} lead{leads.length === 1 ? "" : "s"}
@@ -258,6 +356,96 @@ export function KanbanBoard({
         {activeLead && <LeadCard lead={activeLead} dragging />}
       </DragOverlay>
     </DndContext>
+
+    {filtersOpen && (
+      <div className="fixed inset-0 z-50 flex justify-end">
+        <div className="absolute inset-0 bg-black/40" onClick={() => setFiltersOpen(false)} aria-hidden />
+        <div className="relative flex h-full w-full max-w-sm flex-col bg-card shadow-xl">
+          <div className="flex items-center justify-between border-b border-border/60 px-4 py-4">
+            <h3 className="text-base font-semibold">Filtros</h3>
+            <button
+              type="button"
+              onClick={() => setFiltersOpen(false)}
+              className="rounded-md p-1 text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Tags</label>
+              <select
+                value={draftFilters.tag}
+                onChange={(e) => setDraftFilters((f) => ({ ...f, tag: e.target.value }))}
+                className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+              >
+                <option value="todos">Todas</option>
+                {availableTags.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Qualidade mín.</label>
+              <select
+                value={draftFilters.minStars}
+                onChange={(e) => setDraftFilters((f) => ({ ...f, minStars: Number(e.target.value) }))}
+                className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+              >
+                <option value={0}>Qualquer</option>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <option key={n} value={n}>{"★".repeat(n)}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Lead chegou</label>
+              <select
+                value={draftFilters.arrived}
+                onChange={(e) => setDraftFilters((f) => ({ ...f, arrived: e.target.value as ArrivedFilter }))}
+                className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+              >
+                <option value="todos">Qualquer data</option>
+                <option value="hoje">Hoje</option>
+                <option value="ontem">Ontem</option>
+                <option value="personalizado">Data personalizada</option>
+              </select>
+              {draftFilters.arrived === "personalizado" && (
+                <input
+                  type="date"
+                  value={draftFilters.arrivedDate}
+                  onChange={(e) => setDraftFilters((f) => ({ ...f, arrivedDate: e.target.value }))}
+                  className="mt-2 h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+                />
+              )}
+            </div>
+          </div>
+
+          <div className="flex gap-2 border-t border-border/60 px-4 py-4">
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="h-9 flex-1 rounded-md border border-border text-sm font-medium text-muted-foreground hover:bg-muted/40"
+            >
+              Limpar
+            </button>
+            <button
+              type="button"
+              onClick={applyFilters}
+              className={cn(
+                "h-9 flex-1 rounded-md bg-brand text-sm font-medium text-brand-foreground hover:opacity-90",
+              )}
+            >
+              Aplicar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
