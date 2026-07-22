@@ -134,7 +134,7 @@ export async function listConversationItemsForTenant(
   return filterByAllowedAccounts(items, blockedWhatsappAccountIds);
 }
 
-function filterByAllowedAccounts(
+export function filterByAllowedAccounts(
   items: ConversationListItem[],
   blockedWhatsappAccountIds?: string[] | null,
 ): ConversationListItem[] {
