@@ -370,8 +370,16 @@ export async function processExecution(
     if (leadRow) lead = leadRow as Record<string, unknown>;
   }
 
-  // Find the trigger block (starting point)
-  const triggerBlock = blocks.find((b) => b.type === "trigger");
+  // Um fluxo pode ter varios blocos de "Inicio", cada um com seu proprio
+  // caminho de acoes (ex: mensagens rapidas diferentes movendo pra etapas
+  // diferentes). fireAutomationTrigger grava qual bloco de trigger casou com
+  // este disparo em trigger_payload._trigger_block_id; sem isso (execucoes
+  // legadas ou outros tipos de gatilho), cai no primeiro bloco encontrado.
+  const triggerPayload = execution.trigger_payload as Record<string, unknown> | null;
+  const matchedTriggerBlockId = triggerPayload?._trigger_block_id as string | undefined;
+  const triggerBlock = matchedTriggerBlockId
+    ? blocks.find((b) => b.id === matchedTriggerBlockId)
+    : blocks.find((b) => b.type === "trigger");
   if (!triggerBlock) {
     await supabase
       .from("automation_executions")
