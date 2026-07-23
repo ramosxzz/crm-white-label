@@ -247,6 +247,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
         (a) => !blockedAccountIds || !blockedAccountIds.includes(a.id),
       )}
       recentCalls={recentCalls}
+      callsEnabled={ctx.tenant.calls_dashboard_enabled}
       pipelineOptions={((pipelinesRes.data ?? []) as {
         id: string;
         name: string;

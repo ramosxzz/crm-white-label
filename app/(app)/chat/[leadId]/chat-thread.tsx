@@ -293,6 +293,7 @@ export function ChatThread({
   recentCalls = [],
   pipelineOptions = [],
   leadDetails: initialLeadDetails,
+  callsEnabled = false,
 }: {
   leadId: string;
   tenantId: string;
@@ -315,6 +316,7 @@ export function ChatThread({
   recentCalls?: LeadCallAttempt[];
   pipelineOptions?: PipelineOption[];
   leadDetails?: LeadDetails;
+  callsEnabled?: boolean;
 }) {
   const isInstagram = channel === "instagram";
   const displayPhone = isInstagram ? "Instagram Direct" : displayLeadSubtitle(leadPhone);
@@ -1026,7 +1028,7 @@ export function ChatThread({
             variant="outline"
             size="icon"
           />
-          {!isInstagram && leadPhone && <CallButton leadId={leadId} phone={leadPhone} iconOnly />}
+          {!isInstagram && leadPhone && callsEnabled && <CallButton leadId={leadId} phone={leadPhone} iconOnly />}
           {!isInstagram && leadPhone && <WhatsAppCallButton phone={leadPhone} iconOnly />}
           <StatusSelector status={status} onChange={changeStatus} />
           {status !== "resolvida" && (
@@ -1107,7 +1109,7 @@ export function ChatThread({
                   variant="outline"
                   size="sm"
                 />
-                {!isInstagram && leadPhone && <CallButton leadId={leadId} phone={leadPhone} />}
+                {!isInstagram && leadPhone && callsEnabled && <CallButton leadId={leadId} phone={leadPhone} />}
                 {!isInstagram && leadPhone && <WhatsAppCallButton phone={leadPhone} />}
                 {status !== "resolvida" && (
                   <Button
@@ -1742,6 +1744,7 @@ export function ChatThread({
         users={users}
         pipelineOptions={pipelineOptions}
         recentCalls={recentCalls}
+        callsEnabled={callsEnabled}
         onFinalize={() => changeStatus("resolvida")}
         mobileOpen={sidePanelOpen}
         onMobileClose={() => setSidePanelOpen(false)}
@@ -2099,6 +2102,7 @@ function LeadSidePanel({
   users,
   pipelineOptions,
   recentCalls,
+  callsEnabled = false,
   onFinalize,
   mobileOpen,
   onMobileClose,
@@ -2112,6 +2116,7 @@ function LeadSidePanel({
   users: { id: string; name: string }[];
   pipelineOptions: PipelineOption[];
   recentCalls: LeadCallAttempt[];
+  callsEnabled?: boolean;
   onFinalize: () => void;
   mobileOpen: boolean;
   onMobileClose: () => void;
@@ -2374,6 +2379,7 @@ function LeadSidePanel({
         </Button>
       </PanelSection>
 
+      {callsEnabled && (
       <PanelSection title="Ligações recentes">
         {recentCalls.length === 0 ? (
           <p className="text-xs text-muted-foreground">Nenhuma tentativa recente registrada para este lead.</p>
@@ -2404,6 +2410,7 @@ function LeadSidePanel({
           </div>
         )}
       </PanelSection>
+      )}
 
       <PanelSection title="Qualidade do lead">
         <StarRating

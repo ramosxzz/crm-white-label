@@ -90,12 +90,14 @@ export function KanbanBoard({
   initialStages,
   initialLeads,
   callCounts = {},
+  callsEnabled = false,
 }: {
   pipelines: { id: string; name: string; is_default: boolean }[];
   activePipelineId: string | null;
   initialStages: Stage[];
   initialLeads: Lead[];
   callCounts?: Record<string, number>;
+  callsEnabled?: boolean;
 }) {
   const router = useRouter();
   const [stages, setStages] = useState(initialStages);
@@ -468,6 +470,7 @@ export function KanbanBoard({
                 onToggleSelected={toggleLeadSelected}
                 onToggleStageSelected={toggleStageSelected}
                 callCounts={callCounts}
+                callsEnabled={callsEnabled}
                 onOpenChat={(lead) => setChatLead(lead)}
               />
             );
@@ -607,6 +610,7 @@ function Column({
   onToggleSelected,
   onToggleStageSelected,
   callCounts,
+  callsEnabled,
   onOpenChat,
 }: {
   stage: Stage;
@@ -618,6 +622,7 @@ function Column({
   onToggleSelected: (leadId: string) => void;
   onToggleStageSelected: (leadIds: string[]) => void;
   callCounts: Record<string, number>;
+  callsEnabled?: boolean;
   onOpenChat: (lead: { id: string; name: string }) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
@@ -671,6 +676,7 @@ function Column({
               selected={selectedIds.has(l.id)}
               onToggleSelected={onToggleSelected}
               callCount={callCounts[l.id] ?? 0}
+              callsEnabled={callsEnabled}
               onOpenChat={onOpenChat}
             />
           ))}
@@ -693,6 +699,7 @@ function LeadCard({
   selected = false,
   onToggleSelected,
   callCount = 0,
+  callsEnabled = false,
   onOpenChat,
 }: {
   lead: Lead;
@@ -702,6 +709,7 @@ function LeadCard({
   selected?: boolean;
   onToggleSelected?: (leadId: string) => void;
   callCount?: number;
+  callsEnabled?: boolean;
   onOpenChat?: (lead: { id: string; name: string }) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -782,7 +790,7 @@ function LeadCard({
         >
           {lead.name}
         </Link>
-        {callCount === 0 ? (
+        {callsEnabled && (callCount === 0 ? (
           <span
             className="mt-0.5 flex shrink-0 items-center gap-1 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-500"
             title="Nunca recebeu ligação"
@@ -796,7 +804,7 @@ function LeadCard({
           >
             <Phone className="h-2.5 w-2.5" /> {callCount}
           </span>
-        )}
+        ))}
       </div>
       {lead.phone && (
         <div className="mt-2 flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
@@ -863,7 +871,7 @@ function LeadCard({
 
       {lead.phone && (
         <div className="mt-2 flex items-center gap-1.5 border-t border-border/50 pt-2.5" onPointerDown={(e) => e.stopPropagation()}>
-          <CallButton leadId={lead.id} phone={lead.phone} iconOnly />
+          {callsEnabled && <CallButton leadId={lead.id} phone={lead.phone} iconOnly />}
           <WhatsAppCallButton phone={lead.phone} iconOnly />
           <button
             type="button"

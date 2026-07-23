@@ -150,7 +150,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               users={users}
               services={(services ?? []) as { id: string; name: string; duration_minutes: number }[]}
             />
-            {lead.phone && <CallButton leadId={lead.id} phone={lead.phone} />}
+            {lead.phone && ctx.tenant.calls_dashboard_enabled && <CallButton leadId={lead.id} phone={lead.phone} />}
             {lead.phone && (
               <Button asChild variant="brand">
                 <Link href={`/chat/${lead.id}`} prefetch>

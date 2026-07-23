@@ -34,7 +34,10 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
     <div className="flex h-[calc(100dvh-3.5rem-4.75rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] min-h-0 overflow-hidden bg-background md:h-[calc(100vh-3.5rem)]">
       <ConversationListLive
         tenantId={ctx.tenantId}
-        initialItems={items.map((item) => ({ ...item, callCount: callCounts[item.leadId] ?? 0 }))}
+        initialItems={items.map((item) => ({
+          ...item,
+          callCount: ctx.tenant.calls_dashboard_enabled ? callCounts[item.leadId] ?? 0 : undefined,
+        }))}
         instances={instances.map((i) => ({
           id: i.id,
           label: i.display_name || i.phone_number,

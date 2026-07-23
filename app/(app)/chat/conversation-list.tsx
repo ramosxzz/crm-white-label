@@ -317,7 +317,7 @@ export function ConversationList({
                     {c.leadName}
                   </p>
                   <div className="flex shrink-0 items-center gap-2">
-                    <CallAttemptMarker count={c.callCount ?? 0} />
+                    {c.callCount != null && <CallAttemptMarker count={c.callCount} />}
                     {c.lastAt && (
                       <span
                         className={cn(

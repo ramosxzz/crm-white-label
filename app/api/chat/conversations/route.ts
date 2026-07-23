@@ -34,13 +34,13 @@ export async function GET(request: Request) {
       ctx.tenant.name,
       blockedAccountIds,
     );
-    const callCounts = await fetchLeadCallCountsForTenant(ctx.tenantId, {
-      includeApi4com: ctx.tenant.calls_dashboard_enabled,
-    });
+    const callCounts = ctx.tenant.calls_dashboard_enabled
+      ? await fetchLeadCallCountsForTenant(ctx.tenantId, { includeApi4com: true })
+      : null;
     return json({
       conversations: conversations.map((conversation) => ({
         ...conversation,
-        callCount: callCounts[conversation.leadId] ?? 0,
+        callCount: callCounts ? callCounts[conversation.leadId] ?? 0 : undefined,
       })),
     });
   } catch (error) {

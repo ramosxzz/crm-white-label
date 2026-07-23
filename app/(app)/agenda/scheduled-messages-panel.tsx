@@ -19,7 +19,13 @@ type ScheduledMessageRow = {
   leads: { id: string; name: string; phone: string | null } | null;
 };
 
-export function ScheduledMessagesPanel({ messages }: { messages: ScheduledMessageRow[] }) {
+export function ScheduledMessagesPanel({
+  messages,
+  showCallButton = false,
+}: {
+  messages: ScheduledMessageRow[];
+  showCallButton?: boolean;
+}) {
   const [items, setItems] = useState(messages);
 
   function cancel(id: string, leadId: string) {
@@ -50,7 +56,7 @@ export function ScheduledMessagesPanel({ messages }: { messages: ScheduledMessag
             <div className="flex shrink-0 items-center gap-1.5">
               {m.leads?.phone && (
                 <>
-                  <CallButton leadId={m.lead_id} phone={m.leads.phone} iconOnly />
+                  {showCallButton && <CallButton leadId={m.lead_id} phone={m.leads.phone} iconOnly />}
                   <WhatsAppCallButton phone={m.leads.phone} iconOnly />
                 </>
               )}

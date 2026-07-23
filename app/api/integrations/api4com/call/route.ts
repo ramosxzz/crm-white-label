@@ -13,6 +13,9 @@ const bodySchema = z.object({
 export async function POST(request: Request) {
   try {
     const ctx = await requireContext();
+    if (!ctx.tenant.calls_dashboard_enabled) {
+      return NextResponse.json({ error: "Modulo de ligacoes desativado para esta empresa." }, { status: 403 });
+    }
     const parsed = bodySchema.parse(await request.json());
 
     const supabase = await createClient();
