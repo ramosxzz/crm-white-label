@@ -36,6 +36,7 @@ import { setLeadQualityStars } from "@/app/(app)/ligacoes/actions";
 import { scheduleCall, listScheduledCallsForLead } from "@/app/(app)/agenda/actions";
 import { ScheduleMeetingButton } from "@/components/leads/schedule-meeting-button";
 import { CallButton } from "@/components/leads/call-button";
+import { WhatsAppCallButton } from "@/components/leads/whatsapp-call-button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -107,12 +108,13 @@ type LeadDetails = {
   nextAppointmentAt: string | null;
   openTasksCount: number;
   qualityStars: number;
+  lostReason: string | null;
 };
 
 type PipelineOption = {
   id: string;
   name: string;
-  stages: { id: string; name: string; color: string | null; position: number | null }[];
+  stages: { id: string; name: string; color: string | null; position: number | null; is_lost?: boolean | null }[];
 };
 
 type ScheduledMessage = {
@@ -144,6 +146,7 @@ type LeadDetailsRow = {
   value_cents: number | null;
   created_at: string;
   quality_stars: number | null;
+  lost_reason: string | null;
 };
 
 function detectMediaKind(mime: string): MediaKind {
@@ -252,6 +255,7 @@ function buildLeadDetailsFromRow(
     nextAppointmentAt: previous?.nextAppointmentAt ?? null,
     openTasksCount: previous?.openTasksCount ?? 0,
     qualityStars: row.quality_stars ?? 0,
+    lostReason: row.lost_reason,
   };
 }
 
@@ -446,7 +450,7 @@ export function ChatThread({
     const supabase = createClient();
     const { data } = await supabase
       .from("leads")
-      .select("pipeline_id, stage_id, assigned_to, email, source, notes, tags, value_cents, created_at, quality_stars")
+      .select("pipeline_id, stage_id, assigned_to, email, source, notes, tags, value_cents, created_at, quality_stars, lost_reason")
       .eq("id", leadId)
       .eq("tenant_id", tenantId)
       .maybeSingle();
@@ -1022,6 +1026,7 @@ export function ChatThread({
             size="icon"
           />
           {!isInstagram && leadPhone && <CallButton leadId={leadId} phone={leadPhone} iconOnly />}
+          {!isInstagram && leadPhone && <WhatsAppCallButton phone={leadPhone} iconOnly />}
           <StatusSelector status={status} onChange={changeStatus} />
           {status !== "resolvida" && (
             <Button
@@ -1102,6 +1107,7 @@ export function ChatThread({
                   size="sm"
                 />
                 {!isInstagram && leadPhone && <CallButton leadId={leadId} phone={leadPhone} />}
+                {!isInstagram && leadPhone && <WhatsAppCallButton phone={leadPhone} />}
                 {status !== "resolvida" && (
                   <Button
                     type="button"
@@ -2111,6 +2117,7 @@ function LeadSidePanel({
   const [businessSaving, setBusinessSaving] = useState(false);
   const [localStars, setLocalStars] = useState<number | null>(null);
   const [businessDirty, setBusinessDirty] = useState(false);
+  const [lostReason, setLostReason] = useState(details?.lostReason ?? "");
   const stageOwnerPipelineId = useMemo(() => {
     if (!details?.stageId) return null;
     return pipelineOptions.find((pipeline) => pipeline.stages.some((stage) => stage.id === details.stageId))?.id ?? null;
@@ -2136,6 +2143,7 @@ function LeadSidePanel({
     setNotesDirty(false);
     setBusinessDirty(false);
     setLocalStars(null);
+    setLostReason(details?.lostReason ?? "");
   }, [leadId]);
 
   useEffect(() => {
@@ -2222,6 +2230,7 @@ function LeadSidePanel({
       pipelineId: businessDraft.pipelineId === "none" ? null : businessDraft.pipelineId,
       stageId: businessDraft.stageId === "none" ? null : businessDraft.stageId,
       assignedTo: businessDraft.assignedTo === "none" ? null : businessDraft.assignedTo,
+      lostReason,
     })
       .then(() => setBusinessDirty(false))
       .catch((err) => alert((err as Error).message))
@@ -2485,6 +2494,21 @@ function LeadSidePanel({
               </SelectContent>
             </Select>
           </div>
+
+          {selectedStages.find((stage) => stage.id === businessDraft.stageId)?.is_lost && (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Motivo da desistência</Label>
+              <Input
+                value={lostReason}
+                onChange={(e) => {
+                  setBusinessDirty(true);
+                  setLostReason(e.target.value);
+                }}
+                placeholder="Ex: financeiro, valor caro..."
+                className="h-9 bg-background/70"
+              />
+            </div>
+          )}
 
           <Button type="button" size="sm" variant="outline" className="w-full" onClick={saveBusiness} disabled={businessSaving}>
             {businessSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}

@@ -13,7 +13,7 @@ import { CallLeadPanel } from "./call-lead-panel";
 import { setLeadQualityStars, setLeadStage } from "./actions";
 import { updateChatLeadTags } from "../chat/actions";
 
-type PipelineOption = { id: string; name: string; stages: { id: string; name: string; color: string | null; position: number | null }[] };
+type PipelineOption = { id: string; name: string; stages: { id: string; name: string; color: string | null; position: number | null; is_lost?: boolean | null }[] };
 
 export type CallRow = {
   id: string;

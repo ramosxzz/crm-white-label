@@ -13,7 +13,7 @@ export async function getLeadCallPanelData(leadId: string) {
   const [{ data: lead }, { data: scheduledMessages }] = await Promise.all([
     supabase
       .from("leads")
-      .select("id, name, phone, notes, tags, value_cents, pipeline_id, stage_id, assigned_to, quality_stars")
+      .select("id, name, phone, notes, tags, value_cents, pipeline_id, stage_id, assigned_to, quality_stars, lost_reason")
       .eq("id", leadId)
       .eq("tenant_id", ctx.tenantId)
       .maybeSingle(),
@@ -38,6 +38,7 @@ export async function getLeadCallPanelData(leadId: string) {
       stage_id: string | null;
       assigned_to: string | null;
       quality_stars: number | null;
+      lost_reason: string | null;
     },
     scheduledMessages: (scheduledMessages ?? []) as {
       id: string;

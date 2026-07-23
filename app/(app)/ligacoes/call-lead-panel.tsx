@@ -19,7 +19,7 @@ import { MiniChatPanel } from "@/components/leads/mini-chat-panel";
 type PipelineOption = {
   id: string;
   name: string;
-  stages: { id: string; name: string; color: string | null; position: number | null }[];
+  stages: { id: string; name: string; color: string | null; position: number | null; is_lost?: boolean | null }[];
 };
 
 type ScheduledMessage = {
@@ -62,6 +62,7 @@ export function CallLeadPanel({
   const [meetingSaving, setMeetingSaving] = useState(false);
   const [meetingDone, setMeetingDone] = useState(false);
   const [stars, setStars] = useState(0);
+  const [lostReason, setLostReason] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +73,7 @@ export function CallLeadPanel({
         setNotes(data.lead.notes ?? "");
         setTags(data.lead.tags ?? []);
         setStars(data.lead.quality_stars ?? 0);
+        setLostReason(data.lead.lost_reason ?? "");
         setBusiness({
           valueReais: ((data.lead.value_cents ?? 0) / 100).toFixed(2).replace(".", ","),
           pipelineId: data.lead.pipeline_id ?? "none",
@@ -135,6 +137,7 @@ export function CallLeadPanel({
       pipelineId: business.pipelineId === "none" ? null : business.pipelineId,
       stageId: business.stageId === "none" ? null : business.stageId,
       assignedTo: business.assignedTo === "none" ? null : business.assignedTo,
+      lostReason,
     })
       .catch((err) => alert((err as Error).message))
       .finally(() => setBusinessSaving(false));
@@ -250,6 +253,17 @@ export function CallLeadPanel({
                     </SelectContent>
                   </Select>
                 </div>
+                {selectedStages.find((s) => s.id === business.stageId)?.is_lost && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Motivo da desistência</Label>
+                    <Input
+                      value={lostReason}
+                      onChange={(e) => setLostReason(e.target.value)}
+                      placeholder="Ex: financeiro, valor caro..."
+                      className="h-9"
+                    />
+                  </div>
+                )}
                 <Button size="sm" className="w-full" onClick={saveBusiness} disabled={businessSaving}>
                   {businessSaving ? "Salvando..." : "Salvar negócio"}
                 </Button>

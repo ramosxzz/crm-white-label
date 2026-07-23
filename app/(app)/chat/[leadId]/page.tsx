@@ -29,7 +29,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
   ] = await Promise.all([
     service
       .from("leads")
-      .select("id, name, phone, email, source, notes, tags, value_cents, created_at, assigned_to, pipeline_id, stage_id, automations_enabled, custom_fields, quality_stars")
+      .select("id, name, phone, email, source, notes, tags, value_cents, created_at, assigned_to, pipeline_id, stage_id, automations_enabled, custom_fields, quality_stars, lost_reason")
       .eq("id", leadId)
       .eq("tenant_id", ctx.tenantId)
       .single(),
@@ -63,7 +63,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
       .order("created_at"),
     service
       .from("pipelines")
-      .select("id, name, pipeline_stages(id, name, color, position)")
+      .select("id, name, pipeline_stages(id, name, color, position, is_lost)")
       .eq("tenant_id", ctx.tenantId)
       .order("name"),
     service
@@ -93,6 +93,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
     automations_enabled: boolean | null;
     custom_fields: Record<string, unknown> | null;
     quality_stars: number | null;
+    lost_reason: string | null;
   } | null;
   if (!lead) notFound();
 
@@ -272,6 +273,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
         nextAppointmentAt: (appointmentRes.data as { starts_at?: string } | null)?.starts_at ?? null,
         openTasksCount: openTasksRes.count ?? 0,
         qualityStars: lead.quality_stars ?? 0,
+        lostReason: lead.lost_reason,
       }}
     />
   );

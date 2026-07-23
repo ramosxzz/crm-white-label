@@ -624,6 +624,7 @@ export async function updateChatLeadBusiness(input: {
   pipelineId: string | null;
   stageId: string | null;
   assignedTo: string | null;
+  lostReason?: string | null;
 }) {
   const ctx = await requireContext();
   const supabase = await createClient();
@@ -642,16 +643,19 @@ export async function updateChatLeadBusiness(input: {
   let stageId = input.stageId;
   // Marca/limpa won_at ao mover para (ou sair de) uma etapa de ganho.
   let wonAtPatch: { won_at: string | null } | null = null;
+  // Motivo da desistencia so faz sentido numa etapa de perda; some das demais.
+  let lostReasonPatch: { lost_reason: string | null } | null = null;
   if (stageId) {
     const { data: stage } = await supabase
       .from("pipeline_stages")
-      .select("id, pipeline_id, is_won")
+      .select("id, pipeline_id, is_won, is_lost")
       .eq("id", stageId)
       .eq("tenant_id", ctx.tenantId)
       .single();
     if (!stage) throw new Error("Etapa nao encontrada");
     pipelineId = stage.pipeline_id;
     const isWon = Boolean((stage as { is_won: boolean }).is_won);
+    const isLost = Boolean((stage as { is_lost: boolean }).is_lost);
     if (isWon) {
       if (!currentLead.won_at || currentLead.stage_id !== stageId) {
         wonAtPatch = { won_at: new Date().toISOString() };
@@ -659,9 +663,11 @@ export async function updateChatLeadBusiness(input: {
     } else {
       wonAtPatch = { won_at: null };
     }
+    lostReasonPatch = { lost_reason: isLost ? (input.lostReason?.trim() || null) : null };
   } else {
     // Sem etapa: lead sai do pipeline, deixa de ser um ganho.
     wonAtPatch = { won_at: null };
+    lostReasonPatch = { lost_reason: null };
   }
   if (pipelineId) {
     const { data: pipeline } = await supabase
@@ -705,6 +711,7 @@ export async function updateChatLeadBusiness(input: {
       stage_id: stageId,
       assigned_to: input.assignedTo,
       ...(wonAtPatch ?? {}),
+      ...(lostReasonPatch ?? {}),
     })
     .eq("id", input.leadId)
     .eq("tenant_id", ctx.tenantId);

@@ -54,7 +54,7 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
     fetchApi4comCalls(),
     supabase
       .from("pipelines")
-      .select("id, name, pipeline_stages(id, name, color, position)")
+      .select("id, name, pipeline_stages(id, name, color, position, is_lost)")
       .eq("tenant_id", ctx.tenantId)
       .order("name"),
     listTenantUserOptions(ctx.tenantId),
@@ -65,7 +65,7 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
   const pipelineOptions = ((pipelinesRes.data ?? []) as {
     id: string;
     name: string;
-    pipeline_stages: { id: string; name: string; color: string | null; position: number | null }[] | null;
+    pipeline_stages: { id: string; name: string; color: string | null; position: number | null; is_lost: boolean | null }[] | null;
   }[]).map((p) => ({
     id: p.id,
     name: p.name,
