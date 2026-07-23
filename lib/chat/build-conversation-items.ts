@@ -42,6 +42,7 @@ export function buildConversationItems(
       tags: c.leads?.tags ?? [],
       stageId: c.leads?.stage_id ?? null,
       leadCreatedAt: c.leads?.created_at ?? null,
+      qualityStars: c.leads?.quality_stars ?? 0,
     };
   });
 }

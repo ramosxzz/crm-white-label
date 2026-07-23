@@ -38,6 +38,7 @@ export type ConversationListItem = {
   stageId: string | null;
   leadCreatedAt: string | null;
   callCount?: number;
+  qualityStars: number;
 };
 
 export type GroupLabelItem = {

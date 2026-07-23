@@ -34,6 +34,7 @@ type AdvancedFilters = {
   order: OrderFilter;
   arrived: ArrivedFilter;
   arrivedDate: string;
+  minStars: number;
 };
 
 const DEFAULT_ADVANCED_FILTERS: AdvancedFilters = {
@@ -45,6 +46,7 @@ const DEFAULT_ADVANCED_FILTERS: AdvancedFilters = {
   order: "recentes",
   arrived: "todos",
   arrivedDate: "",
+  minStars: 0,
 };
 
 function isSameDay(a: Date, b: Date): boolean {
@@ -148,6 +150,7 @@ export function ConversationList({
       }
       if (!isWithinPeriod(c.lastAt, appliedFilters.lastMessagePeriod)) return false;
       if (!matchesArrivedFilter(c.leadCreatedAt, appliedFilters.arrived, appliedFilters.arrivedDate)) return false;
+      if (appliedFilters.minStars > 0 && c.qualityStars < appliedFilters.minStars) return false;
       if (!q) return true;
       return (
         c.leadName.toLowerCase().includes(q) ||
@@ -415,6 +418,25 @@ export function ConversationList({
                     {stages.map((s) => (
                       <SelectItem key={s.id} value={s.id}>
                         {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FilterField>
+
+              <FilterField label="Qualidade mínima">
+                <Select
+                  value={String(draftFilters.minStars)}
+                  onValueChange={(v) => setDraftFilters((f) => ({ ...f, minStars: Number(v) }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Qualquer</SelectItem>
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <SelectItem key={n} value={String(n)}>
+                        {"★".repeat(n)}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -24,6 +24,7 @@ export type ConversationLeadRow = {
     tags?: string[] | null;
     stage_id?: string | null;
     created_at?: string | null;
+    quality_stars?: number | null;
   } | null;
 };
 
