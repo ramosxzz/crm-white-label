@@ -31,6 +31,7 @@ import {
   MoreHorizontal,
   ArrowLeft,
 } from "lucide-react";
+import { EmojiPickerButton } from "@/components/chat/emoji-picker-button";
 import { updateLead } from "@/app/(app)/leads/actions";
 import { setLeadQualityStars } from "@/app/(app)/ligacoes/actions";
 import { scheduleCall, listScheduledCallsForLead } from "@/app/(app)/agenda/actions";
@@ -1440,6 +1441,14 @@ export function ChatThread({
             )}
 
             <QuickRepliesPicker messages={quickMessages} disabled={busy} onPick={onPickQuick} />
+
+            <EmojiPickerButton
+              disabled={busy}
+              onPick={(emoji) => {
+                updateTextDraft(`${text}${emoji}`);
+                setPendingQuickMessageId(null);
+              }}
+            />
 
             {/* Agendar mensagem (atalho direto) */}
             {!isInstagram && (
