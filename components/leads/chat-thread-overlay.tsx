@@ -34,16 +34,18 @@ export function ChatThreadOverlay({ leadId, onClose }: { leadId: string; onClose
   }, [leadId]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-6">
-      <div className="relative flex h-full w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-background shadow-2xl sm:h-[88vh]">
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-3 top-3 z-10 rounded-lg bg-background/80 p-1.5 text-muted-foreground shadow-sm hover:bg-muted hover:text-foreground"
-          aria-label="Fechar"
-        >
-          <X className="h-5 w-5" />
-        </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4">
+      <div className="flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-background shadow-2xl sm:h-[92vh]">
+        <div className="flex shrink-0 items-center justify-end border-b border-border/50 bg-card/78 px-3 py-1.5">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Fechar"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
 
         {error && (
           <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-destructive">
