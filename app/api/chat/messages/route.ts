@@ -67,16 +67,21 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Busca as mais recentes primeiro (desc) e limita a 150: conversas longas
+  // (300+ mensagens, comum com muita foto/video) travando o navegador ao
+  // montar centenas de <img>/<video> de uma vez. Reverte pra ordem
+  // cronologica antes de devolver, mantendo o contrato da resposta.
   const { data, error } = await supabase
     .from("messages")
     .select("id, external_id, body, direction, created_at, status, media_url, media_type, reply_to_message_id, reply_to_external_id, reply_to_body, reply_to_sender_name, user_id")
     .eq("conversation_id", conversationId)
     .eq("tenant_id", ctx.tenantId)
-    .order("created_at", { ascending: true })
-    .limit(500);
+    .order("created_at", { ascending: false })
+    .limit(150);
   if (error) {
     return json({ error: error.message }, { status: 500 });
   }
+  data?.reverse();
 
   const userIds = [...new Set((data ?? []).map((row) => row.user_id).filter(Boolean) as string[])];
   const namesByUser = new Map<string, string>();

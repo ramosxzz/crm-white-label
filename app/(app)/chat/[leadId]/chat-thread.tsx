@@ -1856,7 +1856,7 @@ function MessageContent({ message: m }: { message: ChatMessage }) {
       <div className="space-y-1">
         {quoted}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={src} alt="" className="max-h-64 max-w-full rounded-lg object-cover" />
+        <img src={src} alt="" loading="lazy" decoding="async" className="max-h-64 max-w-full rounded-lg object-cover" />
         {m.body && m.body !== "📷 Imagem" && (
           <p className="whitespace-pre-wrap break-words">{m.body}</p>
         )}

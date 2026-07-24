@@ -23,10 +23,16 @@ async function fetchCloudApiMedia(account: WhatsAppAccount, mediaRef: string, ra
   const token = creds.access_token?.trim();
   if (!mediaId || !token) return responseError("Midia Meta sem credenciais", 404);
 
-  const metaRes = await fetch(`https://graph.facebook.com/v20.0/${encodeURIComponent(mediaId)}`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  });
+  let metaRes: Response;
+  try {
+    metaRes = await fetch(`https://graph.facebook.com/v20.0/${encodeURIComponent(mediaId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+      signal: AbortSignal.timeout(UPSTREAM_MEDIA_TIMEOUT_MS),
+    });
+  } catch {
+    return responseError("Meta demorou demais para responder", 504);
+  }
   const meta = (await metaRes.json().catch(() => null)) as {
     url?: string;
     mime_type?: string;
@@ -43,6 +49,8 @@ async function fetchCloudApiMedia(account: WhatsAppAccount, mediaRef: string, ra
   });
 }
 
+const UPSTREAM_MEDIA_TIMEOUT_MS = 15_000;
+
 async function fetchUpstreamMedia(
   url: string,
   input: { authorization?: string; contentType?: string; range: string | null },
@@ -53,11 +61,24 @@ async function fetchUpstreamMedia(
   if (input.authorization) headers.Authorization = input.authorization;
   if (input.range) headers.Range = input.range;
 
-  const upstream = await fetch(url, {
-    headers,
-    cache: "no-store",
-    redirect: "follow",
-  });
+  // Sem timeout, um servidor de origem lento/travado (Evolution self-hosted,
+  // Meta) deixa a requisicao pendurada indefinidamente - o navegador fica
+  // "travado" esperando a midia carregar. Falha rapido em vez disso.
+  let upstream: Response;
+  try {
+    upstream = await fetch(url, {
+      headers,
+      cache: "no-store",
+      redirect: "follow",
+      signal: AbortSignal.timeout(UPSTREAM_MEDIA_TIMEOUT_MS),
+    });
+  } catch (err) {
+    const timedOut = err instanceof Error && err.name === "TimeoutError";
+    return responseError(
+      timedOut ? "Servidor de midia demorou demais para responder" : "Falha ao buscar midia",
+      504,
+    );
+  }
 
   if (!upstream.ok || !upstream.body) {
     return responseError("Arquivo de midia indisponivel", upstream.status === 404 ? 404 : 502);

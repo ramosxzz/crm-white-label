@@ -109,7 +109,7 @@ export default async function ChatThreadPage({ params }: { params: Promise<{ lea
       const meta = call.metadata as Record<string, unknown> | null;
       if (meta?.tenant_id !== ctx.tenantId) return false;
       if (meta?.lead_id === leadId) return true;
-      const to = call.to.replace(/\D/g, "");
+      const to = (call.to ?? "").replace(/\D/g, "");
       return Boolean(leadPhoneDigits && (to.endsWith(leadPhoneDigits) || leadPhoneDigits.endsWith(to)));
     })
     .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())
