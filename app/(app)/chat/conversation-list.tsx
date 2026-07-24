@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, Inbox, Phone, RefreshCw, SlidersHorizontal, X } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn, initials } from "@/lib/utils";
 import type { ConversationListItem, ConversationStatus } from "@/lib/chat/types";
 import { CONVERSATION_STATUSES, STATUS_META } from "@/lib/chat/status";
+import { getSharedStageFilter, setSharedStageFilter } from "@/lib/chat/shared-stage-filter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -97,6 +98,7 @@ export function ConversationList({
   isRefreshing,
   instances,
   stages,
+  tenantId,
 }: {
   items: ConversationListItem[];
   query: string;
@@ -107,6 +109,7 @@ export function ConversationList({
   isRefreshing?: boolean;
   instances: { id: string; label: string }[];
   stages: { id: string; name: string }[];
+  tenantId?: string;
 }) {
   const pathname = usePathname();
   const activeLeadId = pathname.startsWith("/chat/") ? (pathname.split("/")[2] ?? null) : null;
@@ -114,6 +117,16 @@ export function ConversationList({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState<AdvancedFilters>(DEFAULT_ADVANCED_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<AdvancedFilters>(DEFAULT_ADVANCED_FILTERS);
+
+  // Sincroniza o filtro de etapa com o Kanban: se ja tem uma etapa filtrada
+  // la (ou aqui mesmo numa sessao anterior), comeca com ela aplicada.
+  useEffect(() => {
+    if (!tenantId) return;
+    const sharedStageId = getSharedStageFilter(tenantId);
+    if (sharedStageId) {
+      setAppliedFilters((prev) => ({ ...prev, stageId: sharedStageId }));
+    }
+  }, [tenantId]);
 
   const availableTags = useMemo(() => {
     const set = new Set<string>();
@@ -175,12 +188,14 @@ export function ConversationList({
 
   function applyFilters() {
     setAppliedFilters(draftFilters);
+    if (tenantId) setSharedStageFilter(tenantId, draftFilters.stageId);
     setFiltersOpen(false);
   }
 
   function clearFilters() {
     setDraftFilters(DEFAULT_ADVANCED_FILTERS);
     setAppliedFilters(DEFAULT_ADVANCED_FILTERS);
+    if (tenantId) setSharedStageFilter(tenantId, null);
     setFiltersOpen(false);
   }
 

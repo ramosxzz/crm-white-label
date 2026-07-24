@@ -51,6 +51,7 @@ export default async function KanbanPage({ searchParams }: { searchParams?: Prom
           initialLeads={leads ?? []}
           callCounts={callCounts}
           callsEnabled={ctx.tenant.calls_dashboard_enabled}
+          tenantId={ctx.tenantId}
         />
       </div>
     </div>

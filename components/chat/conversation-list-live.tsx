@@ -194,6 +194,7 @@ export function ConversationListLive({
       isRefreshing={isRefreshing}
       instances={instances}
       stages={stages}
+      tenantId={tenantId}
     />
   );
 }

@@ -19,7 +19,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { CheckSquare, MessageSquare, Phone, PhoneOff, Plus, Search, SlidersHorizontal, Square, X } from "lucide-react";
-import { MiniChatPanel } from "@/components/leads/mini-chat-panel";
+import { ChatThreadOverlay } from "@/components/leads/chat-thread-overlay";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrencyBRL, formatPhoneBR, cn } from "@/lib/utils";
 import { moveLeadToStage, moveLeadsToStage } from "../leads/actions";
@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { setLeadQualityStars } from "../ligacoes/actions";
+import { getSharedStageFilter, setSharedStageFilter } from "@/lib/chat/shared-stage-filter";
 import { updateChatLeadTags } from "../chat/actions";
 
 type Stage = { id: string; name: string; color: string | null; position: number };
@@ -53,6 +54,7 @@ type KanbanFilters = {
   minStars: number;
   arrived: ArrivedFilter;
   arrivedDate: string;
+  stageId: string;
 };
 
 const DEFAULT_KANBAN_FILTERS: KanbanFilters = {
@@ -60,6 +62,7 @@ const DEFAULT_KANBAN_FILTERS: KanbanFilters = {
   minStars: 0,
   arrived: "todos",
   arrivedDate: "",
+  stageId: "todos",
 };
 
 function isSameDay(a: Date, b: Date): boolean {
@@ -92,6 +95,7 @@ export function KanbanBoard({
   initialLeads,
   callCounts = {},
   callsEnabled = false,
+  tenantId,
 }: {
   pipelines: { id: string; name: string; is_default: boolean }[];
   activePipelineId: string | null;
@@ -99,6 +103,7 @@ export function KanbanBoard({
   initialLeads: Lead[];
   callCounts?: Record<string, number>;
   callsEnabled?: boolean;
+  tenantId?: string;
 }) {
   const router = useRouter();
   const [stages, setStages] = useState(initialStages);
@@ -187,12 +192,14 @@ export function KanbanBoard({
 
   function applyFilters() {
     setAppliedFilters(draftFilters);
+    if (tenantId) setSharedStageFilter(tenantId, draftFilters.stageId);
     setFiltersOpen(false);
   }
 
   function clearFilters() {
     setDraftFilters(DEFAULT_KANBAN_FILTERS);
     setAppliedFilters(DEFAULT_KANBAN_FILTERS);
+    if (tenantId) setSharedStageFilter(tenantId, null);
     setFiltersOpen(false);
   }
 
@@ -200,8 +207,19 @@ export function KanbanBoard({
     if (appliedFilters.tag !== "todos" && !(lead.tags ?? []).includes(appliedFilters.tag)) return false;
     if (appliedFilters.minStars > 0 && (lead.quality_stars ?? 0) < appliedFilters.minStars) return false;
     if (!matchesArrivedFilter(lead.created_at, appliedFilters.arrived, appliedFilters.arrivedDate)) return false;
+    if (appliedFilters.stageId !== "todos" && lead.stage_id !== appliedFilters.stageId) return false;
     return true;
   }
+
+  // Sincroniza o filtro de etapa com o Chat: se ja tem uma etapa filtrada la
+  // (ou aqui mesmo numa sessao anterior), comeca com ela aplicada.
+  useEffect(() => {
+    if (!tenantId) return;
+    const sharedStageId = getSharedStageFilter(tenantId);
+    if (sharedStageId) {
+      setAppliedFilters((prev) => ({ ...prev, stageId: sharedStageId }));
+    }
+  }, [tenantId]);
 
   // Mantem em dia quando o servidor re-renderiza com stages/leads novos
   // (ex: apos criar uma etapa e navegar de volta para o kanban).
@@ -491,7 +509,7 @@ export function KanbanBoard({
     </DndContext>
 
     {chatLead && (
-      <MiniChatPanel leadId={chatLead.id} leadName={chatLead.name} onClose={() => setChatLead(null)} />
+      <ChatThreadOverlay leadId={chatLead.id} onClose={() => setChatLead(null)} />
     )}
 
     {filtersOpen && (
@@ -510,6 +528,20 @@ export function KanbanBoard({
           </div>
 
           <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Etapa</label>
+              <select
+                value={draftFilters.stageId}
+                onChange={(e) => setDraftFilters((f) => ({ ...f, stageId: e.target.value }))}
+                className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+              >
+                <option value="todos">Todas</option>
+                {stages.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Tags</label>
               <select
