@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
+  MouseSensor,
+  TouchSensor,
   DragOverlay,
-  PointerSensor,
   useSensor,
   useSensors,
   closestCorners,
@@ -112,7 +113,13 @@ export function KanbanBoard({
   const [bulkStageId, setBulkStageId] = useState("");
   const [bulkMoving, setBulkMoving] = useState(false);
   const [chatLead, setChatLead] = useState<{ id: string; name: string } | null>(null);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    // Toque no celular: precisa de um "long press" curto antes de iniciar o
+    // drag, senao o gesto e capturado pelo scroll da pagina e o card nunca
+    // sai do lugar (relatado como "dificuldade de arrastar no PWA").
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+  );
 
   function toggleSelectMode() {
     setSelectMode((prev) => {
