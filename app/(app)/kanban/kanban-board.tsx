@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -133,16 +133,16 @@ export function KanbanBoard({
     });
   }
 
-  function toggleLeadSelected(leadId: string) {
+  const toggleLeadSelected = useCallback((leadId: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(leadId)) next.delete(leadId);
       else next.add(leadId);
       return next;
     });
-  }
+  }, []);
 
-  function toggleStageSelected(leadIds: string[]) {
+  const toggleStageSelected = useCallback((leadIds: string[]) => {
     if (leadIds.length === 0) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -153,7 +153,11 @@ export function KanbanBoard({
       }
       return next;
     });
-  }
+  }, []);
+
+  const onOpenChat = useCallback((lead: { id: string; name: string }) => {
+    setChatLead(lead);
+  }, []);
 
   async function applyBulkMove() {
     if (!bulkStageId || selectedIds.size === 0) return;
@@ -496,7 +500,7 @@ export function KanbanBoard({
                 onToggleStageSelected={toggleStageSelected}
                 callCounts={callCounts}
                 callsEnabled={callsEnabled}
-                onOpenChat={(lead) => setChatLead(lead)}
+                onOpenChat={onOpenChat}
               />
             );
           })}
@@ -639,7 +643,7 @@ function leadMatchesSearch(lead: Lead, searchText: string, searchDigits: string)
   );
 }
 
-function Column({
+const Column = memo(function Column({
   stage,
   leads,
   total,
@@ -728,9 +732,9 @@ function Column({
       </SortableContext>
     </div>
   );
-}
+});
 
-function LeadCard({
+const LeadCard = memo(function LeadCard({
   lead,
   dragging,
   stageColor,
@@ -924,4 +928,4 @@ function LeadCard({
       )}
     </div>
   );
-}
+});
