@@ -63,24 +63,31 @@ function resolveLeadDateFilter(entrada?: string, dia?: string) {
   return { active: "all" as LeadDateFilter, bounds: null, label: "Todos os leads cadastrados" };
 }
 
-export default async function LeadsPage({ searchParams }: { searchParams?: Promise<{ entrada?: string; dia?: string }> }) {
+const LEADS_PAGE_SIZE = 50;
+
+export default async function LeadsPage({ searchParams }: { searchParams?: Promise<{ entrada?: string; dia?: string; page?: string }> }) {
   const ctx = await requireContext();
   const supabase = await createClient();
   const params = await searchParams;
   const dateFilter = resolveLeadDateFilter(params?.entrada, params?.dia);
+  const page = Math.max(1, Number(params?.page) || 1);
+  const from = (page - 1) * LEADS_PAGE_SIZE;
+  const to = from + LEADS_PAGE_SIZE - 1;
 
+  // 500 leads de uma vez travava o scroll da pagina (renderizava tudo numa
+  // tabela so). Pagina no servidor em vez de trazer tudo.
   let leadsQuery = supabase
     .from("leads")
-    .select("id, name, phone, email, source, value_cents, created_at, stage_id")
+    .select("id, name, phone, email, source, value_cents, created_at, stage_id", { count: "exact" })
     .eq("tenant_id", ctx.tenantId)
     .order("created_at", { ascending: false })
-    .limit(500);
+    .range(from, to);
 
   if (dateFilter.bounds) {
     leadsQuery = leadsQuery.gte("created_at", dateFilter.bounds.startIso).lte("created_at", dateFilter.bounds.endIso);
   }
 
-  const [{ data: leads }, { data: stages }] = await Promise.all([
+  const [{ data: leads, count: totalCount }, { data: stages }] = await Promise.all([
     leadsQuery,
     supabase
       .from("pipeline_stages")
@@ -90,13 +97,23 @@ export default async function LeadsPage({ searchParams }: { searchParams?: Promi
   ]);
 
   const stageMap = new Map((stages ?? []).map((s) => [s.id, s]));
+  const pageCount = Math.max(1, Math.ceil((totalCount ?? 0) / LEADS_PAGE_SIZE));
+
+  function pageHref(target: number) {
+    const qs = new URLSearchParams();
+    if (params?.entrada) qs.set("entrada", params.entrada);
+    if (params?.dia) qs.set("dia", params.dia);
+    if (target > 1) qs.set("page", String(target));
+    const query = qs.toString();
+    return query ? `/leads?${query}` : "/leads";
+  }
 
   return (
     <div>
       <PageHeader
         eyebrow="Operacao"
         title="Leads"
-        description={`${dateFilter.label} · ${leads?.length ?? 0} resultado${(leads?.length ?? 0) === 1 ? "" : "s"}`}
+        description={`${dateFilter.label} · ${totalCount ?? 0} resultado${(totalCount ?? 0) === 1 ? "" : "s"}`}
         actions={
           <>
             <ImportCsvDialog />
@@ -201,6 +218,23 @@ export default async function LeadsPage({ searchParams }: { searchParams?: Promi
               })}
             </tbody>
           </table>
+
+          {pageCount > 1 && (
+            <div className="flex items-center justify-between border-t border-border/70 px-5 py-3 text-sm text-muted-foreground">
+              <span>
+                {from + 1}–{Math.min(totalCount ?? 0, from + LEADS_PAGE_SIZE)} de {totalCount ?? 0}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button asChild variant="outline" size="sm" disabled={page <= 1}>
+                  <Link href={pageHref(Math.max(1, page - 1))} aria-disabled={page <= 1}>Anterior</Link>
+                </Button>
+                <span className="tabular-nums">{page} / {pageCount}</span>
+                <Button asChild variant="outline" size="sm" disabled={page >= pageCount}>
+                  <Link href={pageHref(Math.min(pageCount, page + 1))} aria-disabled={page >= pageCount}>Próxima</Link>
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
