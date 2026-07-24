@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { User, PanelRightOpen, Plus, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { User, PanelRightOpen, Plus, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,8 @@ export type CallRow = {
   recordUrl: string | null;
 };
 
+const PAGE_SIZE = 10;
+
 function formatDuration(seconds: number): string {
   if (seconds <= 0) return "0s";
   const m = Math.floor(seconds / 60);
@@ -60,6 +62,17 @@ export function CallsTable({
   const [localTags, setLocalTags] = useState<Record<string, string[]>>({});
   const [tagInputOpenId, setTagInputOpenId] = useState<string | null>(null);
   const [tagDraft, setTagDraft] = useState("");
+  const [page, setPage] = useState(0);
+
+  // Volta pra primeira pagina quando os filtros mudam a lista (evita ficar
+  // numa pagina vazia depois de filtrar).
+  useEffect(() => {
+    setPage(0);
+  }, [calls]);
+
+  const pageCount = Math.max(1, Math.ceil(calls.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount - 1);
+  const pagedCalls = calls.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE);
 
   function addTag(call: CallRow) {
     if (!call.leadId) return;
@@ -126,7 +139,7 @@ export function CallsTable({
             </tr>
           </thead>
           <tbody>
-            {calls.map((c) => (
+            {pagedCalls.map((c) => (
               <tr key={c.id} className="border-b border-border/40 last:border-0 hover:bg-muted/30">
                 <td className="px-5 py-3 text-muted-foreground">
                   {new Date(c.startedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
@@ -270,6 +283,36 @@ export function CallsTable({
           </tbody>
         </table>
       </div>
+
+      {pageCount > 1 && (
+        <div className="flex items-center justify-between border-t border-border/60 px-5 py-3 text-sm text-muted-foreground">
+          <span>
+            {currentPage * PAGE_SIZE + 1}–{Math.min(calls.length, currentPage * PAGE_SIZE + PAGE_SIZE)} de {calls.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              disabled={currentPage === 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              title="Pagina anterior"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="tabular-nums">{currentPage + 1} / {pageCount}</span>
+            <Button
+              variant="outline"
+              size="icon"
+              disabled={currentPage >= pageCount - 1}
+              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              title="Proxima pagina"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
       {openLead && (
         <CallLeadPanel
           leadId={openLead.id}
