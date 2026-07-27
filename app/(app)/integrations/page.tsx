@@ -6,6 +6,7 @@ import {
   ChevronRight,
   CheckCircle2,
   Circle,
+  KeyRound,
 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -20,15 +21,17 @@ export default async function IntegrationsPage() {
   if (!canManageIntegrations(ctx.role)) redirect("/dashboard");
   const supabase = await createClient();
 
-  const [{ data: wppAccounts }, { data: tenant }, { data: igAccount }] = await Promise.all([
+  const [{ data: wppAccounts }, { data: tenant }, { data: igAccount }, { data: apiKeys }] = await Promise.all([
     supabase.from("whatsapp_accounts").select("id, is_active").eq("tenant_id", ctx.tenantId).eq("is_active", true).limit(1),
     supabase.from("tenants").select("meta_pixel_id").eq("id", ctx.tenantId).single(),
     supabase.from("instagram_accounts").select("id, is_active").eq("tenant_id", ctx.tenantId).maybeSingle(),
+    supabase.from("api_keys").select("id").eq("tenant_id", ctx.tenantId).eq("is_active", true).limit(1),
   ]);
 
   const wppOn = (wppAccounts?.length ?? 0) > 0;
   const metaOn = !!tenant?.meta_pixel_id;
   const igOn = !!igAccount?.is_active;
+  const apiOn = (apiKeys?.length ?? 0) > 0;
 
   const items = [
     {
@@ -63,6 +66,17 @@ export default async function IntegrationsPage() {
       status: metaOn,
       gradient: "from-blue-500 to-indigo-600",
       tags: ["Pixel", "Conversions API", "ROAS"],
+    },
+    {
+      key: "api",
+      title: "API",
+      description:
+        "Conecte o CRM a ERPs, sites e ferramentas de automação com uma chave de API por tenant.",
+      icon: KeyRound,
+      href: "/integrations/api",
+      status: apiOn,
+      gradient: "from-slate-600 to-slate-800",
+      tags: ["Leads", "Mensagens", "Webhooks"],
     },
   ];
 

@@ -116,6 +116,42 @@ export interface LeadIntakeKey {
   created_at: string;
 }
 
+export interface ApiKey {
+  id: string;
+  tenant_id: string;
+  name: string;
+  key_prefix: string;
+  key_hash: string;
+  scopes: string[];
+  is_active: boolean;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface ApiWebhook {
+  id: string;
+  tenant_id: string;
+  url: string;
+  secret: string;
+  events: string[];
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface ApiWebhookDelivery {
+  id: string;
+  webhook_id: string;
+  tenant_id: string;
+  event: string;
+  status_code: number | null;
+  response_body: string | null;
+  error: string | null;
+  created_at: string;
+}
+
 export interface Profile {
   id: string;
   full_name: string | null;
@@ -443,6 +479,13 @@ export type Database = {
       notifications: { Row: Notification; Insert: Partial<Notification>; Update: Partial<Notification> };
       system_updates: { Row: SystemUpdate; Insert: Partial<SystemUpdate>; Update: Partial<SystemUpdate> };
       lead_intake_keys: { Row: LeadIntakeKey; Insert: Partial<LeadIntakeKey>; Update: Partial<LeadIntakeKey> };
+      api_keys: { Row: ApiKey; Insert: Partial<ApiKey>; Update: Partial<ApiKey> };
+      api_webhooks: { Row: ApiWebhook; Insert: Partial<ApiWebhook>; Update: Partial<ApiWebhook> };
+      api_webhook_deliveries: {
+        Row: ApiWebhookDelivery;
+        Insert: Partial<ApiWebhookDelivery>;
+        Update: Partial<ApiWebhookDelivery>;
+      };
       message_templates: { Row: MessageTemplate; Insert: Partial<MessageTemplate>; Update: Partial<MessageTemplate> };
       campaigns: { Row: Campaign; Insert: Partial<Campaign>; Update: Partial<Campaign> };
       campaign_recipients: {
