@@ -64,9 +64,18 @@ jobs:
 
       - name: Sync code to VPS
         run: |
-          rsync -az --filter=':- .gitignore' --exclude '.git' --exclude '.env*' --exclude 'supabase/.temp' \
-            -e "ssh -i ~/.ssh/deploy_key" \
-            ./ "${{ secrets.VPS_SSH_USER }}@${{ secrets.VPS_HOST }}:/opt/solaire-crm/app-src/"
+          # A conexao SSH pro VPS ja deu "Connection timed out" varias vezes de
+          # forma transitoria, derrubando o deploy inteiro. Tenta de novo antes
+          # de falhar.
+          for i in 1 2 3; do
+            rsync -az --filter=':- .gitignore' --exclude '.git' --exclude '.env*' --exclude 'supabase/.temp' \
+              -e "ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 -o ServerAliveInterval=15" \
+              ./ "${{ secrets.VPS_SSH_USER }}@${{ secrets.VPS_HOST }}:/opt/solaire-crm/app-src/" && exit 0
+            echo "rsync falhou (tentativa $i), tentando de novo em 20s..."
+            sleep 20
+          done
+          echo "rsync falhou nas 3 tentativas."
+          exit 1
 
       - name: Build and restart container (production)
         if: steps.target.outputs.service == 'app'
