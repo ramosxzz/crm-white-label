@@ -17,6 +17,7 @@ import {
   Bot,
   Heart,
   PhoneCall,
+  Megaphone,
   GitBranch,
   Plug,
   UserCog,
@@ -41,11 +42,13 @@ export function MobileBottomNav({
   stockEnabled = true,
   satisfactionSurveyEnabled = false,
   callsDashboardEnabled = false,
+  broadcastEnabled = false,
   isSeller = false,
 }: {
   stockEnabled?: boolean;
   satisfactionSurveyEnabled?: boolean;
   callsDashboardEnabled?: boolean;
+  broadcastEnabled?: boolean;
   isSeller?: boolean;
 }) {
   const pathname = usePathname();
@@ -61,6 +64,7 @@ export function MobileBottomNav({
       ? [{ href: "/pesquisa-satisfacao", label: "Pesquisa de Satisfação", icon: Heart }]
       : []),
     ...(callsDashboardEnabled ? [{ href: "/ligacoes", label: "Ligações", icon: PhoneCall }] : []),
+    ...(broadcastEnabled ? [{ href: "/disparos", label: "Disparos", icon: Megaphone }] : []),
   ];
 
   const systemItems: MoreItem[] = [

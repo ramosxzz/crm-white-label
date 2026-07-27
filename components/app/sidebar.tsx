@@ -20,6 +20,7 @@ import {
   Heart,
   PhoneCall,
   Bot,
+  Megaphone,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -39,6 +40,7 @@ const navItems = [
   { href: "/ia-w-mais", label: "IA W+", icon: Bot },
   { href: "/pesquisa-satisfacao", label: "Pesquisa de Satisfação", icon: Heart },
   { href: "/ligacoes", label: "Ligações", icon: PhoneCall },
+  { href: "/disparos", label: "Disparos", icon: Megaphone },
 ];
 
 const secondaryItems = [
@@ -55,6 +57,7 @@ export function Sidebar({
   stockEnabled = true,
   satisfactionSurveyEnabled = false,
   callsDashboardEnabled = false,
+  broadcastEnabled = false,
   isSeller = false,
   userName,
   userEmail,
@@ -65,6 +68,7 @@ export function Sidebar({
   stockEnabled?: boolean;
   satisfactionSurveyEnabled?: boolean;
   callsDashboardEnabled?: boolean;
+  broadcastEnabled?: boolean;
   isSeller?: boolean;
   userName: string;
   userEmail: string;
@@ -77,6 +81,7 @@ export function Sidebar({
     if (item.href === "/estoque") return stockEnabled;
     if (item.href === "/pesquisa-satisfacao") return satisfactionSurveyEnabled;
     if (item.href === "/ligacoes") return callsDashboardEnabled;
+    if (item.href === "/disparos") return broadcastEnabled;
     return true;
   });
   const visibleSecondaryItems = secondaryItems.filter(

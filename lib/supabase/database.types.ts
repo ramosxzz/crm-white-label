@@ -9,7 +9,7 @@ export type AppointmentStatus = "scheduled" | "confirmed" | "completed" | "cance
 export type StockReservationStatus = "active" | "released" | "consumed";
 
 export type CampaignStatus = "draft" | "scheduled" | "running" | "completed" | "cancelled" | "failed";
-export type CampaignMessageMode = "template" | "text";
+export type CampaignMessageMode = "template" | "text" | "quick_message";
 export type CampaignRecipientStatus = "pending" | "sent" | "failed" | "skipped";
 
 export interface MessageTemplate {
@@ -29,12 +29,14 @@ export interface Campaign {
   status: CampaignStatus;
   message_mode: CampaignMessageMode;
   template_id: string | null;
+  quick_message_id: string | null;
   body_text: string | null;
   filters: Record<string, unknown>;
   scheduled_at: string | null;
   started_at: string | null;
   completed_at: string | null;
   max_per_run: number;
+  delay_seconds: number;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -66,6 +68,7 @@ export interface Tenant {
   stock_enabled: boolean;
   satisfaction_survey_enabled: boolean;
   calls_dashboard_enabled: boolean;
+  broadcast_enabled: boolean;
   meta_pixel_id: string | null;
   meta_capi_token: string | null;
   meta_ad_account_id: string | null;

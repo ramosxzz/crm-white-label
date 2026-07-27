@@ -45,6 +45,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           stockEnabled={ctx.tenant.stock_enabled}
           satisfactionSurveyEnabled={ctx.tenant.satisfaction_survey_enabled}
           callsDashboardEnabled={ctx.tenant.calls_dashboard_enabled}
+          broadcastEnabled={ctx.tenant.broadcast_enabled}
           isSeller={ctx.role === "vendedor"}
           userName={profile?.full_name ?? "Usuario"}
           userEmail={ctx.userEmail}
@@ -57,6 +58,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           stockEnabled={ctx.tenant.stock_enabled}
           satisfactionSurveyEnabled={ctx.tenant.satisfaction_survey_enabled}
           callsDashboardEnabled={ctx.tenant.calls_dashboard_enabled}
+          broadcastEnabled={ctx.tenant.broadcast_enabled}
           isSeller={ctx.role === "vendedor"}
         />
       </div>
