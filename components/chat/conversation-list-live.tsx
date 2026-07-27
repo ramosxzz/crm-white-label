@@ -175,6 +175,19 @@ export function ConversationListLive({
         },
         () => scheduleContactsRefresh(),
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "leads",
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        // Mudar a etapa/tags/estrelas do negocio dentro do chat atualiza a
+        // tabela leads, nao conversations - sem isso a lista da esquerda
+        // (e os filtros por etapa) so refletiam apos o poll de 90s.
+        () => scheduleContactsRefresh(),
+      )
       .subscribe();
 
     return () => {
