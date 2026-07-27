@@ -22,6 +22,11 @@ export async function updateSession(request: NextRequest) {
     url.pathname.startsWith("/api/health") ||
     url.pathname.startsWith("/api/webhooks") ||
     url.pathname.startsWith("/api/intake") ||
+    // API publica v1: autenticada por chave de API propria (Authorization:
+    // Bearer), nao por sessao/cookie - sem isso, toda chamada externa sem
+    // cookie de login era redirecionada pra /login antes de chegar na rota.
+    url.pathname.startsWith("/api/v1") ||
+    url.pathname.startsWith("/api-docs") ||
     url.pathname.startsWith("/api/automations/process") ||
     url.pathname.startsWith("/api/cron") ||
     url.pathname === "/" ||
