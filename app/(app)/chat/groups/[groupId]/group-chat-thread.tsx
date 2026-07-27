@@ -435,7 +435,7 @@ function GroupMessageContent({ message, outbound }: { message: GroupThreadMessag
   const url = message.mediaUrl?.trim();
 
   if (url && type.startsWith("audio")) {
-    return <audio controls preload="metadata" src={url} className="max-w-[260px]" />;
+    return <audio controls preload="none" src={url} className="max-w-[260px]" />;
   }
   if (url && type.startsWith("image")) {
     return (
@@ -449,7 +449,7 @@ function GroupMessageContent({ message, outbound }: { message: GroupThreadMessag
   if (url && type.startsWith("video")) {
     return (
       <div className="space-y-1">
-        <video controls preload="metadata" src={url} className="max-h-64 max-w-full rounded-lg" />
+        <video controls preload="none" src={url} className="max-h-64 max-w-full rounded-lg" />
         {message.body && !message.body.startsWith("🎬") && <p className="whitespace-pre-wrap break-words">{message.body}</p>}
       </div>
     );

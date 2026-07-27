@@ -957,6 +957,89 @@ export function ChatThread({
     return () => document.removeEventListener("mousedown", onClick);
   }, [mobileActionsOpen]);
 
+  // Lista de mensagens memoizada: sem isso, cada tecla digitada no campo
+  // de mensagem re-renderizava todas as bolhas (e seus <audio>), travando
+  // a digitacao em conversas longas.
+  const messageList = useMemo(() => (
+    <>
+            {grouped.map((group) => (
+              <div key={group.day} className="mb-7">
+                <div className="mb-4 flex justify-center">
+                  <span className="rounded-md border border-border/50 bg-card/70 px-3 py-1 text-[11px] font-semibold text-muted-foreground shadow-elev-1">
+                    {group.day}
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {group.items.map((m, idx) => {
+                    const prev = group.items[idx - 1];
+                    const sameAuthor = prev?.direction === m.direction && prev?.sender_name === m.sender_name;
+                    const outbound = m.direction === "outbound";
+                    const showSender = outbound && m.sender_name && !sameAuthor;
+                    return (
+                      <div
+                        key={m.id}
+                        className={cn(
+                          "group flex items-end gap-1.5",
+                          outbound ? "justify-end" : "justify-start",
+                          sameAuthor ? "mt-0.5" : "mt-3",
+                        )}
+                      >
+                        {outbound && (
+                          <button
+                            type="button"
+                            onClick={() => setReplyTo(m)}
+                            className="mb-1 grid h-7 w-7 place-items-center rounded-full border border-border/50 bg-card/85 text-muted-foreground opacity-0 shadow-sm transition hover:text-foreground group-hover:opacity-100"
+                            title="Responder"
+                          >
+                            <Reply className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        <div
+                          className={cn(
+                            "max-w-[min(86%,520px)] rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed shadow-elev-1",
+                            outbound
+                              ? "rounded-br-md bg-chat-outbound text-chat-outbound-foreground shadow-md ring-1 ring-black/5 dark:ring-white/10"
+                              : "rounded-bl-md border border-border/55 bg-card text-foreground shadow-elev-1",
+                          )}
+                        >
+                          {showSender && (
+                            <p className="mb-1 text-[11px] font-semibold text-chat-outbound-meta/80">{m.sender_name}</p>
+                          )}
+                          <MessageContent message={m} />
+                          <div
+                            className={cn(
+                              "mt-1.5 flex items-center justify-end gap-1 text-[10px]",
+                              outbound ? "text-chat-outbound-meta" : "text-muted-foreground",
+                            )}
+                          >
+                            <span>
+                              {new Date(m.created_at).toLocaleTimeString("pt-BR", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                            {outbound && <MessageStatusLabel status={m.status} />}
+                          </div>
+                        </div>
+                        {!outbound && (
+                          <button
+                            type="button"
+                            onClick={() => setReplyTo(m)}
+                            className="mb-1 grid h-7 w-7 place-items-center rounded-full border border-border/50 bg-card/85 text-muted-foreground opacity-0 shadow-sm transition hover:text-foreground group-hover:opacity-100"
+                            title="Responder"
+                          >
+                            <Reply className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+    </>
+  ), [grouped]);
+
   return (
     <section className="flex min-h-0 flex-1 bg-[hsl(var(--chat-surface))]">
       <div className="flex min-w-0 flex-1 flex-col">
@@ -1251,81 +1334,7 @@ export function ChatThread({
         )}
 
         <div className="mx-auto max-w-4xl">
-        {grouped.map((group) => (
-          <div key={group.day} className="mb-7">
-            <div className="mb-4 flex justify-center">
-              <span className="rounded-md border border-border/50 bg-card/70 px-3 py-1 text-[11px] font-semibold text-muted-foreground shadow-elev-1">
-                {group.day}
-              </span>
-            </div>
-            <div className="space-y-1.5">
-              {group.items.map((m, idx) => {
-                const prev = group.items[idx - 1];
-                const sameAuthor = prev?.direction === m.direction && prev?.sender_name === m.sender_name;
-                const outbound = m.direction === "outbound";
-                const showSender = outbound && m.sender_name && !sameAuthor;
-                return (
-                  <div
-                    key={m.id}
-                    className={cn(
-                      "group flex items-end gap-1.5",
-                      outbound ? "justify-end" : "justify-start",
-                      sameAuthor ? "mt-0.5" : "mt-3",
-                    )}
-                  >
-                    {outbound && (
-                      <button
-                        type="button"
-                        onClick={() => setReplyTo(m)}
-                        className="mb-1 grid h-7 w-7 place-items-center rounded-full border border-border/50 bg-card/85 text-muted-foreground opacity-0 shadow-sm transition hover:text-foreground group-hover:opacity-100"
-                        title="Responder"
-                      >
-                        <Reply className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                    <div
-                      className={cn(
-                        "max-w-[min(86%,520px)] rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed shadow-elev-1",
-                        outbound
-                          ? "rounded-br-md bg-chat-outbound text-chat-outbound-foreground shadow-md ring-1 ring-black/5 dark:ring-white/10"
-                          : "rounded-bl-md border border-border/55 bg-card text-foreground shadow-elev-1",
-                      )}
-                    >
-                      {showSender && (
-                        <p className="mb-1 text-[11px] font-semibold text-chat-outbound-meta/80">{m.sender_name}</p>
-                      )}
-                      <MessageContent message={m} />
-                      <div
-                        className={cn(
-                          "mt-1.5 flex items-center justify-end gap-1 text-[10px]",
-                          outbound ? "text-chat-outbound-meta" : "text-muted-foreground",
-                        )}
-                      >
-                        <span>
-                          {new Date(m.created_at).toLocaleTimeString("pt-BR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                        {outbound && <MessageStatusLabel status={m.status} />}
-                      </div>
-                    </div>
-                    {!outbound && (
-                      <button
-                        type="button"
-                        onClick={() => setReplyTo(m)}
-                        className="mb-1 grid h-7 w-7 place-items-center rounded-full border border-border/50 bg-card/85 text-muted-foreground opacity-0 shadow-sm transition hover:text-foreground group-hover:opacity-100"
-                        title="Responder"
-                      >
-                        <Reply className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+        {messageList}
         </div>
         <div ref={endRef} />
       </div>
@@ -1879,7 +1888,7 @@ function MessageContent({ message: m }: { message: ChatMessage }) {
     return (
       <div className="space-y-1">
         {quoted}
-        <video controls preload="metadata" src={src} className="max-h-64 max-w-full rounded-lg" />
+        <video controls preload="none" src={src} className="max-h-64 max-w-full rounded-lg" />
         {m.body && !m.body.startsWith("🎬") && (
           <p className="whitespace-pre-wrap break-words">{m.body}</p>
         )}
@@ -1972,7 +1981,7 @@ function AudioMessage({
       <audio
         ref={audioRef}
         src={src}
-        preload="metadata"
+        preload="none"
         onLoadedMetadata={(e) => {
           e.currentTarget.playbackRate = rate;
           setDuration(e.currentTarget.duration || 0);
