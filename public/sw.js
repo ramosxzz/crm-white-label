@@ -1,4 +1,4 @@
-const CACHE_NAME = "solaire-crm-assets-v2";
+const CACHE_NAME = "solaire-crm-assets-v3";
 const SAFE_ASSETS = [
   "/manifest.webmanifest",
   "/icon.svg",
@@ -6,6 +6,7 @@ const SAFE_ASSETS = [
   "/pwa/icon-192.png",
   "/pwa/icon-512.png",
   "/pwa/icon-maskable-512.png",
+  "/offline.html",
 ];
 
 self.addEventListener("install", (event) => {
@@ -35,7 +36,9 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/api/")) return;
 
   if (request.mode === "navigate") {
-    event.respondWith(fetch(request));
+    event.respondWith(
+      fetch(request).catch(() => caches.match("/offline.html")),
+    );
     return;
   }
 

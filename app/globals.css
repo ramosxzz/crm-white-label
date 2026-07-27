@@ -235,6 +235,15 @@
   }
 }
 
+/* iOS/Safari da zoom automatico ao focar input com fonte menor que 16px -
+   no PWA standalone o usuario fica "preso" no zoom (sem chrome pra desfazer).
+   Forca 16px em telas pequenas so nesses elementos, sem mudar o design desktop. */
+@media (max-width: 767px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* Scrollbar refinada */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
