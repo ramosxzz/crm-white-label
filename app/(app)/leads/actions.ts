@@ -11,6 +11,7 @@ import { fireAutomationTrigger } from "@/lib/automations/trigger";
 import { logLeadActivity } from "@/lib/leads/activity-log";
 import { notifyUser, getTenantOwnerId } from "@/lib/notifications/notify";
 import { forwardNewLead } from "@/lib/leads/forward-new-lead";
+import { dispatchWebhookEvent } from "@/lib/api/dispatch-webhook";
 
 const leadSchema = z.object({
   name: z.string().min(1, "Nome obrigatorio"),
@@ -121,6 +122,12 @@ export async function createLead(formData: FormData) {
     }
     void fireAutomationTrigger(ctx.tenantId, "lead_created", createdLead.id, {
       source: parsed.source,
+    });
+    void dispatchWebhookEvent(ctx.tenantId, "lead.created", {
+      id: createdLead.id,
+      name: parsed.name,
+      phone: parsed.phone ?? null,
+      source: parsed.source ?? null,
     });
 
     // Vendedor criou um lead: avisa o dono (owner) do tenant.
@@ -241,6 +248,7 @@ export async function moveLeadToStage(leadId: string, stageId: string, position:
   const ctx = await requireContext();
   await updateLead(leadId, { stage_id: stageId, position });
   void fireAutomationTrigger(ctx.tenantId, "stage_changed", leadId, { stage_id: stageId });
+  void dispatchWebhookEvent(ctx.tenantId, "lead.stage_changed", { id: leadId, stage_id: stageId });
 }
 
 export async function moveLeadsToStage(leadIds: string[], stageId: string) {
@@ -259,6 +267,7 @@ export async function moveLeadsToStage(leadIds: string[], stageId: string) {
     await updateLead(leadId, { stage_id: stageId, position });
     position += 1000;
     void fireAutomationTrigger(ctx.tenantId, "stage_changed", leadId, { stage_id: stageId });
+    void dispatchWebhookEvent(ctx.tenantId, "lead.stage_changed", { id: leadId, stage_id: stageId });
   }
 }
 

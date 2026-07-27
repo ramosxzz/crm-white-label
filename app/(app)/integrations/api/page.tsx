@@ -5,15 +5,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { PageHeader } from "@/components/app/page-header";
 import { getAppBaseUrl } from "@/lib/app-url";
 import { ApiKeysManager } from "./api-keys-manager";
+import { WebhooksManager } from "./webhooks-manager";
 
 export default async function ApiIntegrationPage() {
   const ctx = await requireContext();
   const supabase = await createClient();
-  const { data: keys } = await supabase
-    .from("api_keys")
-    .select("*")
-    .eq("tenant_id", ctx.tenantId)
-    .order("created_at", { ascending: false });
+  const [{ data: keys }, { data: webhooks }] = await Promise.all([
+    supabase.from("api_keys").select("*").eq("tenant_id", ctx.tenantId).order("created_at", { ascending: false }),
+    supabase.from("api_webhooks").select("*").eq("tenant_id", ctx.tenantId).order("created_at", { ascending: false }),
+  ]);
 
   const base = await getAppBaseUrl();
 
@@ -43,6 +43,7 @@ export default async function ApiIntegrationPage() {
         </Card>
 
         <ApiKeysManager keys={keys ?? []} canEdit={["owner", "admin"].includes(ctx.role)} />
+        <WebhooksManager webhooks={webhooks ?? []} canEdit={["owner", "admin"].includes(ctx.role)} />
       </div>
     </div>
   );

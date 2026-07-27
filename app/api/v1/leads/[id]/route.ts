@@ -5,6 +5,7 @@ import { requireApiKeyContext, requireScope, ApiError } from "@/lib/api/auth";
 import { enforceRateLimit } from "@/lib/api/rate-limit";
 import { apiJson, apiErrorResponse, CORS_HEADERS } from "@/lib/api/response";
 import { fireAutomationTrigger } from "@/lib/automations/trigger";
+import { dispatchWebhookEvent } from "@/lib/api/dispatch-webhook";
 import { normalizePhone } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -89,6 +90,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     if (parsed.stage_id) {
       void fireAutomationTrigger(ctx.tenantId, "stage_changed", id, { stage_id: parsed.stage_id });
+      void dispatchWebhookEvent(ctx.tenantId, "lead.stage_changed", { id, stage_id: parsed.stage_id });
     }
 
     return apiJson({ data: lead });

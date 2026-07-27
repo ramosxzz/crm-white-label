@@ -5,6 +5,7 @@ import { requireApiKeyContext, requireScope, ApiError } from "@/lib/api/auth";
 import { enforceRateLimit } from "@/lib/api/rate-limit";
 import { apiJson, apiErrorResponse, CORS_HEADERS } from "@/lib/api/response";
 import { fireAutomationTrigger } from "@/lib/automations/trigger";
+import { dispatchWebhookEvent } from "@/lib/api/dispatch-webhook";
 import { normalizePhone } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -132,6 +133,12 @@ export async function POST(req: Request) {
     if (error) throw new ApiError(500, "insert_failed", error.message);
 
     void fireAutomationTrigger(ctx.tenantId, "lead_created", lead.id, { source: parsed.source ?? null });
+    void dispatchWebhookEvent(ctx.tenantId, "lead.created", {
+      id: lead.id,
+      name: lead.name,
+      phone: lead.phone,
+      source: lead.source,
+    });
 
     return apiJson({ data: lead }, { status: 201 });
   } catch (error) {
