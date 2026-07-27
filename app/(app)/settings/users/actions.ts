@@ -29,6 +29,20 @@ function normalizePassword(password: string) {
   return value;
 }
 
+// Qualquer excecao que nao seja um Error "limpo" (ex: objeto cru de erro do
+// Postgrest/Auth, undefined, etc) faz o Next.js trocar a mensagem por um
+// texto generico e redigido em producao ("An error occurred in the Server
+// Components render..."). Normaliza tudo pra um Error de verdade com a
+// mensagem real, pra sempre aparecer algo legivel pro usuario.
+function toErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === "string" && err) return err;
+  if (err && typeof err === "object" && "message" in err && typeof (err as { message?: unknown }).message === "string") {
+    return (err as { message: string }).message;
+  }
+  return fallback;
+}
+
 export async function listTeamUsers(): Promise<TeamUser[]> {
   const ctx = await requireContext();
   const supabase = createServiceClient();
@@ -89,52 +103,58 @@ export async function createTeamUser(input: {
   if (!email.includes("@")) throw new Error("Informe um e-mail valido");
 
   const supabase = createServiceClient();
-  const { data, error } = await supabase.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: {
-      full_name: fullName,
-      company_name: ctx.tenant.name,
-    },
-  });
 
-  if (error || !data.user) {
-    throw new Error(error?.message ?? "Nao foi possivel criar o usuario");
-  }
-
-  const userId = data.user.id;
-
-  const db = supabase as any;
-
-  const { data: createdProfile } = await db
-    .from("profiles")
-    .select("default_tenant_id")
-    .eq("id", userId)
-    .maybeSingle();
-
-  const temporaryTenantId = (createdProfile as { default_tenant_id?: string | null } | null)?.default_tenant_id;
-
-  const { error: profileError } = await db
-    .from("profiles")
-    .upsert({
-      id: userId,
-      full_name: fullName,
-      default_tenant_id: ctx.tenantId,
+  try {
+    const { data, error } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        full_name: fullName,
+        company_name: ctx.tenant.name,
+      },
     });
-  if (profileError) throw new Error(profileError.message);
 
-  const { error: memberError } = await db
-    .from("tenant_members")
-    .upsert({
-      tenant_id: ctx.tenantId,
-      user_id: userId,
-      role,
-    });
-  if (memberError) throw new Error(memberError.message);
+    if (error || !data.user) {
+      throw new Error(toErrorMessage(error, "Nao foi possivel criar o usuario"));
+    }
 
-  if (temporaryTenantId && temporaryTenantId !== ctx.tenantId) {
-    await db.from("tenants").delete().eq("id", temporaryTenantId);
+    const userId = data.user.id;
+
+    const db = supabase as any;
+
+    const { data: createdProfile } = await db
+      .from("profiles")
+      .select("default_tenant_id")
+      .eq("id", userId)
+      .maybeSingle();
+
+    const temporaryTenantId = (createdProfile as { default_tenant_id?: string | null } | null)?.default_tenant_id;
+
+    const { error: profileError } = await db
+      .from("profiles")
+      .upsert({
+        id: userId,
+        full_name: fullName,
+        default_tenant_id: ctx.tenantId,
+      });
+    if (profileError) throw new Error(toErrorMessage(profileError, "Nao foi possivel salvar o perfil do usuario"));
+
+    const { error: memberError } = await db
+      .from("tenant_members")
+      .upsert({
+        tenant_id: ctx.tenantId,
+        user_id: userId,
+        role,
+      });
+    if (memberError) throw new Error(toErrorMessage(memberError, "Nao foi possivel vincular o usuario a esta empresa"));
+
+    if (temporaryTenantId && temporaryTenantId !== ctx.tenantId) {
+      await db.from("tenants").delete().eq("id", temporaryTenantId);
+    }
+  } catch (err) {
+    console.error("[settings/users] createTeamUser falhou:", err);
+    throw new Error(toErrorMessage(err, "Nao foi possivel criar o usuario. Tente novamente."));
   }
 
   revalidatePath("/settings/users");
@@ -149,13 +169,18 @@ export async function updateTeamUserRole(input: { userId: string; role: string }
   const role = normalizeRole(input.role);
   const supabase = createServiceClient();
   const db = supabase as any;
-  const { error } = await db
-    .from("tenant_members")
-    .update({ role })
-    .eq("tenant_id", ctx.tenantId)
-    .eq("user_id", input.userId);
+  try {
+    const { error } = await db
+      .from("tenant_members")
+      .update({ role })
+      .eq("tenant_id", ctx.tenantId)
+      .eq("user_id", input.userId);
 
-  if (error) throw new Error(error.message);
+    if (error) throw new Error(toErrorMessage(error, "Nao foi possivel alterar o cargo"));
+  } catch (err) {
+    console.error("[settings/users] updateTeamUserRole falhou:", err);
+    throw new Error(toErrorMessage(err, "Nao foi possivel alterar o cargo. Tente novamente."));
+  }
   revalidatePath("/settings/users");
 }
 
@@ -166,22 +191,27 @@ export async function removeTeamUser(userId: string) {
 
   const supabase = createServiceClient();
   const db = supabase as any;
-  const { data: member } = await db
-    .from("tenant_members")
-    .select("role")
-    .eq("tenant_id", ctx.tenantId)
-    .eq("user_id", userId)
-    .maybeSingle();
+  try {
+    const { data: member } = await db
+      .from("tenant_members")
+      .select("role")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("user_id", userId)
+      .maybeSingle();
 
-  if ((member as { role?: MemberRole } | null)?.role === "owner") throw new Error("Nao e possivel remover o proprietario");
+    if ((member as { role?: MemberRole } | null)?.role === "owner") throw new Error("Nao e possivel remover o proprietario");
 
-  const { error } = await db
-    .from("tenant_members")
-    .delete()
-    .eq("tenant_id", ctx.tenantId)
-    .eq("user_id", userId);
+    const { error } = await db
+      .from("tenant_members")
+      .delete()
+      .eq("tenant_id", ctx.tenantId)
+      .eq("user_id", userId);
 
-  if (error) throw new Error(error.message);
+    if (error) throw new Error(toErrorMessage(error, "Nao foi possivel remover o usuario"));
+  } catch (err) {
+    console.error("[settings/users] removeTeamUser falhou:", err);
+    throw new Error(toErrorMessage(err, "Nao foi possivel remover o usuario. Tente novamente."));
+  }
   revalidatePath("/settings/users");
   revalidatePath("/", "layout");
 }

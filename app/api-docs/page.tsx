@@ -15,6 +15,7 @@ export default async function ApiDocsPage() {
   const apiBase = `${base}/api/v1`;
 
   return (
+    <div className="h-screen overflow-y-auto">
     <div className="mx-auto max-w-3xl px-6 py-12">
       <header className="mb-10">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Solaire W+ CRM</p>
@@ -88,6 +89,7 @@ export default async function ApiDocsPage() {
           </section>
         ))}
       </div>
+    </div>
     </div>
   );
 }

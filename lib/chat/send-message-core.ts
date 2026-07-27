@@ -5,7 +5,7 @@ import type { WhatsAppAccount, Database } from "@/lib/supabase/database.types";
 import type { ChatMessage } from "@/lib/chat/types";
 import { fireAutomationTrigger } from "@/lib/automations/trigger";
 
-function providerErrorMessage(result: { status: string; raw?: unknown }): string {
+export function providerErrorMessage(result: { status: string; raw?: unknown }): string {
   if (result.raw && typeof result.raw === "object") {
     const r = result.raw as Record<string, unknown>;
     if (typeof r.error === "string") return r.error;

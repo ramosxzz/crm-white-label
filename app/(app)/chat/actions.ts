@@ -7,7 +7,10 @@ import type { ChatMessage } from "@/lib/chat/types";
 import { fireAutomationTrigger } from "@/lib/automations/trigger";
 import { logLeadActivity } from "@/lib/leads/activity-log";
 import { notifyUser } from "@/lib/notifications/notify";
-import { sendChatMessageCore } from "@/lib/chat/send-message-core";
+import { sendChatMessageCore, providerErrorMessage } from "@/lib/chat/send-message-core";
+import { normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
+import { createProvider } from "@/lib/whatsapp/factory";
+import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 
 const LABEL_COLORS = ["#7c3aed", "#2563eb", "#059669", "#dc2626", "#d97706", "#0891b2"];
 
