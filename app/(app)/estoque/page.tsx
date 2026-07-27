@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { formatCurrencyBRL } from "@/lib/utils";
 import { PageHeader } from "@/components/app/page-header";
 import { NewProductDialog } from "./new-product-dialog";
+import { StockLocationsManager } from "./stock-locations-manager";
+import { listStockLocations } from "./actions";
 
 export default async function EstoquePage() {
   const ctx = await requireContext();
@@ -30,6 +32,7 @@ export default async function EstoquePage() {
   for (const reservation of reservations ?? []) {
     reservedByProduct.set(reservation.product_id, (reservedByProduct.get(reservation.product_id) ?? 0) + reservation.quantity);
   }
+  const locations = await listStockLocations();
 
   return (
     <div>
@@ -40,7 +43,8 @@ export default async function EstoquePage() {
         actions={<NewProductDialog />}
       />
 
-      <div className="p-8">
+      <div className="space-y-6 p-8">
+        <StockLocationsManager locations={locations} />
         <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-elev-1">
           <table className="w-full text-sm">
             <thead className="border-b border-border/70 bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">

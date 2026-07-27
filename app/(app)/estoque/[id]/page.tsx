@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrencyBRL } from "@/lib/utils";
 import { MovementForm } from "./movement-form";
+import { TransferForm } from "./transfer-form";
 import { ReservationForm } from "./reservation-form";
 import { availableStock } from "@/lib/estoque/reservations";
-import { consumeReservation, releaseReservation } from "../actions";
+import { consumeReservation, releaseReservation, listStockLocations } from "../actions";
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -26,14 +27,19 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
     .single();
   if (!product) notFound();
 
-  const [{ data: movements }, { data: reservations }, { data: leads }, { data: appointments }] = await Promise.all([
-    supabase.from("stock_movements").select("*").eq("product_id", id).order("created_at", { ascending: false }).limit(50),
-    supabase.from("stock_reservations").select("id, product_id, quantity, status, leads(name), appointments(starts_at)").eq("product_id", id).order("created_at", { ascending: false }),
-    supabase.from("leads").select("id, name").eq("tenant_id", ctx.tenantId).order("name"),
-    supabase.from("appointments").select("id, starts_at").eq("tenant_id", ctx.tenantId).order("starts_at", { ascending: false }).limit(50),
-  ]);
+  const [{ data: movements }, { data: reservations }, { data: leads }, { data: appointments }, locations, { data: stockByLocation }] =
+    await Promise.all([
+      supabase.from("stock_movements").select("*").eq("product_id", id).order("created_at", { ascending: false }).limit(50),
+      supabase.from("stock_reservations").select("id, product_id, quantity, status, leads(name), appointments(starts_at)").eq("product_id", id).order("created_at", { ascending: false }),
+      supabase.from("leads").select("id, name").eq("tenant_id", ctx.tenantId).order("name"),
+      supabase.from("appointments").select("id, starts_at").eq("tenant_id", ctx.tenantId).order("starts_at", { ascending: false }).limit(50),
+      listStockLocations(),
+      supabase.from("product_stock").select("location_id, quantity").eq("product_id", id),
+    ]);
   const available = availableStock(product.stock_quantity, reservations ?? []);
   const reserved = product.stock_quantity - available;
+
+  const quantityByLocation = new Map((stockByLocation ?? []).map((row) => [row.location_id, row.quantity]));
 
   return (
     <div className="p-6">
@@ -69,6 +75,27 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           </CardContent>
         </Card>
 
+        <Card className="lg:col-span-2">
+          <CardHeader><CardTitle>Estoque por local</CardTitle></CardHeader>
+          <CardContent>
+            <ul className="divide-y divide-border/70">
+              {locations.map((loc) => (
+                <li key={loc.id} className="flex items-center justify-between py-2 text-sm">
+                  <span>{loc.name}</span>
+                  <span className="font-semibold">{quantityByLocation.get(loc.id) ?? 0}</span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-3">
+          <CardHeader><CardTitle>Transferir entre locais</CardTitle></CardHeader>
+          <CardContent>
+            <TransferForm productId={product.id} locations={locations} />
+          </CardContent>
+        </Card>
+
         <Card className="lg:col-span-3">
           <CardHeader><CardTitle>Reservas</CardTitle></CardHeader>
           <CardContent className="space-y-4">
@@ -94,7 +121,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         <Card className="lg:col-span-2">
           <CardHeader><CardTitle>Registrar movimentacao</CardTitle></CardHeader>
           <CardContent>
-            <MovementForm productId={product.id} />
+            <MovementForm productId={product.id} locations={locations} />
           </CardContent>
         </Card>
 
