@@ -3,7 +3,31 @@ import { requireContext } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { canSeeFullDashboard } from "@/lib/auth/roles";
 import { PageHeader } from "@/components/app/page-header";
+import {
+  getBRTDayBounds,
+  getBRTDayBoundsFromDateString,
+  getBRTRollingDayBounds,
+  getBRTYesterdayBounds,
+} from "@/lib/date/brt";
 import { FunnelView, type FunnelStage, type FunnelTotals } from "./funnel-view";
+
+export type FunnelDateFilter = "all" | "today" | "yesterday" | "7d" | "30d" | "custom";
+
+function resolveFunnelDateFilter(periodo?: string, dia?: string) {
+  const active = (["today", "yesterday", "7d", "30d", "all", "custom"].includes(periodo ?? "")
+    ? periodo
+    : "all") as FunnelDateFilter;
+
+  if (active === "today") return { active, bounds: getBRTDayBounds() };
+  if (active === "yesterday") return { active, bounds: getBRTYesterdayBounds() };
+  if (active === "7d") return { active, bounds: getBRTRollingDayBounds(7) };
+  if (active === "30d") return { active, bounds: getBRTRollingDayBounds(30) };
+  if (active === "custom" && dia) {
+    const bounds = getBRTDayBoundsFromDateString(dia);
+    if (bounds) return { active, bounds };
+  }
+  return { active: "all" as FunnelDateFilter, bounds: null };
+}
 
 type FunnelRow = {
   stage_id: string;
@@ -20,13 +44,14 @@ type FunnelRow = {
 export default async function FunilPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ pipeline?: string }>;
+  searchParams?: Promise<{ pipeline?: string; periodo?: string; dia?: string }>;
 }) {
   const ctx = await requireContext();
   if (!canSeeFullDashboard(ctx.role)) redirect("/dashboard");
 
   const supabase = await createClient();
   const params = await searchParams;
+  const dateFilter = resolveFunnelDateFilter(params?.periodo, params?.dia);
 
   const { data: pipelines } = await supabase
     .from("pipelines")
@@ -42,6 +67,8 @@ export default async function FunilPage({
   const { data } = await supabase.rpc("funnel_metrics", {
     p_tenant_id: ctx.tenantId,
     p_pipeline_id: activePipeline?.id ?? null,
+    p_from: dateFilter.bounds?.startIso ?? null,
+    p_to: dateFilter.bounds?.endIso ?? null,
   });
 
   const stages: FunnelStage[] = ((data ?? []) as FunnelRow[]).map((row) => ({
@@ -96,6 +123,8 @@ export default async function FunilPage({
           totals={totals}
           pipelines={pipelines ?? []}
           activePipelineId={activePipeline?.id ?? null}
+          activeDateFilter={dateFilter.active}
+          customDay={params?.dia}
         />
       </div>
     </div>

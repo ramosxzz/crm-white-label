@@ -1,10 +1,23 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { TrendingDown, TrendingUp, Plus, CircleDot } from "lucide-react";
+import { CalendarDays, TrendingDown, TrendingUp, Plus, CircleDot } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatCurrencyBRL } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { formatCurrencyBRL, cn } from "@/lib/utils";
+
+type DateFilter = "all" | "today" | "yesterday" | "7d" | "30d" | "custom";
+
+const DATE_FILTER_OPTIONS: Array<{ value: DateFilter; label: string }> = [
+  { value: "today", label: "Hoje" },
+  { value: "yesterday", label: "Ontem" },
+  { value: "7d", label: "7 dias" },
+  { value: "30d", label: "30 dias" },
+  { value: "all", label: "Todos" },
+];
 
 export type FunnelStage = {
   id: string;
@@ -53,13 +66,25 @@ export function FunnelView({
   totals,
   pipelines,
   activePipelineId,
+  activeDateFilter,
+  customDay,
 }: {
   stages: FunnelStage[];
   totals: FunnelTotals;
   pipelines: { id: string; name: string }[];
   activePipelineId: string | null;
+  activeDateFilter: DateFilter;
+  customDay?: string;
 }) {
   const router = useRouter();
+
+  function dateHref(periodo: DateFilter, dia?: string) {
+    const qs = new URLSearchParams();
+    if (activePipelineId) qs.set("pipeline", activePipelineId);
+    qs.set("periodo", periodo);
+    if (periodo === "custom" && dia) qs.set("dia", dia);
+    return `/funil?${qs.toString()}`;
+  }
 
   const maxCount = useMemo(() => Math.max(1, ...stages.map((s) => s.count)), [stages]);
 
@@ -81,6 +106,39 @@ export function FunnelView({
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-card/50 p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <CalendarDays className="h-4 w-4 text-muted-foreground" />
+          {DATE_FILTER_OPTIONS.map((option) => (
+            <Link
+              key={option.value}
+              href={dateHref(option.value)}
+              className={cn(
+                "rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
+                activeDateFilter === option.value
+                  ? "border-brand/40 bg-brand/15 text-brand"
+                  : "border-border/70 text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+              )}
+            >
+              {option.label}
+            </Link>
+          ))}
+        </div>
+        <form action="/funil" className="flex items-center gap-2">
+          <input type="hidden" name="periodo" value="custom" />
+          {activePipelineId && <input type="hidden" name="pipeline" value={activePipelineId} />}
+          <Input
+            type="date"
+            name="dia"
+            defaultValue={activeDateFilter === "custom" ? customDay : undefined}
+            className={cn("h-9 w-44", activeDateFilter === "custom" && "border-brand/60")}
+          />
+          <Button size="sm" variant="secondary" type="submit">
+            Filtrar dia
+          </Button>
+        </form>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <TotalCard
           label="Total criados"
