@@ -18,6 +18,7 @@ import {
   Heart,
   PhoneCall,
   Megaphone,
+  Filter,
   GitBranch,
   Plug,
   UserCog,
@@ -55,6 +56,7 @@ export function MobileBottomNav({
   const [moreOpen, setMoreOpen] = useState(false);
 
   const operationItems: MoreItem[] = [
+    ...(!isSeller ? [{ href: "/funil", label: "Funil", icon: Filter }] : []),
     { href: "/reunioes", label: "Reuniões", icon: CalendarCheck },
     { href: "/mensagens-rapidas", label: "Mensagens rápidas", icon: MessageSquareText },
     ...(stockEnabled && !isSeller ? [{ href: "/estoque", label: "Estoque", icon: Boxes }] : []),

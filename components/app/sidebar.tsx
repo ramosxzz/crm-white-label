@@ -21,6 +21,7 @@ import {
   PhoneCall,
   Bot,
   Megaphone,
+  Filter,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -29,6 +30,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
+  { href: "/funil", label: "Funil", icon: Filter },
   { href: "/leads", label: "Leads", icon: Users },
   { href: "/kanban", label: "Kanban", icon: KanbanSquare },
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
@@ -75,7 +77,7 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   // Vendedor nao gerencia estoque, automacoes, IA W+, integracoes nem usuarios.
-  const sellerBlocked = new Set(["/estoque", "/automations", "/ia-w-mais", "/integrations", "/settings/users"]);
+  const sellerBlocked = new Set(["/estoque", "/automations", "/ia-w-mais", "/integrations", "/settings/users", "/funil"]);
   const visibleNavItems = navItems.filter((item) => {
     if (isSeller && sellerBlocked.has(item.href)) return false;
     if (item.href === "/estoque") return stockEnabled;
