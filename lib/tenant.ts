@@ -15,8 +15,13 @@ const TENANT_COOKIE = "avante_tenant_id";
 
 export const getCurrentContext = cache(async (): Promise<CurrentContext | null> => {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  // getClaims() verifica o JWT localmente (o projeto usa chave assimetrica -
+  // ES256), sem round-trip pro servidor de Auth a cada navegacao/acao, ao
+  // contrario de getUser(). getCurrentContext roda em toda pagina do app.
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
+  if (!claims) return null;
+  const userId = claims.sub;
 
   const cookieStore = await cookies();
   const cookieTenant = cookieStore.get(TENANT_COOKIE)?.value;
@@ -24,7 +29,7 @@ export const getCurrentContext = cache(async (): Promise<CurrentContext | null> 
   const { data: memberships } = await supabase
     .from("tenant_members")
     .select("tenant_id, role, tenants(*)")
-    .eq("user_id", user.id);
+    .eq("user_id", userId);
 
   if (!memberships || memberships.length === 0) return null;
 
@@ -33,8 +38,8 @@ export const getCurrentContext = cache(async (): Promise<CurrentContext | null> 
 
   const tenant = (chosen as unknown as { tenants: Tenant }).tenants;
   return {
-    userId: user.id,
-    userEmail: user.email ?? "",
+    userId,
+    userEmail: (claims.email as string | undefined) ?? "",
     tenantId: chosen.tenant_id,
     tenant,
     role: chosen.role as MemberRole,

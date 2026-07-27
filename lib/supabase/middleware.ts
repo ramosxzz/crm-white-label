@@ -63,7 +63,12 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // getClaims() verifica o JWT localmente via JWKS (projeto usa chave
+  // assimetrica) em vez de bater no servidor de Auth a cada navegacao como
+  // getUser() fazia - middleware roda em toda requisicao, entao isso tirava
+  // um round-trip de rede de cada clique do sistema inteiro.
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims ?? null;
 
   if (!user && !isPublic) {
     url.pathname = "/login";
