@@ -1,5 +1,6 @@
 "use client";
 
+import { notify } from "@/lib/ui/feedback";
 import { useMemo, useState, useTransition } from "react";
 import {
   closestCenter,
@@ -56,7 +57,7 @@ export function StageSorter({
         await reorderStages(formData);
       } catch (error) {
         setOrderedStages(orderedStages);
-        alert(error instanceof Error ? error.message : "Nao foi possivel reordenar as etapas.");
+        notify({ title: error instanceof Error ? error.message : "Nao foi possivel reordenar as etapas.", tone: "error" });
       }
     });
   }

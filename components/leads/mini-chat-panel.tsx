@@ -1,5 +1,6 @@
 "use client";
 
+import { notifyError } from "@/lib/ui/feedback";
 import { useEffect, useRef, useState } from "react";
 import { Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -80,7 +81,7 @@ export function MiniChatPanel({
       setConversationId(result.conversationId);
       setMessages((prev) => [...prev, result.message as Message]);
     } catch (err) {
-      alert((err as Error).message || "Nao foi possivel enviar a mensagem.");
+      notifyError(err, "Nao foi possivel enviar a mensagem.");
       setBody(value);
     } finally {
       setSending(false);

@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmDialog } from "@/lib/ui/feedback";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Megaphone, Mic, Music, Save, Send, Square, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -124,7 +125,7 @@ export function DisparoScreen({
 
   async function onDeleteTemplate() {
     if (!selectedTemplateId) return;
-    if (!confirm("Remover este modelo?")) return;
+    if (!(await confirmDialog({ title: "Remover este modelo?", tone: "danger", confirmLabel: "Remover" }))) return;
     await deleteMessageTemplate(selectedTemplateId);
     setTemplates((prev) => prev.filter((t) => t.id !== selectedTemplateId));
     setSelectedTemplateId("");

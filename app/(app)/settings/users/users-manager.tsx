@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmDialog } from "@/lib/ui/feedback";
 import { useMemo, useState, useTransition } from "react";
 import { Loader2, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
 
@@ -100,8 +101,13 @@ export function UsersManager({
     });
   }
 
-  function removeUser(user: TeamUser) {
-    const confirmed = window.confirm(`Remover ${user.fullName} desta empresa?`);
+  async function removeUser(user: TeamUser) {
+    const confirmed = await confirmDialog({
+      title: `Remover ${user.fullName} desta empresa?`,
+      description: "A pessoa perde o acesso ao CRM desta empresa.",
+      tone: "danger",
+      confirmLabel: "Remover",
+    });
     if (!confirmed) return;
     setError(null);
     startTransition(async () => {

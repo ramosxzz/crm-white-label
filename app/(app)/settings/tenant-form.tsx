@@ -1,5 +1,6 @@
 "use client";
 
+import { notify, notifyError, confirmDialog } from "@/lib/ui/feedback";
 import { useState, useTransition } from "react";
 import { Boxes, Loader2, Upload, Trash2, Sparkles, Palette, PhoneCall, Megaphone } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -86,7 +87,7 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
-      alert("Logo deve ter no maximo 2MB");
+      notify({ title: "Logo deve ter no maximo 2MB", tone: "error" });
       return;
     }
     setUploading(true);
@@ -120,7 +121,7 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
         );
       }
     } catch (err) {
-      alert((err as Error).message);
+      notifyError(err);
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -128,7 +129,7 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
   }
 
   async function onRemoveLogo() {
-    if (!confirm("Remover logo?")) return;
+    if (!(await confirmDialog({ title: "Remover logo?", tone: "danger", confirmLabel: "Remover" }))) return;
     await removeTenantLogo();
     setLogoUrl(null);
   }

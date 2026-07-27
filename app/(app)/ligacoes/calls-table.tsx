@@ -1,5 +1,6 @@
 "use client";
 
+import { notifyError } from "@/lib/ui/feedback";
 import { useEffect, useState } from "react";
 import { User, PanelRightOpen, Plus, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -110,7 +111,7 @@ export function CallsTable({
     setLocalStage((prev) => ({ ...prev, [call.id]: { stageId, stageName } }));
     setStageSaving(call.id);
     void setLeadStage({ leadId: call.leadId, stageId })
-      .catch((err) => alert((err as Error).message))
+      .catch((err) => notifyError(err))
       .finally(() => setStageSaving((prev) => (prev === call.id ? null : prev)));
   }
 

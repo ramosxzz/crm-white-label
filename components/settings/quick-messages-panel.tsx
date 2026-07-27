@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmDialog } from "@/lib/ui/feedback";
 import { useMemo, useRef, useState, useTransition } from "react";
 import {
   DndContext,
@@ -197,8 +198,8 @@ export function QuickMessagesPanel({
     });
   }
 
-  function onDelete(id: string) {
-    if (!confirm("Excluir esta mensagem rapida?")) return;
+  async function onDelete(id: string) {
+    if (!(await confirmDialog({ title: "Excluir esta mensagem rapida?", tone: "danger", confirmLabel: "Excluir" }))) return;
     start(async () => {
       try {
         await deleteQuickMessage(id);

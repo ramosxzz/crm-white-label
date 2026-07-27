@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmDialog } from "@/lib/ui/feedback";
 import { useState, useTransition } from "react";
 import { Copy, Plus, Power, Trash2, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -148,7 +149,7 @@ export function WebhooksManager({ webhooks, canEdit }: { webhooks: ApiWebhook[];
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => { if (confirm("Excluir webhook?")) void deleteWebhookSubscription(w.id); }}
+                    onClick={async () => { if (await confirmDialog({ title: "Excluir webhook?", tone: "danger", confirmLabel: "Excluir" })) void deleteWebhookSubscription(w.id); }}
                     aria-label="Excluir"
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />

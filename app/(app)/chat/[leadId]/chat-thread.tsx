@@ -1,5 +1,6 @@
 "use client";
 
+import { notify, notifyError } from "@/lib/ui/feedback";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import {
@@ -346,7 +347,7 @@ export function ChatThread({
         setDisplayName(next);
         setRenameOpen(false);
       })
-      .catch((err) => alert((err as Error).message))
+      .catch((err) => notifyError(err))
       .finally(() => setRenaming(false));
   }
 
@@ -691,7 +692,7 @@ export function ChatThread({
         });
       } catch (err) {
         setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
-        alert((err as Error).message);
+        notifyError(err);
       }
     });
   }
@@ -748,7 +749,7 @@ export function ChatThread({
         });
       } catch (err) {
         setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
-        alert((err as Error).message);
+        notifyError(err);
       } finally {
         URL.revokeObjectURL(localUrl);
         setUploading(false);
@@ -764,7 +765,7 @@ export function ChatThread({
       setScheduleMediaUrl(url);
       setScheduleMediaName(fileName);
     } catch (err) {
-      alert((err as Error).message);
+      notifyError(err);
     } finally {
       setScheduleUploading(false);
     }
@@ -775,7 +776,7 @@ export function ChatThread({
     e.target.value = "";
     if (!file) return;
     if (file.size > 1024 * 1024 * 1024) {
-      alert("Arquivo muito grande (máximo 1 GB).");
+      notify({ title: "Arquivo muito grande (máximo 1 GB).", tone: "error" });
       return;
     }
     void uploadAndSend(file, file.name, detectMediaKind(file.type));
@@ -796,7 +797,7 @@ export function ChatThread({
       setMessages((prev) => mergeMessages(prev.filter((m) => m.id !== optimisticId), [result.message]));
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
-      alert((err as Error).message);
+      notifyError(err);
     } finally {
       setUploading(false);
     }
@@ -806,7 +807,7 @@ export function ChatThread({
     setPendingQuickMessageId(m.id ?? null);
     if (m.media_url && m.media_type === "audio") {
       if (isInstagram) {
-        alert("Envio de áudio rápido ainda está disponível apenas para WhatsApp.");
+        notify({ title: "Envio de áudio rápido ainda está disponível apenas para WhatsApp.", tone: "error" });
         return;
       }
       setQuickMediaDraft({ title: m.title ?? "Áudio rápido", mediaUrl: m.media_url, mediaType: "audio" });
@@ -841,7 +842,7 @@ export function ChatThread({
       setRecordSecs(0);
       recordTimerRef.current = setInterval(() => setRecordSecs((s) => s + 1), 1000);
     } catch {
-      alert("Não foi possível acessar o microfone. Verifique as permissões do navegador.");
+      notify({ title: "Não foi possível acessar o microfone. Verifique as permissões do navegador.", tone: "error" });
     }
   }
 
@@ -894,7 +895,7 @@ export function ChatThread({
     e.target.value = "";
     if (!file) return;
     if (file.size > 1024 * 1024 * 1024) {
-      alert("Arquivo muito grande (máximo 1 GB).");
+      notify({ title: "Arquivo muito grande (máximo 1 GB).", tone: "error" });
       return;
     }
     void uploadForSchedule(file, file.name);
@@ -909,7 +910,7 @@ export function ChatThread({
           setScheduleText("");
           refreshPendingScheduledCalls();
         })
-        .catch((err) => alert((err as Error).message))
+        .catch((err) => notifyError(err))
         .finally(() => setScheduling(false));
       return;
     }
@@ -930,14 +931,14 @@ export function ChatThread({
         if (scheduleText.trim() === text.trim()) updateTextDraft("");
         refreshPendingScheduled();
       })
-      .catch((err) => alert((err as Error).message))
+      .catch((err) => notifyError(err))
       .finally(() => setScheduling(false));
   }
 
   function cancelSchedule(id: string) {
     void cancelScheduledMessage({ id, leadId })
       .then(() => refreshPendingScheduled())
-      .catch((err) => alert((err as Error).message));
+      .catch((err) => notifyError(err));
   }
 
   const nextScheduled = pendingScheduled[0];
@@ -2192,7 +2193,7 @@ function LeadSidePanel({
       })
       .catch((err) => {
         setTags(prev);
-        alert((err as Error).message);
+        notifyError(err);
       })
       .finally(() => setTagsSaving(false));
   }
@@ -2230,7 +2231,7 @@ function LeadSidePanel({
         setNotes(res.notes);
         setNotesDirty(false);
       })
-      .catch((err) => alert((err as Error).message))
+      .catch((err) => notifyError(err))
       .finally(() => setSaving(false));
   }
 
@@ -2257,7 +2258,7 @@ function LeadSidePanel({
       lostReason,
     })
       .then(() => setBusinessDirty(false))
-      .catch((err) => alert((err as Error).message))
+      .catch((err) => notifyError(err))
       .finally(() => setBusinessSaving(false));
   }
 
@@ -2427,7 +2428,7 @@ function LeadSidePanel({
           value={localStars ?? details?.qualityStars ?? 0}
           onChange={(next) => {
             setLocalStars(next);
-            void setLeadQualityStars({ leadId, stars: next }).catch((err) => alert((err as Error).message));
+            void setLeadQualityStars({ leadId, stars: next }).catch((err) => notifyError(err));
           }}
         />
       </PanelSection>

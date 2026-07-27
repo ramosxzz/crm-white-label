@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmDialog } from "@/lib/ui/feedback";
 import { useState, useTransition } from "react";
 import { Copy, Eye, EyeOff, Plus, Trash2, Power } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -86,7 +87,7 @@ export function IntakeKeysManager({ keys, canEdit }: { keys: LeadIntakeKey[]; ca
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => { if (confirm("Excluir chave?")) void deleteIntakeKey(k.id); }}
+                    onClick={async () => { if (await confirmDialog({ title: "Excluir chave?", tone: "danger", confirmLabel: "Excluir" })) void deleteIntakeKey(k.id); }}
                     aria-label="Excluir"
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />

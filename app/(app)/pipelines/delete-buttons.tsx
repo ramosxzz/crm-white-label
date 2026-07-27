@@ -1,5 +1,6 @@
 "use client";
 
+import { notify, confirmDialog } from "@/lib/ui/feedback";
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
@@ -18,14 +19,15 @@ export function DeletePipelineButton({ pipelineId, pipelineName }: { pipelineId:
       disabled={pending}
       className="h-8 w-8 text-destructive hover:bg-destructive/10"
       title="Excluir funil"
-      onClick={() => {
-        if (
-          !confirm(
-            `Excluir o funil "${pipelineName}"? Os leads nao serao apagados, mas ficarao sem funil/etapa ate serem reorganizados.`,
-          )
-        ) {
-          return;
-        }
+      onClick={async () => {
+        const confirmed = await confirmDialog({
+          title: `Excluir o funil "${pipelineName}"?`,
+          description:
+            "Os leads nao serao apagados, mas ficarao sem funil/etapa ate serem reorganizados.",
+          tone: "danger",
+          confirmLabel: "Excluir",
+        });
+        if (!confirmed) return;
         start(async () => {
           try {
             const formData = new FormData();
@@ -33,7 +35,7 @@ export function DeletePipelineButton({ pipelineId, pipelineName }: { pipelineId:
             await deletePipeline(formData);
             router.refresh();
           } catch (error) {
-            alert(getPipelineErrorMessage(error));
+            notify({ title: getPipelineErrorMessage(error), tone: "error" });
           }
         });
       }}
@@ -55,8 +57,14 @@ export function DeleteStageButton({ stageId, stageName }: { stageId: string; sta
       disabled={pending}
       className="h-8 w-8 text-destructive hover:bg-destructive/10"
       title="Excluir etapa"
-      onClick={() => {
-        if (!confirm(`Excluir a etapa "${stageName}"? Os leads dessa etapa continuarao no funil, mas ficarao sem etapa.`)) return;
+      onClick={async () => {
+        const confirmed = await confirmDialog({
+          title: `Excluir a etapa "${stageName}"?`,
+          description: "Os leads dessa etapa continuarao no funil, mas ficarao sem etapa.",
+          tone: "danger",
+          confirmLabel: "Excluir",
+        });
+        if (!confirmed) return;
         start(async () => {
           try {
             const formData = new FormData();
@@ -64,7 +72,7 @@ export function DeleteStageButton({ stageId, stageName }: { stageId: string; sta
             await deleteStage(formData);
             router.refresh();
           } catch (error) {
-            alert(getPipelineErrorMessage(error));
+            notify({ title: getPipelineErrorMessage(error), tone: "error" });
           }
         });
       }}

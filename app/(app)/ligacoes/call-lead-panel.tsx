@@ -1,5 +1,6 @@
 "use client";
 
+import { notifyError } from "@/lib/ui/feedback";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { X, MessageSquare, Calendar as CalendarIcon, Phone } from "lucide-react";
@@ -83,7 +84,7 @@ export function CallLeadPanel({
         setScheduledMessages(data.scheduledMessages);
       })
       .catch((err) => {
-        if (!cancelled) alert((err as Error).message);
+        if (!cancelled) notifyError(err);
       })
       .finally(() => !cancelled && setLoading(false));
     return () => {
@@ -97,7 +98,7 @@ export function CallLeadPanel({
   function saveNotes() {
     setNotesSaving(true);
     void updateChatLeadNotes({ leadId, notes })
-      .catch((err) => alert((err as Error).message))
+      .catch((err) => notifyError(err))
       .finally(() => setNotesSaving(false));
   }
 
@@ -111,7 +112,7 @@ export function CallLeadPanel({
       })
       .catch((err) => {
         setTags(prev);
-        alert((err as Error).message);
+        notifyError(err);
       })
       .finally(() => setTagsSaving(false));
   }
@@ -139,7 +140,7 @@ export function CallLeadPanel({
       assignedTo: business.assignedTo === "none" ? null : business.assignedTo,
       lostReason,
     })
-      .catch((err) => alert((err as Error).message))
+      .catch((err) => notifyError(err))
       .finally(() => setBusinessSaving(false));
   }
 
@@ -152,7 +153,7 @@ export function CallLeadPanel({
         setMsgText("");
         setMsgAt("");
       })
-      .catch((err) => alert((err as Error).message))
+      .catch((err) => notifyError(err))
       .finally(() => setMsgSaving(false));
   }
 
@@ -183,7 +184,7 @@ export function CallLeadPanel({
         setMeetingNotes("");
         setTimeout(() => setMeetingDone(false), 3000);
       })
-      .catch((err) => alert((err as Error).message))
+      .catch((err) => notifyError(err))
       .finally(() => setMeetingSaving(false));
   }
 
@@ -275,7 +276,7 @@ export function CallLeadPanel({
                 value={stars}
                 onChange={(next) => {
                   setStars(next);
-                  void setLeadQualityStars({ leadId, stars: next }).catch((err) => alert((err as Error).message));
+                  void setLeadQualityStars({ leadId, stars: next }).catch((err) => notifyError(err));
                 }}
               />
             </Section>

@@ -1,5 +1,6 @@
 "use client";
 
+import { notify, notifyError } from "@/lib/ui/feedback";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   Send,
@@ -155,7 +156,7 @@ export function GroupChatThread({
         setMessages((prev) => [...prev.filter((m) => m.id !== optimistic.id), { ...sent, mediaUrl: null, mediaType: null }]);
       } catch (err) {
         setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
-        alert((err as Error).message);
+        notifyError(err);
       }
     });
   }
@@ -198,7 +199,7 @@ export function GroupChatThread({
         setMessages((prev) => uniqueMessages([...prev.filter((m) => m.id !== optimisticId), sent]));
       } catch (err) {
         setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
-        alert((err as Error).message);
+        notifyError(err);
       } finally {
         URL.revokeObjectURL(localUrl);
         setUploading(false);
@@ -212,7 +213,7 @@ export function GroupChatThread({
     e.target.value = "";
     if (!file) return;
     if (file.size > 1024 * 1024 * 1024) {
-      alert("Arquivo muito grande (máximo 1 GB).");
+      notify({ title: "Arquivo muito grande (máximo 1 GB).", tone: "error" });
       return;
     }
     void uploadAndSend(file, file.name, detectMediaKind(file.type));
@@ -230,7 +231,7 @@ export function GroupChatThread({
       setMessages((prev) => uniqueMessages([...prev.filter((m) => m.id !== optimisticId), sent]));
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
-      alert((err as Error).message);
+      notifyError(err);
     } finally {
       setUploading(false);
     }
@@ -270,7 +271,7 @@ export function GroupChatThread({
       setRecordSecs(0);
       recordTimerRef.current = setInterval(() => setRecordSecs((s) => s + 1), 1000);
     } catch {
-      alert("Não foi possível acessar o microfone. Verifique as permissões do navegador.");
+      notify({ title: "Não foi possível acessar o microfone. Verifique as permissões do navegador.", tone: "error" });
     }
   }
 

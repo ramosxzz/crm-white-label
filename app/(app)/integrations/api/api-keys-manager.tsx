@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmDialog } from "@/lib/ui/feedback";
 import { useState, useTransition } from "react";
 import { Copy, Plus, Power, Trash2, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -151,7 +152,7 @@ export function ApiKeysManager({ keys, canEdit }: { keys: ApiKey[]; canEdit: boo
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => { if (confirm("Excluir chave?")) void deleteApiKey(k.id); }}
+                    onClick={async () => { if (await confirmDialog({ title: "Excluir chave?", tone: "danger", confirmLabel: "Excluir" })) void deleteApiKey(k.id); }}
                     aria-label="Excluir"
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />

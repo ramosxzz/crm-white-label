@@ -1,5 +1,6 @@
 "use client";
 
+import { notifyError, confirmDialog } from "@/lib/ui/feedback";
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
@@ -32,21 +33,21 @@ export function LeadDeleteButton({
       disabled={pending}
       className={variant === "outline" ? "text-destructive hover:bg-destructive/10" : undefined}
       title="Excluir lead"
-      onClick={() => {
-        if (
-          !confirm(
-            `Excluir o lead "${leadName}"? Conversas e mensagens serao removidas. Esta acao nao pode ser desfeita.`,
-          )
-        ) {
-          return;
-        }
+      onClick={async () => {
+        const confirmed = await confirmDialog({
+          title: `Excluir o lead "${leadName}"?`,
+          description: "Conversas e mensagens serao removidas. Esta acao nao pode ser desfeita.",
+          tone: "danger",
+          confirmLabel: "Excluir",
+        });
+        if (!confirmed) return;
         start(async () => {
           try {
             await deleteLead(leadId);
             router.push(redirectTo);
             router.refresh();
           } catch (e) {
-            alert((e as Error).message);
+            notifyError(e);
           }
         });
       }}

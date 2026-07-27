@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmDialog } from "@/lib/ui/feedback";
 import { useMemo, useState, useTransition } from "react";
 import { ExternalLink, MessageCircle, Plus, Power, Settings, Smartphone, Trash2, UserRound, Wifi, WifiOff } from "lucide-react";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
@@ -70,11 +71,15 @@ export function WhatsAppConnectionsManager({ accounts, users = [] }: { accounts:
     });
   }
 
-  function remove(account: Account) {
+  async function remove(account: Account) {
     const label = account.display_name || account.phone_number;
-    if (!window.confirm(`Excluir a conexao ${label}? As conversas antigas ficam salvas, mas este numero deixa de enviar mensagens.`)) {
-      return;
-    }
+    const confirmed = await confirmDialog({
+      title: `Excluir a conexao ${label}?`,
+      description: "As conversas antigas ficam salvas, mas este numero deixa de enviar mensagens.",
+      tone: "danger",
+      confirmLabel: "Excluir",
+    });
+    if (!confirmed) return;
     setMessage(null);
     setPendingId(account.id);
     startTransition(async () => {

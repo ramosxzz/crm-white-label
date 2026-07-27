@@ -1,5 +1,6 @@
 "use client";
 
+import { notify, confirmDialog } from "@/lib/ui/feedback";
 import { useState, useTransition } from "react";
 import { Paperclip, Trash2, Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -28,7 +29,7 @@ export function LeadFilesPanel({ leadId, files }: { leadId: string; files: FileR
         .from("lead-files")
         .upload(path, file, { cacheControl: "3600", upsert: false, contentType: file.type });
       if (error) {
-        alert(error.message);
+        notify({ title: error.message, tone: "error" });
         return;
       }
       const row = await persistLeadFile({
@@ -44,7 +45,7 @@ export function LeadFilesPanel({ leadId, files }: { leadId: string; files: FileR
   }
 
   async function onDelete(file: FileRow) {
-    if (!confirm("Excluir arquivo?")) return;
+    if (!(await confirmDialog({ title: "Excluir arquivo?", tone: "danger", confirmLabel: "Excluir" }))) return;
     start(async () => {
       await deleteLeadFile(file.id, file.storage_path);
       setList((prev) => prev.filter((f) => f.id !== file.id));

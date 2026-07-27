@@ -1,5 +1,6 @@
 "use client";
 
+import { notify } from "@/lib/ui/feedback";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -173,7 +174,7 @@ export function KanbanBoard({
     } catch (err) {
       console.error(err);
       setLeads(previousLeads);
-      alert("Nao foi possivel mover os leads selecionados.");
+      notify({ title: "Nao foi possivel mover os leads selecionados.", tone: "error" });
     } finally {
       setBulkMoving(false);
     }

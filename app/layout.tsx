@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PwaRegister } from "@/components/pwa-register";
+import { FeedbackProvider } from "@/components/ui/feedback-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -58,8 +59,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body className="min-h-screen font-sans">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
-          {children}
-          <PwaRegister />
+          <FeedbackProvider>
+            {children}
+            <PwaRegister />
+          </FeedbackProvider>
         </ThemeProvider>
       </body>
     </html>

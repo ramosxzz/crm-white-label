@@ -1,5 +1,6 @@
 "use client";
 
+import { notifyError } from "@/lib/ui/feedback";
 import { useState, useTransition } from "react";
 import { StickyNote } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,7 @@ export function NotesPanel({
         await addLeadNote({ leadId, text: value });
         setText("");
       } catch (err) {
-        alert((err as Error).message || "Nao foi possivel salvar a nota.");
+        notifyError(err, "Nao foi possivel salvar a nota.");
       }
     });
   }
