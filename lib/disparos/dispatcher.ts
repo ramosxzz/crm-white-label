@@ -26,7 +26,7 @@ async function runDispatchLoop(campaignId: string): Promise<void> {
   for (;;) {
     const { data: campaign } = await supabase
       .from("campaigns")
-      .select("id, tenant_id, status, message_mode, body_text, quick_message_id, delay_seconds, created_by")
+      .select("id, tenant_id, status, message_mode, body_text, quick_message_id, account_id, delay_seconds, created_by")
       .eq("id", campaignId)
       .maybeSingle();
     if (!campaign || campaign.status === "cancelled") return;
@@ -70,6 +70,7 @@ type CampaignRow = {
   message_mode: string;
   body_text: string | null;
   quick_message_id: string | null;
+  account_id: string | null;
   created_by: string | null;
 };
 
@@ -100,6 +101,7 @@ async function sendToRecipient(
         tenantId: campaign.tenant_id,
         userId: campaign.created_by,
         leadId,
+        accountId: campaign.account_id ?? undefined,
         mediaUrl: quickMessage.media_url,
         mediaKind: (quickMessage.media_type ?? "document") as MediaKind,
         caption: quickMessage.body ? renderMessageTemplate(quickMessage.body, lead) : undefined,
@@ -108,12 +110,24 @@ async function sendToRecipient(
     }
 
     const body = renderMessageTemplate(quickMessage.body ?? "", lead);
-    await sendChatMessageCore(supabase, { tenantId: campaign.tenant_id, userId: campaign.created_by, leadId, body });
+    await sendChatMessageCore(supabase, {
+      tenantId: campaign.tenant_id,
+      userId: campaign.created_by,
+      leadId,
+      accountId: campaign.account_id ?? undefined,
+      body,
+    });
     return;
   }
 
   const body = renderMessageTemplate(campaign.body_text ?? "", lead);
-  await sendChatMessageCore(supabase, { tenantId: campaign.tenant_id, userId: campaign.created_by, leadId, body });
+  await sendChatMessageCore(supabase, {
+    tenantId: campaign.tenant_id,
+    userId: campaign.created_by,
+    leadId,
+    accountId: campaign.account_id ?? undefined,
+    body,
+  });
 }
 
 function sleep(ms: number): Promise<void> {

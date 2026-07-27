@@ -5,35 +5,70 @@ import { requireContext } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { startCampaignDispatch } from "@/lib/disparos/dispatcher";
 
-export async function searchLeadsForBroadcast(query: string) {
+export async function listBroadcastLeads() {
   const ctx = await requireContext();
-  const q = query.trim();
-  if (!q) return [];
-
   const supabase = await createClient();
   const { data } = await supabase
     .from("leads")
     .select("id, name, phone")
     .eq("tenant_id", ctx.tenantId)
     .not("phone", "is", null)
-    .or(`name.ilike.%${q}%,phone.ilike.%${q}%`)
-    .limit(20);
-
+    .order("name")
+    .limit(500);
   return data ?? [];
 }
 
-export async function createCampaign(input: {
-  name: string;
+export async function listMessageTemplates() {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("message_templates")
+    .select("id, name, payload")
+    .eq("tenant_id", ctx.tenantId)
+    .order("name");
+  return (data ?? []).map((t) => ({ id: t.id, name: t.name, body: (t.payload as { body?: string })?.body ?? "" }));
+}
+
+export async function saveMessageTemplate(input: { id?: string; name: string; body: string }) {
+  const ctx = await requireContext();
+  if (!input.name.trim()) throw new Error("Informe o nome do modelo");
+  if (!input.body.trim()) throw new Error("A mensagem do modelo esta vazia");
+
+  const supabase = await createClient();
+  if (input.id) {
+    const { error } = await supabase
+      .from("message_templates")
+      .update({ name: input.name.trim(), payload: { body: input.body } })
+      .eq("id", input.id)
+      .eq("tenant_id", ctx.tenantId);
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await supabase
+      .from("message_templates")
+      .insert({ tenant_id: ctx.tenantId, name: input.name.trim(), payload: { body: input.body } });
+    if (error) throw new Error(error.message);
+  }
+  revalidatePath("/disparos");
+}
+
+export async function deleteMessageTemplate(id: string) {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+  await supabase.from("message_templates").delete().eq("id", id).eq("tenant_id", ctx.tenantId);
+  revalidatePath("/disparos");
+}
+
+export async function startBroadcast(input: {
   messageMode: "text" | "quick_message";
   bodyText?: string;
   quickMessageId?: string;
+  accountId?: string;
   delaySeconds: number;
   leadIds: string[];
 }) {
   const ctx = await requireContext();
   if (!ctx.tenant.broadcast_enabled) throw new Error("Modulo de disparo desativado para esta empresa");
-  if (!input.name.trim()) throw new Error("Informe o nome da campanha");
-  if (input.leadIds.length === 0) throw new Error("Selecione ao menos um destinatario");
+  if (input.leadIds.length === 0) throw new Error("Selecione ao menos um lead");
   if (input.messageMode === "text" && !input.bodyText?.trim()) throw new Error("Escreva a mensagem");
   if (input.messageMode === "quick_message" && !input.quickMessageId) throw new Error("Selecione a mensagem rapida");
 
@@ -51,11 +86,12 @@ export async function createCampaign(input: {
     .from("campaigns")
     .insert({
       tenant_id: ctx.tenantId,
-      name: input.name.trim(),
+      name: `Disparo ${new Date().toLocaleString("pt-BR")}`,
       status: "running",
       message_mode: input.messageMode,
       body_text: input.messageMode === "text" ? input.bodyText : null,
       quick_message_id: input.messageMode === "quick_message" ? input.quickMessageId : null,
+      account_id: input.accountId || null,
       delay_seconds: Math.max(1, Math.round(input.delaySeconds || 10)),
       started_at: new Date().toISOString(),
       created_by: ctx.userId,
@@ -75,6 +111,7 @@ export async function createCampaign(input: {
 
   startCampaignDispatch(campaign.id);
   revalidatePath("/disparos");
+  return { campaignId: campaign.id as string };
 }
 
 export async function cancelCampaign(campaignId: string) {
@@ -106,4 +143,17 @@ export async function getCampaignRecipients(campaignId: string) {
     sent_at: string | null;
     leads: { name: string } | null;
   }>;
+}
+
+export async function getLatestCampaign() {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("campaigns")
+    .select("id, status, created_at")
+    .eq("tenant_id", ctx.tenantId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data;
 }

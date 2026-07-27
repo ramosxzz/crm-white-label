@@ -30,6 +30,7 @@ export interface Campaign {
   message_mode: CampaignMessageMode;
   template_id: string | null;
   quick_message_id: string | null;
+  account_id: string | null;
   body_text: string | null;
   filters: Record<string, unknown>;
   scheduled_at: string | null;

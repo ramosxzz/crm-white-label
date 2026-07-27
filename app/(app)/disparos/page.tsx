@@ -4,8 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { resumeRunningCampaigns } from "@/lib/disparos/dispatcher";
 import { listQuickMessages } from "../settings/quick-messages-actions";
 import { PageHeader } from "@/components/app/page-header";
-import { NewCampaignDialog } from "./new-campaign-dialog";
-import { CampaignsList, type CampaignSummary } from "./campaigns-list";
+import { DisparoScreen } from "./disparo-screen";
+import { listBroadcastLeads, listMessageTemplates } from "./actions";
 
 export default async function DisparosPage() {
   const ctx = await requireContext();
@@ -15,49 +15,31 @@ export default async function DisparosPage() {
   void resumeRunningCampaigns(ctx.tenantId);
 
   const supabase = await createClient();
-  const [{ data: campaigns }, quickMessages] = await Promise.all([
-    supabase
-      .from("campaigns")
-      .select("id, name, status, delay_seconds, created_at")
-      .eq("tenant_id", ctx.tenantId)
-      .order("created_at", { ascending: false }),
+  const [leads, quickMessages, templates, { data: accounts }] = await Promise.all([
+    listBroadcastLeads(),
     listQuickMessages(),
+    listMessageTemplates(),
+    supabase
+      .from("whatsapp_accounts")
+      .select("id, display_name, phone_number")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("is_active", true),
   ]);
-
-  const campaignIds = (campaigns ?? []).map((c) => c.id);
-  const { data: recipientRows } =
-    campaignIds.length > 0
-      ? await supabase.from("campaign_recipients").select("campaign_id, status").in("campaign_id", campaignIds)
-      : { data: [] as { campaign_id: string; status: string }[] };
-
-  const counts = new Map<string, { total: number; sent: number; failed: number }>();
-  for (const row of recipientRows ?? []) {
-    const entry = counts.get(row.campaign_id) ?? { total: 0, sent: 0, failed: 0 };
-    entry.total += 1;
-    if (row.status === "sent") entry.sent += 1;
-    if (row.status === "failed") entry.failed += 1;
-    counts.set(row.campaign_id, entry);
-  }
-
-  const summaries: CampaignSummary[] = (campaigns ?? []).map((c) => ({
-    id: c.id,
-    name: c.name,
-    status: c.status,
-    delay_seconds: c.delay_seconds,
-    created_at: c.created_at,
-    ...(counts.get(c.id) ?? { total: 0, sent: 0, failed: 0 }),
-  }));
 
   return (
     <div>
       <PageHeader
         eyebrow="Comunicação"
         title="Disparos"
-        description="Envie uma mensagem para vários leads de uma vez, com um intervalo entre os envios."
-        actions={<NewCampaignDialog quickMessages={quickMessages} />}
+        description="Escreva a mensagem, selecione os leads e dispare com intervalo entre os envios."
       />
       <div className="p-8">
-        <CampaignsList campaigns={summaries} />
+        <DisparoScreen
+          leads={leads}
+          quickMessages={quickMessages}
+          templates={templates}
+          accounts={accounts ?? []}
+        />
       </div>
     </div>
   );
