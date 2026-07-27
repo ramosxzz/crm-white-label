@@ -1864,6 +1864,16 @@ function MessageContent({ message: m }: { message: ChatMessage }) {
     );
   }
 
+  if (url && type === "sticker") {
+    return (
+      <div className="space-y-1">
+        {quoted}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt="Figurinha" loading="lazy" decoding="async" className="h-32 w-32 object-contain" />
+      </div>
+    );
+  }
+
   if (url && type.startsWith("video")) {
     return (
       <div className="space-y-1">
