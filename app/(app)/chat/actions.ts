@@ -7,8 +7,8 @@ import type { ChatMessage } from "@/lib/chat/types";
 import { fireAutomationTrigger } from "@/lib/automations/trigger";
 import { logLeadActivity } from "@/lib/leads/activity-log";
 import { notifyUser } from "@/lib/notifications/notify";
-import { sendChatMessageCore, providerErrorMessage } from "@/lib/chat/send-message-core";
-import { normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
+import { sendChatMessageCore } from "@/lib/chat/send-message-core";
+import { sendChatMediaCore } from "@/lib/chat/send-media-core";
 import { createProvider } from "@/lib/whatsapp/factory";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 
@@ -208,143 +208,12 @@ export async function sendChatMedia(input: {
   const ctx = await requireContext();
   const supabase = await createClient();
 
-  if (!input.mediaUrl) throw new Error("Mídia ausente");
-
-  const { data: lead } = await supabase
-    .from("leads")
-    .select("id, phone, name")
-    .eq("id", input.leadId)
-    .eq("tenant_id", ctx.tenantId)
-    .single();
-  if (!lead?.phone) throw new Error("Lead sem telefone");
-
-  const to = normalizeWhatsAppPhone(lead.phone) ?? lead.phone.replace(/\D/g, "");
-
-  let mediaAccountQuery = supabase
-    .from("whatsapp_accounts")
-    .select("*")
-    .eq("tenant_id", ctx.tenantId)
-    .eq("is_active", true);
-  if (input.accountId) {
-    mediaAccountQuery = mediaAccountQuery.eq("id", input.accountId);
-  }
-  const { data: account } = await mediaAccountQuery.limit(1).single();
-
-  // Encontra ou cria a conversa
-  let conversationId: string | undefined;
-  const { data: conv } = await supabase
-    .from("conversations")
-    .select("id")
-    .eq("tenant_id", ctx.tenantId)
-    .eq("lead_id", lead.id)
-    .eq("channel", "whatsapp")
-    .maybeSingle();
-
-  if (conv?.id) {
-    conversationId = conv.id;
-  } else {
-    const { data: created } = await supabase
-      .from("conversations")
-      .insert({
-        tenant_id: ctx.tenantId,
-        lead_id: lead.id,
-        whatsapp_account_id: account?.id ?? null,
-        channel: "whatsapp",
-        last_message_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
-    conversationId = created?.id;
-  }
-  if (!conversationId) throw new Error("Falha ao criar conversa");
-
-  // Corpo de prévia por tipo
-  const previewBody =
-    input.caption?.trim() ||
-    (input.mediaKind === "image"
-      ? "📷 Imagem"
-      : input.mediaKind === "video"
-        ? "🎬 Vídeo"
-        : input.mediaKind === "audio"
-          ? "🎤 Áudio"
-          : `📎 ${input.fileName ?? "Documento"}`);
-
-  const { data: pendingMsg } = await supabase
-    .from("messages")
-    .insert({
-      tenant_id: ctx.tenantId,
-      conversation_id: conversationId,
-      user_id: ctx.userId,
-      direction: "outbound",
-      body: previewBody,
-      media_url: input.mediaUrl,
-      media_type: input.mediaKind,
-      status: "pending",
-      quick_message_id: input.quickMessageId ?? null,
-    })
-    .select("id")
-    .single();
-
-  if (!account) {
-    await supabase
-      .from("messages")
-      .update({ status: "failed", error: "Nenhuma conta WhatsApp configurada" })
-      .eq("id", pendingMsg!.id);
-    throw new Error("Configure uma conta WhatsApp em /settings/whatsapp");
-  }
-
   try {
-    const provider = createProvider(account as WhatsAppAccount);
-    if (!provider.sendMedia) {
-      throw new Error("Este provedor de WhatsApp não suporta envio de mídia.");
-    }
-    const result = await provider.sendMedia({
-      to,
-      mediaUrl: input.mediaUrl,
-      mediaKind: input.mediaKind,
-      caption: input.caption,
-      fileName: input.fileName,
-      mimeType: input.mimeType,
-    });
-    if (result.status !== "sent") {
-      const errMsg = providerErrorMessage(result);
-      await supabase.from("messages").update({ status: "failed", error: errMsg }).eq("id", pendingMsg!.id);
-      throw new Error(errMsg);
-    }
-    const { data: sentRow } = await supabase
-      .from("messages")
-      .update({ status: "sent", external_id: result.externalId })
-      .eq("id", pendingMsg!.id)
-      .select("id, body, direction, created_at, status, media_url, media_type")
-      .single();
-    await supabase
-      .from("conversations")
-      .update({ last_message_at: new Date().toISOString(), status: "em_atendimento" })
-      .eq("id", conversationId);
-
-    void fireAutomationTrigger(ctx.tenantId, "message_sent", lead.id, {
-      quick_message_id: input.quickMessageId ?? null,
-    });
-
+    const result = await sendChatMediaCore(supabase, { tenantId: ctx.tenantId, userId: ctx.userId, ...input });
     revalidatePath("/chat");
-
-    return {
-      conversationId,
-      message: (sentRow ?? {
-        id: pendingMsg!.id,
-        body: previewBody,
-        direction: "outbound",
-        created_at: new Date().toISOString(),
-        status: "sent",
-        media_url: input.mediaUrl,
-        media_type: input.mediaKind,
-      }) as ChatMessage,
-    };
+    return result;
   } catch (e) {
-    await supabase
-      .from("messages")
-      .update({ status: "failed", error: (e as Error).message })
-      .eq("id", pendingMsg!.id);
+    revalidatePath(`/chat/${input.leadId}`);
     throw e;
   }
 }
