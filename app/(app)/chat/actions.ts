@@ -3,47 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
-import { createProvider } from "@/lib/whatsapp/factory";
-import { normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
-import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 import type { ChatMessage } from "@/lib/chat/types";
 import { fireAutomationTrigger } from "@/lib/automations/trigger";
 import { logLeadActivity } from "@/lib/leads/activity-log";
 import { notifyUser } from "@/lib/notifications/notify";
+import { sendChatMessageCore } from "@/lib/chat/send-message-core";
 
 const LABEL_COLORS = ["#7c3aed", "#2563eb", "#059669", "#dc2626", "#d97706", "#0891b2"];
-
-function providerErrorMessage(result: { status: string; raw?: unknown }): string {
-  if (result.raw && typeof result.raw === "object") {
-    const r = result.raw as Record<string, unknown>;
-    if (typeof r.error === "string") return r.error;
-    if (r.error && typeof r.error === "object") {
-      const error = r.error as Record<string, unknown>;
-      const errorData = error.error_data;
-      if (errorData && typeof errorData === "object") {
-        const details = (errorData as Record<string, unknown>).details;
-        if (typeof details === "string") return details;
-      }
-      if (typeof error.message === "string") return error.message;
-    }
-    if (typeof r.message === "string") return r.message;
-  }
-  return "Falha ao enviar mensagem pelo WhatsApp";
-}
-
-function messageReplyPreview(message: {
-  body?: string | null;
-  media_type?: string | null;
-}): string {
-  const body = message.body?.trim();
-  if (body) return body.slice(0, 240);
-  const type = message.media_type?.toLowerCase() ?? "";
-  if (type.startsWith("audio")) return "🎤 Áudio";
-  if (type.startsWith("image")) return "📷 Imagem";
-  if (type.startsWith("video")) return "🎬 Vídeo";
-  if (type === "document" || type.startsWith("application")) return "📎 Documento";
-  return "Mensagem";
-}
 
 export async function sendChatMessage(input: {
   leadId: string;
@@ -55,174 +21,20 @@ export async function sendChatMessage(input: {
   const ctx = await requireContext();
   const supabase = await createClient();
 
-  const { data: lead } = await supabase
-    .from("leads")
-    .select("id, phone, name")
-    .eq("id", input.leadId)
-    .eq("tenant_id", ctx.tenantId)
-    .single();
-  if (!lead?.phone) throw new Error("Lead sem telefone");
-
-  const to = normalizeWhatsAppPhone(lead.phone);
-  if (to && to !== lead.phone.replace(/\D/g, "")) {
-    void supabase.from("leads").update({ phone: to }).eq("id", lead.id).eq("tenant_id", ctx.tenantId);
-  }
-
-  let accountQuery = supabase
-    .from("whatsapp_accounts")
-    .select("*")
-    .eq("tenant_id", ctx.tenantId)
-    .eq("is_active", true);
-  if (input.accountId) {
-    accountQuery = accountQuery.eq("id", input.accountId);
-  }
-
-  let conversationId: string | undefined;
-  const [{ data: account }, { data: conv }] = await Promise.all([
-    accountQuery.limit(1).single(),
-    supabase
-      .from("conversations")
-      .select("id")
-      .eq("tenant_id", ctx.tenantId)
-      .eq("lead_id", lead.id)
-      .eq("channel", "whatsapp")
-      .maybeSingle(),
-  ]);
-
-  if (conv?.id) {
-    conversationId = conv.id;
-  } else {
-    const { data: created } = await supabase
-      .from("conversations")
-      .insert({
-        tenant_id: ctx.tenantId,
-        lead_id: lead.id,
-        whatsapp_account_id: account?.id ?? null,
-        channel: "whatsapp",
-        last_message_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
-    conversationId = created?.id;
-  }
-
-  if (!conversationId) throw new Error("Falha ao criar conversa");
-
-  let replyTo:
-    | {
-        id: string;
-        external_id: string | null;
-        body: string | null;
-        media_type: string | null;
-        direction: "inbound" | "outbound";
-        user_id: string | null;
-      }
-    | null = null;
-  let replySenderName: string | null = null;
-  if (input.replyToMessageId) {
-    const { data } = await supabase
-      .from("messages")
-      .select("id, external_id, body, media_type, direction, user_id")
-      .eq("id", input.replyToMessageId)
-      .eq("tenant_id", ctx.tenantId)
-      .eq("conversation_id", conversationId)
-      .maybeSingle();
-    replyTo = (data as typeof replyTo) ?? null;
-    if (replyTo?.user_id) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", replyTo.user_id)
-        .maybeSingle();
-      replySenderName = (profile as { full_name?: string | null } | null)?.full_name ?? null;
-    }
-  }
-
-  const { data: pendingMsg } = await supabase
-    .from("messages")
-    .insert({
-      tenant_id: ctx.tenantId,
-      conversation_id: conversationId,
-      user_id: ctx.userId,
-      direction: "outbound",
-      body: input.body,
-      status: "pending",
-      reply_to_message_id: replyTo?.id ?? null,
-      reply_to_external_id: replyTo?.external_id ?? null,
-      reply_to_body: replyTo ? messageReplyPreview(replyTo) : null,
-      reply_to_sender_name: replyTo
-        ? replySenderName ?? (replyTo.direction === "outbound" ? "Você" : lead.name)
-        : null,
-      quick_message_id: input.quickMessageId ?? null,
-    })
-    .select("id")
-    .single();
-
-  if (!account) {
-    await supabase
-      .from("messages")
-      .update({ status: "failed", error: "Nenhuma conta WhatsApp configurada" })
-      .eq("id", pendingMsg!.id);
-    revalidatePath(`/chat/${lead.id}`);
-    throw new Error("Configure uma conta WhatsApp em /settings/whatsapp");
-  }
-
   try {
-    const provider = createProvider(account as WhatsAppAccount);
-    const result = await provider.send({
-      to,
+    const result = await sendChatMessageCore(supabase, {
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      leadId: input.leadId,
       body: input.body,
-      quotedMessageId: replyTo?.external_id ?? null,
+      accountId: input.accountId,
+      replyToMessageId: input.replyToMessageId,
+      quickMessageId: input.quickMessageId,
     });
-    if (result.status !== "sent") {
-      const errMsg = providerErrorMessage(result);
-      await supabase
-        .from("messages")
-        .update({ status: "failed", error: errMsg })
-        .eq("id", pendingMsg!.id);
-      throw new Error(errMsg);
-    }
-    const { data: sentRow } = await supabase
-      .from("messages")
-      .update({
-        status: "sent",
-        external_id: result.externalId,
-      })
-      .eq("id", pendingMsg!.id)
-      .select("id, body, direction, created_at, status, reply_to_message_id, reply_to_external_id, reply_to_body, reply_to_sender_name")
-      .single();
-    await supabase
-      .from("conversations")
-      .update({ last_message_at: new Date().toISOString(), status: "em_atendimento" })
-      .eq("id", conversationId);
-
-    void fireAutomationTrigger(ctx.tenantId, "message_sent", lead.id, {
-      quick_message_id: input.quickMessageId ?? null,
-    });
-
     revalidatePath("/chat");
-
-    return {
-      conversationId,
-      message: (sentRow ?? {
-        id: pendingMsg!.id,
-        body: input.body,
-        direction: "outbound",
-        created_at: new Date().toISOString(),
-        status: "sent",
-        reply_to_message_id: replyTo?.id ?? null,
-        reply_to_external_id: replyTo?.external_id ?? null,
-        reply_to_body: replyTo ? messageReplyPreview(replyTo) : null,
-        reply_to_sender_name: replyTo
-          ? replySenderName ?? (replyTo.direction === "outbound" ? "Você" : lead.name)
-          : null,
-      }) as ChatMessage,
-    };
+    return result;
   } catch (e) {
-    await supabase
-      .from("messages")
-      .update({ status: "failed", error: (e as Error).message })
-      .eq("id", pendingMsg!.id);
+    revalidatePath(`/chat/${input.leadId}`);
     throw e;
   }
 }
