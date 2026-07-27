@@ -343,7 +343,24 @@ export interface StockMovement {
   kind: StockMovementKind;
   quantity: number;
   reason: string | null;
+  location_id: string | null;
   created_at: string;
+}
+
+export interface StockLocation {
+  id: string;
+  tenant_id: string;
+  name: string;
+  is_default: boolean;
+  created_at: string;
+}
+
+export interface ProductStock {
+  id: string;
+  tenant_id: string;
+  product_id: string;
+  location_id: string;
+  quantity: number;
 }
 
 export interface AttendantStatus {
@@ -464,6 +481,8 @@ export type Database = {
       files: { Row: FileRow; Insert: Partial<FileRow>; Update: Partial<FileRow> };
       products: { Row: Product; Insert: Partial<Product>; Update: Partial<Product> };
       stock_movements: { Row: StockMovement; Insert: Partial<StockMovement>; Update: Partial<StockMovement> };
+      stock_locations: { Row: StockLocation; Insert: Partial<StockLocation>; Update: Partial<StockLocation> };
+      product_stock: { Row: ProductStock; Insert: Partial<ProductStock>; Update: Partial<ProductStock> };
       attendant_status: { Row: AttendantStatus; Insert: Partial<AttendantStatus>; Update: Partial<AttendantStatus> };
       lead_assignment_history: {
         Row: LeadAssignmentHistory;
