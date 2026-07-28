@@ -70,6 +70,7 @@ export interface Tenant {
   satisfaction_survey_enabled: boolean;
   calls_dashboard_enabled: boolean;
   broadcast_enabled: boolean;
+  lead_assignment_enabled: boolean;
   meta_pixel_id: string | null;
   meta_capi_token: string | null;
   meta_ad_account_id: string | null;

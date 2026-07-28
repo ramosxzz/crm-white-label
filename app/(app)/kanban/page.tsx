@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
+import { canSeeAllLeads } from "@/lib/auth/roles";
 import { PageHeader } from "@/components/app/page-header";
 import { fetchLeadCallCountsForTenant } from "@/lib/integrations/call-counts";
 import { KanbanBoard } from "./kanban-board";
@@ -18,6 +19,8 @@ export default async function KanbanPage({ searchParams }: { searchParams?: Prom
     pipelines?.find((pipeline) => pipeline.is_default) ??
     pipelines?.[0];
 
+  const restrictToOwn = ctx.tenant.lead_assignment_enabled && !canSeeAllLeads(ctx.role);
+
   const [{ data: stages }, { data: leads }] = activePipeline
     ? await Promise.all([
         supabase
@@ -26,12 +29,15 @@ export default async function KanbanPage({ searchParams }: { searchParams?: Prom
           .eq("tenant_id", ctx.tenantId)
           .eq("pipeline_id", activePipeline.id)
           .order("position"),
-        supabase
-          .from("leads")
-          .select("id, name, phone, value_cents, stage_id, position, source, tags, quality_stars, created_at")
-          .eq("tenant_id", ctx.tenantId)
-          .eq("pipeline_id", activePipeline.id)
-          .order("position"),
+        (() => {
+          let q = supabase
+            .from("leads")
+            .select("id, name, phone, value_cents, stage_id, position, source, tags, quality_stars, created_at")
+            .eq("tenant_id", ctx.tenantId)
+            .eq("pipeline_id", activePipeline.id);
+          if (restrictToOwn) q = q.eq("assigned_to", ctx.userId);
+          return q.order("position");
+        })(),
       ])
     : [{ data: [] }, { data: [] }];
 

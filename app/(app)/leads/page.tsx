@@ -1,15 +1,14 @@
 import Link from "next/link";
-import { CalendarDays, ChevronRight, Filter } from "lucide-react";
+import { CalendarDays, Filter } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
-import { Badge } from "@/components/ui/badge";
+import { canSeeAllLeads } from "@/lib/auth/roles";
+import { listTenantUserOptions } from "@/lib/tenant/users";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatPhoneBR, formatCurrencyBRL, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/app/page-header";
 import {
-  formatBRTDateShort,
-  formatBRTTime,
   getBRTDayBounds,
   getBRTDayBoundsFromDateString,
   getBRTRollingDayBounds,
@@ -17,6 +16,7 @@ import {
 } from "@/lib/date/brt";
 import { NewLeadDialog } from "./new-lead-dialog";
 import { ImportCsvDialog } from "./import-csv-dialog";
+import { LeadsTable } from "./leads-table";
 
 type LeadDateFilter = "all" | "today" | "yesterday" | "7d" | "30d" | "custom";
 
@@ -74,11 +74,17 @@ export default async function LeadsPage({ searchParams }: { searchParams?: Promi
   const from = (page - 1) * LEADS_PAGE_SIZE;
   const to = from + LEADS_PAGE_SIZE - 1;
 
+  const canAssign = canSeeAllLeads(ctx.role) && ctx.tenant.lead_assignment_enabled;
+  // Vendedor com atribuicao ativa no tenant so ve o que foi mandado pra ele
+  // (RLS garante isso no banco tambem - aqui e so pra a pagina bater com a
+  // contagem certa).
+  const restrictToOwn = ctx.tenant.lead_assignment_enabled && !canSeeAllLeads(ctx.role);
+
   // 500 leads de uma vez travava o scroll da pagina (renderizava tudo numa
   // tabela so). Pagina no servidor em vez de trazer tudo.
   let leadsQuery = supabase
     .from("leads")
-    .select("id, name, phone, email, source, value_cents, created_at, stage_id", { count: "exact" })
+    .select("id, name, phone, email, source, value_cents, created_at, stage_id, assigned_to", { count: "exact" })
     .eq("tenant_id", ctx.tenantId)
     .order("created_at", { ascending: false })
     .range(from, to);
@@ -86,17 +92,20 @@ export default async function LeadsPage({ searchParams }: { searchParams?: Promi
   if (dateFilter.bounds) {
     leadsQuery = leadsQuery.gte("created_at", dateFilter.bounds.startIso).lte("created_at", dateFilter.bounds.endIso);
   }
+  if (restrictToOwn) {
+    leadsQuery = leadsQuery.eq("assigned_to", ctx.userId);
+  }
 
-  const [{ data: leads, count: totalCount }, { data: stages }] = await Promise.all([
+  const [{ data: leads, count: totalCount }, { data: stages }, members] = await Promise.all([
     leadsQuery,
     supabase
       .from("pipeline_stages")
       .select("id, name, color")
       .eq("tenant_id", ctx.tenantId)
       .order("position"),
+    canAssign ? listTenantUserOptions(ctx.tenantId) : Promise.resolve([]),
   ]);
 
-  const stageMap = new Map((stages ?? []).map((s) => [s.id, s]));
   const pageCount = Math.max(1, Math.ceil((totalCount ?? 0) / LEADS_PAGE_SIZE));
 
   function pageHref(target: number) {
@@ -155,87 +164,17 @@ export default async function LeadsPage({ searchParams }: { searchParams?: Promi
           </form>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-elev-1">
-          <table className="w-full text-sm">
-            <thead className="border-b border-border/70 bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-              <tr>
-                <th className="px-5 py-3 font-medium">Nome</th>
-                <th className="px-5 py-3 font-medium">Telefone</th>
-                <th className="px-5 py-3 font-medium">Email</th>
-                <th className="px-5 py-3 font-medium">Estagio</th>
-                <th className="px-5 py-3 font-medium">Origem</th>
-                <th className="px-5 py-3 font-medium">Entrada</th>
-                <th className="px-5 py-3 text-right font-medium">Valor</th>
-                <th className="px-5 py-3 font-medium" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/70">
-              {(leads ?? []).length === 0 && (
-                <tr>
-                  <td colSpan={8} className="px-5 py-16 text-center">
-                    <p className="font-medium">Nenhum lead encontrado</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Ajuste o filtro de entrada, crie um lead manualmente ou importe uma planilha CSV.
-                    </p>
-                  </td>
-                </tr>
-              )}
-              {leads?.map((l) => {
-                const stage = stageMap.get(l.stage_id ?? "");
-                return (
-                  <tr key={l.id} className="group transition-colors hover:bg-muted/40">
-                    <td className="px-5 py-3">
-                      <Link href={`/leads/${l.id}`} className="font-medium transition-colors hover:text-brand">
-                        {l.name}
-                      </Link>
-                    </td>
-                    <td className="px-5 py-3 font-mono text-xs text-muted-foreground">{formatPhoneBR(l.phone)}</td>
-                    <td className="px-5 py-3 text-muted-foreground">{l.email ?? "-"}</td>
-                    <td className="px-5 py-3">
-                      {stage ? (
-                        <Badge
-                          variant="outline"
-                          className="font-medium"
-                          style={{ borderColor: `${stage.color}55`, color: stage.color ?? undefined }}
-                        >
-                          <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: stage.color ?? undefined }} />
-                          {stage.name}
-                        </Badge>
-                      ) : "-"}
-                    </td>
-                    <td className="px-5 py-3 text-muted-foreground">{l.source ?? "-"}</td>
-                    <td className="px-5 py-3 text-xs text-muted-foreground">
-                      {formatBRTDateShort(l.created_at)} às {formatBRTTime(l.created_at)}
-                    </td>
-                    <td className="px-5 py-3 text-right font-medium">{formatCurrencyBRL(l.value_cents)}</td>
-                    <td className="px-5 py-3 text-right">
-                      <Link href={`/leads/${l.id}`} className="opacity-0 transition-opacity group-hover:opacity-100">
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-
-          {pageCount > 1 && (
-            <div className="flex items-center justify-between border-t border-border/70 px-5 py-3 text-sm text-muted-foreground">
-              <span>
-                {from + 1}–{Math.min(totalCount ?? 0, from + LEADS_PAGE_SIZE)} de {totalCount ?? 0}
-              </span>
-              <div className="flex items-center gap-2">
-                <Button asChild variant="outline" size="sm" disabled={page <= 1}>
-                  <Link href={pageHref(Math.max(1, page - 1))} aria-disabled={page <= 1}>Anterior</Link>
-                </Button>
-                <span className="tabular-nums">{page} / {pageCount}</span>
-                <Button asChild variant="outline" size="sm" disabled={page >= pageCount}>
-                  <Link href={pageHref(Math.min(pageCount, page + 1))} aria-disabled={page >= pageCount}>Próxima</Link>
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
+        <LeadsTable
+          leads={leads ?? []}
+          stages={stages ?? []}
+          canAssign={canAssign}
+          members={members}
+          prevHref={pageHref(Math.max(1, page - 1))}
+          nextHref={pageHref(Math.min(pageCount, page + 1))}
+          page={page}
+          pageCount={pageCount}
+          rangeLabel={`${from + 1}–${Math.min(totalCount ?? 0, from + LEADS_PAGE_SIZE)} de ${totalCount ?? 0}`}
+        />
       </div>
     </div>
   );

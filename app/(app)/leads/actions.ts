@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { canOperateLead, assertRole, canManageCompanySettings } from "@/lib/auth/roles";
+import { canOperateLead, assertRole, canManageCompanySettings, canSeeAllLeads } from "@/lib/auth/roles";
 import { chooseRoundRobinAttendant } from "@/lib/leads/assignment";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
@@ -342,6 +342,19 @@ export async function assignLead(input: {
 
   revalidatePath("/leads");
   revalidatePath("/kanban");
+}
+
+// Atribuicao em massa: admin/gerente manda um grupo de leads pra um vendedor
+// de uma vez (ou volta pra fila com toUserId null).
+export async function bulkAssignLeads(leadIds: string[], toUserId: string | null) {
+  const ctx = await requireContext();
+  if (!canSeeAllLeads(ctx.role)) throw new Error("Sem permissao para atribuir leads");
+  if (leadIds.length === 0) return { count: 0 };
+
+  for (const leadId of leadIds) {
+    await assignLead({ leadId, toUserId, reason: "manual_assign" });
+  }
+  return { count: leadIds.length };
 }
 
 export async function autoAssignLead(leadId: string) {
