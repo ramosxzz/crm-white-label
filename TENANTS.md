@@ -25,6 +25,12 @@ Referência rápida por tenant. Uso: abrir conversa nova no Claude por tenant, c
     - Faturar não é só mudar status: `conferida → faturada` chama a função Postgres `bill_service_order`, que gera o lançamento a receber **e** as comissões numa transação só. Meio caminho aqui deixaria comissão sem faturamento no fechamento do mês.
     - Técnico comissiona **só sobre o upsell aprovado**, dividido entre os técnicos presentes (sobra de centavo vai pros primeiros). Vendedora interna sobre o total, loja parceira só quando há indicação.
     - Faturar duas vezes é recusado (a função exige status `conferida`), e há unique em `(OS, papel, pessoa)` nas comissões.
+  - **Aguardando resposta do cliente (2026-07-28)** — 4 itens que aparecem na foto da OS de papel mas não foram citados nas 18 respostas do briefing, então não foram construídos:
+    1. **Tabela de preço** (a OS tem "Tabela Imper / Lavagem / Couro"). Hoje cada item é digitado à mão com o valor na hora — sem catálogo, consultora e técnico redigitam preço e aparece divergência. É o gap mais relevante.
+    2. **Forma de pagamento / parcelamento** (a foto mostra "1 MASTER 6x"). O financeiro gera um único lançamento a receber, não N parcelas.
+    3. **Valor de deslocamento** como campo próprio da OS (hoje entraria só como mais um item).
+    4. **Horário da visita** (a OS de papel tem "Início 14:00 / Fim 16:00"). Só existe turno manhã/tarde — que foi o que responderam na pergunta 8, então pode ser proposital.
+  - Também **não** implementado: peças da OS não baixam do estoque (itens são texto livre, não movimentam `products`).
   - Preço do módulo ainda **não fechado** com o cliente (base atual: R$1.000 implantação + R$199/mês só do CRM).
   - Já usa disparo em massa (`/disparos`).
 
