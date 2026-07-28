@@ -1,5 +1,5 @@
 // Tipos minimos do schema. Execute `npm run supabase:types` para gerar tipos completos.
-export type MemberRole = "owner" | "admin" | "gerente" | "atendente" | "vendedor";
+export type MemberRole = "owner" | "admin" | "gerente" | "atendente" | "vendedor" | "tecnico";
 export type WhatsAppProviderKind = "cloud_api" | "evolution" | "zapi";
 export type MessageDirection = "inbound" | "outbound";
 export type MessageStatus = "pending" | "sent" | "delivered" | "read" | "failed";
@@ -56,6 +56,103 @@ export interface CampaignRecipient {
   created_at: string;
 }
 
+// --- Servico em campo (ERP de OS) ---
+
+export type ServiceOrderStatus =
+  | "rascunho"
+  | "agendada"
+  | "em_execucao"
+  | "concluida"
+  | "conferida"
+  | "faturada"
+  | "cancelada"
+  | "remarcada";
+
+export type ServiceOrderShift = "manha" | "tarde";
+export type ServiceOrderItemKind = "original" | "upsell";
+
+export interface ServiceOrder {
+  id: string;
+  tenant_id: string;
+  lead_id: string;
+  appointment_id: string | null;
+  code_seq: number;
+  status: ServiceOrderStatus;
+  consultant_id: string | null;
+  created_by: string | null;
+  address_street: string | null;
+  address_number: string | null;
+  address_complement: string | null;
+  address_district: string | null;
+  address_city: string | null;
+  address_state: string | null;
+  address_cep: string | null;
+  lat: number | null;
+  lng: number | null;
+  geocoded_at: string | null;
+  voltage: "110v" | "220v" | null;
+  service_date: string | null;
+  shift: ServiceOrderShift | null;
+  route_position: number | null;
+  deadline: string | null;
+  notes: string | null;
+  observations: string | null;
+  total_cents: number;
+  partner_store: string | null;
+  signature_path: string | null;
+  signed_at: string | null;
+  signer_name: string | null;
+  completed_at: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceOrderItem {
+  id: string;
+  tenant_id: string;
+  service_order_id: string;
+  description: string;
+  quantity: number;
+  unit_price_cents: number;
+  amount_cents: number;
+  kind: ServiceOrderItemKind;
+  approved: boolean;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface ServiceOrderTechnician {
+  id: string;
+  tenant_id: string;
+  service_order_id: string;
+  user_id: string;
+  is_primary: boolean;
+  created_at: string;
+}
+
+export interface ServiceOrderDamage {
+  id: string;
+  tenant_id: string;
+  service_order_id: string;
+  description: string;
+  photo_path: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface ServiceOrderEvent {
+  id: string;
+  tenant_id: string;
+  service_order_id: string;
+  from_status: ServiceOrderStatus | null;
+  to_status: ServiceOrderStatus;
+  user_id: string | null;
+  reason: string | null;
+  created_at: string;
+}
+
 export interface Tenant {
   id: string;
   name: string;
@@ -71,6 +168,7 @@ export interface Tenant {
   calls_dashboard_enabled: boolean;
   broadcast_enabled: boolean;
   lead_assignment_enabled: boolean;
+  field_service_enabled: boolean;
   meta_pixel_id: string | null;
   meta_capi_token: string | null;
   meta_ad_account_id: string | null;
@@ -516,6 +614,27 @@ export type Database = {
         Row: CampaignRecipient;
         Insert: Partial<CampaignRecipient>;
         Update: Partial<CampaignRecipient>;
+      };
+      service_orders: { Row: ServiceOrder; Insert: Partial<ServiceOrder>; Update: Partial<ServiceOrder> };
+      service_order_items: {
+        Row: ServiceOrderItem;
+        Insert: Partial<ServiceOrderItem>;
+        Update: Partial<ServiceOrderItem>;
+      };
+      service_order_technicians: {
+        Row: ServiceOrderTechnician;
+        Insert: Partial<ServiceOrderTechnician>;
+        Update: Partial<ServiceOrderTechnician>;
+      };
+      service_order_damages: {
+        Row: ServiceOrderDamage;
+        Insert: Partial<ServiceOrderDamage>;
+        Update: Partial<ServiceOrderDamage>;
+      };
+      service_order_events: {
+        Row: ServiceOrderEvent;
+        Insert: Partial<ServiceOrderEvent>;
+        Update: Partial<ServiceOrderEvent>;
       };
     };
   };

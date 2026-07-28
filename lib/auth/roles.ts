@@ -20,17 +20,51 @@ export function canSeeAllLeads(role: MemberRole) {
   return role === "owner" || role === "admin" || role === "gerente";
 }
 
+// Allowlist explicita de proposito: papel novo (ex: tecnico) nao deve ganhar
+// acesso por acidente so por nao ser "vendedor".
 export function canSeeFullDashboard(role: MemberRole) {
-  return role !== "vendedor";
+  return ["owner", "admin", "gerente", "atendente"].includes(role);
+}
+
+// Exclusao de lead e gestao das contas de WhatsApp: todo mundo do escritorio,
+// menos vendedor e tecnico. Allowlist em vez de "!== vendedor" pelo mesmo
+// motivo do canSeeFullDashboard.
+export function canDeleteLead(role: MemberRole) {
+  return ["owner", "admin", "gerente", "atendente"].includes(role);
+}
+
+export function canManageWhatsAppAccounts(role: MemberRole) {
+  return ["owner", "admin", "gerente", "atendente"].includes(role);
 }
 
 export function canManagePipeline(role: MemberRole) {
   return role === "owner" || role === "admin" || role === "gerente" || role === "vendedor";
 }
 
-// Estoque, automacoes e configuracoes da empresa: vendedor nao acessa.
+// Estoque, automacoes e configuracoes da empresa: vendedor e tecnico nao acessam.
 export function canAccessStock(role: MemberRole) {
-  return role !== "vendedor";
+  return ["owner", "admin", "gerente", "atendente"].includes(role);
+}
+
+// --- Servico em campo (OS) ---
+
+// Quem cria, agenda e roteiriza ordem de servico.
+export function canManageServiceOrders(role: MemberRole) {
+  return ["owner", "admin", "gerente", "atendente"].includes(role);
+}
+
+// Vendedor entra na OS so pra acompanhar o que ele mesmo vendeu.
+export function canAccessServiceOrders(role: MemberRole) {
+  return ["owner", "admin", "gerente", "atendente", "vendedor"].includes(role);
+}
+
+// Conferencia / pre-fechamento e aprovacao de upsell: so a gestao.
+export function canReviewServiceOrder(role: MemberRole) {
+  return role === "owner" || role === "admin";
+}
+
+export function isTechnician(role: MemberRole) {
+  return role === "tecnico";
 }
 
 // Alinhado com a RLS de automation_flows (apenas owner/admin escrevem).

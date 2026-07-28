@@ -6,6 +6,7 @@ import { requireContext } from "@/lib/tenant";
 import type { WhatsAppAccount, WhatsAppProviderKind } from "@/lib/supabase/database.types";
 import { getAppBaseUrl } from "@/lib/app-url";
 import { syncLeadLidsFromZapiChats } from "@/lib/whatsapp/zapi-chats-sync";
+import { canManageWhatsAppAccounts } from "@/lib/auth/roles";
 
 function describeConnectionError(error: unknown, credentials?: Record<string, unknown>, serviceLabel = "servico") {
   const message = error instanceof Error ? error.message : String(error);
@@ -206,7 +207,7 @@ export async function saveWhatsAppAccount(input: {
   is_active: boolean;
 }) {
   const ctx = await requireContext();
-  if (ctx.role === "vendedor") throw new Error("Sem permissao");
+  if (!canManageWhatsAppAccounts(ctx.role)) throw new Error("Sem permissao");
   const supabase = await createClient();
   const assignedTo = input.assigned_to || null;
 
@@ -261,7 +262,7 @@ export async function saveWhatsAppAccount(input: {
 
 export async function deleteWhatsAppAccount(input: { id: string }) {
   const ctx = await requireContext();
-  if (ctx.role === "vendedor") throw new Error("Sem permissao");
+  if (!canManageWhatsAppAccounts(ctx.role)) throw new Error("Sem permissao");
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -278,7 +279,7 @@ export async function deleteWhatsAppAccount(input: { id: string }) {
 
 export async function setWhatsAppAccountActive(input: { id: string; is_active: boolean }) {
   const ctx = await requireContext();
-  if (ctx.role === "vendedor") throw new Error("Sem permissao");
+  if (!canManageWhatsAppAccounts(ctx.role)) throw new Error("Sem permissao");
   const supabase = await createClient();
 
   const { data: account, error: accountError } = await supabase

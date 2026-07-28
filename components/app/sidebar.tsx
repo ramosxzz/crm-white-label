@@ -23,6 +23,7 @@ import {
   Megaphone,
   Filter,
   Timer,
+  Wrench,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -45,6 +46,7 @@ const navItems = [
   { href: "/pesquisa-satisfacao", label: "Pesquisa de Satisfação", icon: Heart },
   { href: "/ligacoes", label: "Ligações", icon: PhoneCall },
   { href: "/disparos", label: "Disparos", icon: Megaphone },
+  { href: "/os", label: "Ordens de serviço", icon: Wrench },
 ];
 
 const secondaryItems = [
@@ -62,7 +64,9 @@ export function Sidebar({
   satisfactionSurveyEnabled = false,
   callsDashboardEnabled = false,
   broadcastEnabled = false,
+  fieldServiceEnabled = false,
   isSeller = false,
+  isTechnician = false,
   userName,
   userEmail,
 }: {
@@ -73,24 +77,31 @@ export function Sidebar({
   satisfactionSurveyEnabled?: boolean;
   callsDashboardEnabled?: boolean;
   broadcastEnabled?: boolean;
+  fieldServiceEnabled?: boolean;
   isSeller?: boolean;
+  isTechnician?: boolean;
   userName: string;
   userEmail: string;
 }) {
   const pathname = usePathname();
   // Vendedor nao gerencia estoque, automacoes, IA W+, integracoes nem usuarios.
   const sellerBlocked = new Set(["/estoque", "/automations", "/ia-w-mais", "/integrations", "/settings/users", "/funil", "/atendimento"]);
+  // Tecnico so existe pra executar OS em campo: tudo que e gestao fica fora.
+  const technicianAllowed = new Set(["/os", "/chat", "/agenda"]);
   const visibleNavItems = navItems.filter((item) => {
+    if (isTechnician && !technicianAllowed.has(item.href)) return false;
     if (isSeller && sellerBlocked.has(item.href)) return false;
     if (item.href === "/estoque") return stockEnabled;
     if (item.href === "/pesquisa-satisfacao") return satisfactionSurveyEnabled;
     if (item.href === "/ligacoes") return callsDashboardEnabled;
     if (item.href === "/disparos") return broadcastEnabled;
+    if (item.href === "/os") return fieldServiceEnabled;
     return true;
   });
-  const visibleSecondaryItems = secondaryItems.filter(
-    (item) => !(isSeller && sellerBlocked.has(item.href)),
-  );
+  const visibleSecondaryItems = secondaryItems.filter((item) => {
+    if (isTechnician) return false;
+    return !(isSeller && sellerBlocked.has(item.href));
+  });
 
   async function logout() {
     const supabase = createClient();

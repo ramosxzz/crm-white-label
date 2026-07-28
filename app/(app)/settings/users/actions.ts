@@ -16,7 +16,7 @@ export type TeamUser = {
   isCurrentUser: boolean;
 };
 
-const editableRoles: MemberRole[] = ["admin", "gerente", "atendente", "vendedor"];
+const editableRoles: MemberRole[] = ["admin", "gerente", "atendente", "vendedor", "tecnico"];
 
 function normalizeRole(role: string): MemberRole {
   if (editableRoles.includes(role as MemberRole)) return role as MemberRole;

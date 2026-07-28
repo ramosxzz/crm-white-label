@@ -37,6 +37,7 @@ const roleOptions: Array<{ value: MemberRole; label: string; description: string
   { value: "gerente", label: "Gerente", description: "Acompanha operacao e leads do time." },
   { value: "atendente", label: "Atendente", description: "Atende conversas e movimenta leads." },
   { value: "vendedor", label: "Vendedor", description: "Opera leads e atendimentos do dia a dia." },
+  { value: "tecnico", label: "Tecnico", description: "Executa em campo apenas as ordens de servico atribuidas a ele." },
 ];
 
 function roleLabel(role: MemberRole) {

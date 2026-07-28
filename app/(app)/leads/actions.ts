@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { canOperateLead, assertRole, canManageCompanySettings, canSeeAllLeads } from "@/lib/auth/roles";
+import { canOperateLead, assertRole, canManageCompanySettings, canSeeAllLeads, canDeleteLead } from "@/lib/auth/roles";
 import { chooseRoundRobinAttendant } from "@/lib/leads/assignment";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
@@ -382,7 +382,7 @@ export async function autoAssignLead(leadId: string) {
 
 export async function deleteLead(id: string) {
   const ctx = await requireContext();
-  if (ctx.role === "vendedor") throw new Error("Sem permissao para excluir leads");
+  if (!canDeleteLead(ctx.role)) throw new Error("Sem permissao para excluir leads");
   const supabase = await createClient();
   const { error } = await supabase
     .from("leads")

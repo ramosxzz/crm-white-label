@@ -2,7 +2,7 @@
 
 import { notify, notifyError, confirmDialog } from "@/lib/ui/feedback";
 import { useState, useTransition } from "react";
-import { Boxes, Loader2, Upload, Trash2, Sparkles, Palette, PhoneCall, Megaphone } from "lucide-react";
+import { Boxes, Loader2, Upload, Trash2, Sparkles, Palette, PhoneCall, Megaphone, Wrench } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +47,7 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
   const [stockEnabled, setStockEnabled] = useState(tenant.stock_enabled);
   const [callsEnabled, setCallsEnabled] = useState(tenant.calls_dashboard_enabled);
   const [broadcastEnabled, setBroadcastEnabled] = useState(tenant.broadcast_enabled);
+  const [fieldServiceEnabled, setFieldServiceEnabled] = useState(tenant.field_service_enabled);
   const [pending, start] = useTransition();
   const [uploading, setUploading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -69,6 +70,7 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
           stock_enabled: stockEnabled,
           calls_dashboard_enabled: callsEnabled,
           broadcast_enabled: broadcastEnabled,
+          field_service_enabled: fieldServiceEnabled,
         });
         setMsg("Salvo com sucesso — o tema do CRM foi atualizado.");
       } catch (err) {
@@ -365,6 +367,39 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
               className="peer sr-only"
               checked={broadcastEnabled}
               onChange={(e) => setBroadcastEnabled(e.target.checked)}
+              disabled={!canEdit}
+            />
+            <span className="relative h-6 w-11 rounded-full bg-muted ring-1 ring-border transition-colors after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-background after:shadow-sm after:transition-transform peer-checked:bg-brand peer-checked:after:translate-x-5 peer-disabled:cursor-not-allowed peer-disabled:opacity-60" />
+          </label>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border/70 bg-card p-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand">
+              <Wrench className="h-4 w-4" />
+            </span>
+            <div>
+              <Label htmlFor="field-service-enabled" className="text-sm font-semibold">
+                Servico em campo (OS)
+              </Label>
+              <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
+                Mostra o menu de Ordens de servico e o roteiro por turno: cria a OS a partir do
+                lead, aloca tecnico, registra pecas e acompanha ate o faturamento.
+              </p>
+            </div>
+          </div>
+          <label className="inline-flex cursor-pointer items-center gap-3 text-sm font-medium">
+            <span className={fieldServiceEnabled ? "text-brand" : "text-muted-foreground"}>
+              {fieldServiceEnabled ? "Ativo" : "Desativado"}
+            </span>
+            <input
+              id="field-service-enabled"
+              type="checkbox"
+              className="peer sr-only"
+              checked={fieldServiceEnabled}
+              onChange={(e) => setFieldServiceEnabled(e.target.checked)}
               disabled={!canEdit}
             />
             <span className="relative h-6 w-11 rounded-full bg-muted ring-1 ring-border transition-colors after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-background after:shadow-sm after:transition-transform peer-checked:bg-brand peer-checked:after:translate-x-5 peer-disabled:cursor-not-allowed peer-disabled:opacity-60" />
