@@ -67,19 +67,19 @@ export function ValuePanel({
           </div>
         ))}
       </div>
-      <div className="flex gap-1.5 pt-1">
+      <div className="flex flex-wrap gap-1.5 pt-1">
         <Input
           placeholder="Curso, produto..."
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          className="h-8 text-xs"
+          className="h-8 min-w-0 flex-1 text-xs"
         />
         <Input
           placeholder="R$"
           inputMode="decimal"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          className="h-8 w-24 text-xs"
+          className="h-8 w-20 shrink-0 text-xs"
         />
         <Button
           type="button"

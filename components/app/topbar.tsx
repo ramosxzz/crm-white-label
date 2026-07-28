@@ -3,6 +3,7 @@ import { requireContext } from "@/lib/tenant";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationsBell } from "./notifications-bell";
 import { UpdatesBell } from "./updates-bell";
+import { MobileMenuButton } from "./mobile-menu-button";
 
 export async function Topbar({ lastSeenUpdateAt }: { lastSeenUpdateAt: string | null }) {
   const ctx = await requireContext();
@@ -24,12 +25,15 @@ export async function Topbar({ lastSeenUpdateAt }: { lastSeenUpdateAt: string | 
 
   return (
     <header
-      className="sticky top-0 z-40 flex h-14 items-center justify-end gap-1 border-b border-border bg-card/90 px-6 backdrop-blur-xl dark:border-border/40 dark:bg-background/75"
+      className="sticky top-0 z-40 flex h-14 items-center justify-between gap-1 border-b border-border bg-card/90 px-3 backdrop-blur-xl dark:border-border/40 dark:bg-background/75 md:justify-end md:px-6"
       style={{ paddingTop: "env(safe-area-inset-top)", height: "calc(3.5rem + env(safe-area-inset-top))" }}
     >
-      <ThemeToggle />
-      <UpdatesBell updates={updates ?? []} hasUnread={hasUnread} />
-      <NotificationsBell initial={data ?? []} currentUserId={ctx.userId} tenantId={ctx.tenantId} />
+      <MobileMenuButton />
+      <div className="flex items-center gap-1">
+        <ThemeToggle />
+        <UpdatesBell updates={updates ?? []} hasUnread={hasUnread} />
+        <NotificationsBell initial={data ?? []} currentUserId={ctx.userId} tenantId={ctx.tenantId} />
+      </div>
     </header>
   );
 }

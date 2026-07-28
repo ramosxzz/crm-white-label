@@ -109,19 +109,19 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
   return (
     <div>
-      <header className="border-b border-border/50 px-8 py-6">
+      <header className="border-b border-border/50 px-4 py-5 sm:px-8 sm:py-6">
         <Button asChild variant="ghost" size="sm" className="mb-4 -ml-2">
           <Link href="/leads"><ArrowLeft className="h-4 w-4" /> Voltar para leads</Link>
         </Button>
-        <div className="flex items-start justify-between gap-6">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-center gap-4">
-            <Avatar className="h-14 w-14 ring-2 ring-brand/20">
+            <Avatar className="h-14 w-14 shrink-0 ring-2 ring-brand/20">
               <AvatarFallback className="bg-brand/15 font-display text-lg font-semibold text-brand">
                 {initials(lead.name)}
               </AvatarFallback>
             </Avatar>
-            <div>
-              <h1 className="font-display text-2xl font-semibold tracking-tight">{lead.name}</h1>
+            <div className="min-w-0">
+              <h1 className="truncate font-display text-2xl font-semibold tracking-tight">{lead.name}</h1>
               <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                 {lead.phone && (
                   <span className="inline-flex items-center gap-1.5">
@@ -142,7 +142,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               </div>
             </div>
           </div>
-          <div className="flex shrink-0 gap-2">
+          <div className="flex flex-wrap gap-2 sm:shrink-0">
             <ScheduleMeetingButton
               leadId={lead.id}
               leadName={lead.name}
@@ -163,13 +163,13 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         </div>
       </header>
 
-      <div className="grid gap-6 p-8 lg:grid-cols-3">
+      <div className="grid gap-6 p-4 sm:p-8 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <Card>
             <CardHeader>
               <CardTitle>Informacoes</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-x-6 gap-y-5 text-sm">
+            <CardContent className="grid grid-cols-1 gap-x-6 gap-y-5 text-sm sm:grid-cols-2">
               <Info label="Estagio">
                 <LeadStageSelect leadId={lead.id} stageId={lead.stage_id} stages={stages ?? []} />
               </Info>

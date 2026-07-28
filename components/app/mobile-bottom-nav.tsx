@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -31,6 +30,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { useMobileMenu } from "./mobile-menu-context";
 
 const mobileItems = [
   { href: "/dashboard", label: "Inicio", icon: BarChart3 },
@@ -60,7 +60,7 @@ export function MobileBottomNav({
   isSeller?: boolean;
 }) {
   const pathname = usePathname();
-  const [moreOpen, setMoreOpen] = useState(false);
+  const { open: moreOpen, setOpen: setMoreOpen } = useMobileMenu();
 
   const operationItems: MoreItem[] = [
     ...(!isSeller ? [{ href: "/funil", label: "Funil", icon: Filter }] : []),
