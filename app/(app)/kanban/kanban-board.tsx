@@ -768,6 +768,10 @@ const LeadCard = memo(function LeadCard({
     transform: CSS.Translate.toString(transform),
     transition,
     opacity: isDragging || dragging ? 0.4 : 1,
+    // Sem isso o Safari/PWA intercepta o touque pra rolar a tela antes do
+    // TouchSensor conseguir ativar o drag - no desktop (mouse) nunca dava
+    // esse problema, so no toque.
+    touchAction: "none" as const,
   };
 
   function changeStars(next: number) {
