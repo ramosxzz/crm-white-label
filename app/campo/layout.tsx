@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { TenantTheme } from "@/components/app/tenant-theme";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { getCurrentContext } from "@/lib/tenant";
+import { LogoutButton } from "./logout-button";
 import { SyncIndicator } from "./sync-indicator";
 
 /**
@@ -28,7 +29,10 @@ export default async function CampoLayout({ children }: { children: React.ReactN
             <p className="truncate text-sm font-semibold">{ctx.tenant.name}</p>
             <p className="text-[11px] text-muted-foreground">Serviço em campo</p>
           </div>
-          <SyncIndicator />
+          <div className="flex shrink-0 items-center gap-2">
+            <SyncIndicator />
+            <LogoutButton />
+          </div>
         </header>
         <main className="flex-1 pb-[max(env(safe-area-inset-bottom),1rem)]">{children}</main>
       </div>
