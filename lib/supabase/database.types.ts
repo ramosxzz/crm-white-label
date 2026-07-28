@@ -153,6 +153,54 @@ export interface ServiceOrderEvent {
   created_at: string;
 }
 
+// --- Financeiro do servico em campo ---
+
+export type FinanceEntryKind = "pagar" | "receber";
+export type FinanceEntryStatus = "aberta" | "paga" | "cancelada";
+export type CommissionStatus = "prevista" | "aprovada" | "paga";
+export type CommissionParty = "tecnico" | "vendedora_interna" | "loja_parceira";
+
+export interface FinanceEntry {
+  id: string;
+  tenant_id: string;
+  kind: FinanceEntryKind;
+  description: string;
+  amount_cents: number;
+  due_date: string | null;
+  paid_at: string | null;
+  status: FinanceEntryStatus;
+  category: string | null;
+  service_order_id: string | null;
+  is_recurring: boolean;
+  recurrence_day: number | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CommissionRule {
+  id: string;
+  tenant_id: string;
+  party_kind: CommissionParty;
+  percent: number;
+  updated_at: string;
+}
+
+export interface Commission {
+  id: string;
+  tenant_id: string;
+  service_order_id: string;
+  party_kind: CommissionParty;
+  user_id: string | null;
+  partner_name: string | null;
+  base_cents: number;
+  percent: number;
+  amount_cents: number;
+  status: CommissionStatus;
+  paid_at: string | null;
+  created_at: string;
+}
+
 export interface Tenant {
   id: string;
   name: string;
@@ -639,6 +687,9 @@ export type Database = {
         Insert: Partial<ServiceOrderEvent>;
         Update: Partial<ServiceOrderEvent>;
       };
+      finance_entries: { Row: FinanceEntry; Insert: Partial<FinanceEntry>; Update: Partial<FinanceEntry> };
+      commission_rules: { Row: CommissionRule; Insert: Partial<CommissionRule>; Update: Partial<CommissionRule> };
+      commissions: { Row: Commission; Insert: Partial<Commission>; Update: Partial<Commission> };
     };
   };
 };

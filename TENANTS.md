@@ -21,7 +21,10 @@ Referência rápida por tenant. Uso: abrir conversa nova no Claude por tenant, c
     - `GOOGLE_MAPS_API_KEY` é **server-only** — vai só no `.env.production` (o compose já faz `env_file`), **nunca** com prefixo `NEXT_PUBLIC_` nem como build arg do Docker.
     - Otimização de rota é **sob demanda por botão**, não no carregamento: cada clique é chamada paga.
     - Sem `field_service_base_address` cadastrado em Configurações, os botões de rota nem aparecem.
-  - **Fase 3 — a fazer**: financeiro (`finance_entries` a pagar/receber com recorrência pro mês seguinte), `commissions` + `commission_rules`, fluxo concluída → conferida → faturada gerando lançamento e comissões numa transação.
+  - **Fase 3 — FEITA**: `/financeiro` (só owner/admin). `finance_entries` a pagar/receber com vencimento e conta fixa projetando o mês seguinte; `commissions` + `commission_rules` (percentuais editáveis na tela, não hardcoded). Migration `20260728180000`. **Ainda não deployada na VPS.**
+    - Faturar não é só mudar status: `conferida → faturada` chama a função Postgres `bill_service_order`, que gera o lançamento a receber **e** as comissões numa transação só. Meio caminho aqui deixaria comissão sem faturamento no fechamento do mês.
+    - Técnico comissiona **só sobre o upsell aprovado**, dividido entre os técnicos presentes (sobra de centavo vai pros primeiros). Vendedora interna sobre o total, loja parceira só quando há indicação.
+    - Faturar duas vezes é recusado (a função exige status `conferida`), e há unique em `(OS, papel, pessoa)` nas comissões.
   - Preço do módulo ainda **não fechado** com o cliente (base atual: R$1.000 implantação + R$199/mês só do CRM).
   - Já usa disparo em massa (`/disparos`).
 

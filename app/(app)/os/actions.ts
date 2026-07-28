@@ -380,6 +380,23 @@ export async function transitionServiceOrder(input: {
     throw new Error("Só a gestão pode conferir e faturar a OS");
   }
 
+  // Faturar nao e so mudar o status: gera o lancamento a receber e as
+  // comissoes. Isso roda numa funcao do Postgres pra ser tudo-ou-nada - meio
+  // caminho aqui deixaria comissao sem faturamento no fechamento do mes.
+  if (parsed.to === "faturada") {
+    const { error: billError } = await supabase.rpc("bill_service_order", {
+      p_service_order_id: parsed.id,
+      p_user_id: ctx.userId,
+    });
+    if (billError) throw new Error(billError.message);
+
+    revalidatePath("/os");
+    revalidatePath("/os/roteiro");
+    revalidatePath("/financeiro");
+    revalidatePath(`/os/${parsed.id}`);
+    return;
+  }
+
   const patch: Record<string, unknown> = {
     status: parsed.to,
     updated_at: new Date().toISOString(),

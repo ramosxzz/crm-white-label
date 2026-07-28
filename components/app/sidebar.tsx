@@ -23,6 +23,7 @@ import {
   Megaphone,
   Filter,
   Timer,
+  Wallet,
   Wrench,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
@@ -47,6 +48,7 @@ const navItems = [
   { href: "/ligacoes", label: "Ligações", icon: PhoneCall },
   { href: "/disparos", label: "Disparos", icon: Megaphone },
   { href: "/os", label: "Ordens de serviço", icon: Wrench },
+  { href: "/financeiro", label: "Financeiro", icon: Wallet },
 ];
 
 const secondaryItems = [
@@ -65,6 +67,7 @@ export function Sidebar({
   callsDashboardEnabled = false,
   broadcastEnabled = false,
   fieldServiceEnabled = false,
+  canManageFinance = false,
   isSeller = false,
   userName,
   userEmail,
@@ -77,6 +80,7 @@ export function Sidebar({
   callsDashboardEnabled?: boolean;
   broadcastEnabled?: boolean;
   fieldServiceEnabled?: boolean;
+  canManageFinance?: boolean;
   isSeller?: boolean;
   userName: string;
   userEmail: string;
@@ -91,6 +95,8 @@ export function Sidebar({
     if (item.href === "/ligacoes") return callsDashboardEnabled;
     if (item.href === "/disparos") return broadcastEnabled;
     if (item.href === "/os") return fieldServiceEnabled;
+    // Financeiro e so da gestao (owner/admin), alem de exigir o modulo.
+    if (item.href === "/financeiro") return fieldServiceEnabled && canManageFinance;
     return true;
   });
   const visibleSecondaryItems = secondaryItems.filter(

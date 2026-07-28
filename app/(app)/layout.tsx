@@ -6,6 +6,7 @@ import { MobileBottomNav } from "@/components/app/mobile-bottom-nav";
 import { TenantTheme } from "@/components/app/tenant-theme";
 import { TenantPageTitle } from "@/components/app/tenant-page-title";
 import { getCurrentContext } from "@/lib/tenant";
+import { canReviewServiceOrder } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -52,6 +53,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           callsDashboardEnabled={ctx.tenant.calls_dashboard_enabled}
           broadcastEnabled={ctx.tenant.broadcast_enabled}
           fieldServiceEnabled={ctx.tenant.field_service_enabled}
+          canManageFinance={canReviewServiceOrder(ctx.role)}
           isSeller={ctx.role === "vendedor"}
           userName={profile?.full_name ?? "Usuario"}
           userEmail={ctx.userEmail}
@@ -66,6 +68,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           callsDashboardEnabled={ctx.tenant.calls_dashboard_enabled}
           broadcastEnabled={ctx.tenant.broadcast_enabled}
           fieldServiceEnabled={ctx.tenant.field_service_enabled}
+          canManageFinance={canReviewServiceOrder(ctx.role)}
           isSeller={ctx.role === "vendedor"}
         />
       </div>

@@ -51,6 +51,7 @@ export async function updateTenantInfo(input: {
   revalidatePath("/chat");
   revalidatePath("/disparos");
   revalidatePath("/os");
+  revalidatePath("/financeiro");
 }
 
 export async function getTenantLogoPath() {

@@ -25,6 +25,7 @@ import {
   UserCog,
   Settings,
   LogOut,
+  Wallet,
   Wrench,
   X,
 } from "lucide-react";
@@ -47,6 +48,7 @@ export function MobileBottomNav({
   callsDashboardEnabled = false,
   broadcastEnabled = false,
   fieldServiceEnabled = false,
+  canManageFinance = false,
   isSeller = false,
 }: {
   stockEnabled?: boolean;
@@ -54,6 +56,7 @@ export function MobileBottomNav({
   callsDashboardEnabled?: boolean;
   broadcastEnabled?: boolean;
   fieldServiceEnabled?: boolean;
+  canManageFinance?: boolean;
   isSeller?: boolean;
 }) {
   const pathname = usePathname();
@@ -73,6 +76,9 @@ export function MobileBottomNav({
     ...(callsDashboardEnabled ? [{ href: "/ligacoes", label: "Ligações", icon: PhoneCall }] : []),
     ...(broadcastEnabled ? [{ href: "/disparos", label: "Disparos", icon: Megaphone }] : []),
     ...(fieldServiceEnabled ? [{ href: "/os", label: "Ordens de serviço", icon: Wrench }] : []),
+    ...(fieldServiceEnabled && canManageFinance
+      ? [{ href: "/financeiro", label: "Financeiro", icon: Wallet }]
+      : []),
   ];
 
   const systemItems: MoreItem[] = [
