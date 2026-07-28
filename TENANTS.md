@@ -12,10 +12,14 @@ Referência rápida por tenant. Uso: abrir conversa nova no Claude por tenant, c
 
 ## Demoact / ACT ("Minha Empresa")
 - id: `54a6a18e-27f1-45c4-993b-42707a9f150b` · slug: `demoact`
-- Flags: `stock_enabled=true`, `broadcast_enabled=true`
-- Contexto ativo:
-  - Pediram ERP de serviço completo: cadastro, agendamento, financeiro, app técnico (roteiro/foto/OS). Decisão: construir gated só pra esse tenant (toggle novo, igual `broadcast_enabled`), não pro sistema todo.
-  - Status: briefing de perguntas já enviado pro cliente, **aguardando respostas** — nada implementado ainda.
+- Ramo: impermeabilização e lavagem de estofados (Porto Alegre/RS). Opera com 5-6 técnicos em campo, 2 turnos, 3-4 OS por turno.
+- Flags: `stock_enabled=true`, `broadcast_enabled=true`, `lead_assignment_enabled=true`, `field_service_enabled=true`
+- Contexto ativo — **ERP de serviço em campo**, construído em 3 fases, gated só pra eles:
+  - Briefing de 18 perguntas respondido (2026-07-28). Definições: OS nasce da venda mas técnico faz upsell comissionado na casa do cliente; cliente = o lead (sem entidade separada); assinatura do cliente obrigatória; conferência do ADM depois do roteiro; app do técnico instalável, offline só pra ver OS + assinar; comissão de técnico só sobre upsell (dividida entre os presentes), 1% vendedora interna, comissão externa de loja parceira.
+  - **Fase 1 — FEITA** (commit `0c8004d`): `/os` (lista + detalhe) e `/os/roteiro` (turnos × técnico). Tabelas `service_orders`, `service_order_items`, `service_order_technicians`, `service_order_damages`, `service_order_events`. Novo papel `tecnico`. Migrations `20260728140000`/`150000`/`160000`, já aplicadas em produção. **Ainda não deployada na VPS.**
+  - **Fase 2 — a fazer**: app do técnico (`/campo`), PWA com ícone, offline via IndexedDB + fila de escrita, assinatura em canvas, foto de avaria, roteirização via Google Routes (`optimizeWaypointOrder`) + sugestão de melhor técnico por acréscimo de distância. Chave do Google Maps entra como `GOOGLE_MAPS_API_KEY` **server-only** (nunca `NEXT_PUBLIC_`).
+  - **Fase 3 — a fazer**: financeiro (`finance_entries` a pagar/receber com recorrência pro mês seguinte), `commissions` + `commission_rules`, fluxo concluída → conferida → faturada gerando lançamento e comissões numa transação.
+  - Preço do módulo ainda **não fechado** com o cliente (base atual: R$1.000 implantação + R$199/mês só do CRM).
   - Já usa disparo em massa (`/disparos`).
 
 ## Solaire W+ (produto próprio)
@@ -37,7 +41,14 @@ Referência rápida por tenant. Uso: abrir conversa nova no Claude por tenant, c
 | Solaire Energia Solar | `4ef4b668-d2ea-43a6-bcb8-9f6cb076735d` | `solairesolar` | produção, sem estoque |
 
 ## Flags globais existentes (toggle por tenant)
-`stock_enabled`, `broadcast_enabled`, `calls_dashboard_enabled` — mesmo padrão a seguir se ACT precisar de módulo exclusivo (ex: `field_service_enabled`).
+`stock_enabled`, `broadcast_enabled`, `calls_dashboard_enabled`, `satisfaction_survey_enabled`, `lead_assignment_enabled`, `field_service_enabled`.
+
+Checklist de fiação de uma flag nova, na ordem: migration → `Tenant` em `lib/supabase/database.types.ts` → `settings/actions.ts` (input + update + `revalidatePath`) → `settings/tenant-form.tsx` (state + submit + bloco do toggle) → `app/(app)/layout.tsx` (prop) → `components/app/sidebar.tsx` → `components/app/mobile-bottom-nav.tsx` → guarda na página e nas actions.
+
+## Papéis (`member_role`)
+`owner`, `admin`, `gerente`, `atendente`, `vendedor`, `tecnico`.
+
+⚠️ Ao adicionar papel novo, conferir `lib/auth/roles.ts` e qualquer `ctx.role === "vendedor"` espalhado: checagem **negativa** (`role !== "vendedor"`) deixa o papel novo passar por acidente. Usar sempre allowlist.
 
 ---
 *Atualizar esse arquivo quando abrir/fechar pendência de algum tenant, pra próxima conversa pegar o contexto certo.*
