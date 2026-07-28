@@ -169,6 +169,9 @@ export interface Tenant {
   broadcast_enabled: boolean;
   lead_assignment_enabled: boolean;
   field_service_enabled: boolean;
+  field_service_base_address: string | null;
+  field_service_base_lat: number | null;
+  field_service_base_lng: number | null;
   meta_pixel_id: string | null;
   meta_capi_token: string | null;
   meta_ad_account_id: string | null;

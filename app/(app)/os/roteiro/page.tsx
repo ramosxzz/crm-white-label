@@ -9,7 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { formatCurrencyBRL } from "@/lib/utils";
 import { formatServiceOrderCode } from "@/lib/field-service/status";
 import { listTechnicians } from "@/lib/field-service/users";
+import { isRoutingEnabled } from "@/lib/field-service/routing";
 import { ServiceOrderStatusBadge } from "../status-badge";
+import { RouteOptimizer } from "./route-optimizer";
+import { TechnicianSuggester } from "./technician-suggester";
 
 function brtDay() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
@@ -133,6 +136,10 @@ export default async function RoteiroPage({
 
   const unassigned = orders.filter((order) => (techniciansByOrder.get(order.id) ?? []).length === 0);
 
+  // Roteirizacao so aparece com chave do Google configurada no servidor e
+  // endereco base cadastrado - sem os dois ela nao teria de onde partir.
+  const routingReady = isRoutingEnabled() && Boolean(ctx.tenant.field_service_base_address);
+
   return (
     <div>
       <PageHeader
@@ -210,6 +217,9 @@ export default async function RoteiroPage({
                         {formatCurrencyBRL(total)} no turno
                       </p>
                     )}
+                    {routingReady && list.length > 1 && (
+                      <RouteOptimizer serviceDate={day} shift={value} technicianId={tech.id} />
+                    )}
                   </div>
                 );
               })}
@@ -222,7 +232,16 @@ export default async function RoteiroPage({
             <h2 className="text-sm font-semibold text-warning">Agendadas sem técnico</h2>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {unassigned.map((order) => (
-                <OrderCard key={order.id} order={order} />
+                <div key={order.id} className="space-y-2">
+                  <OrderCard order={order} />
+                  {routingReady && order.shift && (
+                    <TechnicianSuggester
+                      serviceOrderId={order.id}
+                      serviceDate={day}
+                      shift={order.shift}
+                    />
+                  )}
+                </div>
               ))}
             </div>
           </section>

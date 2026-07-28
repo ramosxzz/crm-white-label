@@ -56,6 +56,13 @@ export default function manifest(): MetadataRoute.Manifest {
         url: "/agenda",
         icons: [{ src: "/pwa/icon-192.png", sizes: "192x192" }],
       },
+      {
+        name: "Campo",
+        short_name: "Campo",
+        description: "Ordens de servico do dia",
+        url: "/campo",
+        icons: [{ src: "/pwa/icon-192.png", sizes: "192x192" }],
+      },
     ],
   };
 }

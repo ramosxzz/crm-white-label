@@ -26,6 +26,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const ctx = await getCurrentContext();
   if (!ctx) redirect("/login");
 
+  // Tecnico nao usa o CRM: o app dele e /campo, com layout proprio. Barrar
+  // aqui, na raiz do grupo, e mais confiavel do que esconder item por item
+  // do menu - qualquer rota nova ja nasce fechada pra ele.
+  if (ctx.role === "tecnico") redirect("/campo");
+
   const supabase = await createClient();
   const { data: profile } = await supabase
     .from("profiles")
@@ -48,7 +53,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           broadcastEnabled={ctx.tenant.broadcast_enabled}
           fieldServiceEnabled={ctx.tenant.field_service_enabled}
           isSeller={ctx.role === "vendedor"}
-          isTechnician={ctx.role === "tecnico"}
           userName={profile?.full_name ?? "Usuario"}
           userEmail={ctx.userEmail}
         />
@@ -63,7 +67,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           broadcastEnabled={ctx.tenant.broadcast_enabled}
           fieldServiceEnabled={ctx.tenant.field_service_enabled}
           isSeller={ctx.role === "vendedor"}
-          isTechnician={ctx.role === "tecnico"}
         />
       </div>
     </>

@@ -15,10 +15,16 @@ export async function updateTenantInfo(input: {
   calls_dashboard_enabled?: boolean;
   broadcast_enabled?: boolean;
   field_service_enabled?: boolean;
+  field_service_base_address?: string;
 }) {
   const ctx = await requireContext();
   if (!["owner", "admin"].includes(ctx.role)) throw new Error("Sem permissao");
   const supabase = await createClient();
+
+  // Endereco base mudou: zera o geocode pra ser recalculado na proxima rota.
+  const baseAddress = input.field_service_base_address?.trim() || null;
+  const baseChanged = baseAddress !== (ctx.tenant.field_service_base_address ?? null);
+
   const { error } = await supabase
     .from("tenants")
     .update({
@@ -32,6 +38,8 @@ export async function updateTenantInfo(input: {
       calls_dashboard_enabled: input.calls_dashboard_enabled ?? false,
       broadcast_enabled: input.broadcast_enabled ?? false,
       field_service_enabled: input.field_service_enabled ?? false,
+      field_service_base_address: baseAddress,
+      ...(baseChanged ? { field_service_base_lat: null, field_service_base_lng: null } : {}),
     })
     .eq("id", ctx.tenantId);
   if (error) throw new Error(error.message);

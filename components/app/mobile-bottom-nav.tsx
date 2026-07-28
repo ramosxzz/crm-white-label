@@ -48,7 +48,6 @@ export function MobileBottomNav({
   broadcastEnabled = false,
   fieldServiceEnabled = false,
   isSeller = false,
-  isTechnician = false,
 }: {
   stockEnabled?: boolean;
   satisfactionSurveyEnabled?: boolean;
@@ -56,25 +55,11 @@ export function MobileBottomNav({
   broadcastEnabled?: boolean;
   fieldServiceEnabled?: boolean;
   isSeller?: boolean;
-  isTechnician?: boolean;
 }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
 
-  // Tecnico nao tem dashboard, leads nem kanban: a barra dele e a OS do dia.
-  const visibleMobileItems = isTechnician
-    ? [
-        ...(fieldServiceEnabled ? [{ href: "/os", label: "Minhas OS", icon: Wrench }] : []),
-        { href: "/chat", label: "Conversas", icon: MessageCircle },
-        { href: "/agenda", label: "Agenda", icon: CalendarDays },
-      ]
-    : mobileItems;
-
-  const operationItems: MoreItem[] = isTechnician
-    ? fieldServiceEnabled
-      ? [{ href: "/os", label: "Ordens de serviço", icon: Wrench }]
-      : []
-    : [
+  const operationItems: MoreItem[] = [
     ...(!isSeller ? [{ href: "/funil", label: "Funil", icon: Filter }] : []),
     ...(!isSeller ? [{ href: "/atendimento", label: "Atendimento", icon: Timer }] : []),
     { href: "/reunioes", label: "Reuniões", icon: CalendarCheck },
@@ -90,14 +75,12 @@ export function MobileBottomNav({
     ...(fieldServiceEnabled ? [{ href: "/os", label: "Ordens de serviço", icon: Wrench }] : []),
   ];
 
-  const systemItems: MoreItem[] = isTechnician
-    ? []
-    : [
-        { href: "/pipelines", label: "Funis", icon: GitBranch },
-        ...(!isSeller ? [{ href: "/integrations", label: "Integrações", icon: Plug }] : []),
-        ...(!isSeller ? [{ href: "/settings/users", label: "Usuários", icon: UserCog }] : []),
-        { href: "/settings", label: "Configurações", icon: Settings },
-      ];
+  const systemItems: MoreItem[] = [
+    { href: "/pipelines", label: "Funis", icon: GitBranch },
+    ...(!isSeller ? [{ href: "/integrations", label: "Integrações", icon: Plug }] : []),
+    ...(!isSeller ? [{ href: "/settings/users", label: "Usuários", icon: UserCog }] : []),
+    { href: "/settings", label: "Configurações", icon: Settings },
+  ];
 
   async function logout() {
     const supabase = createClient();
@@ -142,11 +125,8 @@ export function MobileBottomNav({
       )}
 
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border/70 bg-card/95 px-1 pb-[max(env(safe-area-inset-bottom),0.35rem)] pt-1.5 shadow-[0_-12px_30px_hsl(0_0%_0%/0.22)] backdrop-blur-xl md:hidden">
-        <div
-          className="grid"
-          style={{ gridTemplateColumns: `repeat(${visibleMobileItems.length + 1}, minmax(0, 1fr))` }}
-        >
-          {visibleMobileItems.map((item) => {
+        <div className="grid grid-cols-6">
+          {mobileItems.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (

@@ -48,6 +48,7 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
   const [callsEnabled, setCallsEnabled] = useState(tenant.calls_dashboard_enabled);
   const [broadcastEnabled, setBroadcastEnabled] = useState(tenant.broadcast_enabled);
   const [fieldServiceEnabled, setFieldServiceEnabled] = useState(tenant.field_service_enabled);
+  const [fieldServiceBase, setFieldServiceBase] = useState(tenant.field_service_base_address ?? "");
   const [pending, start] = useTransition();
   const [uploading, setUploading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -71,6 +72,7 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
           calls_dashboard_enabled: callsEnabled,
           broadcast_enabled: broadcastEnabled,
           field_service_enabled: fieldServiceEnabled,
+          field_service_base_address: fieldServiceBase,
         });
         setMsg("Salvo com sucesso — o tema do CRM foi atualizado.");
       } catch (err) {
@@ -405,6 +407,23 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
             <span className="relative h-6 w-11 rounded-full bg-muted ring-1 ring-border transition-colors after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-background after:shadow-sm after:transition-transform peer-checked:bg-brand peer-checked:after:translate-x-5 peer-disabled:cursor-not-allowed peer-disabled:opacity-60" />
           </label>
         </div>
+
+        {fieldServiceEnabled && (
+          <div className="mt-4 space-y-1.5 border-t border-border/50 pt-4">
+            <Label htmlFor="field-service-base">Endereco base (saida dos tecnicos)</Label>
+            <Input
+              id="field-service-base"
+              value={fieldServiceBase}
+              onChange={(e) => setFieldServiceBase(e.target.value)}
+              disabled={!canEdit}
+              placeholder="Rua Marechal Deodoro, 90, Centro, Sapucaia do Sul, RS"
+            />
+            <p className="text-xs leading-5 text-muted-foreground">
+              Ponto de partida e retorno usado pra calcular a melhor ordem das visitas do turno.
+              Sem esse endereco a otimizacao de rota nao roda.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between border-t border-border/50 pt-4">

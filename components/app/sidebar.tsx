@@ -66,7 +66,6 @@ export function Sidebar({
   broadcastEnabled = false,
   fieldServiceEnabled = false,
   isSeller = false,
-  isTechnician = false,
   userName,
   userEmail,
 }: {
@@ -79,17 +78,13 @@ export function Sidebar({
   broadcastEnabled?: boolean;
   fieldServiceEnabled?: boolean;
   isSeller?: boolean;
-  isTechnician?: boolean;
   userName: string;
   userEmail: string;
 }) {
   const pathname = usePathname();
   // Vendedor nao gerencia estoque, automacoes, IA W+, integracoes nem usuarios.
   const sellerBlocked = new Set(["/estoque", "/automations", "/ia-w-mais", "/integrations", "/settings/users", "/funil", "/atendimento"]);
-  // Tecnico so existe pra executar OS em campo: tudo que e gestao fica fora.
-  const technicianAllowed = new Set(["/os", "/chat", "/agenda"]);
   const visibleNavItems = navItems.filter((item) => {
-    if (isTechnician && !technicianAllowed.has(item.href)) return false;
     if (isSeller && sellerBlocked.has(item.href)) return false;
     if (item.href === "/estoque") return stockEnabled;
     if (item.href === "/pesquisa-satisfacao") return satisfactionSurveyEnabled;
@@ -98,10 +93,9 @@ export function Sidebar({
     if (item.href === "/os") return fieldServiceEnabled;
     return true;
   });
-  const visibleSecondaryItems = secondaryItems.filter((item) => {
-    if (isTechnician) return false;
-    return !(isSeller && sellerBlocked.has(item.href));
-  });
+  const visibleSecondaryItems = secondaryItems.filter(
+    (item) => !(isSeller && sellerBlocked.has(item.href)),
+  );
 
   async function logout() {
     const supabase = createClient();
