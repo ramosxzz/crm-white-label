@@ -8,10 +8,18 @@ export const dynamic = "force-dynamic";
 
 // Called by Cloudflare Cron or manually to process pending automation steps
 export async function POST(req: NextRequest) {
-  // Simple bearer auth via CRON_SECRET env var
+  // Bearer auth via CRON_SECRET env var - falha fechado: sem CRON_SECRET
+  // configurado, a rota fica bloqueada (nunca aberta por omissao), ja que
+  // ela processa automacoes/mensagens agendadas/lembretes de TODOS os
+  // tenants sem nenhuma outra protecao (esta fora do gate de sessao do
+  // middleware).
   const auth = req.headers.get("authorization");
   const secret = process.env.CRON_SECRET;
-  if (secret && auth !== `Bearer ${secret}`) {
+  if (!secret) {
+    console.error("[automations/process] CRON_SECRET nao configurado - bloqueando requisicao.");
+    return NextResponse.json({ error: "Servico nao configurado" }, { status: 503 });
+  }
+  if (auth !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
