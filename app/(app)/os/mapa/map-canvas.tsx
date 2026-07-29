@@ -26,10 +26,18 @@ import { technicianColor, type MapBase, type MapStop, type MapTechnician } from 
  * Basemap sem chave e sem custo. O OpenFreeMap serve tiles de OpenStreetMap
  * liberados pra uso comercial, sem cadastro e sem cota - por isso ele, e nao
  * o Google, sustenta esta tela. Trocar a URL aqui troca o mapa inteiro.
+ *
+ * O tema escuro usa `fiord`, e nao o `dark`. O `dark` desenha preto sobre
+ * preto - fundo rgb(12,12,12), agua rgb(27,27,29) e via na mesma cor do fundo -
+ * entao o mapa aparecia como um retangulo preto e parecia quebrado, com os
+ * pinos boiando no vazio. O `fiord` tem fundo #45516E, vias em tons distintos
+ * e rotulos claros. Ao trocar de estilo, conferir contraste antes: aqui o
+ * mapa e ferramenta de trabalho, legibilidade vale mais que combinar com o
+ * tema do CRM.
  */
 const BASEMAP_STYLES = {
   light: "https://tiles.openfreemap.org/styles/positron",
-  dark: "https://tiles.openfreemap.org/styles/dark",
+  dark: "https://tiles.openfreemap.org/styles/fiord",
 };
 
 /** Enquadra o mapa nas paradas visiveis sempre que o filtro muda. */
