@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { canManageServiceOrders } from "@/lib/auth/roles";
 import { listTechnicians } from "@/lib/field-service/users";
+import { resolveBaseLocation } from "@/lib/field-service/base-location";
 import {
   buildAddressQuery,
   formatDistance,
@@ -33,24 +34,6 @@ export async function routingAvailable() {
   return isRoutingEnabled();
 }
 
-/** Ponto de partida do roteiro: endereco base da empresa, geocodificado uma vez. */
-async function resolveBaseLocation(ctx: Ctx): Promise<LatLng | null> {
-  if (ctx.tenant.field_service_base_lat != null && ctx.tenant.field_service_base_lng != null) {
-    return { lat: ctx.tenant.field_service_base_lat, lng: ctx.tenant.field_service_base_lng };
-  }
-  if (!ctx.tenant.field_service_base_address) return null;
-
-  const point = await geocodeAddress(ctx.tenant.field_service_base_address);
-  if (!point) return null;
-
-  const supabase = await createClient();
-  await supabase
-    .from("tenants")
-    .update({ field_service_base_lat: point.lat, field_service_base_lng: point.lng })
-    .eq("id", ctx.tenantId);
-
-  return point;
-}
 
 /**
  * Garante lat/lng nas OS informadas, geocodificando so as que ainda nao tem.
@@ -103,7 +86,7 @@ export async function optimizeShiftRoute(input: {
 }): Promise<OptimizeShiftResult> {
   const ctx = await requireRoutingContext();
 
-  const base = await resolveBaseLocation(ctx);
+  const base = await resolveBaseLocation(ctx.tenant, ctx.tenantId);
   if (!base) {
     throw new Error(
       "Cadastre o endereco base da empresa em Configuracoes antes de otimizar a rota.",
@@ -188,7 +171,7 @@ export async function suggestTechnicianForOrder(input: {
 }): Promise<TechnicianSuggestionResult[]> {
   const ctx = await requireRoutingContext();
 
-  const base = await resolveBaseLocation(ctx);
+  const base = await resolveBaseLocation(ctx.tenant, ctx.tenantId);
   if (!base) {
     throw new Error(
       "Cadastre o endereco base da empresa em Configuracoes antes de pedir sugestao de tecnico.",

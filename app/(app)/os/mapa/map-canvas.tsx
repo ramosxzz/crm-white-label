@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo } from "react";
-import { Home } from "lucide-react";
+import { Home, MapPin, Wrench } from "lucide-react";
 import {
   // Importado com alias de proposito: o componente se chama `Map` e sombreia o
   // `Map` nativo do JavaScript, quebrando qualquer `new Map()` deste arquivo.
@@ -164,11 +164,20 @@ export function MapCanvas({
       {base && (
         <MapMarker longitude={base.lng} latitude={base.lat}>
           <MarkerContent>
-            <div className="grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-foreground text-background shadow-md">
-              <Home className="h-3.5 w-3.5" />
+            <div className="flex flex-col items-center">
+              <div className="grid h-8 w-8 place-items-center rounded-full border-2 border-white bg-foreground text-background shadow-md">
+                <Home className="h-4 w-4" />
+              </div>
+              {/* Rotulo fixo: o ADM precisa achar a sede de relance, sem
+                  descobrir que tem que passar o mouse em cima. */}
+              <span className="bg-foreground text-background mt-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-semibold shadow-sm">
+                Base
+              </span>
             </div>
           </MarkerContent>
-          <MarkerTooltip>Base · {base.address}</MarkerTooltip>
+          <MarkerTooltip className="bg-popover text-popover-foreground border border-border/60 px-2.5 py-1.5 font-medium shadow-md">
+            Sede · {base.address}
+          </MarkerTooltip>
         </MapMarker>
       )}
 
@@ -185,38 +194,51 @@ export function MapCanvas({
             <MarkerContent>
               <StopPin color={color} label={stop.routePosition ? String(stop.routePosition) : "•"} />
             </MarkerContent>
-            <MarkerTooltip>
+            {/* Mesmas cores do balao de clique: a setinha do MapLibre e uma
+                so, entao os dois precisam usar a cor de popover. */}
+            <MarkerTooltip className="bg-popover text-popover-foreground border border-border/60 px-2.5 py-1.5 font-medium shadow-md">
               {stop.leadName} · {stop.code}
             </MarkerTooltip>
-            <MarkerPopup closeButton>
-              <div className="space-y-1.5">
-                <div>
-                  <p className="text-sm font-semibold">{stop.leadName}</p>
-                  <p className="text-muted-foreground text-xs">
-                    {stop.code}
-                    {stop.shift ? ` · ${SERVICE_ORDER_SHIFT_LABEL[stop.shift]}` : ""}
-                    {stop.routePosition ? ` · ${stop.routePosition}ª parada` : ""}
-                  </p>
-                </div>
-                <p className="text-xs">{stop.address}</p>
-                <p className="text-muted-foreground text-xs">
+            <MarkerPopup closeButton className="w-64 max-w-none overflow-hidden p-0">
+              <header className="border-b border-border/60 px-3 py-2.5">
+                <p className="pr-5 text-sm font-semibold leading-tight">{stop.leadName}</p>
+                <p className="text-muted-foreground mt-0.5 text-[11px]">
+                  {stop.code}
+                  {stop.shift ? ` · ${SERVICE_ORDER_SHIFT_LABEL[stop.shift]}` : ""}
+                  {stop.routePosition ? ` · ${stop.routePosition}ª parada` : ""}
+                </p>
+              </header>
+
+              <div className="space-y-1.5 px-3 py-2.5">
+                <p className="text-muted-foreground flex items-start gap-1.5 text-xs leading-snug">
+                  <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
+                  {stop.address}
+                </p>
+                <p className="text-muted-foreground flex items-start gap-1.5 text-xs leading-snug">
+                  <Wrench className="mt-0.5 h-3 w-3 shrink-0" />
                   {names || "Sem técnico alocado"}
                 </p>
-                <div className="flex items-center justify-between gap-2 pt-1">
-                  <span className="text-xs font-medium">
-                    {SERVICE_ORDER_STATUS_LABEL[stop.status]}
-                  </span>
-                  <span className="text-xs font-semibold">
-                    {formatCurrencyBRL(stop.totalCents)}
-                  </span>
-                </div>
-                <Link
-                  href={`/os/${stop.id}`}
-                  className="text-brand block pt-1 text-xs font-medium hover:underline"
-                >
-                  Abrir OS →
-                </Link>
               </div>
+
+              <div className="flex items-center justify-between gap-2 border-t border-border/60 px-3 py-2">
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium">
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ backgroundColor: color }}
+                  />
+                  {SERVICE_ORDER_STATUS_LABEL[stop.status]}
+                </span>
+                <span className="text-sm font-semibold tabular-nums">
+                  {formatCurrencyBRL(stop.totalCents)}
+                </span>
+              </div>
+
+              <Link
+                href={`/os/${stop.id}`}
+                className="text-brand hover:bg-brand/10 block border-t border-border/60 px-3 py-2 text-center text-xs font-semibold transition-colors"
+              >
+                Abrir OS
+              </Link>
             </MarkerPopup>
           </MapMarker>
         );

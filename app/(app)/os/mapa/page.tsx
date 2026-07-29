@@ -7,6 +7,7 @@ import { canManageServiceOrders } from "@/lib/auth/roles";
 import { PageHeader } from "@/components/app/page-header";
 import { listTechnicians } from "@/lib/field-service/users";
 import { formatServiceOrderCode } from "@/lib/field-service/status";
+import { resolveBaseLocation } from "@/lib/field-service/base-location";
 import { TechniciansMap } from "./technicians-map";
 import type { MapBase, MapStop } from "./types";
 
@@ -106,14 +107,16 @@ export default async function ServiceOrderMapPage({
     technicianIds: techniciansByOrder.get(order.id) ?? [],
   }));
 
-  const base: MapBase | null =
-    ctx.tenant.field_service_base_lat != null && ctx.tenant.field_service_base_lng != null
-      ? {
-          lat: ctx.tenant.field_service_base_lat,
-          lng: ctx.tenant.field_service_base_lng,
-          address: ctx.tenant.field_service_base_address ?? "Base da empresa",
-        }
-      : null;
+  // Descobre a coordenada da sede na primeira vez e grava no tenant, pra a
+  // casinha aparecer sem depender de alguem ter clicado em "Otimizar rota".
+  const basePoint = await resolveBaseLocation(ctx.tenant, ctx.tenantId);
+  const base: MapBase | null = basePoint
+    ? {
+        lat: basePoint.lat,
+        lng: basePoint.lng,
+        address: ctx.tenant.field_service_base_address ?? "Base da empresa",
+      }
+    : null;
 
   const missing = orders.length - plotted.length;
 
