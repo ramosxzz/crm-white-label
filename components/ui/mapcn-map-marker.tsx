@@ -151,14 +151,20 @@ type MapProps = {
   loading?: boolean;
 } & Omit<MapLibreGL.MapOptions, "container" | "style">;
 
+/**
+ * Aviso de carregamento em canto, nao cortina por cima do mapa.
+ *
+ * A versao anterior cobria tudo com `backdrop-blur`, que so saia no evento
+ * `load`. Quando esse evento demorava - GPU fraca, tile lento, aba em segundo
+ * plano - o usuario ficava preso num borrao permanente, sem ver o mapa que ja
+ * estava desenhado embaixo. O mapa carrega em camadas e e util antes de
+ * terminar, entao o aviso nao pode esconde-lo nem bloquear o clique.
+ */
 function DefaultLoader() {
   return (
-    <div className="bg-background/50 absolute inset-0 z-10 flex items-center justify-center backdrop-blur-sm">
-      <div className="flex gap-1">
-        <span className="bg-muted-foreground/60 size-1.5 animate-pulse rounded-full" />
-        <span className="bg-muted-foreground/60 size-1.5 animate-pulse rounded-full [animation-delay:150ms]" />
-        <span className="bg-muted-foreground/60 size-1.5 animate-pulse rounded-full [animation-delay:300ms]" />
-      </div>
+    <div className="pointer-events-none absolute left-2 top-2 z-10 flex items-center gap-2 rounded-md border border-border bg-background/90 px-2.5 py-1.5 text-xs text-muted-foreground shadow-sm">
+      <Loader2 className="size-3.5 animate-spin" />
+      Carregando mapa...
     </div>
   );
 }
@@ -250,7 +256,16 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
         }
       }, 100);
     };
+    // `load` sozinho e frágil: exige estilo e primeiras tiles desenhadas, e
+    // nunca chega se a aba estiver sem pintar (rAF parado) ou a GPU for lenta.
+    // Qualquer um destes sinais ja significa "da pra usar o mapa".
     const loadHandler = () => setIsLoaded(true);
+    if (map.loaded()) setIsLoaded(true);
+    map.on("idle", loadHandler);
+    map.on("render", loadHandler);
+    // Rede de seguranca: o aviso de carregamento nunca pode ficar preso na
+    // tela por nao ter chegado sinal nenhum.
+    const loaderTimeout = setTimeout(() => setIsLoaded(true), 5000);
 
     // Viewport change handler - skip if triggered by internal update
     const handleMove = () => {
@@ -265,7 +280,10 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
 
     return () => {
       clearStyleTimeout();
+      clearTimeout(loaderTimeout);
       map.off("load", loadHandler);
+      map.off("idle", loadHandler);
+      map.off("render", loadHandler);
       map.off("styledata", styleDataHandler);
       map.off("move", handleMove);
       map.remove();

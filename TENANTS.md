@@ -67,6 +67,10 @@ Pedido do usuário: o administrativo do ACT (Tiago) quer acompanhar os técnicos
 
 ⚠️ **O mapa exige WebGL2, e nem toda máquina tem.** Aconteceu de verdade em 2026-07-29: `GPUInitializationError: WebGL2 is required to display this map`, lançado de dentro de um efeito, derrubava a tela inteira no error boundary da rota. Causas comuns: aceleração de hardware desligada no navegador, vídeo antigo em micro de escritório, VM sem GPU, extensão de privacidade bloqueando canvas — exatamente o perfil do administrativo. Agora `supportsWebGL2()` (`lib/browser/webgl.ts`) checa antes de montar e, se não houver, a tela cai pra `StopsFallback`: as mesmas paradas em lista, na ordem da rota, com os filtros funcionando. Um `MapBoundary` segura qualquer outra falha do mapa no tamanho do próprio mapa. **Testado negando WebGL2 no navegador.**
 
+⚠️ **O "mapa borrado" era o próprio aviso de carregamento.** O componente mapcn cobria o mapa inteiro com `backdrop-blur` até o evento `load` do MapLibre. Esse evento exige estilo **e** primeiras tiles desenhadas, e não chega quando a GPU é lenta, a aba não está pintando (`requestAnimationFrame` parado) ou um tile demora — aí o desfoque fica permanente e o usuário vê um borrão com três pontinhos, achando que o mapa não carregou. O mapa estava desenhado embaixo o tempo todo. Agora o aviso é uma pílula de canto, não bloqueia clique, sai com `load`/`idle`/`render` ou com timeout de 5s.
+
+⚠️ **Não dá pra validar renderização de mapa pelo navegador embutido do Claude Code**: o painel não compõe frames, então `requestAnimationFrame` não roda e o MapLibre nunca pinta — o mapa parece quebrado mesmo estando certo. Dá pra checar DOM, rede e estado; pra ver pixel, tem que ser em navegador real.
+
 ⚠️ **Pegadinha do componente do mapa:** `components/ui/mapcn-map-marker.tsx` exporta um componente chamado `Map`, que **sombreia o `Map` nativo do JavaScript**. Um `new Map()` no mesmo arquivo vira `new (componente)()` e quebra em runtime — já aconteceu e custou uma sessão de debug. Importar sempre com alias: `import { Map as MapView } from ...`.
 
 ## Validação do faturamento (2026-07-28)
