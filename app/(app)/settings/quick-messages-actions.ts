@@ -82,23 +82,30 @@ export async function createQuickMessage(input: {
     .eq("tenant_id", ctx.tenantId);
   const sortOrder = count ?? 0;
 
-  const { error } = await supabase.from("quick_messages").insert({
-    tenant_id: ctx.tenantId,
-    title,
-    body: body || null,
-    media_url: mediaUrl,
-    media_type: mediaUrl ? input.media_type ?? "audio" : null,
-    sort_order: sortOrder,
-    is_preset: false,
-  });
+  // Devolve a linha criada pra tela inserir na lista sem recarregar a pagina.
+  const { data: created, error } = await supabase
+    .from("quick_messages")
+    .insert({
+      tenant_id: ctx.tenantId,
+      title,
+      body: body || null,
+      media_url: mediaUrl,
+      media_type: mediaUrl ? input.media_type ?? "audio" : null,
+      sort_order: sortOrder,
+      is_preset: false,
+    })
+    .select("*")
+    .single();
   if (error) throw new Error(error.message);
   await supabase
     .from("tenants")
     .update({ quick_messages_seeded_at: new Date().toISOString() })
     .eq("id", ctx.tenantId)
     .is("quick_messages_seeded_at", null);
+  revalidatePath("/settings");
   revalidatePath("/mensagens-rapidas");
   revalidatePath("/chat", "layout");
+  return created as QuickMessage;
 }
 
 export async function updateQuickMessage(input: {
@@ -152,6 +159,7 @@ export async function reorderQuickMessages(orderedIds: string[]) {
   const failed = results.find((r) => r.error);
   if (failed?.error) throw new Error(failed.error.message);
   revalidatePath("/settings");
+  revalidatePath("/mensagens-rapidas");
   revalidatePath("/chat", "layout");
 }
 
@@ -175,13 +183,17 @@ export async function addPresetQuickMessage(presetIndex: number) {
     .select("id", { count: "exact", head: true })
     .eq("tenant_id", ctx.tenantId);
 
-  const { error } = await supabase.from("quick_messages").insert({
-    tenant_id: ctx.tenantId,
-    title: preset.title,
-    body: preset.body,
-    sort_order: count ?? 0,
-    is_preset: true,
-  });
+  const { data: created, error } = await supabase
+    .from("quick_messages")
+    .insert({
+      tenant_id: ctx.tenantId,
+      title: preset.title,
+      body: preset.body,
+      sort_order: count ?? 0,
+      is_preset: true,
+    })
+    .select("*")
+    .single();
   if (error) throw new Error(error.message);
   await supabase
     .from("tenants")
@@ -189,5 +201,7 @@ export async function addPresetQuickMessage(presetIndex: number) {
     .eq("id", ctx.tenantId)
     .is("quick_messages_seeded_at", null);
   revalidatePath("/settings");
+  revalidatePath("/mensagens-rapidas");
   revalidatePath("/chat", "layout");
+  return created as QuickMessage;
 }

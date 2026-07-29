@@ -1,7 +1,7 @@
 "use client";
 
 import { confirmDialog } from "@/lib/ui/feedback";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -50,6 +50,22 @@ export function QuickMessagesPanel({
 }) {
   const [messages, setMessages] = useState(initialMessages);
   const [pending, start] = useTransition();
+
+  /**
+   * Uma linha por vez, em vez de um `pending` global.
+   *
+   * Antes, qualquer acao desabilitava a lista inteira ate a transicao acabar -
+   * e ela so acaba depois da revalidacao do /chat, que e pesada. Na pratica
+   * dava pra excluir uma mensagem e as outras ficavam travadas, obrigando a
+   * recarregar a pagina pra excluir a proxima.
+   */
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  // O servidor revalida a pagina depois de cada acao. Sem adotar a lista nova,
+  // o estado local fica preso ao que veio na montagem.
+  useEffect(() => {
+    setMessages(initialMessages);
+  }, [initialMessages]);
   const [msg, setMsg] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<QuickMessage | null>(null);
@@ -144,8 +160,17 @@ export function QuickMessagesPanel({
           .upload(path, audioBlob, { cacheControl: "3600", upsert: false, contentType: audioMime });
         if (upErr) throw new Error(upErr.message);
         const { data: pub } = supabase.storage.from("chat-media").getPublicUrl(path);
-        await createQuickMessage({ title: audioTitle.trim(), media_url: pub.publicUrl, media_type: "audio" });
-        window.location.reload();
+        const created = await createQuickMessage({
+          title: audioTitle.trim(),
+          media_url: pub.publicUrl,
+          media_type: "audio",
+        });
+        if (created) setMessages((prev) => [...prev, created]);
+        setAudioOpen(false);
+        resetAudio();
+        setAudioTitle("");
+        setSavingAudio(false);
+        setMsg("Audio salvo");
       } catch (e) {
         setMsg((e as Error).message);
         setSavingAudio(false);
@@ -186,9 +211,8 @@ export function QuickMessagesPanel({
             prev.map((m) => (m.id === editing.id ? { ...m, title, body } : m)),
           );
         } else {
-          await createQuickMessage({ title, body });
-          window.location.reload();
-          return;
+          const created = await createQuickMessage({ title, body });
+          if (created) setMessages((prev) => [...prev, created]);
         }
         setEditorOpen(false);
         setMsg("Salvo");
@@ -200,22 +224,24 @@ export function QuickMessagesPanel({
 
   async function onDelete(id: string) {
     if (!(await confirmDialog({ title: "Excluir esta mensagem rapida?", tone: "danger", confirmLabel: "Excluir" }))) return;
-    start(async () => {
-      try {
-        await deleteQuickMessage(id);
-        setMessages((prev) => prev.filter((m) => m.id !== id));
-      } catch (e) {
-        setMsg((e as Error).message);
-      }
-    });
+    setMsg(null);
+    setBusyId(id);
+    try {
+      await deleteQuickMessage(id);
+      setMessages((prev) => prev.filter((m) => m.id !== id));
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
   }
 
   function onAddPreset(index: number) {
     setMsg(null);
     start(async () => {
       try {
-        await addPresetQuickMessage(index);
-        window.location.reload();
+        const created = await addPresetQuickMessage(index);
+        if (created) setMessages((prev) => [...prev, created]);
       } catch (e) {
         setMsg((e as Error).message);
       }
@@ -278,7 +304,7 @@ export function QuickMessagesPanel({
               <SortableRow
                 key={m.id}
                 message={m}
-                disabled={pending}
+                disabled={busyId === m.id}
                 onEdit={() => openEdit(m)}
                 onDelete={() => onDelete(m.id)}
               />
