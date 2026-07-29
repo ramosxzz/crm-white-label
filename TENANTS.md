@@ -40,6 +40,8 @@ Referência rápida por tenant. Uso: abrir conversa nova no Claude por tenant, c
     2. **Parcelamento** — eles já têm as formas de pagamento cadastradas e existe **valor mínimo de parcela** a respeitar. Hoje `bill_service_order` gera **1** lançamento a receber; precisa gerar N parcelas. ⚠️ Mexer nessa função é o ponto mais delicado do sistema (faturamento + comissões na mesma transação).
     3. **Deslocamento** — o trecho do áudio ficou com ruído e **não foi possível recuperar**. Assumido: campo próprio na OS (é o que a OS de papel mostra, e evita poluir a base de comissão do upsell). **Confirmar com o cliente antes de construir.**
     4. **Horário da visita** — ✅ **nada a fazer.** Confirmaram que fica no turno manhã/tarde, como já está.
+  - **Entrada da OS pelo chat (2026-07-29)**: botão de chave inglesa no cabeçalho do chat do WhatsApp abre a OS já com o lead travado, sem passar pelo `/os`. Aparece só com `field_service_enabled` ligada **e** papel em `canManageServiceOrders` (vendedor não vê). Vale pra qualquer tenant do ERP, não só ACT. Serve o "OS nasce da venda" do briefing pelo caminho que a Iris usa de fato.
+  - **CEP autopreenche o endereço (2026-07-29)**: 8 dígitos no CEP puxam rua/bairro/cidade/UF do ViaCEP e o foco pula pro número. API pública, sem chave e sem custo — **não gasta cota do Google**, que continua só pra geocoding e rota. CEP não encontrado ou fora do ar só avisa; digitar na mão continua valendo.
   - **Estoque saiu da prioridade** (dito pelo cliente em 2026-07-28): "não é tão relevante nesse primeiro momento". Volta depois, e o objetivo declarado é controlar **valor gasto de produto**. Hoje peças da OS não baixam do estoque (itens são texto livre, não movimentam `products`).
   - ⚠️ **"Integração com o ERP" no áudio do cliente NÃO é sistema externo.** O "ERP" é este próprio módulo de serviço em campo que estamos construindo pra eles. "Boa comunicação entre o CRM e o ERP" = OS nascendo da venda e cliente = lead, que é como já foi feito. Não existe integração com terceiro no escopo.
   - Preço do módulo ainda **não fechado** com o cliente (base atual: R$1.000 implantação + R$199/mês só do CRM).
@@ -89,6 +91,8 @@ Pedido do usuário: o administrativo do ACT (Tiago) quer acompanhar os técnicos
 
 ## Flags globais existentes (toggle por tenant)
 `stock_enabled`, `broadcast_enabled`, `calls_dashboard_enabled`, `satisfaction_survey_enabled`, `lead_assignment_enabled`, `field_service_enabled`.
+
+⚠️ `field_service_enabled` aparece pro cliente como **"ERP W+"** em Configurações (renomeado em 2026-07-29). A coluna, a flag e os nomes no código seguem `field_service_*` — só o rótulo mudou.
 
 Checklist de fiação de uma flag nova, na ordem: migration → `Tenant` em `lib/supabase/database.types.ts` → `settings/actions.ts` (input + update + `revalidatePath`) → `settings/tenant-form.tsx` (state + submit + bloco do toggle) → `app/(app)/layout.tsx` (prop) → `components/app/sidebar.tsx` → `components/app/mobile-bottom-nav.tsx` → guarda na página e nas actions.
 

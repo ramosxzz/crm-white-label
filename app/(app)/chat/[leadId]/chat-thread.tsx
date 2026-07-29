@@ -31,6 +31,7 @@ import {
   PanelRight,
   MoreHorizontal,
   ArrowLeft,
+  Wrench,
 } from "lucide-react";
 import { EmojiPickerButton } from "@/components/chat/emoji-picker-button";
 import { updateLead } from "@/app/(app)/leads/actions";
@@ -39,6 +40,8 @@ import { scheduleCall, listScheduledCallsForLead } from "@/app/(app)/agenda/acti
 import { ScheduleMeetingButton } from "@/components/leads/schedule-meeting-button";
 import { CallButton } from "@/components/leads/call-button";
 import { WhatsAppCallButton } from "@/components/leads/whatsapp-call-button";
+import { NewServiceOrderDialog } from "@/app/(app)/os/new-service-order-dialog";
+import type { FieldServiceUser } from "@/lib/field-service/users";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -295,6 +298,7 @@ export function ChatThread({
   pipelineOptions = [],
   leadDetails: initialLeadDetails,
   callsEnabled = false,
+  fieldService = null,
 }: {
   leadId: string;
   tenantId: string;
@@ -318,6 +322,8 @@ export function ChatThread({
   pipelineOptions?: PipelineOption[];
   leadDetails?: LeadDetails;
   callsEnabled?: boolean;
+  /** null quando o tenant nao tem o ERP W+ ou o usuario nao pode abrir OS. */
+  fieldService?: { consultants: FieldServiceUser[] } | null;
 }) {
   const isInstagram = channel === "instagram";
   const displayPhone = isInstagram ? "Instagram Direct" : displayLeadSubtitle(leadPhone);
@@ -1114,6 +1120,23 @@ export function ChatThread({
           />
           {!isInstagram && leadPhone && callsEnabled && <CallButton leadId={leadId} phone={leadPhone} iconOnly />}
           {!isInstagram && leadPhone && <WhatsAppCallButton phone={leadPhone} iconOnly />}
+          {fieldService && (
+            <NewServiceOrderDialog
+              lead={{ id: leadId, name: displayName, phone: leadPhone || null }}
+              consultants={fieldService.consultants}
+              trigger={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0 rounded-lg"
+                  title="Abrir ordem de serviço para esse cliente"
+                >
+                  <Wrench className="h-4 w-4" />
+                </Button>
+              }
+            />
+          )}
           <StatusSelector status={status} onChange={changeStatus} />
           {status !== "resolvida" && (
             <Button
@@ -1195,6 +1218,18 @@ export function ChatThread({
                 />
                 {!isInstagram && leadPhone && callsEnabled && <CallButton leadId={leadId} phone={leadPhone} />}
                 {!isInstagram && leadPhone && <WhatsAppCallButton phone={leadPhone} />}
+                {fieldService && (
+                  <NewServiceOrderDialog
+                    lead={{ id: leadId, name: displayName, phone: leadPhone || null }}
+                    consultants={fieldService.consultants}
+                    trigger={
+                      <Button type="button" variant="outline" size="sm" className="rounded-lg">
+                        <Wrench className="h-4 w-4" />
+                        Nova OS
+                      </Button>
+                    }
+                  />
+                )}
                 {status !== "resolvida" && (
                   <Button
                     type="button"

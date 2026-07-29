@@ -384,11 +384,12 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
             </span>
             <div>
               <Label htmlFor="field-service-enabled" className="text-sm font-semibold">
-                Servico em campo (OS)
+                ERP W+
               </Label>
               <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
                 Mostra o menu de Ordens de servico e o roteiro por turno: cria a OS a partir do
-                lead, aloca tecnico, registra pecas e acompanha ate o faturamento.
+                lead (inclusive pelo chat do WhatsApp), aloca tecnico, registra pecas e acompanha
+                ate o faturamento.
               </p>
             </div>
           </div>
