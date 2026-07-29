@@ -35,6 +35,47 @@ const PRESET_COLORS = [
   { name: "Rosa", value: "#db2777" },
 ];
 
+/**
+ * Chave de liga/desliga dos modulos.
+ *
+ * O checkbox fica invisivel POR CIMA do proprio botao, e nao escondido com
+ * `sr-only`. Com `sr-only` ele vira um elemento de 1px `position: absolute`
+ * cujo bloco de contencao e o documento: isso esticava a altura do documento
+ * e, ao receber foco no clique, o navegador rolava a janela pra "mostrar" o
+ * campo - empurrando o app inteiro (que e `h-[100dvh]`) pra fora da tela. A
+ * tela ficava preta e o usuario tinha que rolar de volta pra continuar.
+ */
+function FeatureToggle({
+  id,
+  checked,
+  onChange,
+  disabled,
+}: {
+  id: string;
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  disabled: boolean;
+}) {
+  return (
+    <label className="inline-flex cursor-pointer items-center gap-3 text-sm font-medium">
+      <span className={checked ? "text-brand" : "text-muted-foreground"}>
+        {checked ? "Ativo" : "Desativado"}
+      </span>
+      <span className="relative inline-block h-6 w-11 shrink-0">
+        <input
+          id={id}
+          type="checkbox"
+          className="peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer appearance-none rounded-full opacity-0 disabled:cursor-not-allowed"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          disabled={disabled}
+        />
+        <span className="pointer-events-none absolute inset-0 rounded-full bg-muted ring-1 ring-border transition-colors after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-background after:shadow-sm after:transition-transform peer-checked:bg-brand peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-brand peer-disabled:opacity-60" />
+      </span>
+    </label>
+  );
+}
+
 export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole }) {
   const canEdit = role === "owner" || role === "admin";
   const [name, setName] = useState(tenant.name);
@@ -293,20 +334,12 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
               </p>
             </div>
           </div>
-          <label className="inline-flex cursor-pointer items-center gap-3 text-sm font-medium">
-            <span className={stockEnabled ? "text-brand" : "text-muted-foreground"}>
-              {stockEnabled ? "Ativo" : "Desativado"}
-            </span>
-            <input
-              id="stock-enabled"
-              type="checkbox"
-              className="peer sr-only"
-              checked={stockEnabled}
-              onChange={(e) => setStockEnabled(e.target.checked)}
-              disabled={!canEdit}
-            />
-            <span className="relative h-6 w-11 rounded-full bg-muted ring-1 ring-border transition-colors after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-background after:shadow-sm after:transition-transform peer-checked:bg-brand peer-checked:after:translate-x-5 peer-disabled:cursor-not-allowed peer-disabled:opacity-60" />
-          </label>
+          <FeatureToggle
+            id="stock-enabled"
+            checked={stockEnabled}
+            onChange={setStockEnabled}
+            disabled={!canEdit}
+          />
         </div>
       </div>
 
@@ -326,20 +359,12 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
               </p>
             </div>
           </div>
-          <label className="inline-flex cursor-pointer items-center gap-3 text-sm font-medium">
-            <span className={callsEnabled ? "text-brand" : "text-muted-foreground"}>
-              {callsEnabled ? "Ativo" : "Desativado"}
-            </span>
-            <input
-              id="calls-enabled"
-              type="checkbox"
-              className="peer sr-only"
-              checked={callsEnabled}
-              onChange={(e) => setCallsEnabled(e.target.checked)}
-              disabled={!canEdit}
-            />
-            <span className="relative h-6 w-11 rounded-full bg-muted ring-1 ring-border transition-colors after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-background after:shadow-sm after:transition-transform peer-checked:bg-brand peer-checked:after:translate-x-5 peer-disabled:cursor-not-allowed peer-disabled:opacity-60" />
-          </label>
+          <FeatureToggle
+            id="calls-enabled"
+            checked={callsEnabled}
+            onChange={setCallsEnabled}
+            disabled={!canEdit}
+          />
         </div>
       </div>
 
@@ -359,20 +384,12 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
               </p>
             </div>
           </div>
-          <label className="inline-flex cursor-pointer items-center gap-3 text-sm font-medium">
-            <span className={broadcastEnabled ? "text-brand" : "text-muted-foreground"}>
-              {broadcastEnabled ? "Ativo" : "Desativado"}
-            </span>
-            <input
-              id="broadcast-enabled"
-              type="checkbox"
-              className="peer sr-only"
-              checked={broadcastEnabled}
-              onChange={(e) => setBroadcastEnabled(e.target.checked)}
-              disabled={!canEdit}
-            />
-            <span className="relative h-6 w-11 rounded-full bg-muted ring-1 ring-border transition-colors after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-background after:shadow-sm after:transition-transform peer-checked:bg-brand peer-checked:after:translate-x-5 peer-disabled:cursor-not-allowed peer-disabled:opacity-60" />
-          </label>
+          <FeatureToggle
+            id="broadcast-enabled"
+            checked={broadcastEnabled}
+            onChange={setBroadcastEnabled}
+            disabled={!canEdit}
+          />
         </div>
       </div>
 
@@ -393,20 +410,12 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
               </p>
             </div>
           </div>
-          <label className="inline-flex cursor-pointer items-center gap-3 text-sm font-medium">
-            <span className={fieldServiceEnabled ? "text-brand" : "text-muted-foreground"}>
-              {fieldServiceEnabled ? "Ativo" : "Desativado"}
-            </span>
-            <input
-              id="field-service-enabled"
-              type="checkbox"
-              className="peer sr-only"
-              checked={fieldServiceEnabled}
-              onChange={(e) => setFieldServiceEnabled(e.target.checked)}
-              disabled={!canEdit}
-            />
-            <span className="relative h-6 w-11 rounded-full bg-muted ring-1 ring-border transition-colors after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-background after:shadow-sm after:transition-transform peer-checked:bg-brand peer-checked:after:translate-x-5 peer-disabled:cursor-not-allowed peer-disabled:opacity-60" />
-          </label>
+          <FeatureToggle
+            id="field-service-enabled"
+            checked={fieldServiceEnabled}
+            onChange={setFieldServiceEnabled}
+            disabled={!canEdit}
+          />
         </div>
 
         {fieldServiceEnabled && (
