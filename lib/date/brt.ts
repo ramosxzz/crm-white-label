@@ -21,6 +21,27 @@ export function getBRTDayBoundsFromDateString(dateStr: string) {
   return { dateStr, startIso: start.toISOString(), endIso: end.toISOString() };
 }
 
+/** Início e fim do mês civil em Brasília. offset=0 é o mês atual, -1 o anterior. */
+export function getBRTMonthBounds(offset = 0, date = new Date()) {
+  const dateStr = date.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  const [year, month] = dateStr.split("-").map(Number);
+
+  // Mes de JS e 0-indexado; ao somar/subtrair offset direto no construtor,
+  // ele normaliza ano e mes sozinho (mes -1 de janeiro vira dezembro do ano
+  // anterior).
+  const start = new Date(Date.UTC(year, month - 1 + offset, 1));
+  const end = new Date(Date.UTC(year, month + offset, 1));
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const startStr = `${start.getUTCFullYear()}-${pad(start.getUTCMonth() + 1)}-01`;
+
+  return {
+    dateStr: startStr,
+    startIso: new Date(`${startStr}T00:00:00-03:00`).toISOString(),
+    endIso: new Date(`${end.getUTCFullYear()}-${pad(end.getUTCMonth() + 1)}-01T00:00:00-03:00`).toISOString(),
+  };
+}
+
 export function getBRTRollingDayBounds(days: number, date = new Date()) {
   const safeDays = Math.max(1, Math.floor(days));
   const today = getBRTDayBounds(date);

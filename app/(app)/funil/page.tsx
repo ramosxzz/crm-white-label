@@ -6,22 +6,37 @@ import { PageHeader } from "@/components/app/page-header";
 import {
   getBRTDayBounds,
   getBRTDayBoundsFromDateString,
+  getBRTMonthBounds,
   getBRTRollingDayBounds,
   getBRTYesterdayBounds,
 } from "@/lib/date/brt";
 import { FunnelView, type FunnelStage, type FunnelTotals } from "./funnel-view";
 
-export type FunnelDateFilter = "all" | "today" | "yesterday" | "7d" | "30d" | "custom";
+export type FunnelDateFilter =
+  | "all"
+  | "today"
+  | "yesterday"
+  | "7d"
+  | "30d"
+  | "this_month"
+  | "last_month"
+  | "custom";
 
 function resolveFunnelDateFilter(periodo?: string, dia?: string) {
-  const active = (["today", "yesterday", "7d", "30d", "all", "custom"].includes(periodo ?? "")
-    ? periodo
-    : "all") as FunnelDateFilter;
+  const active = (
+    ["today", "yesterday", "7d", "30d", "this_month", "last_month", "all", "custom"].includes(
+      periodo ?? "",
+    )
+      ? periodo
+      : "all"
+  ) as FunnelDateFilter;
 
   if (active === "today") return { active, bounds: getBRTDayBounds() };
   if (active === "yesterday") return { active, bounds: getBRTYesterdayBounds() };
   if (active === "7d") return { active, bounds: getBRTRollingDayBounds(7) };
   if (active === "30d") return { active, bounds: getBRTRollingDayBounds(30) };
+  if (active === "this_month") return { active, bounds: getBRTMonthBounds(0) };
+  if (active === "last_month") return { active, bounds: getBRTMonthBounds(-1) };
   if (active === "custom" && dia) {
     const bounds = getBRTDayBoundsFromDateString(dia);
     if (bounds) return { active, bounds };

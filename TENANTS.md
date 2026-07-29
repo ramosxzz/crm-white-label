@@ -153,3 +153,12 @@ Faltavam duas coisas: **quem** recebe (só havia o nome da loja) e **quanto** (s
 2. Foi adicionado `for update` no SELECT da OS. A versão anterior não travava a linha: duas chamadas simultâneas podiam passar as duas pelo teste de status. As comissões escapavam pelo unique, mas o lançamento a receber **não tem unique** e podia sair duplicado.
 
 Testado em produção dentro de transação com `rollback`: R$1.000 com 7,5% negociado → Carlos Vendedor recebe R$75,00, loja registrada à parte; OS no formato antigo → 5% globais, R$50,00, loja como beneficiária. Nada persistiu.
+
+## Seleção em massa no chat e filtro de mês no funil (2026-07-29)
+Dois pedidos separados do usuário, resolvidos juntos por reaproveitarem o que já existia.
+
+**Selecionar várias conversas pra mover de etapa** — `app/(app)/chat/conversation-list.tsx` ganhou o mesmo padrão de seleção que o Kanban já tinha (`selectMode`/`selectedIds`, ícone de check no cabeçalho, clique no item marca em vez de navegar). Reaproveita `moveLeadsToStage` de `app/(app)/leads/actions.ts`, que já existia e já cuidava de posição, `won_at`, log de atividade e automações — nenhuma lógica de servidor nova.
+
+**Dashboard "entrou X leads esse mês, Y% em cada etapa"** — a página `/funil` já existia com a RPC `funnel_metrics` fazendo exatamente essa semântica (leads **criados** no período, agrupados pela etapa **atual**), só faltava o filtro de mês e o percentual visível. Adicionados: `getBRTMonthBounds(offset)` em `lib/date/brt.ts` (testado nas viradas de mês e de ano), filtros "Este mês"/"Mês passado" na tela, e `%` do total do período junto da contagem de cada etapa no card.
+
+Validado em produção, só leitura, contra a Avante Digital (779 leads no mês): distribuição por etapa bate com o formato do exemplo do áudio do cliente.

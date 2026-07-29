@@ -1,9 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Search, Inbox, Phone, RefreshCw, SlidersHorizontal, X } from "lucide-react";
+import {
+  Search,
+  Inbox,
+  Phone,
+  RefreshCw,
+  SlidersHorizontal,
+  X,
+  CheckSquare,
+  Square,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn, initials } from "@/lib/utils";
@@ -14,6 +23,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { notify, notifyError } from "@/lib/ui/feedback";
+import { moveLeadsToStage } from "@/app/(app)/leads/actions";
 
 export type { ConversationListItem };
 
@@ -112,11 +123,57 @@ export function ConversationList({
   tenantId?: string;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const activeLeadId = pathname.startsWith("/chat/") ? (pathname.split("/")[2] ?? null) : null;
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState<AdvancedFilters>(DEFAULT_ADVANCED_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<AdvancedFilters>(DEFAULT_ADVANCED_FILTERS);
+
+  // Selecao em massa: mover varios leads de uma vez pra uma etapa, sem abrir
+  // cada conversa. Mesmo padrao do Kanban (moveLeadsToStage), so que
+  // disparado a partir da lista de conversas.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkStageId, setBulkStageId] = useState("");
+  const [bulkMoving, setBulkMoving] = useState(false);
+
+  function toggleSelectMode() {
+    setSelectMode((prev) => {
+      if (prev) setSelectedIds(new Set());
+      return !prev;
+    });
+  }
+
+  function toggleLeadSelected(leadId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(leadId)) next.delete(leadId);
+      else next.add(leadId);
+      return next;
+    });
+  }
+
+  async function applyBulkMove() {
+    if (!bulkStageId || selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    setBulkMoving(true);
+    try {
+      await moveLeadsToStage(ids, bulkStageId);
+      notify({
+        title: `${ids.length} conversa${ids.length === 1 ? "" : "s"} movida${ids.length === 1 ? "" : "s"}`,
+        tone: "success",
+      });
+      setSelectedIds(new Set());
+      setBulkStageId("");
+      setSelectMode(false);
+      router.refresh();
+    } catch (err) {
+      notifyError(err, "Não foi possível mover as conversas selecionadas");
+    } finally {
+      setBulkMoving(false);
+    }
+  }
 
   // Sincroniza o filtro de etapa com o Kanban: se ja tem uma etapa filtrada
   // la (ou aqui mesmo numa sessao anterior), comeca com ela aplicada.
@@ -212,6 +269,19 @@ export function ConversationList({
           <div className="flex items-center gap-1">
             <button
               type="button"
+              onClick={toggleSelectMode}
+              title="Selecionar várias conversas"
+              className={cn(
+                "flex items-center gap-1 rounded-md px-1.5 py-1.5 text-xs font-medium transition-colors",
+                selectMode
+                  ? "bg-brand/15 text-brand"
+                  : "text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+              )}
+            >
+              {selectMode ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+            </button>
+            <button
+              type="button"
               onClick={openFilters}
               title="Filtros"
               className="relative rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
@@ -246,35 +316,76 @@ export function ConversationList({
           />
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          <StatusPill
-            active={statusFilter === "todas"}
-            onClick={() => onStatusFilterChange("todas")}
-            label="Todas"
-            count={items.length}
-          />
-          {CONVERSATION_STATUSES.map((s) => {
-            const Icon = s.icon;
-            const active = statusFilter === s.value;
-            return (
+        {selectMode ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-brand/40 bg-brand/5 p-2.5">
+            <span className="text-xs font-medium text-muted-foreground">
+              {selectedIds.size > 0
+                ? `${selectedIds.size} selecionada${selectedIds.size === 1 ? "" : "s"}`
+                : "Toque nas conversas pra selecionar"}
+            </span>
+            <select
+              value={bulkStageId}
+              onChange={(e) => setBulkStageId(e.target.value)}
+              className="h-8 flex-1 rounded-md border border-input bg-background px-2 text-xs"
+              disabled={selectedIds.size === 0 || bulkMoving}
+            >
+              <option value="">Mover para etapa...</option>
+              {stages.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+            <Button
+              size="sm"
+              className="h-8"
+              onClick={applyBulkMove}
+              disabled={!bulkStageId || bulkMoving || selectedIds.size === 0}
+            >
+              {bulkMoving ? "Movendo..." : "Mover"}
+            </Button>
+            {selectedIds.size > 0 && (
               <button
-                key={s.value}
                 type="button"
-                onClick={() => onStatusFilterChange(active ? "todas" : s.value)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                  active
-                    ? s.pill
-                    : "border-border/60 text-muted-foreground hover:bg-muted/40 hover:text-foreground",
-                )}
+                onClick={() => setSelectedIds(new Set())}
+                disabled={bulkMoving}
+                className="text-xs font-medium text-muted-foreground hover:text-foreground"
               >
-                <Icon className="h-3.5 w-3.5" />
-                {s.short}
-                <span className="tabular-nums opacity-70">{statusCounts[s.value]}</span>
+                Limpar
               </button>
-            );
-          })}
-        </div>
+            )}
+          </div>
+        ) : (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            <StatusPill
+              active={statusFilter === "todas"}
+              onClick={() => onStatusFilterChange("todas")}
+              label="Todas"
+              count={items.length}
+            />
+            {CONVERSATION_STATUSES.map((s) => {
+              const Icon = s.icon;
+              const active = statusFilter === s.value;
+              return (
+                <button
+                  key={s.value}
+                  type="button"
+                  onClick={() => onStatusFilterChange(active ? "todas" : s.value)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                    active
+                      ? s.pill
+                      : "border-border/60 text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {s.short}
+                  <span className="tabular-nums opacity-70">{statusCounts[s.value]}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </header>
 
       <div className="flex-1 overflow-y-auto">
@@ -288,6 +399,7 @@ export function ConversationList({
           </div>
         ) : filtered.map((c) => {
           const active = activeLeadId === c.leadId;
+          const selected = selectedIds.has(c.leadId);
           const preview =
             c.lastPreview != null
               ? c.lastDirection === "outbound"
@@ -299,20 +411,37 @@ export function ConversationList({
             <Link
               key={c.id}
               href={`/chat/${c.leadId}`}
-              prefetch
+              prefetch={!selectMode}
+              onClick={(e) => {
+                // Em modo selecao o clique marca/desmarca em vez de navegar -
+                // o mesmo comportamento do card no Kanban.
+                if (!selectMode) return;
+                e.preventDefault();
+                toggleLeadSelected(c.leadId);
+              }}
               className={cn(
                 "relative flex gap-3 border-b border-border/35 py-3 pl-4 pr-3 transition-colors duration-150 hover:bg-brand/10 dark:hover:bg-brand/15",
-                active && "bg-brand-muted dark:bg-brand/10",
+                active && !selectMode && "bg-brand-muted dark:bg-brand/10",
+                selected && "bg-brand/10 dark:bg-brand/15",
               )}
             >
               {/* Faixa de status na borda esquerda */}
               <span
                 className={cn(
                   "absolute inset-y-0 left-0 w-1",
-                  active ? "bg-brand" : STATUS_META[c.status].dot,
+                  active && !selectMode ? "bg-brand" : STATUS_META[c.status].dot,
                 )}
                 aria-hidden
               />
+              {selectMode && (
+                <span className="flex shrink-0 items-center" aria-hidden>
+                  {selected ? (
+                    <CheckSquare className="h-4 w-4 text-brand" />
+                  ) : (
+                    <Square className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </span>
+              )}
               <div className="relative shrink-0">
                 <Avatar className="h-11 w-11">
                   {c.leadAvatarUrl && <AvatarImage src={c.leadAvatarUrl} alt={c.leadName} />}

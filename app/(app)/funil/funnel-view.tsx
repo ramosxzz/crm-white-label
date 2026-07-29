@@ -9,13 +9,15 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { formatCurrencyBRL, cn } from "@/lib/utils";
 
-type DateFilter = "all" | "today" | "yesterday" | "7d" | "30d" | "custom";
+type DateFilter = "all" | "today" | "yesterday" | "7d" | "30d" | "this_month" | "last_month" | "custom";
 
 const DATE_FILTER_OPTIONS: Array<{ value: DateFilter; label: string }> = [
   { value: "today", label: "Hoje" },
   { value: "yesterday", label: "Ontem" },
   { value: "7d", label: "7 dias" },
   { value: "30d", label: "30 dias" },
+  { value: "this_month", label: "Este mês" },
+  { value: "last_month", label: "Mês passado" },
   { value: "all", label: "Todos" },
 ];
 
@@ -220,6 +222,14 @@ export function FunnelView({
                               : `${stage.count} ${stage.count === 1 ? "Negócio" : "Negócios"}`}
                           </dd>
                         </div>
+                        {totals.createdCount > 0 && (
+                          <div className="flex items-center justify-between">
+                            <dt className="text-muted-foreground">Do total do período</dt>
+                            <dd className="font-semibold" style={{ color: stage.color }}>
+                              {Math.round((stage.count / totals.createdCount) * 100)}%
+                            </dd>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between">
                           <dt className="text-muted-foreground">Tempo médio</dt>
                           <dd className="font-medium">{formatDuration(stage.avgSeconds)}</dd>
