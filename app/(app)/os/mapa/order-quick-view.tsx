@@ -121,7 +121,15 @@ export function OrderQuickView({
                 {data.consultantName ? ` · vendeu: ${data.consultantName}` : ""}
               </Linha>
               {data.voltage && <Linha Icon={Zap}>Residência {data.voltage}</Linha>}
-              {data.partnerStore && <Linha Icon={Store}>Indicação: {data.partnerStore}</Linha>}
+              {(data.partnerStore || data.partnerSellerName) && (
+                <Linha Icon={Store}>
+                  Indicação: {data.partnerStore ?? "loja não informada"}
+                  {data.partnerSellerName ? ` · vendedor ${data.partnerSellerName}` : ""}
+                  {data.partnerCommissionPercent != null
+                    ? ` · ${String(data.partnerCommissionPercent).replace(".", ",")}% negociado`
+                    : ""}
+                </Linha>
+              )}
               {data.signerName && (
                 <Linha Icon={PenLine}>Assinado por {data.signerName}</Linha>
               )}

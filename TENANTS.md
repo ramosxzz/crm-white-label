@@ -138,3 +138,18 @@ Ao sair do expediente o app **apaga** a última posição. Posição com mais de
 O app do técnico mostra aviso permanente dizendo que está compartilhando, em que janela, e que o trajeto **não** é guardado. A permissão do navegador é o consentimento; se ele negar, a tela explica pra que serve em vez de insistir.
 
 Leitura da posição: só `owner`, `admin`, `gerente`, `atendente`. Vendedor e outros técnicos não veem ninguém.
+
+## Comissão do vendedor externo (2026-07-29)
+Pedido do ACT por áudio: *"fui indicado por uma loja, e aí tem que pagar uma comissão pro vendedor externo (…) isso já sai certo na OS, com a porcentagem negociada."*
+
+Faltavam duas coisas: **quem** recebe (só havia o nome da loja) e **quanto** (só havia um percentual global por empresa). Agora a OS tem `partner_seller_name` e `partner_commission_percent`.
+
+- O percentual da OS **vence** a regra global. O teste é por **nulo**, não por zero — "essa indicação não paga" é decisão válida e precisa ser respeitada.
+- Beneficiário = vendedor externo; sem vendedor informado, cai no nome da loja (é como as OS antigas funcionam).
+- `commissions.partner_store` guarda de onde veio a indicação, separado de quem recebe.
+
+⚠️ **`bill_service_order` foi reescrita.** Conferido linha a linha contra a original: só mudou o trecho da comissão externa. Dois pontos que quase passaram:
+1. Eu tinha escrito `security definer` — a original é **`security invoker`**. Definer faria a função rodar como dono e **furar o isolamento entre tenants**. Ao mexer nessa função, conferir sempre.
+2. Foi adicionado `for update` no SELECT da OS. A versão anterior não travava a linha: duas chamadas simultâneas podiam passar as duas pelo teste de status. As comissões escapavam pelo unique, mas o lançamento a receber **não tem unique** e podia sair duplicado.
+
+Testado em produção dentro de transação com `rollback`: R$1.000 com 7,5% negociado → Carlos Vendedor recebe R$75,00, loja registrada à parte; OS no formato antigo → 5% globais, R$50,00, loja como beneficiária. Nada persistiu.

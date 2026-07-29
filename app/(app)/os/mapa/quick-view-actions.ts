@@ -30,6 +30,8 @@ export type ServiceOrderQuickView = {
   consultantName: string | null;
   technicianNames: string[];
   partnerStore: string | null;
+  partnerSellerName: string | null;
+  partnerCommissionPercent: number | null;
   observations: string | null;
   signerName: string | null;
   signedAt: string | null;
@@ -124,6 +126,8 @@ export async function getServiceOrderQuickView(orderId: string): Promise<Service
       .map((a) => nameById.get(a.user_id))
       .filter(Boolean) as string[],
     partnerStore: row.partner_store,
+    partnerSellerName: row.partner_seller_name ?? null,
+    partnerCommissionPercent: row.partner_commission_percent ?? null,
     observations: row.observations,
     signerName: row.signer_name,
     signedAt: row.signed_at,

@@ -50,6 +50,12 @@ const addressSchema = {
   address_cep: z.string().trim().optional(),
 };
 
+/** Percentual negociado: campo de texto vazio vira nulo (usa a regra global). */
+const percentField = z
+  .union([z.coerce.number().min(0).max(100), z.literal("")])
+  .optional()
+  .transform((v) => (v === "" || v === undefined ? null : (v as number)));
+
 const createSchema = z.object({
   lead_id: z.string().uuid(),
   consultant_id: z.string().uuid().optional(),
@@ -58,6 +64,8 @@ const createSchema = z.object({
   notes: z.string().trim().optional(),
   observations: z.string().trim().optional(),
   partner_store: z.string().trim().optional(),
+  partner_seller_name: z.string().trim().optional(),
+  partner_commission_percent: percentField,
   ...addressSchema,
 });
 
@@ -137,6 +145,8 @@ export async function createServiceOrder(formData: FormData) {
     notes: readForm(formData, "notes"),
     observations: readForm(formData, "observations"),
     partner_store: readForm(formData, "partner_store"),
+    partner_seller_name: readForm(formData, "partner_seller_name"),
+    partner_commission_percent: readForm(formData, "partner_commission_percent") ?? "",
     address_street: readForm(formData, "address_street"),
     address_number: readForm(formData, "address_number"),
     address_complement: readForm(formData, "address_complement"),
@@ -156,6 +166,8 @@ export async function createServiceOrder(formData: FormData) {
     notes: emptyToNull(parsed.notes),
     observations: emptyToNull(parsed.observations),
     partner_store: emptyToNull(parsed.partner_store),
+    partner_seller_name: emptyToNull(parsed.partner_seller_name),
+    partner_commission_percent: parsed.partner_commission_percent,
     address_street: emptyToNull(parsed.address_street),
     address_number: emptyToNull(parsed.address_number),
     address_complement: emptyToNull(parsed.address_complement),
@@ -179,6 +191,8 @@ const updateSchema = z.object({
   notes: z.string().trim().nullable().optional(),
   observations: z.string().trim().nullable().optional(),
   partner_store: z.string().trim().nullable().optional(),
+  partner_seller_name: z.string().trim().nullable().optional(),
+  partner_commission_percent: percentField,
   ...addressSchema,
 });
 
@@ -194,6 +208,8 @@ export async function updateServiceOrder(formData: FormData) {
     notes: readForm(formData, "notes") ?? null,
     observations: readForm(formData, "observations") ?? null,
     partner_store: readForm(formData, "partner_store") ?? null,
+    partner_seller_name: readForm(formData, "partner_seller_name") ?? null,
+    partner_commission_percent: readForm(formData, "partner_commission_percent") ?? "",
     address_street: readForm(formData, "address_street"),
     address_number: readForm(formData, "address_number"),
     address_complement: readForm(formData, "address_complement"),

@@ -109,6 +109,9 @@ export interface ServiceOrder {
   observations: string | null;
   total_cents: number;
   partner_store: string | null;
+  partner_seller_name: string | null;
+  /** Percentual negociado nesta indicacao. Nulo = regra global do tenant. */
+  partner_commission_percent: number | null;
   signature_path: string | null;
   signed_at: string | null;
   signer_name: string | null;

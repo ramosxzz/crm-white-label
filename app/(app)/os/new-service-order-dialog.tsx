@@ -130,16 +130,49 @@ export function NewServiceOrderDialog({
 
           <ServiceOrderAddressFields />
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="deadline">Prazo</Label>
-              <Input id="deadline" name="deadline" type="date" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="partner_store">Loja parceira</Label>
-              <Input id="partner_store" name="partner_store" placeholder="Se veio por indicação" />
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="deadline">Prazo</Label>
+            <Input id="deadline" name="deadline" type="date" />
           </div>
+
+          {/* A comissao externa e negociada indicacao a indicacao, entao o
+              percentual fica na OS: no faturamento ele vence a regra geral. */}
+          <fieldset className="space-y-3 rounded-lg border border-border/70 p-3">
+            <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Indicação
+            </legend>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="partner_store">Loja parceira</Label>
+                <Input id="partner_store" name="partner_store" placeholder="Quem indicou" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="partner_seller_name">Vendedor externo</Label>
+                <Input
+                  id="partner_seller_name"
+                  name="partner_seller_name"
+                  placeholder="Quem recebe a comissão"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="partner_commission_percent">Comissão negociada (%)</Label>
+              <Input
+                id="partner_commission_percent"
+                name="partner_commission_percent"
+                type="number"
+                min={0}
+                max={100}
+                step="0.5"
+                inputMode="decimal"
+                placeholder="Em branco usa o percentual padrão da empresa"
+              />
+              <p className="text-xs leading-5 text-muted-foreground">
+                Vale só para esta OS. Deixando em branco, o faturamento usa o percentual
+                cadastrado em Financeiro.
+              </p>
+            </div>
+          </fieldset>
 
           <div className="space-y-1.5">
             <Label htmlFor="observations">Observações</Label>
