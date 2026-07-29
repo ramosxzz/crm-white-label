@@ -91,6 +91,19 @@ Pedido do usuário: o administrativo do ACT (Tiago) quer acompanhar os técnicos
 | Atacado Moda Sul | `ec219bae-9fc8-44d8-b027-95811aa1897d` | `atacadomodasul7` | produção |
 | Solaire Energia Solar | `4ef4b668-d2ea-43a6-bcb8-9f6cb076735d` | `solairesolar` | produção, sem estoque |
 
+## ⚠️ Armadilha do package-lock (quebrou o deploy em 2026-07-29)
+O `.npmrc` do projeto tem `legacy-peer-deps=true`, mas **o Dockerfile não copia o `.npmrc`** — só `package.json` e `package-lock.json`. Resultado: os dois lados discordam.
+- `npm install` local (com o `.npmrc`) **remove as peer deps do lock** — some `webpack`, `@webassemblyjs/*` e mais 40 pacotes.
+- `npm ci` dentro do Docker roda **sem** o `.npmrc`, no modo estrito, e falha com `Missing: webpack@... from lock file`.
+
+O `npm run build` local **não pega isso**, porque o `node_modules` já está populado. Depois de adicionar dependência, gerar o lock com:
+```
+npm install --package-lock-only --legacy-peer-deps=false
+```
+e validar copiando `package.json` + `package-lock.json` pra uma pasta vazia (sem `.npmrc`) e rodando `npm ci --dry-run` e `npm ci --omit=dev --dry-run`. Os dois têm que passar — são os dois estágios do Dockerfile.
+
+**Correção de raiz ainda não feita**: ou copiar o `.npmrc` no Dockerfile, ou tirar o `legacy-peer-deps` do projeto. Enquanto não decidir, o passo acima é obrigatório a cada dependência nova.
+
 ## Flags globais existentes (toggle por tenant)
 `stock_enabled`, `broadcast_enabled`, `calls_dashboard_enabled`, `satisfaction_survey_enabled`, `lead_assignment_enabled`, `field_service_enabled`.
 
