@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { supportsWebGL2 } from "@/lib/browser/webgl";
 import { MapBoundary } from "./map-boundary";
 import { StopsFallback } from "./stops-fallback";
+import { OrderQuickView } from "./order-quick-view";
 import {
   technicianColor,
   type MapBase,
@@ -49,6 +50,9 @@ export function TechniciansMap({
   // null enquanto nao checou: a checagem so roda no browser, entao no primeiro
   // render (servidor e hidratacao) ainda nao da pra saber.
   const [hasWebGL, setHasWebGL] = useState<boolean | null>(null);
+  // Detalhe da OS aberto por cima do mapa. O estado fica aqui, e nao no
+  // canvas, pra o modal nao ser desmontado quando o mapa recarrega.
+  const [openOrderId, setOpenOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     setHasWebGL(supportsWebGL2());
@@ -195,10 +199,13 @@ export function TechniciansMap({
               base={base}
               colorByTechnician={colorByTechnician}
               positions={visiblePositions}
+              onOpenOrder={setOpenOrderId}
             />
           </MapBoundary>
         )}
       </div>
+
+      <OrderQuickView orderId={openOrderId} onClose={() => setOpenOrderId(null)} />
     </div>
   );
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo } from "react";
 import { Home, MapPin, Truck, Wrench } from "lucide-react";
 import {
@@ -130,12 +129,15 @@ export function MapCanvas({
   base,
   colorByTechnician,
   positions = [],
+  onOpenOrder,
 }: {
   stops: MapStop[];
   technicians: MapTechnician[];
   base: MapBase | null;
   colorByTechnician: Record<string, string>;
   positions?: TechnicianPosition[];
+  /** Abre o detalhe por cima do mapa, sem tirar o ADM da tela. */
+  onOpenOrder?: (orderId: string) => void;
 }) {
   const technicianName = useMemo(
     () => new Map(technicians.map((tech) => [tech.id, tech.name])),
@@ -293,12 +295,13 @@ export function MapCanvas({
                 </span>
               </div>
 
-              <Link
-                href={`/os/${stop.id}`}
-                className="text-brand hover:bg-brand/10 block border-t border-border/60 px-3 py-2 text-center text-xs font-semibold transition-colors"
+              <button
+                type="button"
+                onClick={() => onOpenOrder?.(stop.id)}
+                className="text-brand hover:bg-brand/10 block w-full border-t border-border/60 px-3 py-2 text-center text-xs font-semibold transition-colors"
               >
                 Abrir OS
-              </Link>
+              </button>
             </MarkerPopup>
           </MapMarker>
         );

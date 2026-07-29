@@ -253,31 +253,40 @@
 /* --- Balao do mapa das OS (MapLibre) ---------------------------------------
    O MapLibre desenha a propria moldura em .maplibregl-popup-content: fundo
    branco, sombra e cantos proprios. Ela aparecia POR BAIXO do card do app,
-   virando uma caixa branca no tema escuro. Aqui a moldura e zerada pra sobrar
-   so o card, e a setinha passa a usar a cor de popover do tema. */
-.maplibregl-popup-content {
+   virando uma moldura branca em volta no tema escuro.
+
+   O seletor precisa dos DOIS niveis (.maplibregl-popup .maplibregl-popup-content).
+   O CSS do MapLibre e importado dentro do componente do mapa, que carrega por
+   import dinamico - ou seja, entra na pagina DEPOIS deste arquivo. Com a mesma
+   especificidade, quem carrega por ultimo vence, e a regra de baixo era
+   ignorada. Subir a especificidade faz ela ganhar independente da ordem. */
+.maplibregl-popup .maplibregl-popup-content {
   background: transparent;
   padding: 0;
   box-shadow: none;
   border-radius: 0;
 }
 
-.maplibregl-popup-tip {
+.maplibregl-popup .maplibregl-popup-tip {
   border-width: 7px;
 }
-.maplibregl-popup-anchor-top .maplibregl-popup-tip,
-.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
-.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+.maplibregl-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.maplibregl-popup.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.maplibregl-popup.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
   border-bottom-color: hsl(var(--popover));
 }
-.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
-.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
-.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+.maplibregl-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.maplibregl-popup.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.maplibregl-popup.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
   border-top-color: hsl(var(--popover));
 }
-.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+.maplibregl-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip {
   border-right-color: hsl(var(--popover));
 }
-.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+.maplibregl-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip {
   border-left-color: hsl(var(--popover));
+}
+
+.maplibregl-popup .maplibregl-popup-close-button {
+  display: none;
 }
