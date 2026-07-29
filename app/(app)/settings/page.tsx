@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { TenantForm } from "./tenant-form";
 import { ProfileForm } from "./profile-form";
 import { Api4comForm } from "./api4com-form";
+import { AdSignaturesPanel } from "@/components/settings/ad-signatures-panel";
 
 export default async function SettingsPage() {
   const ctx = await requireContext();
@@ -56,6 +57,21 @@ export default async function SettingsPage() {
           </CardHeader>
           <CardContent>
             <TenantForm tenant={ctx.tenant} role={ctx.role} />
+          </CardContent>
+        </Card>
+      )}
+
+      {canCompany && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Criativos por emoji</CardTitle>
+            <CardDescription>
+              Identifica de qual anuncio veio cada lead pelo emoji da primeira mensagem, para as
+              vendas aparecerem por criativo no painel de anuncios.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AdSignaturesPanel />
           </CardContent>
         </Card>
       )}

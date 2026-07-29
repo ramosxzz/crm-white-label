@@ -479,6 +479,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
 
 
+    // Atribuicao de anuncio pelo emoji da mensagem de abertura, para quando o
+    // referral do Click-to-WhatsApp nao vem (caso da Evolution API). Só no
+    // primeiro contato: a ausencia de conversa e o sinal de que esta e a
+    // primeira mensagem desse lead, e emoji no meio de um papo em andamento
+    // nao diz origem nenhuma.
+    if (isInbound && !existingConv && msg.body && !msg.referral) {
+      const { applyAdSignatureToLead } = await import("@/lib/meta/apply-ad-signature");
+      void applyAdSignatureToLead(supabase, account.tenant_id, leadId, msg.body);
+    }
+
     let conversationId = existingConv?.id as string | undefined;
 
     if (!conversationId) {

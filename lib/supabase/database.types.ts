@@ -186,6 +186,23 @@ export interface CommissionRule {
   updated_at: string;
 }
 
+/**
+ * De/para do emoji da mensagem de abertura para o criativo de origem, usado
+ * quando o referral do Click-to-WhatsApp nao chega (caso da Evolution API).
+ * `match_text` so e preenchido quando dois criativos dividem o mesmo emoji.
+ */
+export interface AdCreativeSignature {
+  id: string;
+  tenant_id: string;
+  emoji: string;
+  match_text: string | null;
+  creative_name: string;
+  ad_id: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Commission {
   id: string;
   tenant_id: string;
@@ -690,6 +707,11 @@ export type Database = {
       finance_entries: { Row: FinanceEntry; Insert: Partial<FinanceEntry>; Update: Partial<FinanceEntry> };
       commission_rules: { Row: CommissionRule; Insert: Partial<CommissionRule>; Update: Partial<CommissionRule> };
       commissions: { Row: Commission; Insert: Partial<Commission>; Update: Partial<Commission> };
+      ad_creative_signatures: {
+        Row: AdCreativeSignature;
+        Insert: Partial<AdCreativeSignature>;
+        Update: Partial<AdCreativeSignature>;
+      };
     };
   };
 };
