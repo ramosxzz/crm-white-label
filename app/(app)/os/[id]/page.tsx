@@ -26,6 +26,7 @@ import { ServiceOrderStatusBadge } from "../status-badge";
 import { ItemsPanel } from "./items-panel";
 import { SchedulePanel } from "./schedule-panel";
 import { StatusActions } from "./status-actions";
+import { ServiceOrdersLive } from "../service-orders-live";
 
 function formatAddress(order: any) {
   const street = [order.address_street, order.address_number].filter(Boolean).join(", ");
@@ -105,6 +106,7 @@ export default async function ServiceOrderDetailPage({
 
   return (
     <div>
+      <ServiceOrdersLive tenantId={ctx.tenantId} />
       <PageHeader
         backHref="/os"
         eyebrow="Ordem de serviço"

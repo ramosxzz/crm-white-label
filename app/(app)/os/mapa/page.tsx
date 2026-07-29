@@ -9,6 +9,7 @@ import { listTechnicians } from "@/lib/field-service/users";
 import { formatServiceOrderCode } from "@/lib/field-service/status";
 import { resolveBaseLocation } from "@/lib/field-service/base-location";
 import { TechniciansMap } from "./technicians-map";
+import { ServiceOrdersLive } from "../service-orders-live";
 import type { MapBase, MapStop } from "./types";
 
 function brtDay() {
@@ -122,6 +123,7 @@ export default async function ServiceOrderMapPage({
 
   return (
     <div>
+      <ServiceOrdersLive tenantId={ctx.tenantId} />
       <PageHeader
         eyebrow="Serviço em campo"
         title="Mapa do dia"

@@ -15,6 +15,7 @@ import type { ServiceOrderStatus } from "@/lib/supabase/database.types";
 import { listConsultants } from "@/lib/field-service/users";
 import { ServiceOrderStatusBadge } from "./status-badge";
 import { NewServiceOrderDialog } from "./new-service-order-dialog";
+import { ServiceOrdersLive } from "./service-orders-live";
 
 const STATUS_FILTERS: Array<{ value: string; label: string }> = [
   { value: "abertas", label: "Em aberto" },
@@ -97,6 +98,7 @@ export default async function ServiceOrdersPage({
 
   return (
     <div>
+      <ServiceOrdersLive tenantId={ctx.tenantId} />
       <PageHeader
         eyebrow="Serviço em campo"
         title="Ordens de serviço"

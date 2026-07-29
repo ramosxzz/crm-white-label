@@ -13,6 +13,7 @@ import { isRoutingEnabled } from "@/lib/field-service/routing";
 import { ServiceOrderStatusBadge } from "../status-badge";
 import { RouteOptimizer } from "./route-optimizer";
 import { TechnicianSuggester } from "./technician-suggester";
+import { ServiceOrdersLive } from "../service-orders-live";
 
 function brtDay() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
@@ -142,6 +143,7 @@ export default async function RoteiroPage({
 
   return (
     <div>
+      <ServiceOrdersLive tenantId={ctx.tenantId} />
       <PageHeader
         eyebrow="Serviço em campo"
         title="Roteiro do dia"
@@ -223,9 +225,25 @@ export default async function RoteiroPage({
                         {formatCurrencyBRL(total)} no turno
                       </p>
                     )}
-                    {routingReady && list.length > 1 && (
-                      <RouteOptimizer serviceDate={day} shift={value} technicianId={tech.id} />
-                    )}
+                    {list.length > 0 &&
+                      (routingReady ? (
+                        <RouteOptimizer
+                          serviceDate={day}
+                          shift={value}
+                          technicianId={tech.id}
+                          disabled={list.length < 2}
+                          reason={
+                            list.length < 2
+                              ? "Com uma parada só não há ordem pra otimizar."
+                              : undefined
+                          }
+                        />
+                      ) : (
+                        <p className="mt-3 text-center text-[11px] leading-snug text-muted-foreground">
+                          Cadastre o endereço base da empresa em Configurações pra liberar a
+                          otimização de rota.
+                        </p>
+                      ))}
                   </div>
                 );
               })}

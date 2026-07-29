@@ -15,11 +15,14 @@ export function RouteOptimizer({
   shift,
   technicianId,
   disabled,
+  reason,
 }: {
   serviceDate: string;
   shift: "manha" | "tarde";
   technicianId: string;
   disabled?: boolean;
+  /** Por que o botao esta desligado. Some quando da pra otimizar. */
+  reason?: string;
 }) {
   const [pending, start] = useTransition();
   const [summary, setSummary] = useState<string | null>(null);
@@ -65,6 +68,11 @@ export function RouteOptimizer({
         {pending ? "Calculando..." : "Otimizar rota"}
       </Button>
       {summary && <p className="text-center text-[11px] text-muted-foreground">{summary}</p>}
+      {!summary && reason && (
+        // Botao que some sozinho e recurso que ninguem descobre: quando nao da
+        // pra otimizar, ele fica visivel e desligado, explicando o porque.
+        <p className="text-center text-[11px] leading-snug text-muted-foreground">{reason}</p>
+      )}
     </div>
   );
 }
