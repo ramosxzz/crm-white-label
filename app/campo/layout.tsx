@@ -5,6 +5,7 @@ import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { getCurrentContext } from "@/lib/tenant";
 import { LogoutButton } from "./logout-button";
 import { SyncIndicator } from "./sync-indicator";
+import { LocationSharing } from "./location-sharing";
 
 /**
  * O app do tecnico fica FORA do grupo (app) de proposito: la o layout monta
@@ -34,6 +35,7 @@ export default async function CampoLayout({ children }: { children: React.ReactN
             <LogoutButton />
           </div>
         </header>
+        <LocationSharing />
         <main className="flex-1 pb-[max(env(safe-area-inset-bottom),1rem)]">{children}</main>
       </div>
       <PwaInstallPrompt />

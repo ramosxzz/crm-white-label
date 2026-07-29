@@ -123,3 +123,18 @@ Checklist de fiação de uma flag nova, na ordem: migration → `Tenant` em `lib
 
 ---
 *Atualizar esse arquivo quando abrir/fechar pendência de algum tenant, pra próxima conversa pegar o contexto certo.*
+
+## Fase 5b — posição ao vivo do técnico (feita em 2026-07-29)
+Tabela `technician_locations`, uma linha por técnico (`primary key (tenant_id, user_id)`), gravada por upsert.
+
+⚠️ **Guarda só a posição atual, nunca o trajeto** — e isso é decisão, não simplificação. O administrativo pediu "onde ele está agora"; histórico de deslocamento de funcionário é dado sensível que a operação não precisa e que viraria passivo trabalhista pro cliente. Se algum dia pedirem trajeto, é conversa jurídica antes de ser técnica.
+
+Cortes, os dois no **servidor** (relógio de celular pode estar errado ou ser burlado):
+1. Fora da janela de expediente (`lib/field-service/tracking-window.ts`, 6h–20h BRT) a action recusa.
+2. Sem OS pra hoje com status `agendada`/`em_execucao`, recusa — sem finalidade, sem coleta.
+
+Ao sair do expediente o app **apaga** a última posição. Posição com mais de 10 minutos aparece como desatualizada, não como "ao vivo".
+
+O app do técnico mostra aviso permanente dizendo que está compartilhando, em que janela, e que o trajeto **não** é guardado. A permissão do navegador é o consentimento; se ele negar, a tela explica pra que serve em vez de insistir.
+
+Leitura da posição: só `owner`, `admin`, `gerente`, `atendente`. Vendedor e outros técnicos não veem ninguém.

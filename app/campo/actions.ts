@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { canTransitionServiceOrder } from "@/lib/field-service/status";
+import { isWithinTrackingWindow } from "@/lib/field-service/tracking-window";
 import type { ServiceOrderStatus } from "@/lib/supabase/database.types";
 
 type Ctx = Awaited<ReturnType<typeof requireContext>>;
@@ -220,4 +221,81 @@ export async function fieldTransition(input: {
   revalidatePath(`/campo/${parsed.service_order_id}`);
   revalidatePath(`/os/${parsed.service_order_id}`);
   revalidatePath("/os/roteiro");
+}
+
+const locationSchema = z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  accuracy_meters: z.number().min(0).max(100000).nullable().optional(),
+});
+
+export type LocationShareResult =
+  | { shared: true }
+  | { shared: false; reason: "fora_do_horario" | "sem_os_hoje" };
+
+/**
+ * Recebe a posicao do tecnico. Guarda so a ultima (upsert), nunca o trajeto.
+ *
+ * Dois cortes, os dois no servidor porque o relogio do celular pode estar
+ * errado ou ser burlado:
+ *   1. Fora da janela de expediente, recusa.
+ *   2. Sem OS pra hoje, recusa - nao ha finalidade em saber onde esta quem
+ *      nao tem visita marcada.
+ *
+ * Devolver o motivo em vez de erro e de proposito: o app mostra pro tecnico
+ * por que parou de compartilhar, em vez de falhar em silencio.
+ */
+export async function updateTechnicianLocation(input: {
+  lat: number;
+  lng: number;
+  accuracy_meters?: number | null;
+}): Promise<LocationShareResult> {
+  const ctx = await requireFieldContext();
+  const parsed = locationSchema.parse(input);
+
+  if (!isWithinTrackingWindow()) {
+    return { shared: false, reason: "fora_do_horario" };
+  }
+
+  const supabase = await createClient();
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+
+  const { data: assignments } = await supabase
+    .from("service_order_technicians")
+    .select("service_order_id, service_orders!inner(service_date, status)")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("user_id", ctx.userId)
+    .eq("service_orders.service_date", today)
+    .in("service_orders.status", ["agendada", "em_execucao"])
+    .limit(1);
+
+  if (!assignments || assignments.length === 0) {
+    return { shared: false, reason: "sem_os_hoje" };
+  }
+
+  const { error } = await supabase.from("technician_locations").upsert(
+    {
+      tenant_id: ctx.tenantId,
+      user_id: ctx.userId,
+      lat: parsed.lat,
+      lng: parsed.lng,
+      accuracy_meters: parsed.accuracy_meters ?? null,
+      recorded_at: new Date().toISOString(),
+    },
+    { onConflict: "tenant_id,user_id" },
+  );
+  if (error) throw new Error(error.message);
+
+  return { shared: true };
+}
+
+/** Apaga a posicao. Chamado ao sair do expediente e no logout do tecnico. */
+export async function clearTechnicianLocation() {
+  const ctx = await requireFieldContext();
+  const supabase = await createClient();
+  await supabase
+    .from("technician_locations")
+    .delete()
+    .eq("tenant_id", ctx.tenantId)
+    .eq("user_id", ctx.userId);
 }

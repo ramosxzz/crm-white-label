@@ -10,7 +10,7 @@ import { formatServiceOrderCode } from "@/lib/field-service/status";
 import { resolveBaseLocation } from "@/lib/field-service/base-location";
 import { TechniciansMap } from "./technicians-map";
 import { ServiceOrdersLive } from "../service-orders-live";
-import type { MapBase, MapStop } from "./types";
+import type { MapBase, MapStop, TechnicianPosition } from "./types";
 
 function brtDay() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
@@ -119,11 +119,26 @@ export default async function ServiceOrderMapPage({
       }
     : null;
 
+  // Posicao ao vivo dos tecnicos. So a ultima de cada um - o banco nao guarda
+  // trajeto. A RLS ja limita a leitura a gestao e administrativo.
+  const { data: livePositions } = await supabase
+    .from("technician_locations")
+    .select("user_id, lat, lng, accuracy_meters, recorded_at")
+    .eq("tenant_id", ctx.tenantId);
+
+  const positions: TechnicianPosition[] = ((livePositions ?? []) as any[]).map((row) => ({
+    technicianId: row.user_id,
+    lat: row.lat,
+    lng: row.lng,
+    accuracyMeters: row.accuracy_meters,
+    recordedAt: row.recorded_at,
+  }));
+
   const missing = orders.length - plotted.length;
 
   return (
     <div>
-      <ServiceOrdersLive tenantId={ctx.tenantId} />
+      <ServiceOrdersLive tenantId={ctx.tenantId} withTechnicianPositions />
       <PageHeader
         eyebrow="Serviço em campo"
         title="Mapa do dia"
@@ -170,7 +185,12 @@ export default async function ServiceOrderMapPage({
             </p>
           </div>
         ) : (
-          <TechniciansMap stops={stops} technicians={technicians} base={base} />
+          <TechniciansMap
+            stops={stops}
+            technicians={technicians}
+            base={base}
+            positions={positions}
+          />
         )}
 
         {missing > 0 && (

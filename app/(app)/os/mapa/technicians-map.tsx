@@ -6,7 +6,13 @@ import { cn } from "@/lib/utils";
 import { supportsWebGL2 } from "@/lib/browser/webgl";
 import { MapBoundary } from "./map-boundary";
 import { StopsFallback } from "./stops-fallback";
-import { technicianColor, type MapBase, type MapStop, type MapTechnician } from "./types";
+import {
+  technicianColor,
+  type MapBase,
+  type MapStop,
+  type MapTechnician,
+  type TechnicianPosition,
+} from "./types";
 
 // MapLibre so roda no browser e pesa: fora do bundle do servidor e carregado
 // so quando esta tela abre.
@@ -31,10 +37,12 @@ export function TechniciansMap({
   stops,
   technicians,
   base,
+  positions = [],
 }: {
   stops: MapStop[];
   technicians: MapTechnician[];
   base: MapBase | null;
+  positions?: TechnicianPosition[];
 }) {
   const [shift, setShift] = useState<ShiftFilter>("todos");
   const [activeTechnician, setActiveTechnician] = useState<string | null>(null);
@@ -60,6 +68,14 @@ export function TechniciansMap({
         return true;
       }),
     [stops, shift, activeTechnician],
+  );
+
+  const visiblePositions = useMemo(
+    () =>
+      positions.filter(
+        (p) => !activeTechnician || p.technicianId === activeTechnician,
+      ),
+    [positions, activeTechnician],
   );
 
   const visibleTechnicians = useMemo(
@@ -178,6 +194,7 @@ export function TechniciansMap({
               technicians={visibleTechnicians}
               base={base}
               colorByTechnician={colorByTechnician}
+              positions={visiblePositions}
             />
           </MapBoundary>
         )}

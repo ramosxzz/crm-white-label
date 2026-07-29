@@ -18,6 +18,15 @@ export type MapStop = {
 
 export type MapTechnician = { id: string; name: string };
 
+/** Onde o tecnico esta agora. Ausente quando ele nao esta compartilhando. */
+export type TechnicianPosition = {
+  technicianId: string;
+  lat: number;
+  lng: number;
+  accuracyMeters: number | null;
+  recordedAt: string;
+};
+
 export type MapBase = { lat: number; lng: number; address: string };
 
 /**

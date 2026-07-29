@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo } from "react";
-import { Home, MapPin, Wrench } from "lucide-react";
+import { Home, MapPin, Truck, Wrench } from "lucide-react";
 import {
   // Importado com alias de proposito: o componente se chama `Map` e sombreia o
   // `Map` nativo do JavaScript, quebrando qualquer `new Map()` deste arquivo.
@@ -20,7 +20,14 @@ import {
   SERVICE_ORDER_SHIFT_LABEL,
   SERVICE_ORDER_STATUS_LABEL,
 } from "@/lib/field-service/status";
-import { technicianColor, type MapBase, type MapStop, type MapTechnician } from "./types";
+import { isPositionFresh } from "@/lib/field-service/tracking-window";
+import {
+  technicianColor,
+  type MapBase,
+  type MapStop,
+  type MapTechnician,
+  type TechnicianPosition,
+} from "./types";
 
 /**
  * Basemap sem chave e sem custo. O OpenFreeMap serve tiles de OpenStreetMap
@@ -87,16 +94,48 @@ function StopPin({ color, label }: { color: string; label: string }) {
   );
 }
 
+/** Marcador do tecnico: pulsa e usa a cor dele, pra nao virar mais uma parada. */
+function TechnicianPin({ color, fresh }: { color: string; fresh: boolean }) {
+  return (
+    <div className="relative grid place-items-center">
+      {fresh && (
+        <span
+          className="absolute h-8 w-8 animate-ping rounded-full opacity-40 motion-reduce:animate-none"
+          style={{ backgroundColor: color }}
+        />
+      )}
+      <span
+        className="relative grid h-6 w-6 place-items-center rounded-full border-2 border-white shadow-md"
+        style={{ backgroundColor: fresh ? color : "#64748b" }}
+      >
+        <Truck className="h-3 w-3 text-white" />
+      </span>
+    </div>
+  );
+}
+
+function minutesAgo(recordedAt: string) {
+  const diff = Date.now() - new Date(recordedAt).getTime();
+  const min = Math.max(0, Math.round(diff / 60000));
+  if (min < 1) return "agora";
+  if (min === 1) return "há 1 minuto";
+  if (min < 60) return `há ${min} minutos`;
+  const h = Math.floor(min / 60);
+  return h === 1 ? "há 1 hora" : `há ${h} horas`;
+}
+
 export function MapCanvas({
   stops,
   technicians,
   base,
   colorByTechnician,
+  positions = [],
 }: {
   stops: MapStop[];
   technicians: MapTechnician[];
   base: MapBase | null;
   colorByTechnician: Record<string, string>;
+  positions?: TechnicianPosition[];
 }) {
   const technicianName = useMemo(
     () => new Map(technicians.map((tech) => [tech.id, tech.name])),
@@ -180,6 +219,27 @@ export function MapCanvas({
           </MarkerTooltip>
         </MapMarker>
       )}
+
+      {positions.map((pos) => {
+        const tech = technicians.find((t) => t.id === pos.technicianId);
+        if (!tech) return null;
+        const fresh = isPositionFresh(pos.recordedAt);
+        const color = colorByTechnician[pos.technicianId] ?? "#64748b";
+        return (
+          <MapMarker
+            key={`tech-${pos.technicianId}`}
+            longitude={pos.lng}
+            latitude={pos.lat}
+          >
+            <MarkerContent>
+              <TechnicianPin color={color} fresh={fresh} />
+            </MarkerContent>
+            <MarkerTooltip className="bg-popover text-popover-foreground border border-border/60 px-2.5 py-1.5 font-medium shadow-md">
+              {tech.name} · {fresh ? minutesAgo(pos.recordedAt) : "posição desatualizada"}
+            </MarkerTooltip>
+          </MapMarker>
+        );
+      })}
 
       {stops.map((stop) => {
         const primary = stop.technicianIds[0];

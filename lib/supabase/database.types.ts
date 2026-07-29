@@ -71,6 +71,16 @@ export type ServiceOrderStatus =
 export type ServiceOrderShift = "manha" | "tarde";
 export type ServiceOrderItemKind = "original" | "upsell";
 
+/** Ultima posicao conhecida do tecnico. Nao guarda trajeto, so a atual. */
+export interface TechnicianLocation {
+  tenant_id: string;
+  user_id: string;
+  lat: number;
+  lng: number;
+  accuracy_meters: number | null;
+  recorded_at: string;
+}
+
 export interface ServiceOrder {
   id: string;
   tenant_id: string;

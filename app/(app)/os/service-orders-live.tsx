@@ -15,7 +15,14 @@ import { createClient } from "@/lib/supabase/client";
  * `router.refresh()` refaz so o lado servidor da rota atual: nao pisca a tela,
  * nao perde scroll e nao perde filtro selecionado.
  */
-export function ServiceOrdersLive({ tenantId }: { tenantId: string }) {
+export function ServiceOrdersLive({
+  tenantId,
+  withTechnicianPositions = false,
+}: {
+  tenantId: string;
+  /** Só o mapa precisa: escutar posição nas outras telas seria refresh à toa. */
+  withTechnicianPositions?: boolean;
+}) {
   const router = useRouter();
 
   useEffect(() => {
@@ -29,25 +36,37 @@ export function ServiceOrdersLive({ tenantId }: { tenantId: string }) {
       timer = setTimeout(() => router.refresh(), 300);
     };
 
-    const channel = supabase
-      .channel(`service-orders-${tenantId}`)
-      .on(
+    let channel = supabase.channel(`service-orders-${tenantId}`).on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "service_orders",
+        filter: `tenant_id=eq.${tenantId}`,
+      },
+      refreshSoon,
+    );
+
+    if (withTechnicianPositions) {
+      channel = channel.on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
-          table: "service_orders",
+          table: "technician_locations",
           filter: `tenant_id=eq.${tenantId}`,
         },
         refreshSoon,
-      )
-      .subscribe();
+      );
+    }
+
+    channel.subscribe();
 
     return () => {
       if (timer) clearTimeout(timer);
       supabase.removeChannel(channel);
     };
-  }, [tenantId, router]);
+  }, [tenantId, router, withTechnicianPositions]);
 
   return null;
 }
