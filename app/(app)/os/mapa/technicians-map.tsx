@@ -1,8 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
+import { supportsWebGL2 } from "@/lib/browser/webgl";
+import { MapBoundary } from "./map-boundary";
+import { StopsFallback } from "./stops-fallback";
 import { technicianColor, type MapBase, type MapStop, type MapTechnician } from "./types";
 
 // MapLibre so roda no browser e pesa: fora do bundle do servidor e carregado
@@ -35,6 +38,13 @@ export function TechniciansMap({
 }) {
   const [shift, setShift] = useState<ShiftFilter>("todos");
   const [activeTechnician, setActiveTechnician] = useState<string | null>(null);
+  // null enquanto nao checou: a checagem so roda no browser, entao no primeiro
+  // render (servidor e hidratacao) ainda nao da pra saber.
+  const [hasWebGL, setHasWebGL] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    setHasWebGL(supportsWebGL2());
+  }, []);
 
   const colorByTechnician = useMemo(
     () =>
@@ -139,13 +149,37 @@ export function TechniciansMap({
               </p>
             </div>
           </div>
-        ) : (
-          <MapCanvas
+        ) : hasWebGL === null ? (
+          <div className="grid h-full place-items-center text-sm text-muted-foreground">
+            Carregando mapa...
+          </div>
+        ) : hasWebGL === false ? (
+          // Sem WebGL2 o mapa nem chega a ser montado: mostrar a lista e melhor
+          // que deixar o MapLibre quebrar a tela inteira.
+          <StopsFallback
             stops={visibleStops}
-            technicians={visibleTechnicians}
-            base={base}
+            technicians={technicians}
             colorByTechnician={colorByTechnician}
+            reason="webgl"
           />
+        ) : (
+          <MapBoundary
+            fallback={
+              <StopsFallback
+                stops={visibleStops}
+                technicians={technicians}
+                colorByTechnician={colorByTechnician}
+                reason="error"
+              />
+            }
+          >
+            <MapCanvas
+              stops={visibleStops}
+              technicians={visibleTechnicians}
+              base={base}
+              colorByTechnician={colorByTechnician}
+            />
+          </MapBoundary>
         )}
       </div>
     </div>

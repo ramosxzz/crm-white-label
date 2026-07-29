@@ -65,6 +65,8 @@ Pedido do usuário: o administrativo do ACT (Tiago) quer acompanhar os técnicos
 
 ✅ **Armadilha de chave resolvida escolhendo a opção sem chave.** O mapa é MapLibre GL + **OpenFreeMap** (`tiles.openfreemap.org`, tiles de OpenStreetMap, sem cadastro, sem chave, liberado pra uso comercial). **Nenhuma chave vai pro client e o Google não é chamado nesta tela** — verificado no browser: zero requisições a domínio Google. Trocar de basemap é trocar uma URL em `BASEMAP_STYLES` (`app/(app)/os/mapa/map-canvas.tsx`).
 
+⚠️ **O mapa exige WebGL2, e nem toda máquina tem.** Aconteceu de verdade em 2026-07-29: `GPUInitializationError: WebGL2 is required to display this map`, lançado de dentro de um efeito, derrubava a tela inteira no error boundary da rota. Causas comuns: aceleração de hardware desligada no navegador, vídeo antigo em micro de escritório, VM sem GPU, extensão de privacidade bloqueando canvas — exatamente o perfil do administrativo. Agora `supportsWebGL2()` (`lib/browser/webgl.ts`) checa antes de montar e, se não houver, a tela cai pra `StopsFallback`: as mesmas paradas em lista, na ordem da rota, com os filtros funcionando. Um `MapBoundary` segura qualquer outra falha do mapa no tamanho do próprio mapa. **Testado negando WebGL2 no navegador.**
+
 ⚠️ **Pegadinha do componente do mapa:** `components/ui/mapcn-map-marker.tsx` exporta um componente chamado `Map`, que **sombreia o `Map` nativo do JavaScript**. Um `new Map()` no mesmo arquivo vira `new (componente)()` e quebra em runtime — já aconteceu e custou uma sessão de debug. Importar sempre com alias: `import { Map as MapView } from ...`.
 
 ## Validação do faturamento (2026-07-28)
