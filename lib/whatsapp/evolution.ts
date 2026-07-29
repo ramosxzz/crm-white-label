@@ -1,5 +1,10 @@
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 import { normalizeWhatsAppPhone } from "./phone";
+import {
+  fetchWithTimeout,
+  PROVIDER_TIMEOUT_MEDIA_MS,
+  PROVIDER_TIMEOUT_TEXT_MS,
+} from "./fetch-with-timeout";
 import type {
   InboundNormalized,
   SendMediaInput,
@@ -83,23 +88,28 @@ export class EvolutionProvider implements WhatsAppProvider {
 
   async send(input: SendMessageInput): Promise<SendMessageResult> {
     const url = `${this.creds.base_url.replace(/\/$/, "")}/message/sendText/${this.creds.instance}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { apikey: this.creds.api_key, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        number: input.to.replace(/\D/g, ""),
-        text: input.body ?? "",
-        ...(input.quotedMessageId
-          ? {
-              quoted: {
-                key: {
-                  id: input.quotedMessageId,
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers: { apikey: this.creds.api_key, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          number: input.to.replace(/\D/g, ""),
+          text: input.body ?? "",
+          ...(input.quotedMessageId
+            ? {
+                quoted: {
+                  key: {
+                    id: input.quotedMessageId,
+                  },
                 },
-              },
-            }
-          : {}),
-      }),
-    });
+              }
+            : {}),
+        }),
+      },
+      PROVIDER_TIMEOUT_TEXT_MS,
+      "Evolution",
+    );
     const data = (await res.json()) as { key?: { id?: string } };
     if (!res.ok) return { externalId: "", status: "failed", raw: data };
     return { externalId: data.key?.id ?? "", status: "sent", raw: data };
@@ -174,11 +184,16 @@ export class EvolutionProvider implements WhatsAppProvider {
       };
     }
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { apikey: this.creds.api_key, "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers: { apikey: this.creds.api_key, "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+      PROVIDER_TIMEOUT_MEDIA_MS,
+      "Evolution",
+    );
     const data = (await res.json()) as { key?: { id?: string } };
     if (!res.ok) return { externalId: "", status: "failed", raw: data };
     return { externalId: data.key?.id ?? "", status: "sent", raw: data };

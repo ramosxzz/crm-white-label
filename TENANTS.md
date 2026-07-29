@@ -162,3 +162,17 @@ Dois pedidos separados do usuário, resolvidos juntos por reaproveitarem o que j
 **Dashboard "entrou X leads esse mês, Y% em cada etapa"** — a página `/funil` já existia com a RPC `funnel_metrics` fazendo exatamente essa semântica (leads **criados** no período, agrupados pela etapa **atual**), só faltava o filtro de mês e o percentual visível. Adicionados: `getBRTMonthBounds(offset)` em `lib/date/brt.ts` (testado nas viradas de mês e de ano), filtros "Este mês"/"Mês passado" na tela, e `%` do total do período junto da contagem de cada etapa no card.
 
 Validado em produção, só leitura, contra a Avante Digital (779 leads no mês): distribuição por etapa bate com o formato do exemplo do áudio do cliente.
+
+## Vídeo travado no PWA da Atacado Moda Sul (2026-07-29)
+Relato: enviou um vídeo, ficou "enviando" por minutos sem sair, e ao sair da conversa o sistema todo travou. Conta é Evolution API.
+
+**Evidência antes de mexer**: consultei `messages` em produção (só leitura) — **nenhuma linha** foi criada pra essa tentativa de vídeo. Isso descarta o WhatsApp/Evolution como causa: o processo nunca saiu do **upload do arquivo pro Supabase Storage**, que é client-side e acontece antes de qualquer chamada de servidor.
+
+Causa raiz: o app aceitava até **1GB** em qualquer mídia. Vídeo de celular de poucos minutos passa fácil de 200-500MB — em conexão de loja, isso é upload de vários minutos **destinado a falhar de qualquer forma**, porque o WhatsApp em si só aceita vídeo até **16MB** (limite real da rede, documentado na Cloud API da Meta — vale também pro Evolution, que entrega pra dentro da mesma infraestrutura). O usuário esperava minutos por um envio que nunca teria como dar certo do outro lado.
+
+Corrigido:
+- `lib/whatsapp/media-limits.ts` — teto real por tipo (imagem 5MB, vídeo 16MB, áudio 16MB, documento 100MB), validado **antes** de iniciar o upload, com mensagem explicando o motivo.
+- `lib/whatsapp/fetch-with-timeout.ts` — nenhuma chamada aos provedores (Evolution, Cloud API, Z-API) tinha timeout; `fetch` nativo espera pra sempre. Ficou 45s pra texto, 90s pra mídia — se o provedor travar, agora falha com erro claro em vez de pendurar a Server Action e o `await` do cliente indefinidamente. Esse era um risco sistêmico separado do vídeo (qualquer envio por qualquer provedor podia travar assim), corrigido nos três provedores.
+- `lib/async/with-timeout.ts` — teto de 4 minutos no upload do cliente pro Storage. Não cancela a rede de verdade (não tem como abortar limpo o upload do `@supabase/storage-js` nesta versão), mas garante que a **tela** nunca fica travada esperando — depois do prazo, erro claro e o usuário pode tentar de novo.
+
+Não expliquei o "travou o sistema todo" com certeza total — mais provável é o upload de centenas de MB saturando a conexão móvel da loja, fazendo qualquer outra coisa parecer travada até o navegador desistir. O corte de tamanho pra 16MB em vídeo torna esse cenário via anexo de chat bem mais raro.

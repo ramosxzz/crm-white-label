@@ -7,6 +7,11 @@ import {
 } from "./phone";
 import { isZapiStatusOrBroadcastNoise } from "./zapi-noise";
 import { zapiEventToDeliveryStatus } from "./zapi-status";
+import {
+  fetchWithTimeout,
+  PROVIDER_TIMEOUT_MEDIA_MS,
+  PROVIDER_TIMEOUT_TEXT_MS,
+} from "./fetch-with-timeout";
 import type {
   InboundNormalized,
   SendMediaInput,
@@ -391,14 +396,19 @@ export class ZapiProvider implements WhatsAppProvider {
       );
     }
 
-    const res = await fetch(this.basePath("/send-text"), {
-      method: "POST",
-      headers: this.headers(),
-      body: JSON.stringify({
-        phone,
-        message: input.body ?? "",
-      }),
-    });
+    const res = await fetchWithTimeout(
+      this.basePath("/send-text"),
+      {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify({
+          phone,
+          message: input.body ?? "",
+        }),
+      },
+      PROVIDER_TIMEOUT_TEXT_MS,
+      "Z-API",
+    );
 
     const data = (await res.json()) as {
       messageId?: string;
@@ -466,11 +476,16 @@ export class ZapiProvider implements WhatsAppProvider {
       }
     }
 
-    const res = await fetch(this.basePath(path), {
-      method: "POST",
-      headers: this.headers(),
-      body: JSON.stringify(payload),
-    });
+    const res = await fetchWithTimeout(
+      this.basePath(path),
+      {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify(payload),
+      },
+      PROVIDER_TIMEOUT_MEDIA_MS,
+      "Z-API",
+    );
 
     const data = (await res.json()) as {
       messageId?: string;

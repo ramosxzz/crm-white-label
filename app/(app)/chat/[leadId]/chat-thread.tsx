@@ -1,6 +1,8 @@
 "use client";
 
 import { notify, notifyError } from "@/lib/ui/feedback";
+import { mediaSizeError } from "@/lib/whatsapp/media-limits";
+import { withTimeout } from "@/lib/async/with-timeout";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import {
@@ -164,6 +166,15 @@ function detectMediaKind(mime: string): MediaKind {
 // Realtime ja atualiza em tempo real; o polling e so uma rede de seguranca
 // (caso o realtime perca um evento) e roda devagar e so com a aba visivel.
 const POLL_MS = 90_000;
+
+// Teto pro upload de midia do chat. Nao cancela o upload de verdade (a rede
+// pode continuar tentando em segundo plano), mas garante que a tela nunca
+// fica com "enviando" travado pra sempre - depois desse tempo o usuario ve
+// um erro claro e pode tentar de novo, em vez de ficar esperando sem saber
+// se ainda esta acontecendo alguma coisa.
+const MEDIA_UPLOAD_TIMEOUT_MS = 4 * 60_000;
+const MEDIA_UPLOAD_TIMEOUT_MESSAGE =
+  "A conexão está muito lenta para enviar esse arquivo agora. Tente novamente com um Wi-Fi melhor, ou envie um arquivo menor.";
 
 function dayLabel(iso: string): string {
   const d = new Date(iso);
@@ -739,7 +750,11 @@ export function ChatThread({
       setStatus("em_atendimento");
 
       try {
-        const url = await uploadChatMedia(file, fileName);
+        const url = await withTimeout(
+          uploadChatMedia(file, fileName),
+          MEDIA_UPLOAD_TIMEOUT_MS,
+          MEDIA_UPLOAD_TIMEOUT_MESSAGE,
+        );
         const result = await sendChatMedia({
           leadId,
           mediaUrl: url,
@@ -767,7 +782,11 @@ export function ChatThread({
   async function uploadForSchedule(file: Blob, fileName: string) {
     setScheduleUploading(true);
     try {
-      const url = await uploadChatMedia(file, fileName);
+      const url = await withTimeout(
+        uploadChatMedia(file, fileName),
+        MEDIA_UPLOAD_TIMEOUT_MS,
+        MEDIA_UPLOAD_TIMEOUT_MESSAGE,
+      );
       setScheduleMediaUrl(url);
       setScheduleMediaName(fileName);
     } catch (err) {
@@ -781,11 +800,17 @@ export function ChatThread({
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (file.size > 1024 * 1024 * 1024) {
-      notify({ title: "Arquivo muito grande (máximo 1 GB).", tone: "error" });
+    const kind = detectMediaKind(file.type);
+    // O WhatsApp recusa arquivo acima do teto dele independente do que a
+    // gente aceitar aqui. Bloquear antes de subir evita minutos de upload
+    // (em loja com conexao ruim, literalmente minutos) pra um envio que
+    // nunca teria como dar certo do outro lado.
+    const sizeError = mediaSizeError(kind, file.size);
+    if (sizeError) {
+      notify({ title: sizeError, tone: "error" });
       return;
     }
-    void uploadAndSend(file, file.name, detectMediaKind(file.type));
+    void uploadAndSend(file, file.name, kind);
   }
 
   async function sendExistingMedia(url: string, kind: MediaKind, caption?: string, quickMessageId?: string) {

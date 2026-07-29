@@ -1,4 +1,5 @@
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
+import { fetchWithTimeout, PROVIDER_TIMEOUT_MEDIA_MS } from "./fetch-with-timeout";
 import type {
   InboundNormalized,
   SendMediaInput,
@@ -136,11 +137,19 @@ export class CloudApiProvider implements WhatsAppProvider {
   }
 
   private async postMessage(body: Record<string, unknown>): Promise<SendMessageResult> {
-    const res = await fetch(this.messagesUrl(), {
-      method: "POST",
-      headers: this.authHeaders(),
-      body: JSON.stringify(body),
-    });
+    // Timeout unico pra send/sendMedia/sendTemplate: usa o teto de midia (o
+    // maior) porque os tres passam por aqui, e um texto travado ainda
+    // resolve dentro desse tempo.
+    const res = await fetchWithTimeout(
+      this.messagesUrl(),
+      {
+        method: "POST",
+        headers: this.authHeaders(),
+        body: JSON.stringify(body),
+      },
+      PROVIDER_TIMEOUT_MEDIA_MS,
+      "WhatsApp Cloud API",
+    );
     const data = (await res.json().catch(() => ({}))) as {
       messages?: { id: string }[];
       error?: { message?: string; error_data?: { details?: string } };
