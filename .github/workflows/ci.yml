@@ -29,6 +29,18 @@ jobs:
 
       - run: npm ci
 
+      # O Dockerfile instala so com package.json + package-lock.json: nao copia
+      # .npmrc nem nada do repo. Se algum arquivo de config mudar a resolucao
+      # aqui e nao la, o lock passa neste job e o build do container quebra com
+      # "Missing: <pacote> from lock file" - foi o que derrubou o deploy em
+      # 2026-07-29. Este passo instala do jeito que o Docker instala.
+      - name: Validar package-lock como o Docker instala
+        run: |
+          rm -rf /tmp/lockcheck && mkdir -p /tmp/lockcheck
+          cp package.json package-lock.json /tmp/lockcheck/
+          cd /tmp/lockcheck
+          npm ci --omit=dev --dry-run
+
       - run: npm run build
 
       - run: npm test

@@ -91,18 +91,15 @@ Pedido do usuário: o administrativo do ACT (Tiago) quer acompanhar os técnicos
 | Atacado Moda Sul | `ec219bae-9fc8-44d8-b027-95811aa1897d` | `atacadomodasul7` | produção |
 | Solaire Energia Solar | `4ef4b668-d2ea-43a6-bcb8-9f6cb076735d` | `solairesolar` | produção, sem estoque |
 
-## ⚠️ Armadilha do package-lock (quebrou o deploy em 2026-07-29)
-O `.npmrc` do projeto tem `legacy-peer-deps=true`, mas **o Dockerfile não copia o `.npmrc`** — só `package.json` e `package-lock.json`. Resultado: os dois lados discordam.
-- `npm install` local (com o `.npmrc`) **remove as peer deps do lock** — some `webpack`, `@webassemblyjs/*` e mais 40 pacotes.
-- `npm ci` dentro do Docker roda **sem** o `.npmrc`, no modo estrito, e falha com `Missing: webpack@... from lock file`.
+## Instalação de dependências (armadilha resolvida em 2026-07-29)
+O projeto tinha um `.npmrc` com `legacy-peer-deps=true` (adicionado em 26/06 por um problema de build do Cloudflare), mas **o Dockerfile não copia o `.npmrc`** — só `package.json` e `package-lock.json`. Os dois lados resolviam diferente:
+- `npm install` local **apagava as peer deps do lock** — sumiam `webpack`, `@webassemblyjs/*` e mais 40 pacotes.
+- `npm ci` do Docker rodava estrito e falhava com `Missing: webpack@... from lock file`.
+- Pior: o `npm run build` local **não pegava** (o `node_modules` já está populado) e o `npm ci` do CI também não, porque o CI enxerga o `.npmrc`. Só o container quebrava — deploy caiu com o CI verde.
 
-O `npm run build` local **não pega isso**, porque o `node_modules` já está populado. Depois de adicionar dependência, gerar o lock com:
-```
-npm install --package-lock-only --legacy-peer-deps=false
-```
-e validar copiando `package.json` + `package-lock.json` pra uma pasta vazia (sem `.npmrc`) e rodando `npm ci --dry-run` e `npm ci --omit=dev --dry-run`. Os dois têm que passar — são os dois estágios do Dockerfile.
+**Resolvido**: o `.npmrc` foi removido (verificado que a resolução estrita passa sem `ERESOLVE`, então a flag não era mais necessária). Local, CI e Docker agora resolvem igual, e o `npm install` normal já gera lock válido.
 
-**Correção de raiz ainda não feita**: ou copiar o `.npmrc` no Dockerfile, ou tirar o `legacy-peer-deps` do projeto. Enquanto não decidir, o passo acima é obrigatório a cada dependência nova.
+Além disso o CI ganhou o passo **"Validar package-lock como o Docker instala"**: copia `package.json` + `package-lock.json` pra uma pasta limpa e roda `npm ci --omit=dev --dry-run`. Testado contra o lock que derrubou o deploy — reprova. Se alguém reintroduzir um `.npmrc` (ou qualquer config que mude a resolução), quebra no CI em vez de quebrar no deploy.
 
 ## Flags globais existentes (toggle por tenant)
 `stock_enabled`, `broadcast_enabled`, `calls_dashboard_enabled`, `satisfaction_survey_enabled`, `lead_assignment_enabled`, `field_service_enabled`.
