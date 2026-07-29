@@ -60,10 +60,12 @@ Referência rápida por tenant. Uso: abrir conversa nova no Claude por tenant, c
 
 ## Fase 5 — mapa pro administrativo (pedido novo, 2026-07-28)
 Pedido do usuário: o administrativo do ACT (Tiago) quer acompanhar os técnicos num mapa. Decidido fazer **em duas fases**:
-- **5a — mapa das OS do dia**: paradas do turno plotadas, ordem da rota, pino com cliente/serviço/status. `service_orders.lat/lng` já existem e já são geocodificados, então é trabalho de tela. Formato pedido: **um mapa só**, com os técnicos distinguíveis entre si e possibilidade de isolar um de cada vez — não um mapa por técnico.
+- **5a — FEITA (2026-07-29)**: `/os/mapa`, um mapa só, filtro de turno + chip por técnico (clicar isola, clicar de novo volta pra todos). Pino numerado com a posição na rota, cor por técnico, popup com cliente/OS/status/valor e link pra OS; base da empresa marcada. Linha tracejada liga as paradas na ordem — **é traço reto entre pontos, não o caminho pelas ruas**, porque o trajeto real exigiria a Routes API paga e aqui o que importa é a sequência. Só entra OS já geocodificada; a tela avisa quantas ficaram de fora.
 - **5b — rastreamento ao vivo**: posição do técnico atualizando sozinha. Exige o app `/campo` enviar GPS periodicamente, tabela nova de posições, tratamento de bateria/sinal, e **alinhamento trabalhista com o cliente** (rastrear funcionário precisa ser comunicado e limitado ao turno). Só depois de 5a.
 
-⚠️ **Armadilha de chave nesta fase:** mapa interativo no browser exige chave exposta no client. **Não reusar a `GOOGLE_MAPS_API_KEY` do servidor.** Opções: (1) segunda chave restrita por referrer HTTP, (2) Maps Static API renderizada no servidor (chave segue escondida, mas sem zoom/arrastar), (3) Leaflet + OpenStreetMap, sem chave e sem custo. Não decidido ainda.
+✅ **Armadilha de chave resolvida escolhendo a opção sem chave.** O mapa é MapLibre GL + **OpenFreeMap** (`tiles.openfreemap.org`, tiles de OpenStreetMap, sem cadastro, sem chave, liberado pra uso comercial). **Nenhuma chave vai pro client e o Google não é chamado nesta tela** — verificado no browser: zero requisições a domínio Google. Trocar de basemap é trocar uma URL em `BASEMAP_STYLES` (`app/(app)/os/mapa/map-canvas.tsx`).
+
+⚠️ **Pegadinha do componente do mapa:** `components/ui/mapcn-map-marker.tsx` exporta um componente chamado `Map`, que **sombreia o `Map` nativo do JavaScript**. Um `new Map()` no mesmo arquivo vira `new (componente)()` e quebra em runtime — já aconteceu e custou uma sessão de debug. Importar sempre com alias: `import { Map as MapView } from ...`.
 
 ## Validação do faturamento (2026-07-28)
 `bill_service_order` foi exercitado em produção com centavo quebrado e conferido número por número. Total R$1.500,05, upsell R$300,05, 2 técnicos:

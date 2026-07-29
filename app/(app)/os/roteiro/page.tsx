@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeft, ChevronRight, MapPin, Sun, Sunset } from "lucide-react";
+import { ChevronLeft, ChevronRight, Map as MapIcon, MapPin, Sun, Sunset } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { canManageServiceOrders } from "@/lib/auth/roles";
@@ -167,6 +167,12 @@ export default async function RoteiroPage({
               aria-label="Próximo dia"
             >
               <ChevronRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href={`/os/mapa?day=${day}`}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
+            >
+              <MapIcon className="h-4 w-4" /> Mapa
             </Link>
             <Link
               href="/os"

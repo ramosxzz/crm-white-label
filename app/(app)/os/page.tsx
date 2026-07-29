@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarDays, ChevronRight, MapPin } from "lucide-react";
+import { CalendarDays, ChevronRight, Map as MapIcon, MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { canAccessServiceOrders, canManageServiceOrders } from "@/lib/auth/roles";
@@ -109,6 +109,14 @@ export default async function ServiceOrdersPage({
             >
               <CalendarDays className="h-4 w-4" /> Roteiro
             </Link>
+            {canManage && (
+              <Link
+                href="/os/mapa"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
+              >
+                <MapIcon className="h-4 w-4" /> Mapa
+              </Link>
+            )}
             {canManage && (
               <NewServiceOrderDialog
                 leads={(leads ?? []) as Array<{ id: string; name: string; phone: string | null }>}
