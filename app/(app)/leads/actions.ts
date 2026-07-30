@@ -100,6 +100,10 @@ export async function createLead(formData: FormData) {
       pipeline_id: pipelineRow?.pipeline_id,
       value_cents: parsed.value_cents ?? 0,
       referred_by_partner_id: parsed.referred_by_partner_id ?? null,
+      assigned_to:
+        ctx.role === "vendedor" && ctx.tenant.lead_assignment_enabled
+          ? ctx.userId
+          : null,
     })
     .select("id")
     .single();
@@ -119,7 +123,10 @@ export async function createLead(formData: FormData) {
       // Lead indicado por parceiro (loja/vendedor): fica sem dono de proposito,
       // pra coordenadora triar manualmente - pedido explicito do ACT, pra nao
       // cair no sorteio automatico junto com os leads de marketing.
-      if (parsed.referred_by_partner_id) {
+      if (ctx.role === "vendedor" && ctx.tenant.lead_assignment_enabled) {
+        // No tenant com distribuicao ativa, o lead cadastrado pela propria
+        // vendedora permanece com ela e nao entra no fluxo automatico.
+      } else if (parsed.referred_by_partner_id) {
         // no-op: sem modo ausente, sem round-robin.
       } else {
         // Modo ausente tem prioridade: se ativo, o lead vai direto para o
