@@ -112,6 +112,11 @@ export interface ServiceOrder {
   partner_seller_name: string | null;
   /** Percentual negociado nesta indicacao. Nulo = regra global do tenant. */
   partner_commission_percent: number | null;
+  /** Loja/vendedor cadastrados. Preferidos sobre partner_store/partner_seller_name quando presentes. */
+  partner_store_id: string | null;
+  partner_seller_id: string | null;
+  /** Fatia da comissao de indicacao que fica com a loja. Nulo com os dois = 50/50. */
+  partner_store_split_percent: number | null;
   signature_path: string | null;
   signed_at: string | null;
   signer_name: string | null;
@@ -166,12 +171,27 @@ export interface ServiceOrderEvent {
   created_at: string;
 }
 
+export type FieldServicePartnerKind = "loja" | "vendedor";
+
+export interface FieldServicePartner {
+  id: string;
+  tenant_id: string;
+  kind: FieldServicePartnerKind;
+  name: string;
+  /** So preenchido em vendedor: a loja a qual ele pertence (opcional). */
+  store_id: string | null;
+  phone: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // --- Financeiro do servico em campo ---
 
 export type FinanceEntryKind = "pagar" | "receber";
 export type FinanceEntryStatus = "aberta" | "paga" | "cancelada";
 export type CommissionStatus = "prevista" | "aprovada" | "paga";
-export type CommissionParty = "tecnico" | "vendedora_interna" | "loja_parceira";
+export type CommissionParty = "tecnico" | "vendedora_interna" | "loja_parceira" | "vendedor_externo";
 
 export interface FinanceEntry {
   id: string;
@@ -222,7 +242,9 @@ export interface Commission {
   service_order_id: string;
   party_kind: CommissionParty;
   user_id: string | null;
+  partner_id: string | null;
   partner_name: string | null;
+  partner_store: string | null;
   base_cents: number;
   percent: number;
   amount_cents: number;

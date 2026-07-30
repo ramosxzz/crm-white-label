@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarDays, ChevronRight, Map as MapIcon, MapPin } from "lucide-react";
+import { CalendarDays, ChevronRight, Handshake, Map as MapIcon, MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import {
@@ -17,6 +17,7 @@ import {
 } from "@/lib/field-service/status";
 import type { ServiceOrderStatus } from "@/lib/supabase/database.types";
 import { listConsultants } from "@/lib/field-service/users";
+import type { FieldServicePartner } from "@/lib/supabase/database.types";
 import { ServiceOrderStatusBadge } from "./status-badge";
 import { NewServiceOrderDialog } from "./new-service-order-dialog";
 import { ServiceOrdersLive } from "./service-orders-live";
@@ -89,6 +90,17 @@ export default async function ServiceOrdersPage({
   const canManage = canManageServiceOrders(ctx.role);
   const consultants = canManage ? await listConsultants(ctx.tenantId) : [];
 
+  const { data: partnersData } = canManage
+    ? await supabase
+        .from("field_service_partners")
+        .select("*")
+        .eq("tenant_id", ctx.tenantId)
+        .eq("is_active", true)
+        .order("kind")
+        .order("name")
+    : { data: [] };
+  const partners = (partnersData ?? []) as FieldServicePartner[];
+
   const { data: leads } = canManage
     ? await supabase
         .from("leads")
@@ -124,9 +136,18 @@ export default async function ServiceOrdersPage({
               </Link>
             )}
             {canManage && (
+              <Link
+                href="/os/parceiros"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
+              >
+                <Handshake className="h-4 w-4" /> Parceiros
+              </Link>
+            )}
+            {canManage && (
               <NewServiceOrderDialog
                 leads={(leads ?? []) as Array<{ id: string; name: string; phone: string | null }>}
                 consultants={consultants}
+                partners={partners}
               />
             )}
           </div>

@@ -44,6 +44,7 @@ import { CallButton } from "@/components/leads/call-button";
 import { WhatsAppCallButton } from "@/components/leads/whatsapp-call-button";
 import { NewServiceOrderDialog } from "@/app/(app)/os/new-service-order-dialog";
 import type { FieldServiceUser } from "@/lib/field-service/users";
+import type { FieldServicePartner } from "@/lib/supabase/database.types";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -334,7 +335,7 @@ export function ChatThread({
   leadDetails?: LeadDetails;
   callsEnabled?: boolean;
   /** null quando o tenant nao tem o ERP W+ ou o usuario nao pode abrir OS. */
-  fieldService?: { consultants: FieldServiceUser[] } | null;
+  fieldService?: { consultants: FieldServiceUser[]; partners: FieldServicePartner[] } | null;
 }) {
   const isInstagram = channel === "instagram";
   const displayPhone = isInstagram ? "Instagram Direct" : displayLeadSubtitle(leadPhone);
@@ -1149,6 +1150,7 @@ export function ChatThread({
             <NewServiceOrderDialog
               lead={{ id: leadId, name: displayName, phone: leadPhone || null }}
               consultants={fieldService.consultants}
+            partners={fieldService.partners}
               trigger={
                 <Button
                   type="button"
@@ -1247,6 +1249,7 @@ export function ChatThread({
                   <NewServiceOrderDialog
                     lead={{ id: leadId, name: displayName, phone: leadPhone || null }}
                     consultants={fieldService.consultants}
+            partners={fieldService.partners}
                     trigger={
                       <Button type="button" variant="outline" size="sm" className="rounded-lg">
                         <Wrench className="h-4 w-4" />

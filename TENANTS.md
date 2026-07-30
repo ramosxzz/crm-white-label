@@ -189,3 +189,24 @@ Não expliquei o "travou o sistema todo" com certeza total — mais provável é
 **4. Pagamento recorrente via Sicoob — PENDENTE, e o caminho mudou.** O certo hoje **não** é integrar boleto: é **Pix Automático**, modalidade de recorrência do Banco Central (lançada jun/2025, obrigatória pras instituições desde out/2025). O cliente autoriza **uma vez** no app do banco dele e a empresa debita nos vencimentos, **sem convênio específico com cada banco**. No Sicoob, sai pelo Portal Developers (`developers.sicoob.com.br`) criando aplicação e ativando a API de Pix Recebimentos. **Não validei requisitos de credencial (certificado digital / mTLS / conta PJ) — confirmar no portal antes de estimar.**
 
 **5. Variável "cidade" = custo de frete por cidade — PENDENTE.** O áudio esclarece o que estava com ruído no áudio anterior: **é isto que o item "deslocamento" da Fase 4 significa** — quanto se gasta de frete/deslocamento **por cidade**. Ou seja: tabela de custo por cidade, não um campo solto na OS. Fecha a dúvida que estava registrada como "confirmar com o cliente antes de construir".
+
+## Item 2 da pauta — cadastro de parceiros com comissão dividida (FEITO, 2026-07-30)
+`field_service_partners`: lojas e vendedores, com vendedor podendo apontar pra uma loja (`store_id`, opcional — vendedor autônomo não tem). Trigger no banco recusa `store_id` que não seja de fato uma loja do mesmo tenant — testado em produção, dentro de transação: tentar ligar um vendedor a outro vendedor falha com erro claro.
+
+Tela em `/os/parceiros`, link "Parceiros" no cabeçalho de Ordens de Serviço. Leitura liberada pra quem cria OS (inclui vendedor); escrita só pra quem gerencia OS. Remover um parceiro é recusado se ele já está em alguma OS (usa "Desativar" em vez de perder o histórico).
+
+Na criação da OS, dois selects (Loja / Vendedor) substituem o texto livre — escolher um vendedor com loja cadastrada já marca a loja dele junto, um só passo. Texto livre continua disponível só quando **nenhum** dos dois selects está preenchido, pra indicação avulsa que não vale cadastrar.
+
+`service_orders` ganhou `partner_store_id`, `partner_seller_id`, `partner_store_split_percent` (fatia da loja na comissão; sem os dois preenchidos ela não importa, com os dois e sem valor explícito = 50/50 — negociação muda a cada indicação, não existe regra única do cliente pra isso).
+
+`bill_service_order` reescrita de novo — comparada função por função com a anterior antes de aplicar. Agora gera **até duas** linhas de comissão (`loja_parceira` + `vendedor_externo`, papel novo) quando os dois estão preenchidos, proporcionais ao split. Só um preenchido = 100% pra ele. Nenhum dos dois = cai no texto livre antigo, comportamento inalterado.
+
+Testado em produção com `rollback`: R$1.000, 5% global, split 30/70 → loja R$15 (1,5%), vendedor R$35 (3,5%), soma bate com os 5% originais. Só vendedor, R$500 → R$25 (5%, sozinho). OS no formato antigo (texto livre) → segue gerando R$50 (5%) como sempre gerou.
+
+⚠️ **Achado no caminho**: `updateServiceOrder` nunca persistia `partner_seller_name`/`partner_commission_percent` ao editar uma OS existente — só `createServiceOrder` gravava. Corrigido junto.
+
+### Regras de cadastro vistas nas telas do sistema antigo do ACT (fotos de 2026-07-30)
+O cliente mandou capturas do sistema de papel/desktop que usavam antes. Confirma o modelo (uma loja, vários parceiros vinculados a ela — ex. "JOLI STOFF" com 6 vendedores diferentes) e traz pistas novas:
+- **"Deslocamento" é um campo em R$ digitado na OS**, na tela de fechamento ("Acerto Final"), ao lado de Lavagem/Imper/Couro/Tapete — **não** uma tabela de custo por cidade como eu tinha assumido antes de ver a captura. Ajustar a leitura do item 5 da pauta quando for construído.
+- "Tabela" vs "Negociação" vs "Valores Finais" aparecem como colunas distintas no fechamento — confirma que desconto = diferença entre tabela e final, relevante pro item 3 (aprovação de desconto).
+- Existe um campo "Parceiro Extra" (visto vazio em todas as linhas) — pode indicar que às vezes um terceiro entra na comissão, mas sem uso visível na amostra. Não implementado; revisitar se o cliente pedir.

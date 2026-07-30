@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Plus } from "lucide-react";
@@ -18,6 +19,7 @@ import {
 import { notifyError } from "@/lib/ui/feedback";
 import { ServiceOrderAddressFields } from "@/components/field-service/service-order-address-fields";
 import type { FieldServiceUser } from "@/lib/field-service/users";
+import type { FieldServicePartner } from "@/lib/supabase/database.types";
 import { createServiceOrder } from "./actions";
 
 type LeadOption = { id: string; name: string; phone: string | null };
@@ -30,16 +32,35 @@ export function NewServiceOrderDialog({
   leads,
   lead,
   consultants,
+  partners = [],
   trigger,
 }: {
   leads?: LeadOption[];
   lead?: LeadOption;
   consultants: FieldServiceUser[];
+  partners?: FieldServicePartner[];
   trigger?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const router = useRouter();
+
+  const stores = partners.filter((p) => p.kind === "loja" && p.is_active);
+  const sellers = partners.filter((p) => p.kind === "vendedor" && p.is_active);
+  const storeBySellerId = new Map(sellers.map((s) => [s.id, s.store_id]));
+
+  const [selectedStoreId, setSelectedStoreId] = useState("");
+  const [selectedSellerId, setSelectedSellerId] = useState("");
+  const bothSelected = Boolean(selectedStoreId) && Boolean(selectedSellerId);
+
+  // Escolher um vendedor com loja cadastrada ja marca a loja dele - no
+  // sistema antigo do cliente a busca de loja e parceiro era uma coisa so;
+  // aqui e o mais perto disso sem duplicar a busca.
+  function onSellerChange(id: string) {
+    setSelectedSellerId(id);
+    const storeId = id ? storeBySellerId.get(id) : null;
+    if (storeId) setSelectedStoreId(storeId);
+  }
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -143,18 +164,87 @@ export function NewServiceOrderDialog({
             </legend>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="partner_store">Loja parceira</Label>
-                <Input id="partner_store" name="partner_store" placeholder="Quem indicou" />
+                <Label htmlFor="partner_store_id">Loja parceira</Label>
+                <select
+                  id="partner_store_id"
+                  name="partner_store_id"
+                  value={selectedStoreId}
+                  onChange={(e) => setSelectedStoreId(e.target.value)}
+                  className="h-10 w-full rounded-md border border-border/70 bg-background px-3 text-sm"
+                >
+                  <option value="">Nenhuma</option>
+                  {stores.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="partner_seller_name">Vendedor externo</Label>
-                <Input
-                  id="partner_seller_name"
-                  name="partner_seller_name"
-                  placeholder="Quem recebe a comissão"
-                />
+                <Label htmlFor="partner_seller_id">Vendedor externo</Label>
+                <select
+                  id="partner_seller_id"
+                  name="partner_seller_id"
+                  value={selectedSellerId}
+                  onChange={(e) => onSellerChange(e.target.value)}
+                  className="h-10 w-full rounded-md border border-border/70 bg-background px-3 text-sm"
+                >
+                  <option value="">Nenhum</option>
+                  {sellers.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
+
+            {stores.length === 0 && sellers.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Nenhum parceiro cadastrado ainda —{" "}
+                <Link href="/os/parceiros" className="text-brand underline">
+                  cadastre em Parceiros
+                </Link>
+                . Indicação avulsa, sem repetir negócio, pode ser digitada abaixo.
+              </p>
+            )}
+
+            {bothSelected && (
+              <div className="space-y-1.5">
+                <Label htmlFor="partner_store_split_percent">Fatia da loja na comissão (%)</Label>
+                <Input
+                  id="partner_store_split_percent"
+                  name="partner_store_split_percent"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="5"
+                  inputMode="decimal"
+                  placeholder="Em branco divide 50/50"
+                />
+                <p className="text-xs leading-5 text-muted-foreground">
+                  O resto vai pro vendedor. Ex.: 30 = loja fica com 30% da comissão de indicação, vendedor com 70%.
+                </p>
+              </div>
+            )}
+
+            {!selectedStoreId && !selectedSellerId && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="partner_store">Ou loja avulsa (sem cadastro)</Label>
+                  <Input id="partner_store" name="partner_store" placeholder="Quem indicou" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="partner_seller_name">Ou vendedor avulso</Label>
+                  <Input
+                    id="partner_seller_name"
+                    name="partner_seller_name"
+                    placeholder="Quem recebe a comissão"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <Label htmlFor="partner_commission_percent">Comissão negociada (%)</Label>
               <Input

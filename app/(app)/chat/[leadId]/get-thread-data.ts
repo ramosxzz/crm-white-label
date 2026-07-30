@@ -11,6 +11,7 @@ import { fetchApi4comCalls } from "@/lib/integrations/api4com";
 import { listQuickMessages } from "@/app/(app)/settings/quick-messages-actions";
 import { canManageServiceOrders } from "@/lib/auth/roles";
 import { listConsultants } from "@/lib/field-service/users";
+import type { FieldServicePartner } from "@/lib/supabase/database.types";
 import type { ConversationStatus } from "@/lib/chat/types";
 
 /** Busca tudo que o ChatThread precisa pra renderizar um lead. Usado tanto
@@ -32,6 +33,7 @@ export async function getChatThreadData(leadId: string) {
     users,
     api4comCalls,
     serviceOrderConsultants,
+    serviceOrderPartnersRes,
   ] = await Promise.all([
     service
       .from("leads")
@@ -81,10 +83,20 @@ export async function getChatThreadData(leadId: string) {
       .order("send_at", { ascending: true }),
     listTenantUserOptions(ctx.tenantId),
     ctx.tenant.calls_dashboard_enabled ? fetchApi4comCalls() : Promise.resolve([]),
-    // Consultoras da OS: so busca pra quem vai ver o botao de abrir OS no chat.
+    // Consultoras e parceiros da OS: so busca pra quem vai ver o botao de
+    // abrir OS no chat.
     ctx.tenant.field_service_enabled && canManageServiceOrders(ctx.role)
       ? listConsultants(ctx.tenantId)
       : Promise.resolve([]),
+    ctx.tenant.field_service_enabled && canManageServiceOrders(ctx.role)
+      ? service
+          .from("field_service_partners")
+          .select("*")
+          .eq("tenant_id", ctx.tenantId)
+          .eq("is_active", true)
+          .order("kind")
+          .order("name")
+      : Promise.resolve({ data: [] as FieldServicePartner[] }),
   ]);
 
   const lead = leadRes.data as {
@@ -260,7 +272,10 @@ export async function getChatThreadData(leadId: string) {
     // null = tenant sem o ERP W+ ou usuario sem permissao de abrir OS.
     fieldService:
       ctx.tenant.field_service_enabled && canManageServiceOrders(ctx.role)
-        ? { consultants: serviceOrderConsultants }
+        ? {
+            consultants: serviceOrderConsultants,
+            partners: (serviceOrderPartnersRes.data ?? []) as FieldServicePartner[],
+          }
         : null,
     pipelineOptions: ((pipelinesRes.data ?? []) as {
       id: string;
