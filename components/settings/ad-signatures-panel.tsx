@@ -65,15 +65,18 @@ export function AdSignaturesPanel() {
     });
   }
 
-  function remove(row: AdSignatureRow) {
+  // confirmDialog FORA da transicao: dentro dela o dialogo nunca aparecia,
+  // porque o setState que o abre entrava na transicao que ficava esperando a
+  // resposta dele. O clique nao fazia nada, sem erro.
+  async function remove(row: AdSignatureRow) {
+    const ok = await confirmDialog({
+      title: `Remover "${row.creative_name}"?`,
+      description: "Os leads ja atribuidos continuam como estao. Novos leads com esse emoji deixam de ser identificados.",
+      confirmLabel: "Remover",
+      tone: "danger",
+    });
+    if (!ok) return;
     startTransition(async () => {
-      const ok = await confirmDialog({
-        title: `Remover "${row.creative_name}"?`,
-        description: "Os leads ja atribuidos continuam como estao. Novos leads com esse emoji deixam de ser identificados.",
-        confirmLabel: "Remover",
-        tone: "danger",
-      });
-      if (!ok) return;
       try {
         await deleteAdSignature(row.id);
         await refresh();

@@ -40,12 +40,23 @@ export function RouteOptimizer({
           return;
         }
         setSummary(`${result.distanceLabel} · ${result.durationLabel}`);
+
+        // Dizer explicitamente SE a ordem mudou. Antes a mensagem so trazia
+        // distancia e tempo: quem clicava via numeros iguais na tela e
+        // concluia que o botao nao tinha feito nada.
+        const trajeto = `${result.distanceLabel} de trajeto, ${result.durationLabel} dirigindo.`;
         notify({
-          title: `Rota otimizada: ${result.optimized} parada(s)`,
-          description:
+          title: result.changed
+            ? `Ordem das visitas alterada (${result.optimized} paradas)`
+            : "A ordem que já estava é a melhor possível",
+          description: [
+            result.changed ? `Nova sequência: ${result.sequence.join(" → ")}` : trajeto,
             result.skipped > 0
-              ? `${result.skipped} OS ficaram de fora por endereco incompleto.`
-              : `${result.distanceLabel} de trajeto, ${result.durationLabel} dirigindo.`,
+              ? `${result.skipped} OS ficaram de fora por endereço incompleto.`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" "),
           tone: "success",
         });
       } catch (error) {

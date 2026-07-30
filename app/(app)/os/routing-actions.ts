@@ -73,6 +73,10 @@ export type OptimizeShiftResult = {
   skipped: number;
   distanceLabel: string;
   durationLabel: string;
+  /** false quando a ordem que ja estava era a melhor possivel. */
+  changed: boolean;
+  /** Nomes dos clientes na ordem nova, pra tela dizer o que mudou. */
+  sequence: string[];
 };
 
 /**
@@ -108,7 +112,7 @@ export async function optimizeShiftRoute(input: {
 
   const { data: orders } = await supabase
     .from("service_orders")
-    .select("*")
+    .select("*, leads(name)")
     .eq("tenant_id", ctx.tenantId)
     .eq("service_date", input.service_date)
     .eq("shift", input.shift)
@@ -133,9 +137,17 @@ export async function optimizeShiftRoute(input: {
     routable.map((order) => coords.get(order.id)!),
   );
 
+  // A ordem que veio do Google e uma permutacao dos indices de `routable`.
+  // Se ela for a identidade (0,1,2,...), a sequencia que ja estava era a
+  // melhor - e a tela precisa dizer isso, senao o usuario clica, ve numeros
+  // iguais e conclui que o botao nao fez nada.
+  const changed = result.order.some((sourceIndex, position) => sourceIndex !== position);
+  const sequence: string[] = [];
+
   for (const [position, sourceIndex] of result.order.entries()) {
     const order = routable[sourceIndex];
     if (!order) continue;
+    sequence.push((order as any).leads?.name ?? `OS-${String(order.code_seq).padStart(4, "0")}`);
     await supabase
       .from("service_orders")
       .update({ route_position: position + 1, updated_at: new Date().toISOString() })
@@ -144,12 +156,15 @@ export async function optimizeShiftRoute(input: {
   }
 
   revalidatePath("/os/roteiro");
+  revalidatePath("/os/mapa");
 
   return {
     optimized: routable.length,
     skipped,
     distanceLabel: formatDistance(result.distanceMeters),
     durationLabel: formatDuration(result.durationSeconds),
+    changed,
+    sequence,
   };
 }
 
@@ -196,7 +211,7 @@ export async function suggestTechnicianForOrder(input: {
 
   const { data: shiftOrders } = await supabase
     .from("service_orders")
-    .select("*")
+    .select("*, leads(name)")
     .eq("tenant_id", ctx.tenantId)
     .eq("service_date", input.service_date)
     .eq("shift", input.shift)

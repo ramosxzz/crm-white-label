@@ -62,15 +62,18 @@ export function ItemsPanel({
     });
   }
 
-  function onDelete(itemId: string, description: string) {
+  // confirmDialog FORA da transicao: dentro dela o dialogo nunca era
+  // renderizado (o setState que o abre virava parte da transicao que
+  // esperava a resposta dele), e o clique nao fazia nada em silencio.
+  async function onDelete(itemId: string, description: string) {
+    const confirmed = await confirmDialog({
+      title: "Remover peça da OS?",
+      description: description,
+      confirmLabel: "Remover",
+      tone: "danger",
+    });
+    if (!confirmed) return;
     start(async () => {
-      const confirmed = await confirmDialog({
-        title: "Remover peça da OS?",
-        description: description,
-        confirmLabel: "Remover",
-        tone: "danger",
-      });
-      if (!confirmed) return;
       try {
         await deleteServiceOrderItem({ item_id: itemId });
       } catch (error) {

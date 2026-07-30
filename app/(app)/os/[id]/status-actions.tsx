@@ -48,17 +48,22 @@ export function StatusActions({
 
   if (options.length === 0) return null;
 
-  function move(to: ServiceOrderStatus) {
+  // O confirmDialog fica FORA da transicao de proposito: ele abre o dialogo
+  // por setState, e dentro de start() esse setState entra na propria
+  // transicao - que so termina quando a promise resolve, e a promise so
+  // resolve quando o usuario clica no dialogo que nunca foi renderizado.
+  // Dentro da transicao isso travava em silencio, sem dialogo e sem acao.
+  async function move(to: ServiceOrderStatus) {
+    if (to === "cancelada") {
+      const confirmed = await confirmDialog({
+        title: "Cancelar esta OS?",
+        description: "Uma OS cancelada não pode ser reaberta.",
+        confirmLabel: "Cancelar OS",
+        tone: "danger",
+      });
+      if (!confirmed) return;
+    }
     start(async () => {
-      if (to === "cancelada") {
-        const confirmed = await confirmDialog({
-          title: "Cancelar esta OS?",
-          description: "Uma OS cancelada não pode ser reaberta.",
-          confirmLabel: "Cancelar OS",
-          tone: "danger",
-        });
-        if (!confirmed) return;
-      }
       try {
         await transitionServiceOrder({ id: serviceOrderId, to });
         notify({ title: `OS marcada como ${SERVICE_ORDER_STATUS_LABEL[to].toLowerCase()}`, tone: "success" });

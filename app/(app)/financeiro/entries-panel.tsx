@@ -61,15 +61,19 @@ export function EntriesPanel({
     });
   }
 
-  function remove(entry: FinanceEntry) {
+  // confirmDialog FORA da transicao: dentro dela o setState que abre o
+  // dialogo virava parte da propria transicao, que so terminava quando o
+  // usuario clicasse num dialogo que nunca aparecia. Resultado: clicar na
+  // lixeira nao fazia absolutamente nada, sem erro nenhum.
+  async function remove(entry: FinanceEntry) {
+    const confirmed = await confirmDialog({
+      title: "Excluir esse lançamento?",
+      description: entry.description,
+      confirmLabel: "Excluir",
+      tone: "danger",
+    });
+    if (!confirmed) return;
     start(async () => {
-      const confirmed = await confirmDialog({
-        title: "Excluir esse lançamento?",
-        description: entry.description,
-        confirmLabel: "Excluir",
-        tone: "danger",
-      });
-      if (!confirmed) return;
       try {
         await deleteFinanceEntry({ id: entry.id });
       } catch (error) {
