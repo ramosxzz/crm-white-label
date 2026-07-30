@@ -51,10 +51,10 @@ export function ConversationListLive({
 
     contactRefreshInFlightRef.current = true;
     try {
-      const next = await fetchConversationItems(tenantId, {
-        query,
-        status: statusFilter === "todas" ? undefined : statusFilter,
-      });
+      // A lista em estado precisa ser sempre a base completa. Pesquisa e
+      // status sao aplicados localmente por ConversationList; substituir a
+      // base por uma resposta filtrada fazia os contadores mudarem de coluna.
+      const next = await fetchConversationItems(tenantId);
       setItems(next);
     } catch {
       /* mantem lista anterior */
@@ -62,7 +62,7 @@ export function ConversationListLive({
       lastContactRefreshAtRef.current = Date.now();
       contactRefreshInFlightRef.current = false;
     }
-  }, [query, statusFilter, tenantId]);
+  }, [tenantId]);
 
   const handleManualRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -110,11 +110,6 @@ export function ConversationListLive({
   useEffect(() => {
     setItems(initialItems);
   }, [initialItems]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => void refreshContacts({ force: true }), 280);
-    return () => clearTimeout(timer);
-  }, [query, refreshContacts]);
 
   useEffect(() => {
     const timer = setTimeout(() => void syncMissingProfilePictures(items), 600);

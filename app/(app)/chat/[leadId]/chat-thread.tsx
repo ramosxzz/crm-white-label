@@ -3,7 +3,7 @@
 import { notify, notifyError } from "@/lib/ui/feedback";
 import { mediaSizeError } from "@/lib/whatsapp/media-limits";
 import { withTimeout } from "@/lib/async/with-timeout";
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   Send,
@@ -70,6 +70,7 @@ import type { ChatMessage, ConversationStatus } from "@/lib/chat/types";
 import { CONVERSATION_STATUSES, STATUS_META } from "@/lib/chat/status";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { resizeChatComposer } from "@/lib/chat/composer-auto-resize";
 import { cn, initials } from "@/lib/utils";
 import { displayLeadName, displayLeadSubtitle } from "@/lib/leads/display";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -415,6 +416,7 @@ export function ChatThread({
   const [pendingScheduledCalls, setPendingScheduledCalls] = useState<{ id: string; starts_at: string; notes: string | null }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
   const scheduleAudioInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<Blob[]>([]);
@@ -435,6 +437,10 @@ export function ChatThread({
     },
     [draftStorageKey],
   );
+
+  useLayoutEffect(() => {
+    if (composerTextareaRef.current) resizeChatComposer(composerTextareaRef.current);
+  }, [text]);
 
   const grouped = useMemo(() => {
     const out: { day: string; items: ChatMessage[] }[] = [];
@@ -848,6 +854,7 @@ export function ChatThread({
       setQuickMediaDraft(null);
       const currentDraft = textDraftRef.current;
       updateTextDraft(currentDraft.startsWith("/") || !currentDraft.trim() ? m.body! : `${currentDraft.trim()}\n\n${m.body}`);
+      requestAnimationFrame(() => composerTextareaRef.current?.focus());
     }
   }
 
@@ -1603,6 +1610,7 @@ export function ChatThread({
             )}
 
             <Textarea
+              ref={composerTextareaRef}
               rows={1}
               placeholder={isInstagram ? "Responder..." : "Mensagem ou / rápidas..."}
               value={text}
