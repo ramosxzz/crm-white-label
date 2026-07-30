@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { ChevronLeft, ChevronRight, Map as MapIcon, MapPin, Sun, Sunset } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
-import { canManageServiceOrders } from "@/lib/auth/roles";
+import { canManageServiceOrders, canViewServiceRoutes } from "@/lib/auth/roles";
 import { PageHeader } from "@/components/app/page-header";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrencyBRL } from "@/lib/utils";
@@ -83,7 +83,10 @@ export default async function RoteiroPage({
 }) {
   const ctx = await requireContext();
   if (!ctx.tenant.field_service_enabled) redirect("/dashboard");
-  if (!canManageServiceOrders(ctx.role)) redirect("/os");
+  if (!canViewServiceRoutes(ctx.role)) redirect("/os");
+  // Vendedora ve o trajeto, mas nao mexe: otimizar rota, alocar tecnico e
+  // reagendar continuam so pra gestao.
+  const canManage = canManageServiceOrders(ctx.role);
 
   const params = await searchParams;
   const day = /^\d{4}-\d{2}-\d{2}$/.test(params?.day ?? "") ? params!.day! : brtDay();
@@ -139,7 +142,8 @@ export default async function RoteiroPage({
 
   // Roteirizacao so aparece com chave do Google configurada no servidor e
   // endereco base cadastrado - sem os dois ela nao teria de onde partir.
-  const routingReady = isRoutingEnabled() && Boolean(ctx.tenant.field_service_base_address);
+  const routingReady =
+    canManage && isRoutingEnabled() && Boolean(ctx.tenant.field_service_base_address);
 
   return (
     <div>

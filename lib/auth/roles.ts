@@ -58,6 +58,13 @@ export function canAccessServiceOrders(role: MemberRole) {
   return ["owner", "admin", "gerente", "atendente", "vendedor"].includes(role);
 }
 
+// Quem abre o roteiro e o mapa do dia. Vendedor entra pra ver o trajeto, mas
+// so leitura: otimizar rota, alocar tecnico e reagendar seguem em
+// canManageServiceOrders.
+export function canViewServiceRoutes(role: MemberRole) {
+  return ["owner", "admin", "gerente", "atendente", "vendedor"].includes(role);
+}
+
 // Conferencia / pre-fechamento e aprovacao de upsell: so a gestao.
 export function canReviewServiceOrder(role: MemberRole) {
   return role === "owner" || role === "admin";

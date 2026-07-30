@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
-import { canManageServiceOrders } from "@/lib/auth/roles";
+import { canViewServiceRoutes } from "@/lib/auth/roles";
 import { PageHeader } from "@/components/app/page-header";
 import { listTechnicians } from "@/lib/field-service/users";
 import { formatServiceOrderCode } from "@/lib/field-service/status";
@@ -55,7 +55,7 @@ export default async function ServiceOrderMapPage({
 }) {
   const ctx = await requireContext();
   if (!ctx.tenant.field_service_enabled) redirect("/dashboard");
-  if (!canManageServiceOrders(ctx.role)) redirect("/os");
+  if (!canViewServiceRoutes(ctx.role)) redirect("/os");
 
   const params = await searchParams;
   const day = /^\d{4}-\d{2}-\d{2}$/.test(params?.day ?? "") ? params!.day! : brtDay();

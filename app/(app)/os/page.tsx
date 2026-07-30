@@ -3,7 +3,11 @@ import { redirect } from "next/navigation";
 import { CalendarDays, ChevronRight, Map as MapIcon, MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
-import { canAccessServiceOrders, canManageServiceOrders } from "@/lib/auth/roles";
+import {
+  canAccessServiceOrders,
+  canManageServiceOrders,
+  canViewServiceRoutes,
+} from "@/lib/auth/roles";
 import { formatCurrencyBRL } from "@/lib/utils";
 import { PageHeader } from "@/components/app/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -111,7 +115,7 @@ export default async function ServiceOrdersPage({
             >
               <CalendarDays className="h-4 w-4" /> Roteiro
             </Link>
-            {canManage && (
+            {canViewServiceRoutes(ctx.role) && (
               <Link
                 href="/os/mapa"
                 className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
