@@ -21,6 +21,7 @@ const leadSchema = z.object({
   notes: z.string().optional(),
   stage_id: z.string().uuid().optional(),
   value_cents: z.number().int().min(0).optional(),
+  referred_by_partner_id: z.string().uuid().optional(),
 });
 
 // Modo ausente: define (ou limpa, com null) o vendedor que recebe os novos leads.
@@ -64,6 +65,7 @@ export async function createLead(formData: FormData) {
     value_cents: formData.get("value_cents")
       ? Math.round(Number(formData.get("value_cents")) * 100)
       : 0,
+    referred_by_partner_id: formData.get("referred_by_partner_id") || undefined,
   });
 
   let stageId = parsed.stage_id;
@@ -97,6 +99,7 @@ export async function createLead(formData: FormData) {
       stage_id: stageId,
       pipeline_id: pipelineRow?.pipeline_id,
       value_cents: parsed.value_cents ?? 0,
+      referred_by_partner_id: parsed.referred_by_partner_id ?? null,
     })
     .select("id")
     .single();
@@ -113,10 +116,17 @@ export async function createLead(formData: FormData) {
       });
     }
     try {
-      // Modo ausente tem prioridade: se ativo, o lead vai direto para o
-      // vendedor escolhido; senao, distribuicao normal (round-robin).
-      const forwarded = await forwardNewLead(supabase, ctx.tenantId, createdLead.id);
-      if (!forwarded) await autoAssignLead(createdLead.id);
+      // Lead indicado por parceiro (loja/vendedor): fica sem dono de proposito,
+      // pra coordenadora triar manualmente - pedido explicito do ACT, pra nao
+      // cair no sorteio automatico junto com os leads de marketing.
+      if (parsed.referred_by_partner_id) {
+        // no-op: sem modo ausente, sem round-robin.
+      } else {
+        // Modo ausente tem prioridade: se ativo, o lead vai direto para o
+        // vendedor escolhido; senao, distribuicao normal (round-robin).
+        const forwarded = await forwardNewLead(supabase, ctx.tenantId, createdLead.id);
+        if (!forwarded) await autoAssignLead(createdLead.id);
+      }
     } catch (assignmentError) {
       console.error("Erro ao distribuir lead automaticamente:", assignmentError);
     }

@@ -412,6 +412,7 @@ export interface Lead {
   position: number;
   value_cents: number | null;
   automations_enabled: boolean;
+  referred_by_partner_id: string | null;
   created_at: string;
   updated_at: string;
 }

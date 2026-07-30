@@ -96,7 +96,7 @@ export default async function LeadsPage({ searchParams }: { searchParams?: Promi
     leadsQuery = leadsQuery.eq("assigned_to", ctx.userId);
   }
 
-  const [{ data: leads, count: totalCount }, { data: stages }, members] = await Promise.all([
+  const [{ data: leads, count: totalCount }, { data: stages }, members, { data: partners }] = await Promise.all([
     leadsQuery,
     supabase
       .from("pipeline_stages")
@@ -104,6 +104,15 @@ export default async function LeadsPage({ searchParams }: { searchParams?: Promi
       .eq("tenant_id", ctx.tenantId)
       .order("position"),
     canAssign ? listTenantUserOptions(ctx.tenantId) : Promise.resolve([]),
+    ctx.tenant.field_service_enabled
+      ? supabase
+          .from("field_service_partners")
+          .select("id, kind, name")
+          .eq("tenant_id", ctx.tenantId)
+          .eq("is_active", true)
+          .order("kind")
+          .order("name")
+      : Promise.resolve({ data: [] }),
   ]);
 
   const pageCount = Math.max(1, Math.ceil((totalCount ?? 0) / LEADS_PAGE_SIZE));
@@ -126,7 +135,7 @@ export default async function LeadsPage({ searchParams }: { searchParams?: Promi
         actions={
           <>
             <ImportCsvDialog />
-            <NewLeadDialog stages={stages ?? []} />
+            <NewLeadDialog stages={stages ?? []} partners={partners ?? []} />
           </>
         }
       />

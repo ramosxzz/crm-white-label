@@ -10,18 +10,27 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createLead } from "./actions";
 
-export function NewLeadDialog({ stages }: { stages: { id: string; name: string }[] }) {
+export function NewLeadDialog({
+  stages,
+  partners = [],
+}: {
+  stages: { id: string; name: string }[];
+  partners?: { id: string; kind: "loja" | "vendedor"; name: string }[];
+}) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const [stageId, setStageId] = useState<string>(stages[0]?.id ?? "");
+  const [partnerId, setPartnerId] = useState<string>("");
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     if (stageId) fd.set("stage_id", stageId);
+    if (partnerId) fd.set("referred_by_partner_id", partnerId);
     start(async () => {
       await createLead(fd);
       setOpen(false);
+      setPartnerId("");
     });
   }
 
@@ -74,6 +83,27 @@ export function NewLeadDialog({ stages }: { stages: { id: string; name: string }
             <Label htmlFor="source">Origem</Label>
             <Input id="source" name="source" placeholder="instagram, indicacao, site..." />
           </div>
+          {partners.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Indicação (loja/vendedor)</Label>
+              <Select value={partnerId || "none"} onValueChange={(v) => setPartnerId(v === "none" ? "" : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Nenhuma" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhuma</SelectItem>
+                  {partners.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.kind === "loja" ? "Loja" : "Vendedor"} · {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Com indicação marcada, o lead fica sem atendente até a coordenadora distribuir manualmente.
+              </p>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label htmlFor="notes">Observacoes</Label>
             <Textarea id="notes" name="notes" rows={3} />
