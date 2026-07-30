@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import {
   canAccessServiceOrders,
+  canApproveServiceOrderDiscount,
   canManageServiceOrders,
   canReviewServiceOrder,
   isTechnician as isTechnicianRole,
@@ -92,7 +93,9 @@ export default async function ServiceOrderDetailPage({
 
   const canManage = canManageServiceOrders(ctx.role);
   const canReview = canReviewServiceOrder(ctx.role);
+  const canApproveDiscount = canApproveServiceOrderDiscount(ctx.role);
   const isTech = isTechnicianRole(ctx.role);
+  const canPriceItems = canManage || ctx.role === "vendedor";
   const technicians = canManage ? await listTechnicians(ctx.tenantId) : [];
 
   const assignedIds = (assigned ?? []).map((row: any) => row.user_id as string);
@@ -213,9 +216,11 @@ export default async function ServiceOrderDetailPage({
           <ItemsPanel
             serviceOrderId={order.id}
             items={(items ?? []) as ServiceOrderItem[]}
-            canEdit={!locked && (canManage || isTech)}
+            canEdit={!locked && canPriceItems}
             canApprove={canReview}
+            canApproveDiscount={canApproveDiscount}
             canDelete={canManage && !locked}
+            travelFeeCents={order.travel_fee_cents ?? 0}
           />
 
           {(damages ?? []).length > 0 && (

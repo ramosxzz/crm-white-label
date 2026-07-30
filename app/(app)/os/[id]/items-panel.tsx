@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Check, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,9 @@ import type { ServiceOrderItem } from "@/lib/supabase/database.types";
 import {
   addServiceOrderItem,
   deleteServiceOrderItem,
+  reviewServiceOrderItemDiscount,
   setServiceOrderItemApproved,
+  setServiceOrderTravelFee,
 } from "../actions";
 
 export function ItemsPanel({
@@ -20,22 +22,27 @@ export function ItemsPanel({
   items,
   canEdit,
   canApprove,
+  canApproveDiscount,
   canDelete,
+  travelFeeCents,
 }: {
   serviceOrderId: string;
   items: ServiceOrderItem[];
   canEdit: boolean;
   canApprove: boolean;
+  canApproveDiscount: boolean;
   canDelete: boolean;
+  travelFeeCents: number;
 }) {
   const [pending, start] = useTransition();
+  const [travelFee, setTravelFee] = useState((travelFeeCents / 100).toFixed(2));
   const formRef = useRef<HTMLFormElement>(null);
 
   const approvedTotal = items
-    .filter((item) => item.approved)
+    .filter((item) => item.approved && !["solicitado", "recusado"].includes(item.discount_status))
     .reduce((sum, item) => sum + item.amount_cents, 0);
   const pendingTotal = items
-    .filter((item) => !item.approved)
+    .filter((item) => !item.approved || item.discount_status === "solicitado")
     .reduce((sum, item) => sum + item.amount_cents, 0);
 
   function onAdd(e: React.FormEvent<HTMLFormElement>) {
@@ -58,6 +65,27 @@ export function ItemsPanel({
         await setServiceOrderItemApproved({ item_id: itemId, approved });
       } catch (error) {
         notifyError(error, "Não foi possível atualizar o item");
+      }
+    });
+  }
+
+  function onReviewDiscount(itemId: string, approved: boolean) {
+    start(async () => {
+      try {
+        await reviewServiceOrderItemDiscount({ item_id: itemId, approved });
+      } catch (error) {
+        notifyError(error, "Não foi possível revisar o desconto");
+      }
+    });
+  }
+
+  function onSaveTravelFee() {
+    const value = Number(travelFee.replace(",", "."));
+    start(async () => {
+      try {
+        await setServiceOrderTravelFee({ service_order_id: serviceOrderId, value });
+      } catch (error) {
+        notifyError(error, "Não foi possível salvar o deslocamento");
       }
     });
   }
@@ -87,7 +115,7 @@ export function ItemsPanel({
       <header className="flex items-center justify-between border-b border-border/70 px-5 py-3">
         <h2 className="text-sm font-semibold">Peças e serviços</h2>
         <div className="text-right text-xs">
-          <p className="font-semibold">{formatCurrencyBRL(approvedTotal)}</p>
+          <p className="font-semibold">{formatCurrencyBRL(approvedTotal + travelFeeCents)}</p>
           {pendingTotal > 0 && (
             <p className="text-muted-foreground">
               + {formatCurrencyBRL(pendingTotal)} aguardando aprovação
@@ -108,6 +136,9 @@ export function ItemsPanel({
               <p className="truncate text-sm font-medium">{item.description}</p>
               <p className="text-xs text-muted-foreground">
                 {item.quantity}x {formatCurrencyBRL(item.unit_price_cents)}
+                {item.table_price_cents != null && (
+                  <> · tabela {formatCurrencyBRL(item.table_price_cents)}</>
+                )}
               </p>
             </div>
             {item.kind === "upsell" && (
@@ -115,6 +146,11 @@ export function ItemsPanel({
                 {item.approved ? "Upsell aprovado" : "Upsell pendente"}
               </Badge>
             )}
+            {item.discount_status === "solicitado" && (
+              <Badge variant="warning">Desconto aguardando gerência</Badge>
+            )}
+            {item.discount_status === "aprovado" && <Badge variant="success">Desconto aprovado</Badge>}
+            {item.discount_status === "recusado" && <Badge variant="destructive">Desconto recusado</Badge>}
             <span className="w-24 text-right text-sm font-medium">
               {formatCurrencyBRL(item.amount_cents)}
             </span>
@@ -130,6 +166,30 @@ export function ItemsPanel({
                 >
                   {item.approved ? <X className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
                 </Button>
+              )}
+              {canApproveDiscount && item.discount_status === "solicitado" && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={pending}
+                    onClick={() => onReviewDiscount(item.id, true)}
+                    title="Aprovar desconto"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={pending}
+                    onClick={() => onReviewDiscount(item.id, false)}
+                    title="Recusar desconto"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </>
               )}
               {canDelete && (
                 <Button
@@ -148,11 +208,30 @@ export function ItemsPanel({
         ))}
       </ul>
 
+      <div className="flex flex-wrap items-end gap-3 border-t border-border/70 px-5 py-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="travel_fee">Deslocamento (R$)</Label>
+          <Input
+            id="travel_fee"
+            inputMode="decimal"
+            value={travelFee}
+            onChange={(event) => setTravelFee(event.target.value)}
+            className="w-32"
+            disabled={!canEdit || pending}
+          />
+        </div>
+        {canEdit && (
+          <Button type="button" variant="outline" disabled={pending} onClick={onSaveTravelFee}>
+            Salvar deslocamento
+          </Button>
+        )}
+      </div>
+
       {canEdit && (
         <form
           ref={formRef}
           onSubmit={onAdd}
-          className="grid grid-cols-1 gap-3 border-t border-border/70 px-5 py-4 sm:grid-cols-[1fr_5rem_7rem_9rem_auto]"
+          className="grid grid-cols-1 gap-3 border-t border-border/70 px-5 py-4 sm:grid-cols-[1fr_5rem_7rem_7rem_9rem_auto]"
         >
           <div className="space-y-1.5">
             <Label htmlFor="description">Peça / serviço</Label>
@@ -167,6 +246,10 @@ export function ItemsPanel({
             <Input id="unit_price" name="unit_price" type="number" step="0.01" min="0" defaultValue={0} />
           </div>
           <div className="space-y-1.5">
+            <Label htmlFor="table_price">Tabela (R$)</Label>
+            <Input id="table_price" name="table_price" type="number" step="0.01" min="0" placeholder="Opcional" />
+          </div>
+          <div className="space-y-1.5">
             <Label htmlFor="kind">Tipo</Label>
             <select
               id="kind"
@@ -177,6 +260,7 @@ export function ItemsPanel({
               <option value="upsell">Vendido em campo</option>
             </select>
           </div>
+          <input name="discount_reason" type="hidden" value="Solicitado na OS" />
           <div className="flex items-end">
             <Button type="submit" variant="brand" disabled={pending}>
               <Plus className="h-4 w-4" /> Adicionar

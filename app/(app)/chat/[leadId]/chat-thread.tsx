@@ -1146,6 +1146,16 @@ export function ChatThread({
           />
           {!isInstagram && leadPhone && callsEnabled && <CallButton leadId={leadId} phone={leadPhone} iconOnly />}
           {!isInstagram && leadPhone && <WhatsAppCallButton phone={leadPhone} iconOnly />}
+          {!isInstagram && (
+            <Link
+              href={`/chat/${leadId}/export`}
+              target="_blank"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border/70 transition-colors hover:bg-muted/40"
+              title="Exportar conversa em PDF"
+            >
+              <FileText className="h-4 w-4" />
+            </Link>
+          )}
           {fieldService && (
             <NewServiceOrderDialog
               lead={{ id: leadId, name: displayName, phone: leadPhone || null }}
@@ -1245,6 +1255,11 @@ export function ChatThread({
                 />
                 {!isInstagram && leadPhone && callsEnabled && <CallButton leadId={leadId} phone={leadPhone} />}
                 {!isInstagram && leadPhone && <WhatsAppCallButton phone={leadPhone} />}
+                {!isInstagram && (
+                  <Link href={`/chat/${leadId}/export`} target="_blank" className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border/70 px-3 text-sm font-medium hover:bg-muted/40">
+                    <FileText className="h-4 w-4" /> PDF
+                  </Link>
+                )}
                 {fieldService && (
                   <NewServiceOrderDialog
                     lead={{ id: leadId, name: displayName, phone: leadPhone || null }}

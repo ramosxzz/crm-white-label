@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import {
   canAccessServiceOrders,
+  canApproveServiceOrderDiscount,
   canManageServiceOrders,
   canReviewServiceOrder,
 } from "@/lib/auth/roles";
@@ -530,6 +531,8 @@ const itemSchema = z.object({
   description: z.string().trim().min(1),
   quantity: z.number().positive(),
   unit_price: z.number().min(0),
+  table_price: z.number().min(0).nullable(),
+  discount_reason: z.string().trim().max(500).nullable(),
   kind: z.enum(["original", "upsell"]),
 });
 
@@ -542,15 +545,23 @@ export async function addServiceOrderItem(formData: FormData) {
     description: formData.get("description"),
     quantity: Number(formData.get("quantity") ?? 1),
     unit_price: Number(formData.get("unit_price") ?? 0),
+    table_price: readForm(formData, "table_price") ? Number(formData.get("table_price")) : null,
+    discount_reason: readForm(formData, "discount_reason") ?? null,
     kind: formData.get("kind") ?? "original",
   });
 
   const unitPriceCents = Math.round(parsed.unit_price * 100);
   const amountCents = Math.round(unitPriceCents * parsed.quantity);
+  const tablePriceCents = parsed.table_price == null ? null : Math.round(parsed.table_price * 100);
+
+  if (tablePriceCents != null && unitPriceCents > tablePriceCents) {
+    throw new Error("O valor negociado nao pode ser maior que o valor de tabela.");
+  }
 
   // Upsell lancado em campo entra pendente: so soma no total da OS depois que
   // o ADM aprova na conferencia.
   const approved = parsed.kind === "original";
+  const hasDiscount = parsed.kind === "original" && tablePriceCents != null && unitPriceCents < tablePriceCents;
 
   const { error } = await supabase.from("service_order_items").insert({
     tenant_id: ctx.tenantId,
@@ -561,6 +572,11 @@ export async function addServiceOrderItem(formData: FormData) {
     amount_cents: amountCents,
     kind: parsed.kind,
     approved,
+    table_price_cents: tablePriceCents,
+    discount_status: hasDiscount ? "solicitado" : "nao_aplicavel",
+    discount_requested_by: hasDiscount ? ctx.userId : null,
+    discount_requested_at: hasDiscount ? new Date().toISOString() : null,
+    discount_reason: hasDiscount ? parsed.discount_reason : null,
     created_by: ctx.userId,
   });
   if (error) throw new Error(error.message);
@@ -585,6 +601,58 @@ export async function setServiceOrderItemApproved(input: { item_id: string; appr
   if (error) throw new Error(error.message);
 
   revalidatePath(`/os/${data.service_order_id}`);
+}
+
+/** Gerencia decide uma solicitacao de desconto da vendedora. */
+export async function reviewServiceOrderItemDiscount(input: {
+  item_id: string;
+  approved: boolean;
+}) {
+  const ctx = await requireContext();
+  assertFieldServiceEnabled(ctx);
+  if (!canApproveServiceOrderDiscount(ctx.role)) {
+    throw new Error("So a gerencia pode aprovar desconto");
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("service_order_items")
+    .update({
+      discount_status: input.approved ? "aprovado" : "recusado",
+      discount_reviewed_by: ctx.userId,
+      discount_reviewed_at: new Date().toISOString(),
+    })
+    .eq("id", input.item_id)
+    .eq("tenant_id", ctx.tenantId)
+    .eq("discount_status", "solicitado")
+    .select("service_order_id")
+    .single();
+  if (error) throw new Error(error.message);
+
+  // O trigger da tabela recalcula o total quando o status muda.
+  revalidatePath(`/os/${data.service_order_id}`);
+}
+
+const travelFeeSchema = z.object({
+  service_order_id: z.string().uuid(),
+  value: z.number().min(0).max(1_000_000),
+});
+
+/** Deslocamento e cobrado separado dos itens, mas compoe o total da OS. */
+export async function setServiceOrderTravelFee(input: { service_order_id: string; value: number }) {
+  const ctx = await requireFieldServiceContext();
+  const parsed = travelFeeSchema.parse(input);
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("service_orders")
+    .update({
+      travel_fee_cents: Math.round(parsed.value * 100),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", parsed.service_order_id)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/os/${parsed.service_order_id}`);
 }
 
 export async function deleteServiceOrderItem(input: { item_id: string }) {

@@ -107,6 +107,7 @@ export interface ServiceOrder {
   deadline: string | null;
   notes: string | null;
   observations: string | null;
+  travel_fee_cents: number;
   total_cents: number;
   partner_store: string | null;
   partner_seller_name: string | null;
@@ -137,6 +138,13 @@ export interface ServiceOrderItem {
   amount_cents: number;
   kind: ServiceOrderItemKind;
   approved: boolean;
+  table_price_cents: number | null;
+  discount_status: "nao_aplicavel" | "solicitado" | "aprovado" | "recusado";
+  discount_requested_by: string | null;
+  discount_requested_at: string | null;
+  discount_reviewed_by: string | null;
+  discount_reviewed_at: string | null;
+  discount_reason: string | null;
   created_by: string | null;
   created_at: string;
 }

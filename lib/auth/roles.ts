@@ -70,6 +70,12 @@ export function canReviewServiceOrder(role: MemberRole) {
   return role === "owner" || role === "admin";
 }
 
+// Desconto e uma decisao comercial: gerente pode autorizar, mas atendente
+// nao. Faturamento continua reservado ao owner/admin.
+export function canApproveServiceOrderDiscount(role: MemberRole) {
+  return role === "owner" || role === "admin" || role === "gerente";
+}
+
 export function isTechnician(role: MemberRole) {
   return role === "tecnico";
 }

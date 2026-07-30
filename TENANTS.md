@@ -237,3 +237,10 @@ Testado em produção com `rollback`, comparando as três etapas na mesma transa
 ⚠️ **Bug achado no caminho, já em produção**: `COMMISSION_PARTY_LABEL` (usado em `/financeiro` pra mostrar o nome do papel da comissão) nunca ganhou `vendedor_externo` — o papel que criei ontem. Qualquer OS já faturada com vendedor externo estava mostrando rótulo em branco no financeiro. Corrigido junto.
 
 ⚠️ **Achado, não corrigido**: existe `lib/field-service/commissions.ts` com uma reimplementação completa do cálculo de comissão em TypeScript (`calculateCommissions`, `splitCents`), com 7 testes próprios passando — mas **nada no app chama essa função**. Só o mapa de rótulos (`COMMISSION_PARTY_LABEL`) dali é usado de verdade. É exatamente o tipo de duplicação que motivou o refactor acima, só que já tinha acontecido silenciosamente antes: essa versão TS nunca soube de `vendedor_externo` nem do split loja/vendedor. Deixei um aviso no arquivo. Se um dia for reativada, reescrever pra chamar o banco em vez de duplicar a regra.
+
+## Fase 4 — precificação, deslocamento e comprovante do atendimento (EM IMPLEMENTAÇÃO, 2026-07-30)
+
+- **Desconto:** cada item da venda pode receber preço de tabela. Se o valor negociado for menor, nasce como `solicitado`, com quem solicitou e quando. Enquanto estiver solicitado ou recusado, fica fora do total da OS. `owner`, `admin` e `gerente` podem aprovar; atendente não. A regra é calculada no banco, não só na interface.
+- **Deslocamento:** valor separado em reais na OS, convertido para centavos e somado ao total final sem virar item de upsell.
+- **Remarcação pelo técnico:** já estava feita no app de campo: “Cliente ausente / remarcar” devolve a OS à fila do escritório e remove data, turno e posição da rota. Não foi duplicada.
+- **PDF de conversa:** botão no chat WhatsApp abre uma versão de impressão com histórico textual, datas, remetente e indicação de anexos. O navegador abre a janela de impressão para salvar/encaminhar como PDF; mídias privadas não são copiadas para dentro do arquivo.
