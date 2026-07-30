@@ -29,6 +29,7 @@ import { getAiAgentReply } from "@/lib/ai/agent";
 
 import { fireAutomationTrigger } from "@/lib/automations/trigger";
 import { dispatchWebhookEvent } from "@/lib/api/dispatch-webhook";
+import { nextConversationUnreadCount } from "@/lib/chat/unread-count";
 
 import type { WhatsAppAccount, WhatsAppProviderKind } from "@/lib/supabase/database.types";
 
@@ -535,7 +536,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
           last_message_at: msg.timestamp,
 
-          unread_count: isInbound ? unread + 1 : unread,
+          unread_count: nextConversationUnreadCount(
+            unread,
+            isInbound ? "inbound" : "outbound",
+          ),
 
           status: nextStatus,
 

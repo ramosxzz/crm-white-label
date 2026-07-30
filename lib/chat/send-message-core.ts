@@ -193,7 +193,11 @@ export async function sendChatMessageCore(
       .single();
     await supabase
       .from("conversations")
-      .update({ last_message_at: new Date().toISOString(), status: "em_atendimento" })
+      .update({
+        last_message_at: new Date().toISOString(),
+        unread_count: 0,
+        status: "em_atendimento",
+      })
       .eq("id", conversationId);
 
     void fireAutomationTrigger(input.tenantId, "message_sent", lead.id, {
