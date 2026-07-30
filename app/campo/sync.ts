@@ -2,7 +2,13 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { syncPending, type QueuedMutation } from "@/lib/field-service/offline";
-import { addDamage, addFieldUpsellItem, fieldTransition, saveSignature } from "./actions";
+import {
+  addDamage,
+  addFieldUpsellItem,
+  closeFieldServiceOrder,
+  fieldTransition,
+  saveSignature,
+} from "./actions";
 
 export const FIELD_BUCKET = "service-orders";
 
@@ -86,8 +92,21 @@ export async function applyMutation(item: QueuedMutation) {
     case "status": {
       await fieldTransition({
         service_order_id: item.serviceOrderId,
-        to: item.payload.to as "em_execucao" | "concluida" | "remarcada",
+        to: item.payload.to as "em_execucao" | "concluida",
         reason: (item.payload.reason as string | undefined) ?? undefined,
+      });
+      return;
+    }
+    case "closure": {
+      await closeFieldServiceOrder({
+        service_order_id: item.serviceOrderId,
+        closure_type: item.payload.closure_type as
+          | "finalizado"
+          | "finalizado_orcamento"
+          | "assistencia",
+        answers: item.payload.answers as Record<string, boolean>,
+        observations: (item.payload.observations as string | undefined) ?? undefined,
+        quote_description: (item.payload.quote_description as string | undefined) ?? undefined,
       });
       return;
     }

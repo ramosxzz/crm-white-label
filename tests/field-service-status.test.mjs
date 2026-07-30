@@ -49,6 +49,14 @@ test("faturada e cancelada sao terminais", async () => {
   assert.equal(canTransitionServiceOrder("cancelada", "agendada"), false);
 });
 
+test("assistencia nao fatura e so pode ser reaberta", async () => {
+  const { canTransitionServiceOrder, isServiceOrderLocked } = await loadModule();
+  assert.equal(canTransitionServiceOrder("assistencia", "faturada"), false);
+  assert.equal(canTransitionServiceOrder("assistencia", "conferida"), false);
+  assert.equal(canTransitionServiceOrder("assistencia", "em_execucao"), true);
+  assert.equal(isServiceOrderLocked("assistencia"), true);
+});
+
 test("formata o codigo visivel da OS", async () => {
   const { formatServiceOrderCode } = await loadModule();
   assert.equal(formatServiceOrderCode(1), "OS-0001");

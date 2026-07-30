@@ -5,6 +5,7 @@ import { CalendarCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { notify, notifyError } from "@/lib/ui/feedback";
 import type { FieldServiceUser } from "@/lib/field-service/users";
 import { scheduleServiceOrder } from "../actions";
@@ -25,6 +26,7 @@ export function SchedulePanel({
   const [date, setDate] = useState(currentDate ?? "");
   const [shift, setShift] = useState<"manha" | "tarde">(currentShift ?? "manha");
   const [selected, setSelected] = useState<string[]>(currentTechnicianIds);
+  const [reason, setReason] = useState("");
   const [pending, start] = useTransition();
 
   function toggleTechnician(id: string) {
@@ -41,6 +43,12 @@ export function SchedulePanel({
       notify({ title: "Escolha ao menos um técnico", tone: "error" });
       return;
     }
+    const isReschedule =
+      Boolean(currentDate) && (date !== currentDate || shift !== currentShift);
+    if (isReschedule && !reason.trim()) {
+      notify({ title: "Informe o motivo da remarcação", tone: "error" });
+      return;
+    }
     start(async () => {
       try {
         await scheduleServiceOrder({
@@ -48,6 +56,7 @@ export function SchedulePanel({
           service_date: date,
           shift,
           technician_ids: selected,
+          reason: reason.trim() || undefined,
         });
         notify({ title: "OS agendada", tone: "success" });
       } catch (error) {
@@ -117,6 +126,22 @@ export function SchedulePanel({
           </p>
         )}
       </div>
+
+      {currentDate && (date !== currentDate || shift !== currentShift) && (
+        <div className="space-y-1.5">
+          <Label htmlFor="schedule-reason">Motivo da remarcação</Label>
+          <Textarea
+            id="schedule-reason"
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            rows={3}
+            placeholder="Ex.: cliente solicitou outra data."
+          />
+          <p className="text-xs text-muted-foreground">
+            A agenda anterior ficará registrada no histórico da OS.
+          </p>
+        </div>
+      )}
 
       <Button type="submit" variant="brand" disabled={pending} className="w-full">
         <CalendarCheck className="h-4 w-4" />

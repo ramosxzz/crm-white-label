@@ -11,9 +11,11 @@ import type {
   CommissionParty,
   CommissionStatus,
   FinanceEntry,
+  PaymentMethodRate,
 } from "@/lib/supabase/database.types";
 import { CommissionsPanel, type CommissionRow } from "./commissions-panel";
 import { EntriesPanel } from "./entries-panel";
+import { PaymentRatesPanel } from "./payment-rates-panel";
 
 function brtToday() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
@@ -58,7 +60,14 @@ export default async function FinanceiroPage({
 
   const supabase = await createClient();
 
-  const [{ data: entries }, { data: recurring }, { data: commissions }, { data: rules }] =
+  const [
+    { data: entries },
+    { data: recurring },
+    { data: commissions },
+    { data: rules },
+    { data: paymentRates },
+    { data: pendingAdjustments },
+  ] =
     await Promise.all([
       supabase
         .from("finance_entries")
@@ -82,6 +91,17 @@ export default async function FinanceiroPage({
         .lt("created_at", `${end}T00:00:00-03:00`)
         .order("created_at", { ascending: false }),
       supabase.from("commission_rules").select("party_kind, percent").eq("tenant_id", ctx.tenantId),
+      supabase
+        .from("payment_method_rates")
+        .select("*")
+        .eq("tenant_id", ctx.tenantId)
+        .order("name"),
+      supabase
+        .from("financial_adjustment_requests")
+        .select("id, commission_id")
+        .eq("tenant_id", ctx.tenantId)
+        .eq("adjustment_kind", "comissao")
+        .eq("status", "pendente"),
     ]);
 
   const rows = (entries ?? []) as FinanceEntry[];
@@ -108,6 +128,12 @@ export default async function FinanceiroPage({
   const users = await listTenantUserOptions(ctx.tenantId);
   const nameById = new Map(users.map((user) => [user.id, user.name]));
 
+  const pendingAdjustmentByCommission = new Map(
+    ((pendingAdjustments ?? []) as Array<{ id: string; commission_id: string | null }>)
+      .filter((row) => row.commission_id)
+      .map((row) => [row.commission_id!, row.id]),
+  );
+
   const commissionRows: CommissionRow[] = ((commissions ?? []) as any[]).map((row) => ({
     id: row.id,
     party_kind: row.party_kind as CommissionParty,
@@ -117,12 +143,14 @@ export default async function FinanceiroPage({
     amount_cents: row.amount_cents,
     status: row.status as CommissionStatus,
     order_code: row.service_orders?.code_seq ?? null,
+    adjustment_request_id: pendingAdjustmentByCommission.get(row.id) ?? null,
   }));
 
   const ruleMap: Record<CommissionParty, number> = {
     tecnico: 0,
     vendedora_interna: 0,
     loja_parceira: 0,
+    vendedor_externo: 0,
   };
   for (const rule of (rules ?? []) as Array<{ party_kind: CommissionParty; percent: number }>) {
     ruleMap[rule.party_kind] = Number(rule.percent);
@@ -195,7 +223,9 @@ export default async function FinanceiroPage({
           <EntriesPanel kind="pagar" entries={toPay} today={today} />
         </div>
 
-        <CommissionsPanel commissions={commissionRows} rules={ruleMap} />
+        <CommissionsPanel commissions={commissionRows} rules={ruleMap} isOwner={ctx.role === "owner"} />
+
+        <PaymentRatesPanel rates={(paymentRates ?? []) as PaymentMethodRate[]} />
       </div>
     </div>
   );

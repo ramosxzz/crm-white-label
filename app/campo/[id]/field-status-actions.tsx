@@ -2,30 +2,28 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarX, CheckCircle2, Play } from "lucide-react";
+import { Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { queueMutation } from "@/lib/field-service/offline";
-import { confirmDialog, notify, notifyError } from "@/lib/ui/feedback";
+import { notify, notifyError } from "@/lib/ui/feedback";
 import type { ServiceOrderStatus } from "@/lib/supabase/database.types";
 import { syncNow } from "../sync";
 
 /**
- * Botoes de campo. Conjunto fechado: iniciar, concluir e remarcar. Conferir
- * e faturar continuam sendo do escritorio.
+ * Em campo o tecnico so inicia a visita aqui. O fechamento completo fica no
+ * laudo; remarcacao e responsabilidade do escritorio.
  */
 export function FieldStatusActions({
   serviceOrderId,
   status,
-  hasSignature,
 }: {
   serviceOrderId: string;
   status: ServiceOrderStatus;
-  hasSignature: boolean;
 }) {
   const [pending, setPending] = useState(false);
   const router = useRouter();
 
-  async function move(to: "em_execucao" | "concluida" | "remarcada", reason?: string) {
+  async function move(to: "em_execucao" | "concluida", reason?: string) {
     setPending(true);
     try {
       await queueMutation({
@@ -53,16 +51,6 @@ export function FieldStatusActions({
     }
   }
 
-  async function reschedule() {
-    const confirmed = await confirmDialog({
-      title: "Remarcar essa visita?",
-      description: "A OS volta pra fila do escritório e sai do seu roteiro de hoje.",
-      confirmLabel: "Remarcar",
-    });
-    if (!confirmed) return;
-    await move("remarcada", "Remarcada em campo");
-  }
-
   if (status === "agendada" || status === "remarcada") {
     return (
       <Button
@@ -75,37 +63,6 @@ export function FieldStatusActions({
       >
         <Play className="h-4 w-4" /> Cheguei — iniciar
       </Button>
-    );
-  }
-
-  if (status === "em_execucao") {
-    return (
-      <div className="space-y-2">
-        <Button
-          type="button"
-          variant="brand"
-          size="lg"
-          className="w-full"
-          disabled={pending || !hasSignature}
-          onClick={() => move("concluida")}
-        >
-          <CheckCircle2 className="h-4 w-4" /> Concluir serviço
-        </Button>
-        {!hasSignature && (
-          <p className="text-center text-xs text-muted-foreground">
-            Colete a assinatura do cliente pra liberar a conclusão.
-          </p>
-        )}
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full"
-          disabled={pending}
-          onClick={reschedule}
-        >
-          <CalendarX className="h-4 w-4" /> Cliente ausente / remarcar
-        </Button>
-      </div>
     );
   }
 

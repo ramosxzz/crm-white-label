@@ -30,6 +30,7 @@ const STATUS_FILTERS: Array<{ value: string; label: string }> = [
   { value: "concluida", label: "Concluídas" },
   { value: "conferida", label: "Conferidas" },
   { value: "faturada", label: "Faturadas" },
+  { value: "assistencia", label: "Assistências" },
   { value: "todas", label: "Todas" },
 ];
 

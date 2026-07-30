@@ -17,6 +17,7 @@ import { DamagesPanel } from "./damages-panel";
 import { FieldStatusActions } from "./field-status-actions";
 import { SignaturePad } from "./signature-pad";
 import { UpsellPanel } from "./upsell-panel";
+import { ServiceClosingPanel } from "./service-closing-panel";
 
 function fullAddress(order: any) {
   const street = [order.address_street, order.address_number].filter(Boolean).join(", ");
@@ -42,7 +43,7 @@ export default async function CampoOrderPage({ params }: { params: Promise<{ id:
     .maybeSingle();
   if (!order) notFound();
 
-  const [{ data: items }, { data: damages }] = await Promise.all([
+  const [{ data: items }, { data: damages }, { data: checklist }] = await Promise.all([
     supabase
       .from("service_order_items")
       .select("*")
@@ -53,6 +54,11 @@ export default async function CampoOrderPage({ params }: { params: Promise<{ id:
       .select("id, description, created_at")
       .eq("service_order_id", id)
       .order("created_at", { ascending: true }),
+    supabase
+      .from("service_order_checklists")
+      .select("answers, observations")
+      .eq("service_order_id", id)
+      .maybeSingle(),
   ]);
 
   const status = order.status as ServiceOrderStatus;
@@ -141,6 +147,15 @@ export default async function CampoOrderPage({ params }: { params: Promise<{ id:
         signerName={order.signer_name}
       />
 
+      {status === "em_execucao" && (
+        <ServiceClosingPanel
+          serviceOrderId={order.id}
+          hasSignature={Boolean(order.signed_at)}
+          initialAnswers={(checklist?.answers as Record<string, boolean> | null) ?? undefined}
+          initialObservations={checklist?.observations ?? null}
+        />
+      )}
+
       <section className="rounded-xl border border-border/70 bg-card p-4 shadow-elev-1">
         <div className="mb-3 flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Total da OS</span>
@@ -149,7 +164,6 @@ export default async function CampoOrderPage({ params }: { params: Promise<{ id:
         <FieldStatusActions
           serviceOrderId={order.id}
           status={status}
-          hasSignature={Boolean(order.signed_at)}
         />
       </section>
     </div>

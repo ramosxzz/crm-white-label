@@ -127,6 +127,102 @@ export async function setCommissionStatus(input: {
   revalidatePath("/financeiro");
 }
 
+export async function requestCommissionAdjustment(input: {
+  id: string;
+  amount: number;
+  reason: string;
+}) {
+  const ctx = await requireFinanceContext();
+  const parsed = z
+    .object({
+      id: z.string().uuid(),
+      amount: z.number().min(0),
+      reason: z.string().trim().min(3).max(1000),
+    })
+    .parse(input);
+  const supabase = await createClient();
+
+  const { data: commission, error: readError } = await supabase
+    .from("commissions")
+    .select("id, service_order_id, amount_cents")
+    .eq("id", parsed.id)
+    .eq("tenant_id", ctx.tenantId)
+    .single();
+  if (readError) throw new Error(readError.message);
+
+  const { error } = await supabase.from("financial_adjustment_requests").insert({
+    tenant_id: ctx.tenantId,
+    service_order_id: commission.service_order_id,
+    commission_id: commission.id,
+    adjustment_kind: "comissao",
+    payload: {
+      amount_cents: Math.round(parsed.amount * 100),
+      previous_amount_cents: commission.amount_cents,
+    },
+    reason: parsed.reason,
+    requested_by: ctx.userId,
+  });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/financeiro");
+  revalidatePath(`/os/${commission.service_order_id}`);
+}
+
+const paymentRatesSchema = z.array(
+  z.object({
+    id: z.string().uuid(),
+    fee_percent: z.number().min(0).max(100),
+    is_active: z.boolean(),
+  }),
+);
+
+export async function updatePaymentMethodRates(input: Array<{
+  id: string;
+  fee_percent: number;
+  is_active: boolean;
+}>) {
+  const ctx = await requireFinanceContext();
+  const rows = paymentRatesSchema.parse(input);
+  const supabase = await createClient();
+
+  for (const row of rows) {
+    const { error } = await supabase
+      .from("payment_method_rates")
+      .update({
+        fee_percent: row.fee_percent,
+        is_active: row.is_active,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", row.id)
+      .eq("tenant_id", ctx.tenantId);
+    if (error) throw new Error(error.message);
+  }
+  revalidatePath("/financeiro");
+}
+
+export async function createPaymentMethodRate(input: { name: string; fee_percent: number }) {
+  const ctx = await requireFinanceContext();
+  const parsed = z
+    .object({
+      name: z.string().trim().min(2).max(100),
+      fee_percent: z.number().min(0).max(100),
+    })
+    .parse(input);
+  const supabase = await createClient();
+  const { error } = await supabase.from("payment_method_rates").upsert(
+    {
+      tenant_id: ctx.tenantId,
+      name: parsed.name,
+      fee_percent: parsed.fee_percent,
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "tenant_id,name" },
+  );
+  if (error) throw new Error(error.message);
+  revalidatePath("/financeiro");
+}
+
 const rulesSchema = z.object({
   tecnico: z.number().min(0).max(100),
   vendedora_interna: z.number().min(0).max(100),

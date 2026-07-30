@@ -66,10 +66,13 @@ export type ServiceOrderStatus =
   | "conferida"
   | "faturada"
   | "cancelada"
-  | "remarcada";
+  | "remarcada"
+  | "assistencia";
 
 export type ServiceOrderShift = "manha" | "tarde";
 export type ServiceOrderItemKind = "original" | "upsell";
+export type ServiceOrderType = "normal" | "assistencia";
+export type ServiceOrderClosureType = "finalizado" | "finalizado_orcamento" | "assistencia";
 
 /** Ultima posicao conhecida do tecnico. Nao guarda trajeto, so a atual. */
 export interface TechnicianLocation {
@@ -88,6 +91,10 @@ export interface ServiceOrder {
   appointment_id: string | null;
   code_seq: number;
   status: ServiceOrderStatus;
+  service_type: ServiceOrderType;
+  closure_type: ServiceOrderClosureType | null;
+  closure_notes: string | null;
+  origin_service_order_id: string | null;
   consultant_id: string | null;
   created_by: string | null;
   address_street: string | null;
@@ -109,6 +116,9 @@ export interface ServiceOrder {
   observations: string | null;
   travel_fee_cents: number;
   total_cents: number;
+  payment_method: string | null;
+  expected_receipt_cents: number | null;
+  received_cents: number;
   partner_store: string | null;
   partner_seller_name: string | null;
   /** Percentual negociado nesta indicacao. Nulo = regra global do tenant. */
@@ -179,6 +189,69 @@ export interface ServiceOrderEvent {
   created_at: string;
 }
 
+export interface ServiceOrderChecklist {
+  id: string;
+  tenant_id: string;
+  service_order_id: string;
+  answers: Record<string, boolean>;
+  observations: string | null;
+  completed_by: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceOrderQuote {
+  id: string;
+  tenant_id: string;
+  service_order_id: string;
+  description: string;
+  amount_cents: number | null;
+  status: "pendente" | "convertido" | "cancelado";
+  converted_service_order_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceOrderScheduleHistory {
+  id: string;
+  tenant_id: string;
+  service_order_id: string;
+  previous_date: string | null;
+  previous_shift: ServiceOrderShift | null;
+  new_date: string | null;
+  new_shift: ServiceOrderShift | null;
+  reason: string;
+  changed_by: string | null;
+  created_at: string;
+}
+
+export interface PaymentMethodRate {
+  id: string;
+  tenant_id: string;
+  name: string;
+  fee_percent: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FinancialAdjustmentRequest {
+  id: string;
+  tenant_id: string;
+  service_order_id: string | null;
+  commission_id: string | null;
+  adjustment_kind: "acerto_os" | "comissao";
+  payload: Record<string, unknown>;
+  reason: string;
+  status: "pendente" | "aprovado" | "recusado";
+  requested_by: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
 export type FieldServicePartnerKind = "loja" | "vendedor";
 
 export interface FieldServicePartner {
@@ -212,6 +285,7 @@ export interface FinanceEntry {
   paid_at: string | null;
   status: FinanceEntryStatus;
   category: string | null;
+  payment_method: string | null;
   service_order_id: string | null;
   is_recurring: boolean;
   recurrence_day: number | null;
@@ -748,6 +822,31 @@ export type Database = {
         Row: ServiceOrderEvent;
         Insert: Partial<ServiceOrderEvent>;
         Update: Partial<ServiceOrderEvent>;
+      };
+      service_order_checklists: {
+        Row: ServiceOrderChecklist;
+        Insert: Partial<ServiceOrderChecklist>;
+        Update: Partial<ServiceOrderChecklist>;
+      };
+      service_order_quotes: {
+        Row: ServiceOrderQuote;
+        Insert: Partial<ServiceOrderQuote>;
+        Update: Partial<ServiceOrderQuote>;
+      };
+      service_order_schedule_history: {
+        Row: ServiceOrderScheduleHistory;
+        Insert: Partial<ServiceOrderScheduleHistory>;
+        Update: Partial<ServiceOrderScheduleHistory>;
+      };
+      payment_method_rates: {
+        Row: PaymentMethodRate;
+        Insert: Partial<PaymentMethodRate>;
+        Update: Partial<PaymentMethodRate>;
+      };
+      financial_adjustment_requests: {
+        Row: FinancialAdjustmentRequest;
+        Insert: Partial<FinancialAdjustmentRequest>;
+        Update: Partial<FinancialAdjustmentRequest>;
       };
       finance_entries: { Row: FinanceEntry; Insert: Partial<FinanceEntry>; Update: Partial<FinanceEntry> };
       commission_rules: { Row: CommissionRule; Insert: Partial<CommissionRule>; Update: Partial<CommissionRule> };

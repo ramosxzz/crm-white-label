@@ -24,6 +24,9 @@ const transitions: Record<ServiceOrderStatus, ServiceOrderStatus[]> = {
   cancelada: [],
   // Remarcada volta pra fila de agendamento com data nova.
   remarcada: ["agendada", "cancelada"],
+  // Assistencia/cortesia e terminal e nao passa pelo faturamento. A gestao
+  // ainda pode reabrir se o fechamento tiver sido feito por engano.
+  assistencia: ["em_execucao"],
 };
 
 export function canTransitionServiceOrder(from: ServiceOrderStatus, to: ServiceOrderStatus) {
@@ -40,7 +43,7 @@ export function isServiceOrderClosed(status: ServiceOrderStatus) {
 
 /** Status a partir do qual o valor da OS nao deve mais mudar sozinho. */
 export function isServiceOrderLocked(status: ServiceOrderStatus) {
-  return status === "faturada" || status === "cancelada";
+  return status === "faturada" || status === "cancelada" || status === "assistencia";
 }
 
 export const SERVICE_ORDER_STATUS_LABEL: Record<ServiceOrderStatus, string> = {
@@ -52,6 +55,7 @@ export const SERVICE_ORDER_STATUS_LABEL: Record<ServiceOrderStatus, string> = {
   faturada: "Faturada",
   cancelada: "Cancelada",
   remarcada: "Remarcada",
+  assistencia: "Assistência",
 };
 
 export const SERVICE_ORDER_SHIFT_LABEL = {

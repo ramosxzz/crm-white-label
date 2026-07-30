@@ -242,5 +242,33 @@ Testado em produção com `rollback`, comparando as três etapas na mesma transa
 
 - **Desconto:** cada item da venda pode receber preço de tabela. Se o valor negociado for menor, nasce como `solicitado`, com quem solicitou e quando. Enquanto estiver solicitado ou recusado, fica fora do total da OS. `owner`, `admin` e `gerente` podem aprovar; atendente não. A regra é calculada no banco, não só na interface.
 - **Deslocamento:** valor separado em reais na OS, convertido para centavos e somado ao total final sem virar item de upsell.
-- **Remarcação pelo técnico:** já estava feita no app de campo: “Cliente ausente / remarcar” devolve a OS à fila do escritório e remove data, turno e posição da rota. Não foi duplicada.
+- **Remarcação:** a confirmação posterior do cliente corrigiu o entendimento: é feita
+  pelo escritório, não pelo técnico. O botão saiu do app de campo; trocar
+  data/turno no administrativo exige motivo e preserva a agenda anterior no
+  histórico.
 - **PDF de conversa:** botão no chat WhatsApp abre uma versão de impressão com histórico textual, datas, remetente e indicação de anexos. O navegador abre a janela de impressão para salvar/encaminhar como PDF; mídias privadas não são copiadas para dentro do arquivo.
+
+## Fechamento operacional do ACT (FEITO, 2026-07-30)
+
+Regras confirmadas nos áudios e capturas do sistema antigo:
+
+- O técnico fecha tudo numa única tela: laudo, observações e resultado. O
+  checklist tem 16 perguntas e é **um por OS**, não um por peça.
+- Resultados: `finalizado`, `finalizado_orcamento` e `assistencia`.
+  Assistência/cortesia fica visualmente separada, zera a OS e tem bloqueios
+  no banco contra lançamento financeiro e comissão.
+- `finalizado_orcamento` mantém o orçamento ligado à OS original. Quando o
+  administrativo converte, nasce uma **nova OS**, para outra data, com elo
+  para a origem e no histórico do mesmo cliente.
+- Remarcação é administrativa. A troca de data/turno exige motivo e grava
+  data/turno anteriores e novos em `service_order_schedule_history`; o
+  roteiro diário mostra a visita remarcada mesmo depois de sua data mudar.
+- Reabrir conclusão/assistência ou cancelar a conferência exige motivo e é
+  permitido a `owner`, `admin` e `gerente`. “Coordenador de vendas” usa o
+  papel `gerente`; não foi criado papel novo.
+- Acerto por OS registra previsto, recebido, pendente e forma de pagamento.
+  Taxas de maquininha ficam em `payment_method_rates`; nasceram zeradas até o
+  ACT enviar a tabela real e podem ser configuradas sem deploy.
+- Depois de faturamento/pagamento, mudança de acerto ou comissão não é
+  aplicada diretamente: vira `financial_adjustment_requests`, com motivo.
+  Somente `owner` libera ou recusa, deixando autor, motivo e data auditáveis.

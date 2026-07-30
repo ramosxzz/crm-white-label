@@ -152,7 +152,7 @@ export async function addFieldUpsellItem(input: {
 
 const fieldTransitionSchema = z.object({
   service_order_id: z.string().uuid(),
-  to: z.enum(["em_execucao", "concluida", "remarcada"]),
+  to: z.enum(["em_execucao", "concluida"]),
   reason: z.string().trim().optional(),
 });
 
@@ -162,7 +162,7 @@ const fieldTransitionSchema = z.object({
  */
 export async function fieldTransition(input: {
   service_order_id: string;
-  to: "em_execucao" | "concluida" | "remarcada";
+  to: "em_execucao" | "concluida";
   reason?: string;
 }) {
   const ctx = await requireFieldContext();
@@ -195,12 +195,6 @@ export async function fieldTransition(input: {
     updated_at: new Date().toISOString(),
   };
   if (parsed.to === "concluida") patch.completed_at = new Date().toISOString();
-  if (parsed.to === "remarcada") {
-    patch.service_date = null;
-    patch.shift = null;
-    patch.route_position = null;
-  }
-
   const { error } = await supabase
     .from("service_orders")
     .update(patch)
@@ -219,6 +213,47 @@ export async function fieldTransition(input: {
 
   revalidatePath("/campo");
   revalidatePath(`/campo/${parsed.service_order_id}`);
+  revalidatePath(`/os/${parsed.service_order_id}`);
+  revalidatePath("/os/roteiro");
+}
+
+const fieldClosureSchema = z.object({
+  service_order_id: z.string().uuid(),
+  closure_type: z.enum(["finalizado", "finalizado_orcamento", "assistencia"]),
+  answers: z.record(z.string(), z.boolean()),
+  observations: z.string().trim().max(4000).optional(),
+  quote_description: z.string().trim().max(4000).optional(),
+});
+
+/**
+ * Fechamento unico do atendimento. O RPC grava laudo, resultado, eventual
+ * orcamento e historico na mesma transacao.
+ */
+export async function closeFieldServiceOrder(input: {
+  service_order_id: string;
+  closure_type: "finalizado" | "finalizado_orcamento" | "assistencia";
+  answers: Record<string, boolean>;
+  observations?: string;
+  quote_description?: string;
+}) {
+  const ctx = await requireFieldContext();
+  const parsed = fieldClosureSchema.parse(input);
+  await requireVisibleOrder(ctx, parsed.service_order_id);
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("close_service_order", {
+    p_service_order_id: parsed.service_order_id,
+    p_user_id: ctx.userId,
+    p_closure_type: parsed.closure_type,
+    p_answers: parsed.answers,
+    p_observations: parsed.observations || null,
+    p_quote_description: parsed.quote_description || null,
+  });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/campo");
+  revalidatePath(`/campo/${parsed.service_order_id}`);
+  revalidatePath("/os");
   revalidatePath(`/os/${parsed.service_order_id}`);
   revalidatePath("/os/roteiro");
 }

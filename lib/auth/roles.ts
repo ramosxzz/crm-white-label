@@ -70,6 +70,13 @@ export function canReviewServiceOrder(role: MemberRole) {
   return role === "owner" || role === "admin";
 }
 
+// Reabrir/cancelar uma conclusao muda o que o tecnico ja assinou em campo.
+// Owner, admin e o coordenador de vendas (gerente) podem fazer isso; atendente
+// segue cuidando da agenda, mas nao do fechamento.
+export function canReopenServiceOrder(role: MemberRole) {
+  return role === "owner" || role === "admin" || role === "gerente";
+}
+
 // Desconto e uma decisao comercial: gerente pode autorizar, mas atendente
 // nao. Faturamento continua reservado ao owner/admin.
 export function canApproveServiceOrderDiscount(role: MemberRole) {

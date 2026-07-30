@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { Check, Percent } from "lucide-react";
+import { Check, Pencil, Percent, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,12 @@ import { formatCurrencyBRL } from "@/lib/utils";
 import { notify, notifyError } from "@/lib/ui/feedback";
 import { COMMISSION_PARTY_LABEL } from "@/lib/field-service/commissions";
 import type { CommissionParty, CommissionStatus } from "@/lib/supabase/database.types";
-import { setCommissionStatus, updateCommissionRules } from "./actions";
+import {
+  requestCommissionAdjustment,
+  setCommissionStatus,
+  updateCommissionRules,
+} from "./actions";
+import { reviewFinancialAdjustment } from "../os/actions";
 
 export type CommissionRow = {
   id: string;
@@ -21,6 +26,7 @@ export type CommissionRow = {
   amount_cents: number;
   status: CommissionStatus;
   order_code: number | null;
+  adjustment_request_id: string | null;
 };
 
 const STATUS_VARIANT: Record<CommissionStatus, "outline" | "info" | "success"> = {
@@ -32,9 +38,11 @@ const STATUS_VARIANT: Record<CommissionStatus, "outline" | "info" | "success"> =
 export function CommissionsPanel({
   commissions,
   rules,
+  isOwner,
 }: {
   commissions: CommissionRow[];
   rules: Record<CommissionParty, number>;
+  isOwner: boolean;
 }) {
   const [pending, start] = useTransition();
 
@@ -59,6 +67,40 @@ export function CommissionsPanel({
         await setCommissionStatus({ id, status: "paga" });
       } catch (error) {
         notifyError(error, "Não foi possível atualizar a comissão");
+      }
+    });
+  }
+
+  function adjust(row: CommissionRow) {
+    const raw = window.prompt(
+      `Novo valor da comissão de ${row.who} (R$):`,
+      (row.amount_cents / 100).toFixed(2),
+    );
+    if (raw == null) return;
+    const amount = Number(raw.replace(",", "."));
+    if (!Number.isFinite(amount) || amount < 0) {
+      notify({ title: "Informe um valor válido", tone: "error" });
+      return;
+    }
+    const reason = window.prompt("Motivo do ajuste:")?.trim();
+    if (!reason) return;
+    start(async () => {
+      try {
+        await requestCommissionAdjustment({ id: row.id, amount, reason });
+        notify({ title: "Ajuste enviado para liberação de um dono", tone: "success" });
+      } catch (error) {
+        notifyError(error, "Não foi possível solicitar o ajuste");
+      }
+    });
+  }
+
+  function review(requestId: string, approve: boolean) {
+    start(async () => {
+      try {
+        await reviewFinancialAdjustment({ request_id: requestId, approve });
+        notify({ title: approve ? "Ajuste liberado" : "Ajuste recusado", tone: "success" });
+      } catch (error) {
+        notifyError(error, "Não foi possível revisar o ajuste");
       }
     });
   }
@@ -115,6 +157,45 @@ export function CommissionsPanel({
                         {formatCurrencyBRL(row.amount_cents)}
                       </span>
                       <Badge variant={STATUS_VARIANT[row.status]}>{row.status}</Badge>
+                      {row.adjustment_request_id ? (
+                        isOwner ? (
+                          <>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="brand"
+                              disabled={pending}
+                              title="Liberar ajuste"
+                              onClick={() => review(row.adjustment_request_id!, true)}
+                            >
+                              <Check className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={pending}
+                              title="Recusar ajuste"
+                              onClick={() => review(row.adjustment_request_id!, false)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </>
+                        ) : (
+                          <Badge variant="warning">ajuste pendente</Badge>
+                        )
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={pending}
+                          title="Ajustar comissão"
+                          onClick={() => adjust(row)}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                      )}
                       {row.status !== "paga" && (
                         <Button
                           type="button"

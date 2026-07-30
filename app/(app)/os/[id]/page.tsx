@@ -7,11 +7,14 @@ import {
   canAccessServiceOrders,
   canApproveServiceOrderDiscount,
   canManageServiceOrders,
+  canReopenServiceOrder,
   canReviewServiceOrder,
   isTechnician as isTechnicianRole,
 } from "@/lib/auth/roles";
 import { PageHeader } from "@/components/app/page-header";
+import { Badge } from "@/components/ui/badge";
 import { formatCurrencyBRL } from "@/lib/utils";
+import { SERVICE_REPORT_CHECKLIST } from "@/lib/field-service/checklist";
 import {
   SERVICE_ORDER_SHIFT_LABEL,
   SERVICE_ORDER_STATUS_LABEL,
@@ -21,13 +24,18 @@ import {
 import { listTechnicians } from "@/lib/field-service/users";
 import type {
   ServiceOrderItem,
+  ServiceOrderQuote,
   ServiceOrderStatus,
+  PaymentMethodRate,
+  FinancialAdjustmentRequest,
 } from "@/lib/supabase/database.types";
 import { ServiceOrderStatusBadge } from "../status-badge";
 import { ItemsPanel } from "./items-panel";
 import { SchedulePanel } from "./schedule-panel";
 import { StatusActions } from "./status-actions";
 import { ServiceOrdersLive } from "../service-orders-live";
+import { QuotesPanel } from "./quotes-panel";
+import { SettlementPanel } from "./settlement-panel";
 
 function formatAddress(order: any) {
   const street = [order.address_street, order.address_number].filter(Boolean).join(", ");
@@ -71,7 +79,17 @@ export default async function ServiceOrderDetailPage({
   // casos o usuario nao deve saber a diferenca.
   if (!order) notFound();
 
-  const [{ data: items }, { data: assigned }, { data: damages }, { data: events }] = await Promise.all([
+  const [
+    { data: items },
+    { data: assigned },
+    { data: damages },
+    { data: events },
+    { data: checklist },
+    { data: quotes },
+    { data: relatedOrders },
+    { data: paymentRates },
+    { data: adjustmentRequests },
+  ] = await Promise.all([
     supabase
       .from("service_order_items")
       .select("*")
@@ -89,10 +107,40 @@ export default async function ServiceOrderDetailPage({
       .eq("service_order_id", id)
       .order("created_at", { ascending: false })
       .limit(20),
+    supabase
+      .from("payment_method_rates")
+      .select("*")
+      .eq("tenant_id", ctx.tenantId)
+      .order("name"),
+    supabase
+      .from("financial_adjustment_requests")
+      .select("*")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("service_order_id", id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("service_order_checklists")
+      .select("*")
+      .eq("service_order_id", id)
+      .maybeSingle(),
+    supabase
+      .from("service_order_quotes")
+      .select("*")
+      .eq("service_order_id", id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("service_orders")
+      .select("id, code_seq, status, service_date, origin_service_order_id")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("lead_id", order.lead_id)
+      .neq("id", id)
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
 
   const canManage = canManageServiceOrders(ctx.role);
   const canReview = canReviewServiceOrder(ctx.role);
+  const canReopen = canReopenServiceOrder(ctx.role);
   const canApproveDiscount = canApproveServiceOrderDiscount(ctx.role);
   const isTech = isTechnicianRole(ctx.role);
   const canPriceItems = canManage || ctx.role === "vendedor";
@@ -118,11 +166,13 @@ export default async function ServiceOrderDetailPage({
         actions={
           <div className="flex items-center gap-3">
             <ServiceOrderStatusBadge status={status} />
+            {order.service_type === "assistencia" && <Badge variant="info">Sem cobrança</Badge>}
             <StatusActions
               serviceOrderId={order.id}
               status={status}
               canManage={canManage}
               canReview={canReview}
+              canReopen={canReopen}
               isTechnician={isTech}
             />
           </div>
@@ -235,9 +285,48 @@ export default async function ServiceOrderDetailPage({
               </ul>
             </section>
           )}
+
+          {checklist && (
+            <section className="rounded-xl border border-border/70 bg-card p-5 shadow-elev-1">
+              <h2 className="mb-3 text-sm font-semibold">Laudo técnico</h2>
+              <dl className="space-y-2">
+                {SERVICE_REPORT_CHECKLIST.map((item) => (
+                  <div key={item.key} className="flex items-start justify-between gap-3 text-sm">
+                    <dt className="text-muted-foreground">{item.label}</dt>
+                    <dd className="shrink-0 font-semibold">
+                      {(checklist.answers as Record<string, boolean>)[item.key] ? "Sim" : "Não"}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              {checklist.observations && (
+                <p className="mt-4 whitespace-pre-wrap rounded-lg bg-muted/40 p-3 text-sm">
+                  {checklist.observations}
+                </p>
+              )}
+            </section>
+          )}
+
+          {(quotes ?? []).length > 0 && (
+            <QuotesPanel quotes={(quotes ?? []) as ServiceOrderQuote[]} canManage={canManage} />
+          )}
         </div>
 
         <div className="space-y-6">
+          {canReview && order.service_type !== "assistencia" && (
+            <SettlementPanel
+              serviceOrderId={order.id}
+              status={status}
+              totalCents={order.total_cents}
+              expectedCents={order.expected_receipt_cents}
+              receivedCents={order.received_cents ?? 0}
+              paymentMethod={order.payment_method}
+              rates={(paymentRates ?? []) as PaymentMethodRate[]}
+              requests={(adjustmentRequests ?? []) as FinancialAdjustmentRequest[]}
+              isOwner={ctx.role === "owner"}
+            />
+          )}
+
           {canManage && !locked && (
             <SchedulePanel
               serviceOrderId={order.id}
@@ -261,6 +350,33 @@ export default async function ServiceOrderDetailPage({
               </p>
             )}
           </section>
+
+          {(order.origin_service_order_id || (relatedOrders ?? []).length > 0) && (
+            <section className="rounded-xl border border-border/70 bg-card p-5 shadow-elev-1">
+              <h2 className="mb-3 text-sm font-semibold">Histórico do cliente</h2>
+              {order.origin_service_order_id && (
+                <Link
+                  href={`/os/${order.origin_service_order_id}`}
+                  className="mb-2 block rounded-md bg-brand/5 px-3 py-2 text-xs font-semibold text-brand"
+                >
+                  Ver OS que originou este orçamento
+                </Link>
+              )}
+              <ul className="space-y-2">
+                {(relatedOrders ?? []).map((related: any) => (
+                  <li key={related.id}>
+                    <Link
+                      href={`/os/${related.id}`}
+                      className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2 text-xs hover:bg-muted/40"
+                    >
+                      <span>{formatServiceOrderCode(related.code_seq)}</span>
+                      <ServiceOrderStatusBadge status={related.status as ServiceOrderStatus} />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <section className="rounded-xl border border-border/70 bg-card p-5 shadow-elev-1">
             <h2 className="mb-3 text-sm font-semibold">Histórico</h2>

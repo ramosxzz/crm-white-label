@@ -64,6 +64,20 @@ test("assinatura repetida offline mantem so a ultima", async () => {
   assert.equal(result[0].id, "sig-2");
 });
 
+test("fechamento offline fica depois da assinatura e mantem so o ultimo", async () => {
+  const { dedupeQueue } = await loadModule();
+  const result = dedupeQueue([
+    mutation({ id: "close-old", kind: "closure", createdAt: 3 }),
+    mutation({ id: "sig", kind: "signature", createdAt: 4 }),
+    mutation({ id: "close-new", kind: "closure", createdAt: 5 }),
+    mutation({ id: "damage", kind: "damage", createdAt: 6 }),
+  ]);
+  assert.deepEqual(
+    result.map((item) => item.id),
+    ["damage", "sig", "close-new"],
+  );
+});
+
 test("avarias nunca sao descartadas na deduplicacao", async () => {
   const { dedupeQueue } = await loadModule();
   const result = dedupeQueue([

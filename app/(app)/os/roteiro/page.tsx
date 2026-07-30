@@ -14,6 +14,7 @@ import { ServiceOrderStatusBadge } from "../status-badge";
 import { RouteOptimizer } from "./route-optimizer";
 import { TechnicianSuggester } from "./technician-suggester";
 import { ServiceOrdersLive } from "../service-orders-live";
+import { cn } from "@/lib/utils";
 
 function brtDay() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
@@ -48,10 +49,18 @@ function shortAddress(order: any) {
 }
 
 function OrderCard({ order }: { order: any }) {
+  const completed = ["concluida", "conferida", "faturada"].includes(order.status);
+  const assistance = order.status === "assistencia" || order.service_type === "assistencia";
   return (
     <Link
       href={`/os/${order.id}`}
-      className="block rounded-lg border border-border/70 bg-background/40 p-3 transition-colors hover:border-brand/40 hover:bg-brand/5"
+      className={cn(
+        "block rounded-lg border bg-background/40 p-3 transition-colors hover:border-brand/40 hover:bg-brand/5",
+        completed && "border-success/40 bg-success/5",
+        assistance && "border-info/40 bg-info/5",
+        order.status === "remarcada" && "border-warning/50 bg-warning/5",
+        !completed && !assistance && order.status !== "remarcada" && "border-border/70",
+      )}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -93,7 +102,7 @@ export default async function RoteiroPage({
 
   const supabase = await createClient();
 
-  const [{ data: dayOrders }, { data: pool }, technicians] = await Promise.all([
+  const [{ data: dayOrders }, { data: pool }, { data: rescheduled }, technicians] = await Promise.all([
     supabase
       .from("service_orders")
       .select("*, leads(name, phone)")
@@ -109,6 +118,14 @@ export default async function RoteiroPage({
       .in("status", ["rascunho", "remarcada"])
       .order("created_at", { ascending: true })
       .limit(50),
+    supabase
+      .from("service_order_schedule_history")
+      .select(
+        "id, service_order_id, previous_shift, new_date, new_shift, reason, service_orders(code_seq, status, leads(name))",
+      )
+      .eq("tenant_id", ctx.tenantId)
+      .eq("previous_date", day)
+      .order("created_at", { ascending: false }),
     listTechnicians(ctx.tenantId),
   ]);
 
@@ -270,6 +287,46 @@ export default async function RoteiroPage({
                     />
                   )}
                 </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {(rescheduled ?? []).length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold text-warning">
+              Remarcações deste dia <span className="text-muted-foreground">({rescheduled!.length})</span>
+            </h2>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {(rescheduled ?? []).map((entry: any) => (
+                <Link
+                  key={entry.id}
+                  href={`/os/${entry.service_order_id}`}
+                  className="rounded-lg border border-warning/50 bg-warning/5 p-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold">
+                        {entry.service_orders?.leads?.name ?? "Cliente"}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {entry.service_orders?.code_seq
+                          ? formatServiceOrderCode(entry.service_orders.code_seq)
+                          : "OS"}
+                      </p>
+                    </div>
+                    <Badge variant="warning">Remarcada</Badge>
+                  </div>
+                  <p className="mt-2 text-xs">
+                    Nova data:{" "}
+                    <strong>
+                      {entry.new_date
+                        ? new Date(`${entry.new_date}T12:00:00-03:00`).toLocaleDateString("pt-BR")
+                        : "a definir"}
+                    </strong>
+                  </p>
+                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{entry.reason}</p>
+                </Link>
               ))}
             </div>
           </section>

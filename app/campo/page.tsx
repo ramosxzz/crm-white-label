@@ -6,6 +6,7 @@ import { formatCurrencyBRL } from "@/lib/utils";
 import { formatServiceOrderCode, SERVICE_ORDER_STATUS_LABEL } from "@/lib/field-service/status";
 import type { ServiceOrderStatus } from "@/lib/supabase/database.types";
 import { OfflineCache } from "./offline-cache";
+import { cn } from "@/lib/utils";
 
 function brtDay() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
@@ -88,7 +89,14 @@ export default async function CampoPage({
                 <li key={order.id}>
                   <Link
                     href={`/campo/${order.id}`}
-                    className="flex items-center gap-3 rounded-xl border border-border/70 bg-card p-4 shadow-elev-1 transition-colors active:bg-brand/5"
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl border bg-card p-4 shadow-elev-1 transition-colors active:bg-brand/5",
+                      ["concluida", "conferida", "faturada"].includes(order.status)
+                        ? "border-success/40 bg-success/5"
+                        : order.status === "assistencia"
+                          ? "border-info/40 bg-info/5"
+                          : "border-border/70",
+                    )}
                   >
                     {order.route_position != null && (
                       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand/10 text-sm font-bold text-brand">

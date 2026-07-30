@@ -8,6 +8,7 @@ import {
   canAccessServiceOrders,
   canApproveServiceOrderDiscount,
   canManageServiceOrders,
+  canReopenServiceOrder,
   canReviewServiceOrder,
 } from "@/lib/auth/roles";
 import { canTransitionServiceOrder } from "@/lib/field-service/status";
@@ -281,6 +282,7 @@ const scheduleSchema = z.object({
   service_date: z.string().min(1),
   shift: z.enum(["manha", "tarde"]),
   technician_ids: z.array(z.string().uuid()).min(1, "Escolha ao menos um tecnico"),
+  reason: z.string().trim().max(1000).optional(),
 });
 
 /** Agenda a OS num turno e aloca os tecnicos que vao na residencia. */
@@ -289,6 +291,7 @@ export async function scheduleServiceOrder(input: {
   service_date: string;
   shift: "manha" | "tarde";
   technician_ids: string[];
+  reason?: string;
 }) {
   const ctx = await requireManagerContext();
   const parsed = scheduleSchema.parse(input);
@@ -296,13 +299,19 @@ export async function scheduleServiceOrder(input: {
 
   const { data: current, error: readError } = await supabase
     .from("service_orders")
-    .select("id, status")
+    .select("id, status, service_date, shift")
     .eq("id", parsed.id)
     .eq("tenant_id", ctx.tenantId)
     .single();
   if (readError) throw new Error(readError.message);
 
   const from = current.status as ServiceOrderStatus;
+  const scheduleChanged =
+    Boolean(current.service_date) &&
+    (current.service_date !== parsed.service_date || current.shift !== parsed.shift);
+  if (scheduleChanged && !parsed.reason) {
+    throw new Error("Informe o motivo da remarcação");
+  }
   // Reagendar uma OS ja agendada nao e transicao de status, so troca de data.
   const needsTransition = from !== "agendada";
   if (needsTransition && !canTransitionServiceOrder(from, "agendada")) {
@@ -336,8 +345,38 @@ export async function scheduleServiceOrder(input: {
 
   await setServiceOrderTechniciansInternal(supabase, ctx, parsed.id, parsed.technician_ids);
 
+  if (scheduleChanged) {
+    const { error: historyError } = await supabase.from("service_order_schedule_history").insert({
+      tenant_id: ctx.tenantId,
+      service_order_id: parsed.id,
+      previous_date: current.service_date,
+      previous_shift: current.shift,
+      new_date: parsed.service_date,
+      new_shift: parsed.shift,
+      reason: parsed.reason!,
+      changed_by: ctx.userId,
+    });
+    if (historyError) throw new Error(historyError.message);
+
+    await logStatusChange(
+      supabase,
+      ctx,
+      parsed.id,
+      from,
+      "agendada",
+      `Remarcada: ${parsed.reason}`,
+    );
+  }
+
   if (needsTransition) {
-    await logStatusChange(supabase, ctx, parsed.id, from, "agendada", "OS agendada");
+    await logStatusChange(
+      supabase,
+      ctx,
+      parsed.id,
+      from,
+      "agendada",
+      parsed.reason ? `OS reagendada: ${parsed.reason}` : "OS agendada",
+    );
   }
 
   revalidatePath("/os");
@@ -392,6 +431,7 @@ const transitionSchema = z.object({
     "faturada",
     "cancelada",
     "remarcada",
+    "assistencia",
   ]),
   reason: z.string().trim().optional(),
 });
@@ -463,7 +503,7 @@ export async function transitionServiceOrder(input: {
 
   const { data: current, error: readError } = await supabase
     .from("service_orders")
-    .select("id, status")
+    .select("id, status, service_date, shift")
     .eq("id", parsed.id)
     .eq("tenant_id", ctx.tenantId)
     .single();
@@ -472,6 +512,28 @@ export async function transitionServiceOrder(input: {
   const from = current.status as ServiceOrderStatus;
   if (!canTransitionServiceOrder(from, parsed.to)) {
     throw new Error(`Transicao invalida: ${from} -> ${parsed.to}`);
+  }
+
+  if (parsed.to === "remarcada") {
+    if (!canManageServiceOrders(ctx.role)) {
+      throw new Error("A remarcação é feita pelo escritório");
+    }
+    if (!parsed.reason) {
+      throw new Error("Informe o motivo da remarcação");
+    }
+  }
+
+  const reopening =
+    (from === "concluida" && parsed.to === "em_execucao") ||
+    (from === "conferida" && parsed.to === "concluida") ||
+    (from === "assistencia" && parsed.to === "em_execucao");
+  if (reopening) {
+    if (!canReopenServiceOrder(ctx.role)) {
+      throw new Error("Só a gestão pode reabrir ou cancelar uma finalização");
+    }
+    if (!parsed.reason) {
+      throw new Error("Informe o motivo da reabertura");
+    }
   }
 
   // Conferencia e faturamento sao da gestao, nao do tecnico nem da vendedora.
@@ -519,11 +581,218 @@ export async function transitionServiceOrder(input: {
     .eq("tenant_id", ctx.tenantId);
   if (error) throw new Error(error.message);
 
+  if (parsed.to === "remarcada" && current.service_date) {
+    const { error: historyError } = await supabase.from("service_order_schedule_history").insert({
+      tenant_id: ctx.tenantId,
+      service_order_id: parsed.id,
+      previous_date: current.service_date,
+      previous_shift: current.shift,
+      new_date: null,
+      new_shift: null,
+      reason: parsed.reason!,
+      changed_by: ctx.userId,
+    });
+    if (historyError) throw new Error(historyError.message);
+  }
+
   await logStatusChange(supabase, ctx, parsed.id, from, parsed.to, parsed.reason);
 
   revalidatePath("/os");
   revalidatePath("/os/roteiro");
   revalidatePath(`/os/${parsed.id}`);
+}
+
+const quoteConversionSchema = z.object({
+  quote_id: z.string().uuid(),
+  amount: z.number().min(0).nullable().optional(),
+});
+
+/** Transforma o orcamento feito em campo em outra OS ligada ao historico. */
+export async function convertServiceOrderQuote(input: {
+  quote_id: string;
+  amount?: number | null;
+}): Promise<string> {
+  const ctx = await requireManagerContext();
+  const parsed = quoteConversionSchema.parse(input);
+  const supabase = await createClient();
+
+  if (parsed.amount != null) {
+    const { error: amountError } = await supabase
+      .from("service_order_quotes")
+      .update({
+        amount_cents: Math.round(parsed.amount * 100),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", parsed.quote_id)
+      .eq("tenant_id", ctx.tenantId);
+    if (amountError) throw new Error(amountError.message);
+  }
+
+  const { data, error } = await supabase.rpc("convert_service_order_quote", {
+    p_quote_id: parsed.quote_id,
+    p_user_id: ctx.userId,
+  });
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("A nova OS não foi criada");
+
+  revalidatePath("/os");
+  revalidatePath(`/os/${data}`);
+  return data as string;
+}
+
+export async function cancelServiceOrderQuote(input: { quote_id: string }) {
+  const ctx = await requireManagerContext();
+  const parsed = z.object({ quote_id: z.string().uuid() }).parse(input);
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("service_order_quotes")
+    .update({ status: "cancelado", updated_at: new Date().toISOString() })
+    .eq("id", parsed.quote_id)
+    .eq("tenant_id", ctx.tenantId)
+    .eq("status", "pendente");
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/os");
+}
+
+const settlementSchema = z.object({
+  service_order_id: z.string().uuid(),
+  expected: z.number().min(0),
+  received: z.number().min(0),
+  payment_method: z.string().trim().max(100).nullable(),
+  reason: z.string().trim().max(1000).optional(),
+});
+
+export type SettlementSaveResult = { pendingApproval: boolean };
+
+/**
+ * Acerto da OS. Antes do faturamento salva direto; depois de qualquer
+ * lancamento vira solicitacao auditada para um owner liberar.
+ */
+export async function saveServiceOrderSettlement(input: {
+  service_order_id: string;
+  expected: number;
+  received: number;
+  payment_method: string | null;
+  reason?: string;
+}): Promise<SettlementSaveResult> {
+  const ctx = await requireFieldServiceContext();
+  if (!canReviewServiceOrder(ctx.role)) {
+    throw new Error("Só a gestão financeira pode alterar o acerto da OS");
+  }
+  const parsed = settlementSchema.parse(input);
+  const expectedCents = Math.round(parsed.expected * 100);
+  const receivedCents = Math.round(parsed.received * 100);
+  const supabase = await createClient();
+
+  const { data: order, error: orderError } = await supabase
+    .from("service_orders")
+    .select("id, status, expected_receipt_cents, received_cents, payment_method")
+    .eq("id", parsed.service_order_id)
+    .eq("tenant_id", ctx.tenantId)
+    .single();
+  if (orderError) throw new Error(orderError.message);
+
+  const [{ data: paidEntries }, { data: paidCommissions }] = await Promise.all([
+    supabase
+      .from("finance_entries")
+      .select("id")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("service_order_id", parsed.service_order_id)
+      .eq("status", "paga")
+      .limit(1),
+    supabase
+      .from("commissions")
+      .select("id")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("service_order_id", parsed.service_order_id)
+      .eq("status", "paga")
+      .limit(1),
+  ]);
+
+  const locked =
+    order.status === "faturada" ||
+    Boolean(paidEntries?.length) ||
+    Boolean(paidCommissions?.length);
+
+  if (locked) {
+    if (!parsed.reason) {
+      throw new Error("Informe o motivo da alteração para solicitar a liberação de um dono");
+    }
+    const { error } = await supabase.from("financial_adjustment_requests").insert({
+      tenant_id: ctx.tenantId,
+      service_order_id: parsed.service_order_id,
+      adjustment_kind: "acerto_os",
+      payload: {
+        expected_receipt_cents: expectedCents,
+        received_cents: receivedCents,
+        payment_method: parsed.payment_method,
+        previous: {
+          expected_receipt_cents: order.expected_receipt_cents,
+          received_cents: order.received_cents,
+          payment_method: order.payment_method,
+        },
+      },
+      reason: parsed.reason,
+      requested_by: ctx.userId,
+    });
+    if (error) throw new Error(error.message);
+    revalidatePath(`/os/${parsed.service_order_id}`);
+    revalidatePath("/financeiro");
+    return { pendingApproval: true };
+  }
+
+  const { error } = await supabase
+    .from("service_orders")
+    .update({
+      expected_receipt_cents: expectedCents,
+      received_cents: receivedCents,
+      payment_method: parsed.payment_method || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", parsed.service_order_id)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/os/${parsed.service_order_id}`);
+  return { pendingApproval: false };
+}
+
+export async function reviewFinancialAdjustment(input: {
+  request_id: string;
+  approve: boolean;
+}) {
+  const ctx = await requireFieldServiceContext();
+  if (ctx.role !== "owner") {
+    throw new Error("Somente um dos donos pode liberar esta alteração");
+  }
+  const parsed = z
+    .object({ request_id: z.string().uuid(), approve: z.boolean() })
+    .parse(input);
+  const supabase = await createClient();
+
+  if (parsed.approve) {
+    const { error } = await supabase.rpc("approve_financial_adjustment", {
+      p_request_id: parsed.request_id,
+      p_user_id: ctx.userId,
+    });
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await supabase
+      .from("financial_adjustment_requests")
+      .update({
+        status: "recusado",
+        reviewed_by: ctx.userId,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq("id", parsed.request_id)
+      .eq("tenant_id", ctx.tenantId)
+      .eq("status", "pendente");
+    if (error) throw new Error(error.message);
+  }
+
+  revalidatePath("/financeiro");
+  revalidatePath("/os");
 }
 
 const itemSchema = z.object({

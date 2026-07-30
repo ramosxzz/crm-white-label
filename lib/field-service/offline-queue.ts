@@ -5,7 +5,7 @@
  * e o que fazer quando um envio falha e testavel sem browser.
  */
 
-export type QueuedMutationKind = "signature" | "damage" | "upsell_item" | "status";
+export type QueuedMutationKind = "signature" | "damage" | "upsell_item" | "status" | "closure";
 
 export type QueuedMutation = {
   /** Chave local, gerada no cliente (a OS ainda pode nem ter sido tocada no servidor). */
@@ -35,6 +35,7 @@ const KIND_PRIORITY: Record<QueuedMutationKind, number> = {
   upsell_item: 0,
   signature: 1,
   status: 2,
+  closure: 2,
 };
 
 export function sortQueue(items: QueuedMutation[]): QueuedMutation[] {
@@ -57,7 +58,7 @@ export function dedupeQueue(items: QueuedMutation[]): QueuedMutation[] {
   const cumulative: QueuedMutation[] = [];
 
   for (const item of items) {
-    if (item.kind === "signature" || item.kind === "status") {
+    if (item.kind === "signature" || item.kind === "status" || item.kind === "closure") {
       const key = `${item.serviceOrderId}:${item.kind}`;
       const existing = lastByKey.get(key);
       if (!existing || item.createdAt >= existing.createdAt) lastByKey.set(key, item);

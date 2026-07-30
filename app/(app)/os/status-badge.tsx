@@ -13,6 +13,7 @@ const variantByStatus: Record<ServiceOrderStatus, BadgeVariant> = {
   faturada: "success",
   cancelada: "destructive",
   remarcada: "outline",
+  assistencia: "info",
 };
 
 export function ServiceOrderStatusBadge({ status }: { status: ServiceOrderStatus }) {
