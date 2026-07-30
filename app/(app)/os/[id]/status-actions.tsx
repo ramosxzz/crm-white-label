@@ -7,8 +7,10 @@ import {
   SERVICE_ORDER_STATUS_LABEL,
   nextServiceOrderStatuses,
 } from "@/lib/field-service/status";
+import { COMMISSION_PARTY_LABEL } from "@/lib/field-service/commissions";
+import { formatCurrencyBRL } from "@/lib/utils";
 import type { ServiceOrderStatus } from "@/lib/supabase/database.types";
-import { transitionServiceOrder } from "../actions";
+import { previewServiceOrderCommissions, transitionServiceOrder } from "../actions";
 
 // O que cada papel pode disparar. A action valida de novo no servidor - isso
 // aqui e so pra nao mostrar botao que vai dar erro.
@@ -63,6 +65,36 @@ export function StatusActions({
       });
       if (!confirmed) return;
     }
+
+    if (to === "faturada") {
+      // Mostra pra quem vai o dinheiro ANTES de gerar - faturar sem essa
+      // tela foi como uma comissao saiu sem ninguem esperar.
+      let lines: Awaited<ReturnType<typeof previewServiceOrderCommissions>> = [];
+      try {
+        lines = await previewServiceOrderCommissions(serviceOrderId);
+      } catch (error) {
+        notifyError(error, "Não foi possível calcular as comissões");
+        return;
+      }
+
+      const description =
+        lines.length === 0
+          ? "Nenhuma comissão será gerada nesta OS."
+          : lines
+              .map(
+                (l) =>
+                  `${COMMISSION_PARTY_LABEL[l.partyKind]}${l.partnerName ? ` (${l.partnerName})` : ""}: ${formatCurrencyBRL(l.amountCents)}`,
+              )
+              .join("\n");
+
+      const confirmed = await confirmDialog({
+        title: "Faturar esta OS?",
+        description,
+        confirmLabel: "Faturar",
+      });
+      if (!confirmed) return;
+    }
+
     start(async () => {
       try {
         await transitionServiceOrder({ id: serviceOrderId, to });

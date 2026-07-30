@@ -10,7 +10,17 @@
  *
  * Tudo em centavos inteiros, como o resto do sistema. Nada de float no
  * dinheiro.
+ *
+ * ⚠️ O calculo de verdade (o que gera comissao real) vive no banco, na
+ * function compute_service_order_commissions/bill_service_order. As funcoes
+ * deste arquivo (calculateCommissions, splitCents) nao sao chamadas por
+ * nenhum fluxo do app - so pelo teste delas mesmas - e ja divergem do banco
+ * (nao sabem de vendedor_externo nem de split loja/vendedor). Nao confiar
+ * nelas como fonte de verdade; se forem reativadas um dia, reescrever pra
+ * chamar o banco em vez de duplicar a regra em TypeScript.
  */
+
+import type { CommissionParty } from "@/lib/supabase/database.types";
 
 export type CommissionPartyKind = "tecnico" | "vendedora_interna" | "loja_parceira";
 
@@ -126,8 +136,13 @@ export function totalCommissionCents(lines: CommissionLine[]) {
   return lines.reduce((sum, line) => sum + line.amountCents, 0);
 }
 
-export const COMMISSION_PARTY_LABEL: Record<CommissionPartyKind, string> = {
+// CommissionPartyKind (deste arquivo) ficou pra tras do enum real do banco:
+// nunca ganhou 'vendedor_externo' porque nada aqui chama o calculo do banco -
+// esse tipo local e so um label map hoje. Usa CommissionParty (o tipo real,
+// de lib/supabase/database.types) pra nao repetir esse descompasso.
+export const COMMISSION_PARTY_LABEL: Record<CommissionParty, string> = {
   tecnico: "Técnico",
   vendedora_interna: "Vendedora interna",
   loja_parceira: "Loja parceira",
+  vendedor_externo: "Vendedor externo",
 };

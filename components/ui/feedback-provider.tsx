@@ -110,7 +110,12 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
               <div className="min-w-0 flex-1">
                 <DialogTitle>{confirmState?.title}</DialogTitle>
                 {confirmState?.description && (
-                  <DialogDescription className="mt-1.5">{confirmState.description}</DialogDescription>
+                  // whitespace-pre-line: o resumo de comissao no faturamento manda uma
+                  // linha por beneficiario: sem isso as quebras colapsavam num paragrafo
+                  // so. Nao muda nada pra descricao de uma linha so (o caso comum).
+                  <DialogDescription className="mt-1.5 whitespace-pre-line">
+                    {confirmState.description}
+                  </DialogDescription>
                 )}
               </div>
             </div>

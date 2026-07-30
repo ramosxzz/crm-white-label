@@ -10,7 +10,7 @@ import {
   canReviewServiceOrder,
 } from "@/lib/auth/roles";
 import { canTransitionServiceOrder } from "@/lib/field-service/status";
-import type { ServiceOrder, ServiceOrderStatus } from "@/lib/supabase/database.types";
+import type { CommissionParty, ServiceOrder, ServiceOrderStatus } from "@/lib/supabase/database.types";
 
 type Ctx = Awaited<ReturnType<typeof requireContext>>;
 
@@ -394,6 +394,62 @@ const transitionSchema = z.object({
   ]),
   reason: z.string().trim().optional(),
 });
+
+export type CommissionPreviewLine = {
+  partyKind: CommissionParty;
+  userId: string | null;
+  partnerName: string | null;
+  amountCents: number;
+};
+
+/**
+ * O que "Faturar" vai gerar, ANTES de gerar - pra ninguem clicar sem saber
+ * pra quem o dinheiro vai (foi exatamente o que faltou quando a comissao do
+ * Matheus saiu sem ninguem esperar).
+ *
+ * Chama a mesma function do Postgres que bill_service_order usa pra gravar
+ * (compute_service_order_commissions), so que essa aqui so LE. Preview e
+ * faturamento sao, por construcao, a mesma conta - nao existe as duas
+ * divergindo.
+ */
+export async function previewServiceOrderCommissions(
+  serviceOrderId: string,
+): Promise<CommissionPreviewLine[]> {
+  const ctx = await requireContext();
+  assertFieldServiceEnabled(ctx);
+  if (!canReviewServiceOrder(ctx.role)) {
+    throw new Error("Só a gestão pode faturar a OS");
+  }
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.rpc("compute_service_order_commissions", {
+    p_service_order_id: serviceOrderId,
+  });
+  if (error) throw new Error(error.message);
+
+  const rows = (data ?? []) as Array<{
+    out_party_kind: CommissionParty;
+    out_user_id: string | null;
+    out_partner_name: string | null;
+    out_amount_cents: number;
+  }>;
+
+  const userIds = [...new Set(rows.map((r) => r.out_user_id).filter(Boolean) as string[])];
+  const nameById = new Map<string, string>();
+  if (userIds.length > 0) {
+    const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", userIds);
+    for (const p of (profiles ?? []) as Array<{ id: string; full_name: string | null }>) {
+      if (p.full_name) nameById.set(p.id, p.full_name);
+    }
+  }
+
+  return rows.map((r) => ({
+    partyKind: r.out_party_kind,
+    userId: r.out_user_id,
+    partnerName: r.out_user_id ? (nameById.get(r.out_user_id) ?? null) : r.out_partner_name,
+    amountCents: r.out_amount_cents,
+  }));
+}
 
 export async function transitionServiceOrder(input: {
   id: string;
