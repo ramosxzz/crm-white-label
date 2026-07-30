@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
-import { getBlockedWhatsappAccountIds } from "@/lib/chat/list-conversation-items";
+import {
+  canAccessConversationAccount,
+  getChatAccountVisibility,
+} from "@/lib/chat/list-conversation-items";
 import type { ChatMessage } from "@/lib/chat/types";
 
 const NO_STORE_HEADERS = {
@@ -59,12 +62,10 @@ export async function GET(req: NextRequest) {
   }
   if (!conversation) return json({ messages: [] });
 
-  const blockedAccountIds = await getBlockedWhatsappAccountIds(ctx.tenantId, ctx.userId, ctx.role);
-  if (blockedAccountIds) {
-    const conv = conversation as { whatsapp_account_id: string | null };
-    if (conv.whatsapp_account_id && blockedAccountIds.includes(conv.whatsapp_account_id)) {
-      return json({ error: "Sem acesso a esta conversa" }, { status: 403 });
-    }
+  const visibility = await getChatAccountVisibility(ctx.tenantId, ctx.userId, ctx.role);
+  const conv = conversation as { whatsapp_account_id: string | null };
+  if (!canAccessConversationAccount(conv.whatsapp_account_id, visibility)) {
+    return json({ error: "Sem acesso a esta conversa" }, { status: 403 });
   }
 
   // Busca as mais recentes primeiro (desc) e limita a 150: conversas longas

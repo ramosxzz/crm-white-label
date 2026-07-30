@@ -4,7 +4,10 @@ import { notFound } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { listTenantUserOptions } from "@/lib/tenant/users";
-import { getBlockedWhatsappAccountIds } from "@/lib/chat/list-conversation-items";
+import {
+  canAccessConversationAccount,
+  getChatAccountVisibility,
+} from "@/lib/chat/list-conversation-items";
 import { displayLeadName } from "@/lib/leads/display";
 import { getCachedWhatsAppProfilePicture } from "@/lib/whatsapp/profile-picture";
 import { fetchApi4comCalls } from "@/lib/integrations/api4com";
@@ -121,8 +124,11 @@ export async function getChatThreadData(leadId: string) {
 
   const convo = convoRes.data as { id: string; status: string | null; channel: string | null; whatsapp_account_id: string | null } | null;
 
-  const blockedAccountIds = await getBlockedWhatsappAccountIds(ctx.tenantId, ctx.userId, ctx.role);
-  if (blockedAccountIds && convo?.whatsapp_account_id && blockedAccountIds.includes(convo.whatsapp_account_id)) {
+  const visibility = await getChatAccountVisibility(ctx.tenantId, ctx.userId, ctx.role);
+  if (
+    convo &&
+    !canAccessConversationAccount(convo.whatsapp_account_id, visibility)
+  ) {
     notFound();
   }
   const leadPhoneDigits = (lead.phone ?? "").replace(/\D/g, "");
@@ -265,7 +271,7 @@ export async function getChatThreadData(leadId: string) {
     users,
     services: (servicesRes.data ?? []) as { id: string; name: string; duration_minutes: number }[],
     whatsappAccounts: ((whatsappAccountsRes.data ?? []) as { id: string; phone_number: string; display_name: string | null; provider: string; assigned_to: string | null }[]).filter(
-      (a) => !blockedAccountIds || !blockedAccountIds.includes(a.id),
+      (account) => canAccessConversationAccount(account.id, visibility),
     ),
     recentCalls,
     callsEnabled: ctx.tenant.calls_dashboard_enabled,

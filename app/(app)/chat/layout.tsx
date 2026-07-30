@@ -1,5 +1,9 @@
 import { requireContext } from "@/lib/tenant";
-import { listConversationItemsForTenant, getBlockedWhatsappAccountIds } from "@/lib/chat/list-conversation-items";
+import {
+  canAccessConversationAccount,
+  getChatAccountVisibility,
+  listConversationItemsForTenant,
+} from "@/lib/chat/list-conversation-items";
 import { fetchLeadCallCountsForTenant } from "@/lib/integrations/call-counts";
 import { ConversationListLive } from "@/components/chat/conversation-list-live";
 import { createClient } from "@/lib/supabase/server";
@@ -10,10 +14,10 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   type InstanceRow = { id: string; display_name: string | null; phone_number: string };
   type StageRow = { id: string; name: string };
 
-  const blockedAccountIds = await getBlockedWhatsappAccountIds(ctx.tenantId, ctx.userId, ctx.role);
+  const visibility = await getChatAccountVisibility(ctx.tenantId, ctx.userId, ctx.role);
 
   const [items, callCounts, instancesResult, stagesResult] = await Promise.all([
-    listConversationItemsForTenant(ctx.tenantId, 300, {}, ctx.tenant.name, blockedAccountIds),
+    listConversationItemsForTenant(ctx.tenantId, 300, {}, ctx.tenant.name, visibility),
     fetchLeadCallCountsForTenant(ctx.tenantId, { includeApi4com: ctx.tenant.calls_dashboard_enabled }),
     supabase
       .from("whatsapp_accounts")
@@ -27,7 +31,9 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       .order("position"),
   ]);
   const allInstances = (instancesResult.data ?? []) as unknown as InstanceRow[];
-  const instances = blockedAccountIds ? allInstances.filter((i) => !blockedAccountIds.includes(i.id)) : allInstances;
+  const instances = allInstances.filter((instance) =>
+    canAccessConversationAccount(instance.id, visibility),
+  );
   const stages = (stagesResult.data ?? []) as unknown as StageRow[];
 
   return (

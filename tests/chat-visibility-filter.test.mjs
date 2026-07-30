@@ -23,7 +23,7 @@ async function loadModule() {
             namespace: "stub",
           }));
           b.onLoad({ filter: /.*/, namespace: "stub" }, () => ({
-            contents: "export const createServiceClient = () => ({}); export const canSeeAllLeads = () => false; export const buildConversationItems = () => [];",
+            contents: "export const createServiceClient = () => ({}); export const canSeeAllLeads = (role) => ['owner', 'admin', 'gerente'].includes(role); export const buildConversationItems = () => [];",
             loader: "js",
           }));
         },
@@ -37,34 +37,65 @@ function item(whatsappAccountId) {
   return { id: `conv-${whatsappAccountId ?? "none"}`, whatsappAccountId };
 }
 
-test("no blocklist (owner/admin) -> everything visible", async () => {
+test("gestao ve todas as contas e conversas sem vinculo", async () => {
+  const { buildChatAccountVisibility } = await loadModule();
+  const result = buildChatAccountVisibility(
+    [{ id: "acc-a", assigned_to: "seller-a" }],
+    "manager",
+    "gerente",
+  );
+  assert.equal(result, null);
+});
+
+test("visibilidade nula (gestao) mantem tudo visivel", async () => {
   const { filterByAllowedAccounts } = await loadModule();
   const items = [item("acc-a"), item("acc-b"), item(null)];
   const result = filterByAllowedAccounts(items, null);
   assert.equal(result.length, 3);
 });
 
-test("empty blocklist -> everything visible", async () => {
-  const { filterByAllowedAccounts } = await loadModule();
-  const items = [item("acc-a"), item(null)];
-  const result = filterByAllowedAccounts(items, []);
-  assert.equal(result.length, 2);
-});
-
-test("blocks only conversations from accounts assigned to someone else", async () => {
-  const { filterByAllowedAccounts } = await loadModule();
-  const items = [item("acc-a"), item("acc-b")];
-  const result = filterByAllowedAccounts(items, ["acc-b"]);
+test("vendedor ve apenas o proprio numero e nunca conversa sem vinculo", async () => {
+  const { buildChatAccountVisibility, filterByAllowedAccounts } = await loadModule();
+  const visibility = buildChatAccountVisibility(
+    [
+      { id: "acc-a", assigned_to: "seller-a" },
+      { id: "acc-b", assigned_to: "seller-b" },
+      { id: "shared", assigned_to: null },
+    ],
+    "seller-a",
+    "vendedor",
+  );
+  const result = filterByAllowedAccounts(
+    [item("acc-a"), item("acc-b"), item("shared"), item(null)],
+    visibility,
+  );
   assert.deepEqual(result.map((i) => i.whatsappAccountId), ["acc-a"]);
 });
 
-test("shared/unassigned account (null whatsappAccountId) is never blocked", async () => {
-  // Regressao: tenants com 1 numero compartilhado (assigned_to null) nao
-  // podem perder acesso as proprias conversas quando a denylist bloqueia
-  // contas de outras pessoas.
-  const { filterByAllowedAccounts } = await loadModule();
-  const items = [item(null), item("acc-blocked")];
-  const result = filterByAllowedAccounts(items, ["acc-blocked"]);
-  assert.equal(result.length, 1);
-  assert.equal(result[0].whatsappAccountId, null);
+test("vendedor sem numero atribuido nao herda o historico compartilhado", async () => {
+  const { buildChatAccountVisibility, filterByAllowedAccounts } = await loadModule();
+  const visibility = buildChatAccountVisibility(
+    [{ id: "shared", assigned_to: null }],
+    "seller-a",
+    "vendedor",
+  );
+  const result = filterByAllowedAccounts([item("shared"), item(null)], visibility);
+  assert.deepEqual(result, []);
+});
+
+test("atendente de tenant compartilhado preserva numero e historico sem vinculo", async () => {
+  const { buildChatAccountVisibility, filterByAllowedAccounts } = await loadModule();
+  const visibility = buildChatAccountVisibility(
+    [
+      { id: "shared", assigned_to: null },
+      { id: "private", assigned_to: "seller-a" },
+    ],
+    "attendant-a",
+    "atendente",
+  );
+  const result = filterByAllowedAccounts(
+    [item("shared"), item("private"), item(null)],
+    visibility,
+  );
+  assert.deepEqual(result.map((i) => i.whatsappAccountId), ["shared", null]);
 });
