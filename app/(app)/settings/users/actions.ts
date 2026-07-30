@@ -14,9 +14,11 @@ export type TeamUser = {
   role: MemberRole;
   createdAt: string;
   isCurrentUser: boolean;
+  receivesAutomaticLeads: boolean;
 };
 
 const editableRoles: MemberRole[] = ["admin", "gerente", "atendente", "vendedor", "tecnico"];
+const roundRobinRoles: MemberRole[] = ["atendente", "vendedor"];
 
 function normalizeRole(role: string): MemberRole {
   if (editableRoles.includes(role as MemberRole)) return role as MemberRole;
@@ -75,6 +77,18 @@ export async function listTeamUsers(): Promise<TeamUser[]> {
       .map((user) => [user.id, user.email ?? ""]),
   );
 
+  const { data: availability } = await db
+    .from("attendant_status")
+    .select("user_id, is_available")
+    .eq("tenant_id", ctx.tenantId)
+    .in("user_id", ids);
+  const availabilityMap = new Map(
+    ((availability ?? []) as Array<{ user_id: string; is_available: boolean }>).map((row) => [
+      row.user_id,
+      row.is_available,
+    ]),
+  );
+
   return memberRows.map((member) => ({
     userId: member.user_id,
     fullName: profileMap.get(member.user_id) || emailMap.get(member.user_id)?.split("@")[0] || "Usuario",
@@ -82,6 +96,7 @@ export async function listTeamUsers(): Promise<TeamUser[]> {
     role: member.role as MemberRole,
     createdAt: member.created_at,
     isCurrentUser: member.user_id === ctx.userId,
+    receivesAutomaticLeads: availabilityMap.get(member.user_id) ?? false,
   }));
 }
 
@@ -149,6 +164,17 @@ export async function createTeamUser(input: {
       });
     if (memberError) throw new Error(toErrorMessage(memberError, "Nao foi possivel vincular o usuario a esta empresa"));
 
+    if (roundRobinRoles.includes(role)) {
+      const { error: availabilityError } = await db.from("attendant_status").upsert({
+        tenant_id: ctx.tenantId,
+        user_id: userId,
+        is_available: false,
+      });
+      if (availabilityError) {
+        throw new Error(toErrorMessage(availabilityError, "Nao foi possivel configurar a distribuicao de leads"));
+      }
+    }
+
     if (temporaryTenantId && temporaryTenantId !== ctx.tenantId) {
       await db.from("tenants").delete().eq("id", temporaryTenantId);
     }
@@ -177,10 +203,49 @@ export async function updateTeamUserRole(input: { userId: string; role: string }
       .eq("user_id", input.userId);
 
     if (error) throw new Error(toErrorMessage(error, "Nao foi possivel alterar o cargo"));
+
+    if (!roundRobinRoles.includes(role)) {
+      await db
+        .from("attendant_status")
+        .update({ is_available: false })
+        .eq("tenant_id", ctx.tenantId)
+        .eq("user_id", input.userId);
+    }
   } catch (err) {
     console.error("[settings/users] updateTeamUserRole falhou:", err);
     throw new Error(toErrorMessage(err, "Nao foi possivel alterar o cargo. Tente novamente."));
   }
+  revalidatePath("/settings/users");
+}
+
+export async function setTeamUserLeadAvailability(input: {
+  userId: string;
+  isAvailable: boolean;
+}) {
+  const ctx = await requireContext();
+  assertRole(ctx.role, canManageUsers);
+  const supabase = createServiceClient();
+  const db = supabase as any;
+
+  const { data: member, error: memberError } = await db
+    .from("tenant_members")
+    .select("role")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("user_id", input.userId)
+    .maybeSingle();
+  if (memberError) throw new Error(memberError.message);
+  if (!member || !roundRobinRoles.includes(member.role as MemberRole)) {
+    throw new Error("Somente atendentes e vendedores podem receber leads automaticamente");
+  }
+
+  const { error } = await db.from("attendant_status").upsert({
+    tenant_id: ctx.tenantId,
+    user_id: input.userId,
+    is_available: input.isAvailable,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw new Error(error.message);
+
   revalidatePath("/settings/users");
 }
 

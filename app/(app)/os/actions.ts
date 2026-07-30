@@ -13,6 +13,7 @@ import {
 } from "@/lib/auth/roles";
 import { canTransitionServiceOrder } from "@/lib/field-service/status";
 import type { CommissionParty, ServiceOrder, ServiceOrderStatus } from "@/lib/supabase/database.types";
+import { formatCurrencyBRL } from "@/lib/utils";
 
 type Ctx = Awaited<ReturnType<typeof requireContext>>;
 
@@ -602,6 +603,33 @@ export async function transitionServiceOrder(input: {
   revalidatePath(`/os/${parsed.id}`);
 }
 
+export async function cancelServiceOrderClosure(input: {
+  id: string;
+  reason: string;
+}) {
+  const ctx = await requireFieldServiceContext();
+  if (!canReopenServiceOrder(ctx.role)) {
+    throw new Error("Só a gestão pode cancelar uma finalização");
+  }
+  const parsed = z
+    .object({
+      id: z.string().uuid(),
+      reason: z.string().trim().min(3).max(1000),
+    })
+    .parse(input);
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("cancel_service_order_closure", {
+    p_service_order_id: parsed.id,
+    p_user_id: ctx.userId,
+    p_reason: parsed.reason,
+  });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/os");
+  revalidatePath("/os/roteiro");
+  revalidatePath(`/os/${parsed.id}`);
+}
+
 const quoteConversionSchema = z.object({
   quote_id: z.string().uuid(),
   amount: z.number().min(0).nullable().optional(),
@@ -684,6 +712,27 @@ export async function saveServiceOrderSettlement(input: {
   const expectedCents = Math.round(parsed.expected * 100);
   const receivedCents = Math.round(parsed.received * 100);
   const supabase = await createClient();
+
+  if (parsed.payment_method) {
+    const { data: rate } = await supabase
+      .from("payment_method_rates")
+      .select("installment_count, minimum_installment_cents")
+      .eq("tenant_id", ctx.tenantId)
+      .ilike("name", parsed.payment_method)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (rate) {
+      const installmentCount = Math.max(1, rate.installment_count);
+      if (
+        rate.minimum_installment_cents > 0 &&
+        Math.floor(expectedCents / installmentCount) < rate.minimum_installment_cents
+      ) {
+        throw new Error(
+          `O valor não atende à parcela mínima desta forma de pagamento (${formatCurrencyBRL(rate.minimum_installment_cents)}).`,
+        );
+      }
+    }
+  }
 
   const { data: order, error: orderError } = await supabase
     .from("service_orders")
@@ -797,6 +846,7 @@ export async function reviewFinancialAdjustment(input: {
 
 const itemSchema = z.object({
   service_order_id: z.string().uuid(),
+  catalog_item_id: z.string().uuid().nullable(),
   description: z.string().trim().min(1),
   quantity: z.number().positive(),
   unit_price: z.number().min(0),
@@ -811,6 +861,7 @@ export async function addServiceOrderItem(formData: FormData) {
 
   const parsed = itemSchema.parse({
     service_order_id: formData.get("service_order_id"),
+    catalog_item_id: readForm(formData, "catalog_item_id") ?? null,
     description: formData.get("description"),
     quantity: Number(formData.get("quantity") ?? 1),
     unit_price: Number(formData.get("unit_price") ?? 0),
@@ -819,9 +870,25 @@ export async function addServiceOrderItem(formData: FormData) {
     kind: formData.get("kind") ?? "original",
   });
 
+  let description = parsed.description;
+  let tablePriceCents =
+    parsed.table_price == null ? null : Math.round(parsed.table_price * 100);
+
+  if (parsed.catalog_item_id) {
+    const { data: catalogItem, error: catalogError } = await supabase
+      .from("service_catalog_items")
+      .select("name, price_cents, is_active")
+      .eq("id", parsed.catalog_item_id)
+      .eq("tenant_id", ctx.tenantId)
+      .maybeSingle();
+    if (catalogError) throw new Error(catalogError.message);
+    if (!catalogItem?.is_active) throw new Error("O item da tabela não está mais disponível");
+    description = catalogItem.name;
+    tablePriceCents = catalogItem.price_cents;
+  }
+
   const unitPriceCents = Math.round(parsed.unit_price * 100);
   const amountCents = Math.round(unitPriceCents * parsed.quantity);
-  const tablePriceCents = parsed.table_price == null ? null : Math.round(parsed.table_price * 100);
 
   if (tablePriceCents != null && unitPriceCents > tablePriceCents) {
     throw new Error("O valor negociado nao pode ser maior que o valor de tabela.");
@@ -835,7 +902,8 @@ export async function addServiceOrderItem(formData: FormData) {
   const { error } = await supabase.from("service_order_items").insert({
     tenant_id: ctx.tenantId,
     service_order_id: parsed.service_order_id,
-    description: parsed.description,
+    catalog_item_id: parsed.catalog_item_id,
+    description,
     quantity: parsed.quantity,
     unit_price_cents: unitPriceCents,
     amount_cents: amountCents,

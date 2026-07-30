@@ -8,7 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrencyBRL } from "@/lib/utils";
 import { confirmDialog, notifyError } from "@/lib/ui/feedback";
-import type { ServiceOrderItem } from "@/lib/supabase/database.types";
+import type {
+  ServiceCatalogItem,
+  ServiceOrderItem,
+} from "@/lib/supabase/database.types";
 import {
   addServiceOrderItem,
   deleteServiceOrderItem,
@@ -25,6 +28,7 @@ export function ItemsPanel({
   canApproveDiscount,
   canDelete,
   travelFeeCents,
+  catalogItems,
 }: {
   serviceOrderId: string;
   items: ServiceOrderItem[];
@@ -33,10 +37,15 @@ export function ItemsPanel({
   canApproveDiscount: boolean;
   canDelete: boolean;
   travelFeeCents: number;
+  catalogItems: ServiceCatalogItem[];
 }) {
   const [pending, start] = useTransition();
   const [travelFee, setTravelFee] = useState((travelFeeCents / 100).toFixed(2));
   const formRef = useRef<HTMLFormElement>(null);
+  const [selectedCatalogId, setSelectedCatalogId] = useState("");
+  const [description, setDescription] = useState("");
+  const [unitPrice, setUnitPrice] = useState("0");
+  const [tablePrice, setTablePrice] = useState("");
 
   const approvedTotal = items
     .filter((item) => item.approved && !["solicitado", "recusado"].includes(item.discount_status))
@@ -53,10 +62,24 @@ export function ItemsPanel({
       try {
         await addServiceOrderItem(fd);
         formRef.current?.reset();
+        setSelectedCatalogId("");
+        setDescription("");
+        setUnitPrice("0");
+        setTablePrice("");
       } catch (error) {
         notifyError(error, "Não foi possível adicionar a peça");
       }
     });
+  }
+
+  function selectCatalogItem(id: string) {
+    setSelectedCatalogId(id);
+    const item = catalogItems.find((candidate) => candidate.id === id);
+    if (!item) return;
+    const price = (item.price_cents / 100).toFixed(2);
+    setDescription(item.name);
+    setUnitPrice(price);
+    setTablePrice(price);
   }
 
   function onToggleApproved(itemId: string, approved: boolean) {
@@ -231,11 +254,35 @@ export function ItemsPanel({
         <form
           ref={formRef}
           onSubmit={onAdd}
-          className="grid grid-cols-1 gap-3 border-t border-border/70 px-5 py-4 sm:grid-cols-[1fr_5rem_7rem_7rem_9rem_auto]"
+          className="grid grid-cols-1 gap-3 border-t border-border/70 px-5 py-4 sm:grid-cols-[12rem_1fr_5rem_7rem_7rem_9rem_auto]"
         >
           <div className="space-y-1.5">
+            <Label htmlFor="catalog_item_id">Tabela</Label>
+            <select
+              id="catalog_item_id"
+              name="catalog_item_id"
+              value={selectedCatalogId}
+              onChange={(event) => selectCatalogItem(event.target.value)}
+              className="h-10 w-full rounded-md border border-border/70 bg-background px-3 text-sm"
+            >
+              <option value="">Item avulso</option>
+              {catalogItems.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
             <Label htmlFor="description">Peça / serviço</Label>
-            <Input id="description" name="description" required placeholder="Poltrona fixa - lavagem" />
+            <Input
+              id="description"
+              name="description"
+              required
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="Poltrona fixa - lavagem"
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="quantity">Qtd</Label>
@@ -243,11 +290,29 @@ export function ItemsPanel({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="unit_price">Valor (R$)</Label>
-            <Input id="unit_price" name="unit_price" type="number" step="0.01" min="0" defaultValue={0} />
+            <Input
+              id="unit_price"
+              name="unit_price"
+              type="number"
+              step="0.01"
+              min="0"
+              value={unitPrice}
+              onChange={(event) => setUnitPrice(event.target.value)}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="table_price">Tabela (R$)</Label>
-            <Input id="table_price" name="table_price" type="number" step="0.01" min="0" placeholder="Opcional" />
+            <Input
+              id="table_price"
+              name="table_price"
+              type="number"
+              step="0.01"
+              min="0"
+              value={tablePrice}
+              onChange={(event) => setTablePrice(event.target.value)}
+              placeholder="Opcional"
+              readOnly={Boolean(selectedCatalogId)}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="kind">Tipo</Label>

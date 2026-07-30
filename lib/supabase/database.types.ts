@@ -143,6 +143,7 @@ export interface ServiceOrderItem {
   tenant_id: string;
   service_order_id: string;
   description: string;
+  catalog_item_id: string | null;
   quantity: number;
   unit_price_cents: number;
   amount_cents: number;
@@ -232,7 +233,28 @@ export interface PaymentMethodRate {
   tenant_id: string;
   name: string;
   fee_percent: number;
+  installment_count: number;
+  minimum_installment_cents: number;
   is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ServiceCatalogCategory =
+  | "lavagem"
+  | "impermeabilizacao"
+  | "couro"
+  | "outro";
+
+export interface ServiceCatalogItem {
+  id: string;
+  tenant_id: string;
+  category: ServiceCatalogCategory;
+  name: string;
+  unit: string;
+  price_cents: number;
+  is_active: boolean;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -286,6 +308,8 @@ export interface FinanceEntry {
   status: FinanceEntryStatus;
   category: string | null;
   payment_method: string | null;
+  installment_number: number;
+  installment_count: number;
   service_order_id: string | null;
   is_recurring: boolean;
   recurrence_day: number | null;
@@ -842,6 +866,11 @@ export type Database = {
         Row: PaymentMethodRate;
         Insert: Partial<PaymentMethodRate>;
         Update: Partial<PaymentMethodRate>;
+      };
+      service_catalog_items: {
+        Row: ServiceCatalogItem;
+        Insert: Partial<ServiceCatalogItem>;
+        Update: Partial<ServiceCatalogItem>;
       };
       financial_adjustment_requests: {
         Row: FinancialAdjustmentRequest;

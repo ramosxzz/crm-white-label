@@ -28,6 +28,7 @@ import {
 import {
   createTeamUser,
   removeTeamUser,
+  setTeamUserLeadAvailability,
   updateTeamUserRole,
   type TeamUser,
 } from "./actions";
@@ -102,6 +103,17 @@ export function UsersManager({
     });
   }
 
+  function changeLeadAvailability(userId: string, isAvailable: boolean) {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await setTeamUserLeadAvailability({ userId, isAvailable });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Nao foi possivel alterar a disponibilidade");
+      }
+    });
+  }
+
   async function removeUser(user: TeamUser) {
     const confirmed = await confirmDialog({
       title: `Remover ${user.fullName} desta empresa?`,
@@ -153,10 +165,11 @@ export function UsersManager({
       )}
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
-        <div className="grid grid-cols-[minmax(220px,1fr)_160px_190px_80px] gap-3 border-b border-border bg-muted/25 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <div className="grid grid-cols-[minmax(220px,1fr)_150px_170px_150px_70px] gap-3 border-b border-border bg-muted/25 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <span>Usuario</span>
           <span>Cargo</span>
           <span>Entrada</span>
+          <span>Leads automaticos</span>
           <span className="text-right">Acoes</span>
         </div>
         <div className="divide-y divide-border">
@@ -165,7 +178,7 @@ export function UsersManager({
             return (
               <div
                 key={user.userId}
-                className="grid grid-cols-[minmax(220px,1fr)_160px_190px_80px] items-center gap-3 px-4 py-3"
+                className="grid grid-cols-[minmax(220px,1fr)_150px_170px_150px_70px] items-center gap-3 px-4 py-3"
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand/15 text-sm font-semibold text-brand">
@@ -201,6 +214,22 @@ export function UsersManager({
                 )}
 
                 <span className="text-sm text-muted-foreground">{formatDate(user.createdAt)}</span>
+
+                {user.role === "atendente" || user.role === "vendedor" ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={user.receivesAutomaticLeads ? "brand" : "outline"}
+                    disabled={!canManage || pending}
+                    onClick={() =>
+                      changeLeadAvailability(user.userId, !user.receivesAutomaticLeads)
+                    }
+                  >
+                    {user.receivesAutomaticLeads ? "Disponivel" : "Fora do sorteio"}
+                  </Button>
+                ) : (
+                  <span className="text-xs text-muted-foreground">Nao participa</span>
+                )}
 
                 <div className="flex justify-end">
                   <Button

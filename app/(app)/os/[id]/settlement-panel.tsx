@@ -133,7 +133,9 @@ export function SettlementPanel({
             <option value="">Não informada</option>
             {rates.filter((rate) => rate.is_active).map((rate) => (
               <option key={rate.id} value={rate.name}>
-                {rate.name}{rate.fee_percent > 0 ? ` · taxa ${rate.fee_percent}%` : ""}
+                {rate.name}
+                {rate.installment_count > 1 ? ` · ${rate.installment_count} parcelas` : ""}
+                {rate.fee_percent > 0 ? ` · taxa ${rate.fee_percent}%` : ""}
               </option>
             ))}
           </select>

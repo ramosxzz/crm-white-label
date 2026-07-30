@@ -10,7 +10,11 @@ import {
 import { COMMISSION_PARTY_LABEL } from "@/lib/field-service/commissions";
 import { formatCurrencyBRL } from "@/lib/utils";
 import type { ServiceOrderStatus } from "@/lib/supabase/database.types";
-import { previewServiceOrderCommissions, transitionServiceOrder } from "../actions";
+import {
+  cancelServiceOrderClosure,
+  previewServiceOrderCommissions,
+  transitionServiceOrder,
+} from "../actions";
 
 // O que cada papel pode disparar. A action valida de novo no servidor - isso
 // aqui e so pra nao mostrar botao que vai dar erro.
@@ -55,7 +59,10 @@ export function StatusActions({
     return true;
   });
 
-  if (options.length === 0) return null;
+  const canCancelClosure =
+    canReopen && ["concluida", "conferida", "assistencia"].includes(status);
+
+  if (options.length === 0 && !canCancelClosure) return null;
 
   // O confirmDialog fica FORA da transicao de proposito: ele abre o dialogo
   // por setState, e dentro de start() esse setState entra na propria
@@ -126,6 +133,28 @@ export function StatusActions({
     });
   }
 
+  async function cancelClosure() {
+    const reason = window.prompt("Informe o motivo do cancelamento da finalização:")?.trim();
+    if (!reason) return;
+    const confirmed = await confirmDialog({
+      title: "Cancelar esta finalização?",
+      description:
+        "A OS volta para Em execução. O laudo permanece no histórico e um novo fechamento poderá ser feito.",
+      confirmLabel: "Cancelar finalização",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+
+    start(async () => {
+      try {
+        await cancelServiceOrderClosure({ id: serviceOrderId, reason });
+        notify({ title: "Finalização cancelada", tone: "success" });
+      } catch (error) {
+        notifyError(error, "Não foi possível cancelar a finalização");
+      }
+    });
+  }
+
   return (
     <div className="flex flex-wrap gap-2">
       {options.map((next) => (
@@ -140,6 +169,17 @@ export function StatusActions({
           {SERVICE_ORDER_STATUS_LABEL[next]}
         </Button>
       ))}
+      {canCancelClosure && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          onClick={cancelClosure}
+        >
+          Cancelar finalização
+        </Button>
+      )}
     </div>
   );
 }

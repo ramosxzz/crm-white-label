@@ -12,10 +12,12 @@ import type {
   CommissionStatus,
   FinanceEntry,
   PaymentMethodRate,
+  ServiceCatalogItem,
 } from "@/lib/supabase/database.types";
 import { CommissionsPanel, type CommissionRow } from "./commissions-panel";
 import { EntriesPanel } from "./entries-panel";
 import { PaymentRatesPanel } from "./payment-rates-panel";
+import { ServiceCatalogPanel } from "./service-catalog-panel";
 
 function brtToday() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
@@ -66,6 +68,7 @@ export default async function FinanceiroPage({
     { data: commissions },
     { data: rules },
     { data: paymentRates },
+    { data: catalogItems },
     { data: pendingAdjustments },
   ] =
     await Promise.all([
@@ -95,6 +98,12 @@ export default async function FinanceiroPage({
         .from("payment_method_rates")
         .select("*")
         .eq("tenant_id", ctx.tenantId)
+        .order("name"),
+      supabase
+        .from("service_catalog_items")
+        .select("*")
+        .eq("tenant_id", ctx.tenantId)
+        .order("category")
         .order("name"),
       supabase
         .from("financial_adjustment_requests")
@@ -226,6 +235,7 @@ export default async function FinanceiroPage({
         <CommissionsPanel commissions={commissionRows} rules={ruleMap} isOwner={ctx.role === "owner"} />
 
         <PaymentRatesPanel rates={(paymentRates ?? []) as PaymentMethodRate[]} />
+        <ServiceCatalogPanel items={(catalogItems ?? []) as ServiceCatalogItem[]} />
       </div>
     </div>
   );

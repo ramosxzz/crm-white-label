@@ -5,7 +5,10 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { canReviewServiceOrder } from "@/lib/auth/roles";
-import type { CommissionParty } from "@/lib/supabase/database.types";
+import type {
+  CommissionParty,
+  ServiceCatalogCategory,
+} from "@/lib/supabase/database.types";
 
 type Ctx = Awaited<ReturnType<typeof requireContext>>;
 
@@ -172,6 +175,8 @@ const paymentRatesSchema = z.array(
   z.object({
     id: z.string().uuid(),
     fee_percent: z.number().min(0).max(100),
+    installment_count: z.number().int().min(1).max(36),
+    minimum_installment: z.number().min(0),
     is_active: z.boolean(),
   }),
 );
@@ -179,6 +184,8 @@ const paymentRatesSchema = z.array(
 export async function updatePaymentMethodRates(input: Array<{
   id: string;
   fee_percent: number;
+  installment_count: number;
+  minimum_installment: number;
   is_active: boolean;
 }>) {
   const ctx = await requireFinanceContext();
@@ -190,6 +197,8 @@ export async function updatePaymentMethodRates(input: Array<{
       .from("payment_method_rates")
       .update({
         fee_percent: row.fee_percent,
+        installment_count: row.installment_count,
+        minimum_installment_cents: Math.round(row.minimum_installment * 100),
         is_active: row.is_active,
         updated_at: new Date().toISOString(),
       })
@@ -200,12 +209,19 @@ export async function updatePaymentMethodRates(input: Array<{
   revalidatePath("/financeiro");
 }
 
-export async function createPaymentMethodRate(input: { name: string; fee_percent: number }) {
+export async function createPaymentMethodRate(input: {
+  name: string;
+  fee_percent: number;
+  installment_count: number;
+  minimum_installment: number;
+}) {
   const ctx = await requireFinanceContext();
   const parsed = z
     .object({
       name: z.string().trim().min(2).max(100),
       fee_percent: z.number().min(0).max(100),
+      installment_count: z.number().int().min(1).max(36),
+      minimum_installment: z.number().min(0),
     })
     .parse(input);
   const supabase = await createClient();
@@ -214,6 +230,8 @@ export async function createPaymentMethodRate(input: { name: string; fee_percent
       tenant_id: ctx.tenantId,
       name: parsed.name,
       fee_percent: parsed.fee_percent,
+      installment_count: parsed.installment_count,
+      minimum_installment_cents: Math.round(parsed.minimum_installment * 100),
       is_active: true,
       updated_at: new Date().toISOString(),
     },
@@ -221,6 +239,78 @@ export async function createPaymentMethodRate(input: { name: string; fee_percent
   );
   if (error) throw new Error(error.message);
   revalidatePath("/financeiro");
+}
+
+const catalogCategorySchema = z.enum([
+  "lavagem",
+  "impermeabilizacao",
+  "couro",
+  "outro",
+]);
+
+export async function createServiceCatalogItem(input: {
+  category: ServiceCatalogCategory;
+  name: string;
+  unit: string;
+  price: number;
+}) {
+  const ctx = await requireFinanceContext();
+  const parsed = z
+    .object({
+      category: catalogCategorySchema,
+      name: z.string().trim().min(2).max(150),
+      unit: z.string().trim().min(1).max(30),
+      price: z.number().min(0),
+    })
+    .parse(input);
+  const supabase = await createClient();
+  const { error } = await supabase.from("service_catalog_items").upsert(
+    {
+      tenant_id: ctx.tenantId,
+      category: parsed.category,
+      name: parsed.name,
+      unit: parsed.unit,
+      price_cents: Math.round(parsed.price * 100),
+      is_active: true,
+      created_by: ctx.userId,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "tenant_id,category,name" },
+  );
+  if (error) throw new Error(error.message);
+  revalidatePath("/financeiro");
+  revalidatePath("/os");
+}
+
+const catalogRowsSchema = z.array(
+  z.object({
+    id: z.string().uuid(),
+    price: z.number().min(0),
+    is_active: z.boolean(),
+  }),
+);
+
+export async function updateServiceCatalogItems(
+  input: Array<{ id: string; price: number; is_active: boolean }>,
+) {
+  const ctx = await requireFinanceContext();
+  const rows = catalogRowsSchema.parse(input);
+  const supabase = await createClient();
+
+  for (const row of rows) {
+    const { error } = await supabase
+      .from("service_catalog_items")
+      .update({
+        price_cents: Math.round(row.price * 100),
+        is_active: row.is_active,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", row.id)
+      .eq("tenant_id", ctx.tenantId);
+    if (error) throw new Error(error.message);
+  }
+  revalidatePath("/financeiro");
+  revalidatePath("/os");
 }
 
 const rulesSchema = z.object({

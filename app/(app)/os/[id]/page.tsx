@@ -28,6 +28,7 @@ import type {
   ServiceOrderStatus,
   PaymentMethodRate,
   FinancialAdjustmentRequest,
+  ServiceCatalogItem,
 } from "@/lib/supabase/database.types";
 import { ServiceOrderStatusBadge } from "../status-badge";
 import { ItemsPanel } from "./items-panel";
@@ -84,11 +85,12 @@ export default async function ServiceOrderDetailPage({
     { data: assigned },
     { data: damages },
     { data: events },
+    { data: paymentRates },
+    { data: adjustmentRequests },
+    { data: catalogItems },
     { data: checklist },
     { data: quotes },
     { data: relatedOrders },
-    { data: paymentRates },
-    { data: adjustmentRequests },
   ] = await Promise.all([
     supabase
       .from("service_order_items")
@@ -118,6 +120,13 @@ export default async function ServiceOrderDetailPage({
       .eq("tenant_id", ctx.tenantId)
       .eq("service_order_id", id)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("service_catalog_items")
+      .select("*")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("is_active", true)
+      .order("category")
+      .order("name"),
     supabase
       .from("service_order_checklists")
       .select("*")
@@ -271,6 +280,7 @@ export default async function ServiceOrderDetailPage({
             canApproveDiscount={canApproveDiscount}
             canDelete={canManage && !locked}
             travelFeeCents={order.travel_fee_cents ?? 0}
+            catalogItems={(catalogItems ?? []) as ServiceCatalogItem[]}
           />
 
           {(damages ?? []).length > 0 && (

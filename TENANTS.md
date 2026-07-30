@@ -23,7 +23,7 @@ Referência rápida por tenant. Uso: abrir conversa nova no Claude por tenant, c
 ## Demoact / ACT ("ACT Impermeabilizantes | Higienização de sofás")
 - id: `54a6a18e-27f1-45c4-993b-42707a9f150b` · slug: `demoact`
 - Ramo: impermeabilização e lavagem de estofados. Sede em **Sapucaia do Sul/RS** (Rua Marechal Deodoro, 90 — Centro, CEP 93220-640), não Porto Alegre. Opera com 5-6 técnicos em campo, 2 turnos, 3-4 OS por turno.
-- Flags: `stock_enabled=true`, `broadcast_enabled=true`, `lead_assignment_enabled=true`, `field_service_enabled=` **`false`** (desligada em 2026-07-28 a pedido do usuário: o módulo não pode aparecer pra eles antes da reunião de apresentação de 2026-07-29).
+- Flags em produção: `stock_enabled=true`, `broadcast_enabled=true`, `lead_assignment_enabled=true`, `field_service_enabled=true`.
 - Usuários: owner `demoact@solairew.com`, gerente `michele@solairew.com`, vendedor `irisact@solairew.com.br`, técnico `acttecnico@gmail.com`.
 - Contexto ativo — **ERP de serviço em campo**, construído em 3 fases, gated só pra eles:
   - Briefing de 18 perguntas respondido (2026-07-28). Definições: OS nasce da venda mas técnico faz upsell comissionado na casa do cliente; cliente = o lead (sem entidade separada); assinatura do cliente obrigatória; conferência do ADM depois do roteiro; app do técnico instalável, offline só pra ver OS + assinar; comissão de técnico só sobre upsell (dividida entre os presentes), 1% vendedora interna, comissão externa de loja parceira.
@@ -36,10 +36,10 @@ Referência rápida por tenant. Uso: abrir conversa nova no Claude por tenant, c
     - Faturar não é só mudar status: `conferida → faturada` chama a função Postgres `bill_service_order`, que gera o lançamento a receber **e** as comissões numa transação só. Meio caminho aqui deixaria comissão sem faturamento no fechamento do mês.
     - Técnico comissiona **só sobre o upsell aprovado**, dividido entre os técnicos presentes (sobra de centavo vai pros primeiros). Vendedora interna sobre o total, loja parceira só quando há indicação.
     - Faturar duas vezes é recusado (a função exige status `conferida`), e há unique em `(OS, papel, pessoa)` nas comissões.
-  - **FASE 4 — escopo definido, nada construído ainda.** Os 4 itens da foto da OS de papel foram **respondidos por áudio pelo cliente em 2026-07-28**:
-    1. **Tabela de preço** — eles **já têm** as tabelas (Imper / Lavagem / Couro) com valores padronizados. O preço pode ser alterado na negociação, mas **abaixo da tabela exige autorização**. Ou seja: não é só catálogo, é catálogo **+ fluxo de aprovação de desconto**. É o item maior, e o peso está na aprovação, não no cadastro. Falta definir: quem autoriza (owner/admin? gerente?) e se a OS trava aguardando ou segue com a autorização registrada depois.
-    2. **Parcelamento** — eles já têm as formas de pagamento cadastradas e existe **valor mínimo de parcela** a respeitar. Hoje `bill_service_order` gera **1** lançamento a receber; precisa gerar N parcelas. ⚠️ Mexer nessa função é o ponto mais delicado do sistema (faturamento + comissões na mesma transação).
-    3. **Deslocamento** — o trecho do áudio ficou com ruído e **não foi possível recuperar**. Assumido: campo próprio na OS (é o que a OS de papel mostra, e evita poluir a base de comissão do upsell). **Confirmar com o cliente antes de construir.**
+  - **FASE 4 — FEITA em 2026-07-30.** Os 4 itens da foto da OS de papel foram **respondidos por áudio pelo cliente em 2026-07-28**:
+    1. **Tabela de preço** — catálogo configurável por Lavagem / Impermeabilização / Couro / Outro, integrado aos itens da OS. Preço abaixo da tabela exige aprovação de `owner`, `admin` ou `gerente`.
+    2. **Parcelamento** — cada forma configura número de parcelas, taxa e parcela mínima. `bill_service_order` gera N títulos mensais sem perder centavos e mantém faturamento + comissões na mesma transação.
+    3. **Deslocamento** — campo próprio em R$ na OS, separado da base de upsell.
     4. **Horário da visita** — ✅ **nada a fazer.** Confirmaram que fica no turno manhã/tarde, como já está.
   - **Entrada da OS pelo chat (2026-07-29)**: botão de chave inglesa no cabeçalho do chat do WhatsApp abre a OS já com o lead travado, sem passar pelo `/os`. Aparece só com `field_service_enabled` ligada **e** papel em `canManageServiceOrders` (vendedor não vê). Vale pra qualquer tenant do ERP, não só ACT. Serve o "OS nasce da venda" do briefing pelo caminho que a Iris usa de fato.
   - **CEP autopreenche o endereço (2026-07-29)**: 8 dígitos no CEP puxam rua/bairro/cidade/UF do ViaCEP e o foco pula pro número. API pública, sem chave e sem custo — **não gasta cota do Google**, que continua só pra geocoding e rota. CEP não encontrado ou fora do ar só avisa; digitar na mão continua valendo.
@@ -219,12 +219,11 @@ Pedido por áudio: cadastrar telefone pra "ter uma chavezinha" (PIX) do parceiro
 
 ⚠️ **Achado antes de subir**: a RLS de `commissions` só libera leitura pra `owner`/`admin` (mesmo corte do `/financeiro`). Gerente e atendente conseguem abrir a ficha do parceiro (mesma permissão de `/os/parceiros`), mas sem ver comissão — se eu tivesse buscado o dado pra todo mundo, quem não tem permissão veria **"comissão gerada: R$0,00"**, que é enganoso (parece que não gerou nada, quando na verdade é que a tela não pode mostrar). A página checa `canReviewServiceOrder` e só busca/mostra a seção de comissão quando pode. Testado em produção com `rollback`: R$800 a 5% → R$40,00 batendo com o faturamento.
 
-## Pendente — decisão do cliente antes de construir
-Do áudio de 2026-07-30, três itens que **não** entraram nesta rodada, cada um por um motivo diferente:
+## Decisões do cliente incorporadas em 2026-07-30
 
-1. **Tipo de produto (catálogo pré-cadastrado)**: vendedora às vezes só fala "sofá" ou "poltrona" sem detalhe, e o cliente quer um catálogo pra tentar identificar depois. Fica pra quando a Fase 4 (tabela de preço) for construída — os dois pedem a mesma estrutura de catálogo, faz sentido resolver junto.
-2. **PDF do histórico de conversa do WhatsApp**: "gero um PDF e encaminho pro vendedor" — exportar o histórico de mensagens de um lead pra comprovar o atendimento pro parceiro externo. É funcionalidade nova e razoavelmente grande (formatação, o que entra — texto só ou mídia também, cabeçalho com dados do parceiro). Não construído às cegas; precisa de escopo antes.
-3. **Triagem centralizada de lead ("primeiro contato" → coordenadora distribui")** — ⚠️ **achado importante, não é só configuração**: hoje `autoAssignLead` roda **sem checar `lead_assignment_enabled`** — todo lead novo é distribuído automaticamente por round-robin pra um atendente disponível, incondicionalmente. O que o cliente descreveu (lead cai numa etapa neutra, a Michele - gerente - distribui manualmente depois) é o oposto do comportamento atual. Mudar isso sem confirmar quebra a distribuição automática que pode estar servindo outros fluxos de lead do ACT hoje, não só os vindos de indicação de loja. **Perguntar ao cliente: a triagem manual vale pra TODO lead novo, ou só pros que vêm de indicação de parceiro?** — a resposta muda o tamanho da mudança.
+1. **Tipo de produto / catálogo**: construído junto com a tabela de preços.
+2. **PDF do histórico de conversa**: exportação textual com indicação de anexos, pronta para imprimir/salvar em PDF.
+3. **Triagem centralizada**: somente lead indicado por parceiro fica sem dono para a Michele distribuir manualmente; lead de marketing continua no round-robin.
 
 ## Item 4 — resumo de comissão antes de faturar (FEITO, 2026-07-30)
 Motivado pelo caso do Matheus (2026-07-29): a comissão saiu certa, mas ninguém sabia que ia sair antes de clicar. Agora "Faturar" mostra, num diálogo, quem recebe o quê antes de confirmar.
@@ -268,8 +267,14 @@ Regras confirmadas nos áudios e capturas do sistema antigo:
   permitido a `owner`, `admin` e `gerente`. “Coordenador de vendas” usa o
   papel `gerente`; não foi criado papel novo.
 - Acerto por OS registra previsto, recebido, pendente e forma de pagamento.
-  Taxas de maquininha ficam em `payment_method_rates`; nasceram zeradas até o
-  ACT enviar a tabela real e podem ser configuradas sem deploy.
+  Taxa, quantidade de parcelas e parcela mínima ficam em
+  `payment_method_rates`; as taxas reais continuam zeradas até o ACT enviar a
+  tabela da maquininha e podem ser configuradas sem deploy.
+- A gestão controla em Configurações → Usuários quem está disponível no
+  round-robin. Iris foi ativada inicialmente; lead de parceiro continua fora
+  do sorteio.
+- “Cancelar finalização” é uma ação separada de “Reabrir”, exige motivo,
+  volta a OS para execução e preserva o laudo/evento para auditoria.
 - Depois de faturamento/pagamento, mudança de acerto ou comissão não é
   aplicada diretamente: vira `financial_adjustment_requests`, com motivo.
   Somente `owner` libera ou recusa, deixando autor, motivo e data auditáveis.
