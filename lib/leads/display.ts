@@ -1,5 +1,5 @@
 import { formatPhoneBR } from "@/lib/utils";
-import { isValidBrazilWhatsAppPhone } from "@/lib/whatsapp/phone";
+import { isValidWhatsAppPhone } from "@/lib/whatsapp/phone";
 
 /** Nome amigável para exibição (evita "Lead 182210263023778"). */
 export function displayLeadName(
@@ -8,7 +8,7 @@ export function displayLeadName(
   tenantName?: string | null,
 ): string {
   const n = (name ?? "").trim();
-  const canShowPhone = Boolean(phone && isValidBrazilWhatsAppPhone(phone));
+  const canShowPhone = Boolean(phone && isValidWhatsAppPhone(phone));
   if (canShowPhone && shouldUsePhoneInsteadOfName(n, tenantName)) return formatPhoneBR(phone);
   if (/^Lead \d{10,}$/i.test(n)) {
     if (canShowPhone) return formatPhoneBR(phone);
@@ -23,7 +23,7 @@ export function displayLeadName(
 
 export function displayLeadSubtitle(phone: string | null | undefined): string {
   if (!phone) return "Sem telefone";
-  if (isValidBrazilWhatsAppPhone(phone)) return formatPhoneBR(phone);
+  if (isValidWhatsAppPhone(phone)) return formatPhoneBR(phone);
   return "Número oculto pelo WhatsApp";
 }
 

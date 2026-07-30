@@ -18,6 +18,7 @@ Referência rápida por tenant. Uso: abrir conversa nova no Claude por tenant, c
   - ⚠️ **Atribuir lead funcionou; atribuir venda ainda não.** Das 35 vendas (todas de 20-28/07), só 1 veio de lead com emoji. As primeiras mensagens de quem comprou são "Boa tarde", "Oii", "Opa" — ou quem fecha chega por outro caminho, ou chega pelo anúncio e fala noutro momento. **Não prometer painel de criativo que vendeu** até acumular dado novo. Se continuar 1 em 35, a informação é sobre o funil deles, não sobre o sistema.
   - Histórico de 60 dias preenchido pelo `scripts/backfill-ad-signatures.mjs`; os 366 leads têm `custom_fields.meta_attribution_source = 'emoji_signature_backfill'`, então dá pra desfazer por esse marcador.
   - O evento `Purchase` pro Meta CAPI já dispara ao ganhar (kanban, chat, ligações e leads — todos passam por `updateLead`), e a Avante já tem pixel e token configurados. O que a Meta usa pra creditar é o telefone com hash; o `meta_ad_id` vai como propriedade personalizada, então **não prometer que ele direciona atribuição dentro do gerenciador**.
+  - **Telefones internacionais corrigidos em 2026-07-30**: a entrada do webhook, o cadastro manual e a lista de conversas validavam exclusivamente DDI 55. Agora aceitam E.164 internacional sem alterar a normalização dos números brasileiros. O caso reportado `+1 (617) 750-8340` foi recuperado no lead `daniel` (`16177508340`) dentro do tenant da Avante.
 
 ## Demoact / ACT ("ACT Impermeabilizantes | Higienização de sofás")
 - id: `54a6a18e-27f1-45c4-993b-42707a9f150b` · slug: `demoact`

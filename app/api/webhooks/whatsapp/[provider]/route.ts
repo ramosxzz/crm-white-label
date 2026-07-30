@@ -23,7 +23,7 @@ import {
 } from "@/lib/whatsapp/zapi-status";
 import { parseEvolutionMessageStatusUpdates } from "@/lib/whatsapp/evolution-status";
 
-import { isValidBrazilWhatsAppPhone, normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
+import { isValidWhatsAppPhone, normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
 
 import { getAiAgentReply } from "@/lib/ai/agent";
 
@@ -321,7 +321,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
     if (!contactPhone && !contactLid) continue;
 
-    if (contactPhone && !isValidBrazilWhatsAppPhone(contactPhone)) continue;
+    if (contactPhone && !isValidWhatsAppPhone(contactPhone)) continue;
 
     if (isSelfWhatsAppContact(account, { phone: contactPhone, lid: contactLid })) continue;
 

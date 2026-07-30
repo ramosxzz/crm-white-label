@@ -1,6 +1,6 @@
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 import { isSelfWhatsAppContact } from "@/lib/whatsapp/self-contact";
-import { isValidBrazilWhatsAppPhone } from "@/lib/whatsapp/phone";
+import { isValidWhatsAppPhone } from "@/lib/whatsapp/phone";
 
 export type ConversationStatus =
   | "nao_iniciada"
@@ -35,7 +35,7 @@ export function filterConversationRows(
 ): ConversationLeadRow[] {
   const whatsappRows = rows.filter((c) => (c.channel ?? "whatsapp") === "whatsapp");
   const otherChannels = rows.filter((c) => (c.channel ?? "whatsapp") !== "whatsapp");
-  const valid = whatsappRows.filter((c) => isValidBrazilWhatsAppPhone(c.leads?.phone ?? ""));
+  const valid = whatsappRows.filter((c) => isValidWhatsAppPhone(c.leads?.phone ?? ""));
 
   const withoutSelf = account
     ? valid.filter(

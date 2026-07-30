@@ -1,5 +1,5 @@
 import { normalizeWhatsAppLid } from "./lid";
-import { isValidBrazilWhatsAppPhone, normalizeWhatsAppPhone, phonesEquivalent } from "./phone";
+import { isValidWhatsAppPhone, normalizeWhatsAppPhone, phonesEquivalent } from "./phone";
 import type { ZapiWebhookPayload } from "./zapi";
 
 export type WhatsAppContactRef = {
@@ -13,11 +13,11 @@ function tryPhone(raw: string | null | undefined): string | null {
     return null;
   }
   const normalized = normalizeWhatsAppPhone(raw);
-  if (normalized && isValidBrazilWhatsAppPhone(normalized)) return normalized;
+  if (normalized && isValidWhatsAppPhone(normalized)) return normalized;
   const digits = raw.replace(/\D/g, "");
-  if (digits.length >= 10 && digits.length <= 13) {
+  if (digits.length >= 8 && digits.length <= 15) {
     const retry = normalizeWhatsAppPhone(digits);
-    if (retry && isValidBrazilWhatsAppPhone(retry)) return retry;
+    if (retry && isValidWhatsAppPhone(retry)) return retry;
   }
   return null;
 }
@@ -32,7 +32,7 @@ function collectPhoneCandidates(p: ZapiWebhookPayload, fromMe: boolean): (string
     : [p.phone, p.participantPhone, p.senderPhone];
 }
 
-/** Resolve telefone BR e/ou @lid do payload Z-API. */
+/** Resolve telefone internacional e/ou @lid do payload Z-API. */
 export function resolveZapiContact(
   p: ZapiWebhookPayload,
   fromMe: boolean,

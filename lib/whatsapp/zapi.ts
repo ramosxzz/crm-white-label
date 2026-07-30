@@ -1,7 +1,6 @@
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 import { resolveZapiContact } from "./contact-ref";
 import {
-  isValidBrazilWhatsAppPhone,
   normalizeWhatsAppPhone,
   phonesEquivalent,
 } from "./phone";
