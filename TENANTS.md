@@ -210,3 +210,17 @@ O cliente mandou capturas do sistema de papel/desktop que usavam antes. Confirma
 - **"Deslocamento" é um campo em R$ digitado na OS**, na tela de fechamento ("Acerto Final"), ao lado de Lavagem/Imper/Couro/Tapete — **não** uma tabela de custo por cidade como eu tinha assumido antes de ver a captura. Ajustar a leitura do item 5 da pauta quando for construído.
 - "Tabela" vs "Negociação" vs "Valores Finais" aparecem como colunas distintas no fechamento — confirma que desconto = diferença entre tabela e final, relevante pro item 3 (aprovação de desconto).
 - Existe um campo "Parceiro Extra" (visto vazio em todas as linhas) — pode indicar que às vezes um terceiro entra na comissão, mas sem uso visível na amostra. Não implementado; revisitar se o cliente pedir.
+
+## PIX e relatório de indicações por parceiro (FEITO, 2026-07-30)
+Pedido por áudio: cadastrar telefone pra "ter uma chavezinha" (PIX) do parceiro, e conseguir ver o que cada um indicou — "eu entro ali, geraria relatório do que foi indicado".
+
+`field_service_partners.pix_key` adicionado. Clicar num parceiro na lista abre `/os/parceiros/[id]`: edição (nome, telefone, PIX com botão de copiar) + lista de toda OS onde ele entrou como loja ou vendedor, com status, valor e link direto pra OS.
+
+⚠️ **Achado antes de subir**: a RLS de `commissions` só libera leitura pra `owner`/`admin` (mesmo corte do `/financeiro`). Gerente e atendente conseguem abrir a ficha do parceiro (mesma permissão de `/os/parceiros`), mas sem ver comissão — se eu tivesse buscado o dado pra todo mundo, quem não tem permissão veria **"comissão gerada: R$0,00"**, que é enganoso (parece que não gerou nada, quando na verdade é que a tela não pode mostrar). A página checa `canReviewServiceOrder` e só busca/mostra a seção de comissão quando pode. Testado em produção com `rollback`: R$800 a 5% → R$40,00 batendo com o faturamento.
+
+## Pendente — decisão do cliente antes de construir
+Do áudio de 2026-07-30, três itens que **não** entraram nesta rodada, cada um por um motivo diferente:
+
+1. **Tipo de produto (catálogo pré-cadastrado)**: vendedora às vezes só fala "sofá" ou "poltrona" sem detalhe, e o cliente quer um catálogo pra tentar identificar depois. Fica pra quando a Fase 4 (tabela de preço) for construída — os dois pedem a mesma estrutura de catálogo, faz sentido resolver junto.
+2. **PDF do histórico de conversa do WhatsApp**: "gero um PDF e encaminho pro vendedor" — exportar o histórico de mensagens de um lead pra comprovar o atendimento pro parceiro externo. É funcionalidade nova e razoavelmente grande (formatação, o que entra — texto só ou mídia também, cabeçalho com dados do parceiro). Não construído às cegas; precisa de escopo antes.
+3. **Triagem centralizada de lead ("primeiro contato" → coordenadora distribui")** — ⚠️ **achado importante, não é só configuração**: hoje `autoAssignLead` roda **sem checar `lead_assignment_enabled`** — todo lead novo é distribuído automaticamente por round-robin pra um atendente disponível, incondicionalmente. O que o cliente descreveu (lead cai numa etapa neutra, a Michele - gerente - distribui manualmente depois) é o oposto do comportamento atual. Mudar isso sem confirmar quebra a distribuição automática que pode estar servindo outros fluxos de lead do ACT hoje, não só os vindos de indicação de loja. **Perguntar ao cliente: a triagem manual vale pra TODO lead novo, ou só pros que vêm de indicação de parceiro?** — a resposta muda o tamanho da mudança.

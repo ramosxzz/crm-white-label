@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { Plus, Store, User, Trash2, Phone } from "lucide-react";
+import { Plus, Store, User, Trash2, Phone, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -122,6 +123,13 @@ export function PartnersPanel({ partners }: { partners: FieldServicePartner[] })
               <Label htmlFor="phone">Telefone (opcional)</Label>
               <Input id="phone" name="phone" placeholder="(51) 99999-9999" />
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="pix_key">Chave PIX (opcional)</Label>
+              <Input id="pix_key" name="pix_key" placeholder="Telefone, e-mail, CPF/CNPJ ou aleatória" />
+              <p className="text-xs leading-5 text-muted-foreground">
+                Pra pagar a comissão sem precisar perguntar de novo.
+              </p>
+            </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancelar
@@ -185,19 +193,25 @@ function PartnerGroup({
           </p>
         )}
         {items.map((p) => (
-          <div key={p.id} className="flex items-center justify-between gap-3 px-5 py-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{p.name}</p>
-              <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                {storeName && p.store_id && <span>{storeName.get(p.store_id) ?? "Loja removida"}</span>}
-                {p.phone && (
-                  <span className="inline-flex items-center gap-1">
-                    <Phone className="h-3 w-3" /> {p.phone}
-                  </span>
-                )}
-                {!p.is_active && <Badge variant="outline">Inativo</Badge>}
-              </p>
-            </div>
+          <div key={p.id} className="flex items-center justify-between gap-3 px-2 py-1">
+            <Link
+              href={`/os/parceiros/${p.id}`}
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-3 py-2 transition-colors hover:bg-muted/40"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{p.name}</p>
+                <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                  {storeName && p.store_id && <span>{storeName.get(p.store_id) ?? "Loja removida"}</span>}
+                  {p.phone && (
+                    <span className="inline-flex items-center gap-1">
+                      <Phone className="h-3 w-3" /> {p.phone}
+                    </span>
+                  )}
+                  {!p.is_active && <Badge variant="outline">Inativo</Badge>}
+                </p>
+              </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </Link>
             <div className="flex shrink-0 items-center gap-1.5">
               <button
                 type="button"

@@ -181,6 +181,7 @@ export interface FieldServicePartner {
   /** So preenchido em vendedor: a loja a qual ele pertence (opcional). */
   store_id: string | null;
   phone: string | null;
+  pix_key: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

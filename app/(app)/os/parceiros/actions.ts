@@ -24,6 +24,7 @@ const partnerSchema = z.object({
   name: z.string().trim().min(1, "Informe o nome"),
   store_id: z.string().uuid().optional(),
   phone: z.string().trim().optional(),
+  pix_key: z.string().trim().optional(),
 });
 
 export async function createPartner(formData: FormData) {
@@ -38,6 +39,7 @@ export async function createPartner(formData: FormData) {
     // recusa, isso aqui e so pra nao mandar lixo.
     store_id: kind === "vendedor" ? (formData.get("store_id") || undefined) : undefined,
     phone: formData.get("phone") || undefined,
+    pix_key: formData.get("pix_key") || undefined,
   });
 
   const { error } = await supabase.from("field_service_partners").insert({
@@ -46,7 +48,41 @@ export async function createPartner(formData: FormData) {
     name: parsed.name,
     store_id: parsed.store_id ?? null,
     phone: parsed.phone?.trim() || null,
+    pix_key: parsed.pix_key?.trim() || null,
   });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/os/parceiros");
+}
+
+const partnerUpdateSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().trim().min(1, "Informe o nome"),
+  phone: z.string().trim().optional(),
+  pix_key: z.string().trim().optional(),
+});
+
+export async function updatePartner(formData: FormData) {
+  const ctx = await requirePartnerContext();
+  const supabase = await createClient();
+
+  const parsed = partnerUpdateSchema.parse({
+    id: formData.get("id"),
+    name: formData.get("name"),
+    phone: formData.get("phone") || undefined,
+    pix_key: formData.get("pix_key") || undefined,
+  });
+
+  const { error } = await supabase
+    .from("field_service_partners")
+    .update({
+      name: parsed.name,
+      phone: parsed.phone?.trim() || null,
+      pix_key: parsed.pix_key?.trim() || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", parsed.id)
+    .eq("tenant_id", ctx.tenantId);
   if (error) throw new Error(error.message);
 
   revalidatePath("/os/parceiros");
