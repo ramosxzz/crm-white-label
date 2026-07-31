@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { PhoneCall, PhoneOff, Clock, Headphones, User } from "lucide-react";
+import { redirect } from "next/navigation";
 import { requireContext } from "@/lib/tenant";
+import { canSeeFullDashboard } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { listTenantUserOptions } from "@/lib/tenant/users";
 import { PageHeader } from "@/components/app/page-header";
@@ -42,6 +44,10 @@ type SearchParams = {
 export default async function CallsDashboardPage({ searchParams }: { searchParams?: Promise<SearchParams> }) {
   const ctx = await requireContext();
   if (!ctx.tenant.calls_dashboard_enabled) notFound();
+  // Mostra volume/duracao/motivo de TODAS as ligacoes do tenant, com o nome
+  // de quem atendeu - mesma classe do dashboard de reunioes: performance
+  // comparada entre a equipe inteira, nao so a de quem esta olhando.
+  if (!canSeeFullDashboard(ctx.role)) redirect("/dashboard");
   const params = (await searchParams) ?? {};
   const range = getDateRange(params);
   const stageFilter = firstParam(params.stage) || "";

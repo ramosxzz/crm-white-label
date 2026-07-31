@@ -1,12 +1,18 @@
+import { redirect } from "next/navigation";
 import { Bot } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
+import { canManageAutomations } from "@/lib/auth/roles";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AiAgentForm } from "./ai-agent-form";
 
 export default async function IaWMaisPage() {
   const ctx = await requireContext();
+  // O RLS de ai_agents ja recusa escrita fora de owner/admin, mas sem este
+  // gate a pagina ainda deixava ler o system_prompt por URL direta e mostrava
+  // um formulario "editavel" que falhava calado pra quem nao pode salvar.
+  if (!canManageAutomations(ctx.role)) redirect("/dashboard");
   const supabase = await createClient();
 
   const { data: agent } = await supabase

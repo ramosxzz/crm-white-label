@@ -74,7 +74,7 @@ export function MobileBottomNav({
     ...(satisfactionSurveyEnabled
       ? [{ href: "/pesquisa-satisfacao", label: "Pesquisa de Satisfação", icon: Heart }]
       : []),
-    ...(callsDashboardEnabled ? [{ href: "/ligacoes", label: "Ligações", icon: PhoneCall }] : []),
+    ...(callsDashboardEnabled && !isSeller ? [{ href: "/ligacoes", label: "Ligações", icon: PhoneCall }] : []),
     ...(broadcastEnabled ? [{ href: "/disparos", label: "Disparos", icon: Megaphone }] : []),
     ...(fieldServiceEnabled ? [{ href: "/os", label: "Ordens de serviço", icon: Wrench }] : []),
     ...(fieldServiceEnabled && canManageFinance

@@ -3,9 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
+import { canManageAutomations } from "@/lib/auth/roles";
 
 export async function saveAiAgent(formData: FormData) {
   const ctx = await requireContext();
+  // O RLS de ai_agents ja bloqueia esta escrita fora de owner/admin; checar
+  // aqui tambem e so pra dar um erro claro em vez de falhar calado.
+  if (!canManageAutomations(ctx.role)) throw new Error("Sem permissao");
   const supabase = await createClient();
 
   const name = String(formData.get("name") || "IA W+").trim() || "IA W+";
@@ -29,6 +33,7 @@ export async function saveAiAgent(formData: FormData) {
 
 export async function toggleAiAgent(enabled: boolean) {
   const ctx = await requireContext();
+  if (!canManageAutomations(ctx.role)) throw new Error("Sem permissao");
   const supabase = await createClient();
 
   const { data: existing } = await supabase
