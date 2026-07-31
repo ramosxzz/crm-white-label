@@ -49,9 +49,13 @@ export default async function DashboardPage({
     return (
       <div>
         <PageHeader
-          eyebrow="Meu desempenho"
+          eyebrow={sellerMetrics.sharedNumber ? "Atendimento da equipe" : "Meu desempenho"}
           title="Central de operações"
-          description="Suas métricas de atendimento no dia."
+          description={
+            sellerMetrics.sharedNumber
+              ? "Movimento do número compartilhado no dia."
+              : "Suas métricas de atendimento no dia."
+          }
         />
         <SellerDashboard
           data={{
