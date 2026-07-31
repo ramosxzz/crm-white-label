@@ -60,7 +60,17 @@ async function runAction(
   const { supabase, tenantId, leadId, lead, executionId } = ctx;
 
   if (kind === "send_message" && leadId) {
-    const message = interpolate(String(blockConfig.message ?? ""), lead);
+    // Variacoes: a mesma tentativa pode ter varios textos e um e sorteado no
+    // envio, pra a cadencia nao mandar sempre a frase identica pra todo lead
+    // (pedido da Avante). Sem variacao preenchida, cai no texto unico de
+    // sempre - fluxos antigos seguem funcionando sem alteracao.
+    const variations = Array.isArray(blockConfig.message_variations)
+      ? (blockConfig.message_variations as unknown[]).map((v) => String(v ?? "").trim()).filter(Boolean)
+      : [];
+    const pool = variations.length > 0 ? variations : [String(blockConfig.message ?? "")];
+    const picked = pool[Math.floor(Math.random() * pool.length)];
+
+    const message = interpolate(picked, lead);
     const leadPhone = String(lead.phone ?? "");
 
     // Usa a conta do lead (mesmo numero que ele falou), nao a primeira ativa.
@@ -388,8 +398,25 @@ export async function processExecution(
     return;
   }
 
+  // Passos que ja rodaram nesta execucao. Sem isso, retomar depois de um
+  // bloco "aguardar" recomecava a caminhada no gatilho e reexecutava tudo que
+  // ja tinha rodado - numa cadencia com mensagem + espera, o lead receberia a
+  // primeira mensagem de novo a cada retomada. Bug latente ate agora porque
+  // nenhum fluxo em producao usava "aguardar"; a cadencia automatica usa.
+  const { data: priorSteps } = await supabase
+    .from("automation_execution_steps")
+    .select("block_id, status")
+    .eq("execution_id", executionId);
+
+  const stepStatusByBlock = new Map<string, string>();
+  for (const s of (priorSteps ?? []) as { block_id: string; status: string }[]) {
+    // 'done' vence: um bloco pode ter sido esperado e depois concluido.
+    if (stepStatusByBlock.get(s.block_id) !== "done") stepStatusByBlock.set(s.block_id, s.status);
+  }
+
   // BFS walk the flow
   const visited = new Set<string>();
+  let pausedOnWait = false;
   const queue: Block[] = findNextBlocks(triggerBlock.id, connections, blocks);
 
   while (queue.length > 0) {
@@ -399,6 +426,34 @@ export async function processExecution(
 
     const kind = block.data.kind ?? block.type;
     const blockConfig = block.data.config ?? {};
+    const priorStatus = stepStatusByBlock.get(block.id);
+
+    // Ja concluido numa passagem anterior (retomada pos-espera): nao roda de
+    // novo, mas segue o caminho pra frente pra chegar em quem falta.
+    if (priorStatus === "done") {
+      queue.push(...findNextBlocks(block.id, connections, blocks).filter((b) => !visited.has(b.id)));
+      continue;
+    }
+
+    // Espera ainda nao vencida: o cron so muda pra 'pending' quando resume_at
+    // passa. Enquanto seguir 'waiting', este ramo para aqui de novo.
+    if (kind === "wait" && priorStatus === "waiting") {
+      pausedOnWait = true;
+      continue;
+    }
+
+    // Espera cumprida (o cron marcou 'pending'): fecha o passo e segue em
+    // frente. Sem este ramo a espera criaria um passo novo e reiniciaria o
+    // relogio a cada rodada do cron, travando a cadencia pra sempre.
+    if (kind === "wait" && priorStatus === "pending") {
+      await supabase
+        .from("automation_execution_steps")
+        .update({ status: "done", result_payload: { resumed: true } })
+        .eq("execution_id", executionId)
+        .eq("block_id", block.id);
+      queue.push(...findNextBlocks(block.id, connections, blocks).filter((b) => !visited.has(b.id)));
+      continue;
+    }
 
     // Record the step
     const { data: step } = await supabase
@@ -444,6 +499,7 @@ export async function processExecution(
         }
         continue;
       } else if (kind === "wait") {
+        pausedOnWait = true;
         const minutes = Number(blockConfig.minutes ?? 60);
         const resumeAt = new Date(Date.now() + minutes * 60000).toISOString();
         if (step) {
@@ -509,6 +565,11 @@ export async function processExecution(
     const nextBlocks = findNextBlocks(block.id, connections, blocks);
     queue.push(...nextBlocks.filter((b) => !visited.has(b.id)));
   }
+
+  // Parou numa espera: a execucao segue 'running'. Marcar 'completed' aqui
+  // deixava a espera orfa - o cron destrava o passo, mas processExecution
+  // recusa execucao que nao esteja 'running' e o fluxo nunca continuava.
+  if (pausedOnWait) return;
 
   await supabase
     .from("automation_executions")

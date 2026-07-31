@@ -17,6 +17,7 @@ import {
 import { NewLeadDialog } from "./new-lead-dialog";
 import { ImportCsvDialog } from "./import-csv-dialog";
 import { LeadsTable } from "./leads-table";
+import { StageFilterExport } from "./stage-filter-export";
 
 type LeadDateFilter = "all" | "today" | "yesterday" | "7d" | "30d" | "custom";
 
@@ -65,11 +66,19 @@ function resolveLeadDateFilter(entrada?: string, dia?: string) {
 
 const LEADS_PAGE_SIZE = 50;
 
-export default async function LeadsPage({ searchParams }: { searchParams?: Promise<{ entrada?: string; dia?: string; page?: string }> }) {
+export default async function LeadsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ entrada?: string; dia?: string; page?: string; etapa?: string | string[] }>;
+}) {
   const ctx = await requireContext();
   const supabase = await createClient();
   const params = await searchParams;
   const dateFilter = resolveLeadDateFilter(params?.entrada, params?.dia);
+  // ?etapa=<id> repetido vira array; um so vira string. Normaliza os dois.
+  const stageFilterIds = params?.etapa
+    ? (Array.isArray(params.etapa) ? params.etapa : [params.etapa]).filter(Boolean)
+    : [];
   const page = Math.max(1, Number(params?.page) || 1);
   const from = (page - 1) * LEADS_PAGE_SIZE;
   const to = from + LEADS_PAGE_SIZE - 1;
@@ -91,6 +100,9 @@ export default async function LeadsPage({ searchParams }: { searchParams?: Promi
 
   if (dateFilter.bounds) {
     leadsQuery = leadsQuery.gte("created_at", dateFilter.bounds.startIso).lte("created_at", dateFilter.bounds.endIso);
+  }
+  if (stageFilterIds.length > 0) {
+    leadsQuery = leadsQuery.in("stage_id", stageFilterIds);
   }
   if (restrictToOwn) {
     leadsQuery = leadsQuery.eq("assigned_to", ctx.userId);
@@ -121,6 +133,7 @@ export default async function LeadsPage({ searchParams }: { searchParams?: Promi
     const qs = new URLSearchParams();
     if (params?.entrada) qs.set("entrada", params.entrada);
     if (params?.dia) qs.set("dia", params.dia);
+    for (const id of stageFilterIds) qs.append("etapa", id);
     if (target > 1) qs.set("page", String(target));
     const query = qs.toString();
     return query ? `/leads?${query}` : "/leads";
@@ -141,36 +154,45 @@ export default async function LeadsPage({ searchParams }: { searchParams?: Promi
       />
 
       <div className="p-8">
-        <div className="mb-4 flex flex-col gap-3 rounded-xl border border-border/70 bg-card p-4 shadow-elev-1 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="mr-1 flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Filter className="h-4 w-4" />
-              Entrada
+        <div className="mb-4 flex flex-col gap-3 rounded-xl border border-border/70 bg-card p-4 shadow-elev-1">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="mr-1 flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Filter className="h-4 w-4" />
+                Entrada
+              </div>
+              {filterOptions.map((option) => (
+                <Button key={option.value} asChild size="sm" variant={dateFilter.active === option.value ? "brand" : "outline"}>
+                  <Link href={option.href}>{option.label}</Link>
+                </Button>
+              ))}
             </div>
-            {filterOptions.map((option) => (
-              <Button key={option.value} asChild size="sm" variant={dateFilter.active === option.value ? "brand" : "outline"}>
-                <Link href={option.href}>{option.label}</Link>
+
+            <form action="/leads" className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input type="hidden" name="entrada" value="custom" />
+              <label htmlFor="lead-entry-day" className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <CalendarDays className="h-4 w-4" />
+                Dia específico
+              </label>
+              <Input
+                id="lead-entry-day"
+                name="dia"
+                type="date"
+                defaultValue={dateFilter.active === "custom" ? params?.dia : undefined}
+                className={cn("w-full sm:w-44", dateFilter.active === "custom" && "border-brand/60")}
+              />
+              <Button size="sm" variant="secondary" type="submit">
+                Filtrar
               </Button>
-            ))}
+            </form>
           </div>
 
-          <form action="/leads" className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <input type="hidden" name="entrada" value="custom" />
-            <label htmlFor="lead-entry-day" className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <CalendarDays className="h-4 w-4" />
-              Dia específico
-            </label>
-            <Input
-              id="lead-entry-day"
-              name="dia"
-              type="date"
-              defaultValue={dateFilter.active === "custom" ? params?.dia : undefined}
-              className={cn("w-full sm:w-44", dateFilter.active === "custom" && "border-brand/60")}
-            />
-            <Button size="sm" variant="secondary" type="submit">
-              Filtrar
-            </Button>
-          </form>
+          <StageFilterExport
+            stages={stages ?? []}
+            selectedStageIds={stageFilterIds}
+            startIso={dateFilter.bounds?.startIso ?? null}
+            endIso={dateFilter.bounds?.endIso ?? null}
+          />
         </div>
 
         <LeadsTable

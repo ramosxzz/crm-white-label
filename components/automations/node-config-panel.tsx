@@ -216,20 +216,7 @@ export function NodeConfigPanel({
         )}
 
         {/* send_message */}
-        {kind === "send_message" && (
-          <div className="space-y-1.5">
-            <Label>Mensagem</Label>
-            <Textarea
-              rows={4}
-              placeholder="Ola {name}! Seja bem-vindo..."
-              value={String(config.message ?? "")}
-              onChange={(e) => set("message", e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Variaveis: <code>{"{name}"}</code>, <code>{"{phone}"}</code>, <code>{"{email}"}</code>
-            </p>
-          </div>
-        )}
+        {kind === "send_message" && <SendMessageConfig config={config} set={set} />}
 
         {/* wait */}
         {kind === "wait" && (
@@ -576,6 +563,90 @@ export function NodeConfigPanel({
           Aplicar
         </Button>
       )}
+    </div>
+  );
+}
+
+const MAX_VARIATIONS = 5;
+const VARIABLES_HINT = (
+  <p className="text-xs text-muted-foreground">
+    Variaveis: <code>{"{name}"}</code>, <code>{"{phone}"}</code>, <code>{"{email}"}</code>
+  </p>
+);
+
+/**
+ * Mensagem com variacoes opcionais. A primeira caixa e a mensagem principal;
+ * as demais sao alternativas e o sistema sorteia uma a cada envio, pra a
+ * cadencia nao repetir a frase identica pra todo lead.
+ *
+ * Guarda em `message_variations` (lista) e mantem `message` sincronizada com a
+ * primeira: fluxos antigos e o executor sem variacao continuam lendo `message`.
+ */
+function SendMessageConfig({
+  config,
+  set,
+}: {
+  config: Record<string, unknown>;
+  set: (key: string, value: unknown) => void;
+}) {
+  const stored = Array.isArray(config.message_variations)
+    ? (config.message_variations as unknown[]).map((v) => String(v ?? ""))
+    : [];
+  const variations = stored.length > 0 ? stored : [String(config.message ?? "")];
+
+  function write(next: string[]) {
+    // Guarda inclusive as vazias: filtrar aqui faria a caixa recem-adicionada
+    // sumir antes de a pessoa digitar. Quem descarta vazio e o executor.
+    const cleaned = next.map((v) => v ?? "");
+    set("message_variations", cleaned);
+    set("message", cleaned[0] ?? "");
+  }
+
+  const filledCount = variations.filter((v) => v.trim()).length;
+
+  return (
+    <div className="space-y-3">
+      {variations.map((value, index) => (
+        <div key={index} className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label>{index === 0 ? "Mensagem" : `Variação ${index + 1}`}</Label>
+            {index > 0 && (
+              <button
+                type="button"
+                className="text-xs text-muted-foreground transition-colors hover:text-destructive"
+                onClick={() => write(variations.filter((_, i) => i !== index))}
+              >
+                Remover
+              </button>
+            )}
+          </div>
+          <Textarea
+            rows={4}
+            placeholder={index === 0 ? "Ola {name}! Seja bem-vindo..." : "Outro jeito de dizer a mesma coisa..."}
+            value={value}
+            onChange={(e) => write(variations.map((v, i) => (i === index ? e.target.value : v)))}
+          />
+        </div>
+      ))}
+
+      {variations.length < MAX_VARIATIONS && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="w-full"
+          onClick={() => write([...variations, ""])}
+        >
+          + Adicionar variação
+        </Button>
+      )}
+
+      {filledCount > 1 && (
+        <p className="text-xs text-muted-foreground">
+          {filledCount} variações — o sistema sorteia uma a cada envio.
+        </p>
+      )}
+      {VARIABLES_HINT}
     </div>
   );
 }

@@ -12,6 +12,7 @@ import { logLeadActivity } from "@/lib/leads/activity-log";
 import { notifyUser, getTenantOwnerId } from "@/lib/notifications/notify";
 import { forwardNewLead } from "@/lib/leads/forward-new-lead";
 import { dispatchWebhookEvent } from "@/lib/api/dispatch-webhook";
+import { listTenantUserOptions } from "@/lib/tenant/users";
 
 const leadSchema = z.object({
   name: z.string().min(1, "Nome obrigatorio"),
@@ -388,6 +389,69 @@ export async function autoAssignLead(leadId: string) {
     .eq("user_id", selected.user_id);
   if (statusError) throw new Error(statusError.message);
   return selected.user_id;
+}
+
+// Exporta leads em CSV, opcionalmente so das etapas escolhidas ("quero
+// exportar os leads apenas de passei valores, primeiro contato"). Sem etapa
+// marcada = todas. O periodo vem da mesma barra de filtro da tela, pra o que
+// sai no arquivo bater com o que a pessoa esta vendo.
+export async function exportLeadsCSV(input: {
+  stageIds?: string[];
+  startIso?: string | null;
+  endIso?: string | null;
+}) {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+
+  // Mesmo corte da listagem: vendedor com atribuicao ligada so exporta o
+  // que e dele. A RLS ja garante isso no banco; aqui e pra contagem bater.
+  const restrictToOwn = ctx.tenant.lead_assignment_enabled && !canSeeAllLeads(ctx.role);
+
+  let query = supabase
+    .from("leads")
+    .select("name, phone, email, source, value_cents, created_at, stage_id, assigned_to")
+    .eq("tenant_id", ctx.tenantId)
+    .order("created_at", { ascending: false });
+
+  if (input.stageIds && input.stageIds.length > 0) query = query.in("stage_id", input.stageIds);
+  if (input.startIso) query = query.gte("created_at", input.startIso);
+  if (input.endIso) query = query.lte("created_at", input.endIso);
+  if (restrictToOwn) query = query.eq("assigned_to", ctx.userId);
+
+  const { data: rows, error } = await query;
+  if (error) throw new Error(error.message);
+
+  const { data: stages } = await supabase
+    .from("pipeline_stages")
+    .select("id, name")
+    .eq("tenant_id", ctx.tenantId);
+  const stageName = new Map(((stages ?? []) as { id: string; name: string }[]).map((s) => [s.id, s.name]));
+
+  const members = canSeeAllLeads(ctx.role) ? await listTenantUserOptions(ctx.tenantId) : [];
+  const memberName = new Map(members.map((m) => [m.id, m.name]));
+
+  // Campo entre aspas com aspas internas dobradas - nome com virgula
+  // (ex: "Silva, Maria") quebraria a coluna sem isso.
+  const escape = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+
+  const header = ["Nome", "Telefone", "Email", "Etapa", "Origem", "Responsavel", "Valor", "Entrada"];
+  const lines = [header.join(",")];
+  for (const r of (rows ?? []) as Array<Record<string, unknown>>) {
+    lines.push(
+      [
+        escape(r.name),
+        escape(r.phone),
+        escape(r.email),
+        escape(stageName.get(String(r.stage_id ?? "")) ?? ""),
+        escape(r.source),
+        escape(r.assigned_to ? memberName.get(String(r.assigned_to)) ?? "" : ""),
+        escape(((Number(r.value_cents) || 0) / 100).toFixed(2).replace(".", ",")),
+        escape(r.created_at),
+      ].join(","),
+    );
+  }
+
+  return { csv: lines.join("\n"), count: rows?.length ?? 0 };
 }
 
 export async function deleteLead(id: string) {
