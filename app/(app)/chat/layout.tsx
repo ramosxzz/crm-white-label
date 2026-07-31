@@ -37,7 +37,13 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   const stages = (stagesResult.data ?? []) as unknown as StageRow[];
 
   return (
-    <div className="flex h-[calc(100dvh-3.5rem-4.75rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] min-h-0 overflow-hidden bg-background md:h-[calc(100vh-3.5rem)]">
+    // h-full em vez de recalcular a altura da tela: o <main> ja tem altura
+    // definida e ja reserva, no padding, o espaco da barra inferior fixa. A
+    // conta antiga descontava topbar e barra DE NOVO, entao a soma passava da
+    // altura do main e sobrava uma segunda barra de rolagem - a da pagina, por
+    // fora da lista de conversas. data-chat-shell desliga o scroll do main
+    // (globals.css): aqui quem rola sao a lista e a thread, cada uma na sua.
+    <div data-chat-shell className="flex h-full min-h-0 overflow-hidden bg-background">
       <ConversationListLive
         tenantId={ctx.tenantId}
         initialItems={items.map((item) => ({
