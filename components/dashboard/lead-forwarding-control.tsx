@@ -38,7 +38,9 @@ export function LeadForwardingControl({
   return (
     <Card className={active ? "border-amber-500/40 bg-amber-500/5" : "border-border/60"}>
       <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
+        {/* min-w-0 nos dois lados: sem isso o texto longo (nome do vendedor)
+            empurra a linha em vez de quebrar/cortar, e invade o controle. */}
+        <div className="flex min-w-0 items-center gap-3">
           <span
             className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
               active ? "bg-amber-500/15 text-amber-600 dark:text-amber-400" : "bg-muted text-muted-foreground"
@@ -46,7 +48,7 @@ export function LeadForwardingControl({
           >
             <PlaneTakeoff className="h-5 w-5" />
           </span>
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-semibold">Modo ausente</p>
             <p className="text-xs text-muted-foreground">
               {active
@@ -56,10 +58,10 @@ export function LeadForwardingControl({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2 sm:shrink-0">
           {!active && (
             <Select value={selected} onValueChange={setSelected}>
-              <SelectTrigger className="h-9 w-44">
+              <SelectTrigger className="h-9 w-44 max-w-full">
                 <SelectValue placeholder="Escolha o vendedor" />
               </SelectTrigger>
               <SelectContent>
@@ -74,6 +76,7 @@ export function LeadForwardingControl({
           <Button
             variant={active ? "outline" : "brand"}
             size="sm"
+            className="shrink-0"
             onClick={toggle}
             disabled={pending || (!active && !selected)}
           >
