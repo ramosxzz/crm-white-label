@@ -216,7 +216,11 @@ function ConnectionCard({
           <p className="font-mono text-xs text-muted-foreground">{account.phone_number}</p>
           <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             <UserRound className="h-3.5 w-3.5" />
-            {assignedUser ? `Responsavel: ${assignedUser.name}` : "Sem responsavel atribuido"}
+            {account.shared_with_all
+              ? "Número da equipe: todos atendem"
+              : assignedUser
+                ? `Responsavel: ${assignedUser.name}`
+                : "Sem responsavel atribuido"}
           </p>
         </div>
 

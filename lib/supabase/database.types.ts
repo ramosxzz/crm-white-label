@@ -540,6 +540,8 @@ export interface WhatsAppAccount {
   phone_number: string;
   display_name: string | null;
   assigned_to: string | null;
+  /** Numero atendido pela equipe toda. Exclui assigned_to: e um ou outro. */
+  shared_with_all: boolean;
   credentials: Record<string, unknown>;
   webhook_secret: string | null;
   is_active: boolean;

@@ -14,35 +14,61 @@ export type ChatAccountVisibility = {
 type AccountVisibilityRow = {
   id: string;
   assigned_to: string | null;
+  shared_with_all?: boolean | null;
 };
 
 /**
- * Gestao ve tudo. Vendedor ve exclusivamente os numeros atribuidos a ele,
- * inclusive quando ainda existem conversas antigas sem conta identificada.
+ * Quem enxerga quais conversas.
+ *
+ * Gestao ve tudo. Vendedor ve os numeros dele mais os marcados como da equipe.
  * Atendente preserva o modo compartilhado dos tenants sem numero individual.
+ *
+ * Dois cuidados que ja custaram acesso de cliente:
+ *
+ * 1. Tenant com distribuicao de leads DESLIGADA nao separa por pessoa - e o que
+ *    a RLS de leads ja faz (`not lead_assignment_enabled` libera todo mundo).
+ *    Aplicar escopo so aqui deixava a tela mais restrita que o banco, sem que a
+ *    configuracao dissesse isso em lugar nenhum.
+ *
+ * 2. "Sem responsavel" nao vira "de ninguem" pro vendedor. Com um unico numero
+ *    da loja e nenhum dono, a regra antiga zerava a lista e o vendedor abria o
+ *    chat vazio (aconteceu na Atacado Moda Sul). Numero da equipe agora e
+ *    escolha explicita - `shared_with_all` -, nao deducao a partir do nulo.
  */
 export function buildChatAccountVisibility(
   accounts: AccountVisibilityRow[],
   userId: string,
   role: MemberRole,
+  leadAssignmentEnabled = true,
 ): ChatAccountVisibility | null {
   if (canSeeAllLeads(role)) return null;
+  if (!leadAssignmentEnabled) return null;
 
+  const isShared = (account: AccountVisibilityRow) => account.shared_with_all === true;
   const ownedIds = accounts
     .filter((account) => account.assigned_to === userId)
     .map((account) => account.id);
+  const sharedIds = accounts.filter(isShared).map((account) => account.id);
+
   const mustUseOwnNumbers = role === "vendedor" || ownedIds.length > 0;
   const allowedIds = new Set(
     mustUseOwnNumbers
-      ? ownedIds
-      : accounts.filter((account) => account.assigned_to === null).map((account) => account.id),
+      ? [...ownedIds, ...sharedIds]
+      : accounts
+          .filter((account) => account.assigned_to === null || isShared(account))
+          .map((account) => account.id),
   );
+
+  // Conversa sem conta identificada (importada, ou de antes do vinculo) segue
+  // visivel quando nao ha separacao por numero, ou quando existe numero da
+  // equipe - senao ela sumiria justamente pra quem atende no numero da loja.
+  const allowUnlinkedConversations = !mustUseOwnNumbers || sharedIds.length > 0;
 
   return {
     blockedAccountIds: accounts
       .filter((account) => !allowedIds.has(account.id))
       .map((account) => account.id),
-    allowUnlinkedConversations: !mustUseOwnNumbers,
+    allowUnlinkedConversations,
   };
 }
 
@@ -53,15 +79,18 @@ export async function getChatAccountVisibility(
 ): Promise<ChatAccountVisibility | null> {
   if (canSeeAllLeads(role)) return null;
   const supabase = createServiceClient();
-  const { data, error } = await supabase
-    .from("whatsapp_accounts")
-    .select("id, assigned_to")
-    .eq("tenant_id", tenantId);
+  // A flag do tenant entra aqui em vez de virar parametro: sao 7 chamadores
+  // e nenhum deles decide isso - quem decide e a configuracao da empresa.
+  const [{ data, error }, { data: tenantRow }] = await Promise.all([
+    supabase.from("whatsapp_accounts").select("id, assigned_to, shared_with_all").eq("tenant_id", tenantId),
+    supabase.from("tenants").select("lead_assignment_enabled").eq("id", tenantId).maybeSingle(),
+  ]);
   if (error) throw new Error(error.message);
   return buildChatAccountVisibility(
     (data ?? []) as AccountVisibilityRow[],
     userId,
     role,
+    (tenantRow as { lead_assignment_enabled?: boolean } | null)?.lead_assignment_enabled ?? true,
   );
 }
 

@@ -203,13 +203,17 @@ export async function saveWhatsAppAccount(input: {
   phone_number: string;
   display_name?: string;
   assigned_to?: string | null;
+  shared_with_all?: boolean;
   credentials: Record<string, unknown>;
   is_active: boolean;
 }) {
   const ctx = await requireContext();
   if (!canManageWhatsAppAccounts(ctx.role)) throw new Error("Sem permissao");
   const supabase = await createClient();
-  const assignedTo = input.assigned_to || null;
+  // Compartilhado e responsavel unico se excluem: o numero e da equipe OU de
+  // uma pessoa. Guardar os dois deixaria a tela mentindo sobre quem atende.
+  const sharedWithAll = Boolean(input.shared_with_all);
+  const assignedTo = sharedWithAll ? null : input.assigned_to || null;
 
   if (assignedTo) {
     const { data: member } = await supabase
@@ -237,6 +241,7 @@ export async function saveWhatsAppAccount(input: {
         phone_number: input.phone_number.replace(/\D/g, ""),
         display_name: input.display_name ?? null,
         assigned_to: assignedTo,
+        shared_with_all: sharedWithAll,
         credentials: input.credentials,
         is_active: input.is_active,
       })
@@ -250,6 +255,7 @@ export async function saveWhatsAppAccount(input: {
       phone_number: input.phone_number.replace(/\D/g, ""),
       display_name: input.display_name ?? null,
       assigned_to: assignedTo,
+      shared_with_all: sharedWithAll,
       credentials: input.credentials,
       is_active: input.is_active,
     });

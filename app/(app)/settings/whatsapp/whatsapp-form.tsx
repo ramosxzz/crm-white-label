@@ -18,7 +18,10 @@ export function WhatsAppForm({
   const [provider, setProvider] = useState<WhatsAppProviderKind>(initial?.provider ?? "cloud_api");
   const [phone, setPhone] = useState(initial?.phone_number ?? "");
   const [displayName, setDisplayName] = useState(initial?.display_name ?? "");
-  const [assignedTo, setAssignedTo] = useState(initial?.assigned_to ?? "none");
+  // "all" nao e um usuario: e o modo compartilhado, guardado em shared_with_all.
+  const [assignedTo, setAssignedTo] = useState(
+    initial?.shared_with_all ? "all" : initial?.assigned_to ?? "none",
+  );
   const [active, setActive] = useState(initial?.is_active ?? true);
   const [creds, setCreds] = useState<Record<string, string>>(
     (initial?.credentials as Record<string, string> | undefined) ?? {},
@@ -39,7 +42,8 @@ export function WhatsAppForm({
           provider,
           phone_number: phone,
           display_name: displayName,
-          assigned_to: assignedTo === "none" ? null : assignedTo,
+          assigned_to: assignedTo === "none" || assignedTo === "all" ? null : assignedTo,
+          shared_with_all: assignedTo === "all",
           credentials: creds,
           is_active: active,
         });
@@ -80,6 +84,7 @@ export function WhatsAppForm({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Sem responsável</SelectItem>
+              <SelectItem value="all">Toda a equipe (número compartilhado)</SelectItem>
               {users.map((user) => (
                 <SelectItem key={user.id} value={user.id}>
                   {user.name}
@@ -88,7 +93,11 @@ export function WhatsAppForm({
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Ajuda o atendimento a usar o número certo quando cada vendedor tem sua própria API.
+            {assignedTo === "all"
+              ? "Todos os vendedores enxergam e atendem as conversas deste número — use quando a loja atende com um número só."
+              : assignedTo === "none"
+                ? "Ninguém responde por ele ainda. Com escopo por vendedor ligado, o número não aparece para os vendedores."
+                : "Só esse vendedor enxerga as conversas deste número."}
           </p>
         </div>
       </div>
