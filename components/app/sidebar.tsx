@@ -86,8 +86,10 @@ export function Sidebar({
   userEmail: string;
 }) {
   const pathname = usePathname();
-  // Vendedor nao gerencia estoque, automacoes, IA W+, integracoes nem usuarios.
-  const sellerBlocked = new Set(["/estoque", "/automations", "/ia-w-mais", "/integrations", "/settings/users", "/funil", "/atendimento"]);
+  // Vendedor nao gerencia estoque, automacoes, IA W+, integracoes, usuarios,
+  // nem ve o dashboard de reunioes (mostra receita/custo/ROI do tenant
+  // inteiro - a mesma pagina ja redireciona se um vendedor acessar direto).
+  const sellerBlocked = new Set(["/estoque", "/automations", "/ia-w-mais", "/integrations", "/settings/users", "/funil", "/atendimento", "/reunioes"]);
   const visibleNavItems = navItems.filter((item) => {
     if (isSeller && sellerBlocked.has(item.href)) return false;
     if (item.href === "/estoque") return stockEnabled;

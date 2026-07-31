@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { canSeeFullDashboard } from "@/lib/auth/roles";
 import {
   CalendarCheck,
   CalendarClock,
@@ -48,6 +50,10 @@ export default async function ReunioesPage({
   searchParams?: Promise<{ range?: string }>;
 }) {
   const ctx = await requireContext();
+  // Painel mostra receita, custo e ROI do tenant inteiro - dado financeiro
+  // que vendedor e tecnico nao devem ver, mesmo agregado. Faltava essa
+  // checagem: a pagina so filtrava por tenant_id, sem olhar o papel.
+  if (!canSeeFullDashboard(ctx.role)) redirect("/dashboard");
   const params = await searchParams;
   const range = RANGES.some((r) => r.value === params?.range) ? params!.range! : "30";
   const days = Number(range);
