@@ -48,7 +48,47 @@ type ActionCtx = {
   leadId: string | null;
   lead: Record<string, unknown>;
   executionId: string;
+  /** Inicio da execucao - marco pra saber se o lead respondeu no meio dela. */
+  startedAt: string | null;
 };
+
+/**
+ * O lead falou depois que a cadencia comecou?
+ *
+ * Numa sequencia automatica isso e o que separa "acompanhamento" de "robo
+ * insistente": sem esta checagem, alguem que respondeu na segunda mensagem
+ * continuaria recebendo a terceira e a quarta como se nunca tivesse falado.
+ * O desligamento por lead (automations_enabled) nao resolve - ele so e lido
+ * quando a automacao dispara, nao a cada passo de uma execucao ja em curso.
+ */
+async function leadRepliedSince(
+  supabase: SupabaseClient,
+  tenantId: string,
+  leadId: string,
+  sinceIso: string | null,
+): Promise<boolean> {
+  if (!sinceIso) return false;
+
+  const { data: conversations } = await supabase
+    .from("conversations")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("lead_id", leadId);
+
+  const ids = ((conversations ?? []) as { id: string }[]).map((c) => c.id);
+  if (ids.length === 0) return false;
+
+  const { data: inbound } = await supabase
+    .from("messages")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .in("conversation_id", ids)
+    .eq("direction", "inbound")
+    .gt("created_at", sinceIso)
+    .limit(1);
+
+  return (inbound ?? []).length > 0;
+}
 
 /** Executa uma unica acao atomica (usado tanto por blocos legados de kind
  * unico quanto por cada item dentro de um bloco "Acao" com varias sub-acoes). */
@@ -57,9 +97,16 @@ async function runAction(
   blockConfig: Record<string, unknown>,
   ctx: ActionCtx,
 ): Promise<Record<string, unknown>> {
-  const { supabase, tenantId, leadId, lead, executionId } = ctx;
+  const { supabase, tenantId, leadId, lead, executionId, startedAt } = ctx;
 
   if (kind === "send_message" && leadId) {
+    // Passo de cadencia: se o lead ja respondeu, para por aqui. Quem atende
+    // assume a conversa a partir do momento em que o cliente fala.
+    if (blockConfig.skip_if_replied) {
+      const replied = await leadRepliedSince(supabase, tenantId, leadId, startedAt);
+      if (replied) return { skipped: "lead respondeu - cadencia interrompida" };
+    }
+
     // Variacoes: a mesma tentativa pode ter varios textos e um e sorteado no
     // envio, pra a cadencia nao mandar sempre a frase identica pra todo lead
     // (pedido da Avante). Sem variacao preenchida, cai no texto unico de
@@ -471,7 +518,14 @@ export async function processExecution(
 
     try {
       let result: Record<string, unknown> = {};
-      const actionCtx: ActionCtx = { supabase, tenantId, leadId, lead, executionId };
+      const actionCtx: ActionCtx = {
+        supabase,
+        tenantId,
+        leadId,
+        lead,
+        executionId,
+        startedAt: (execution.started_at as string | null) ?? null,
+      };
 
       if (kind === "action_group") {
         // Bloco "Acao" com uma ou mais sub-acoes, executadas em sequencia.

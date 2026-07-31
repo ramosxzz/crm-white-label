@@ -646,6 +646,23 @@ function SendMessageConfig({
           {filledCount} variações — o sistema sorteia uma a cada envio.
         </p>
       )}
+
+      <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border/70 p-3">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4 rounded border-border accent-brand"
+          checked={Boolean(config.skip_if_replied)}
+          onChange={(e) => set("skip_if_replied", e.target.checked)}
+        />
+        <span className="text-xs">
+          <span className="font-medium">Não enviar se o lead já respondeu</span>
+          <span className="mt-0.5 block text-muted-foreground">
+            Recomendado em sequências automáticas: assim que o cliente responde, a
+            cadência para e quem atende assume a conversa.
+          </span>
+        </span>
+      </label>
+
       {VARIABLES_HINT}
     </div>
   );
