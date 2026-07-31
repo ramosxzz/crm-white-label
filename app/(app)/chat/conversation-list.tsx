@@ -12,6 +12,8 @@ import {
   X,
   CheckSquare,
   Square,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -130,6 +132,18 @@ export function ConversationList({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState<AdvancedFilters>(DEFAULT_ADVANCED_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<AdvancedFilters>(DEFAULT_ADVANCED_FILTERS);
+  // Preferencia lida direto no localStorage por conversation-list-live.tsx a
+  // cada som tocado; nao havia nenhum controle na tela pra escrever essa
+  // chave - a pessoa nunca conseguia desligar o som pelo produto.
+  const [soundOn, setSoundOn] = useState(true);
+  useEffect(() => {
+    setSoundOn(window.localStorage.getItem("chat_notification_sound") !== "off");
+  }, []);
+  function toggleSound() {
+    const next = !soundOn;
+    window.localStorage.setItem("chat_notification_sound", next ? "on" : "off");
+    setSoundOn(next);
+  }
 
   // Selecao em massa: mover varios leads de uma vez pra uma etapa, sem abrir
   // cada conversa. Mesmo padrao do Kanban (moveLeadsToStage), so que
@@ -287,6 +301,14 @@ export function ConversationList({
                   {activeAdvancedCount}
                 </span>
               )}
+            </button>
+            <button
+              type="button"
+              onClick={toggleSound}
+              title={soundOn ? "Desligar som de notificação" : "Ligar som de notificação"}
+              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+            >
+              {soundOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
             </button>
             {onRefresh && (
               <button

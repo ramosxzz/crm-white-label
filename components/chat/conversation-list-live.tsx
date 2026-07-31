@@ -32,6 +32,19 @@ export function ConversationListLive({
   const contactRefreshInFlightRef = useRef(false);
   const lastContactRefreshAtRef = useRef(0);
   const notificationAudioRef = useRef<HTMLAudioElement | null>(null);
+  // A assinatura de realtime abaixo so filtra por tenant_id: o Postgres Changes
+  // nao enxerga a regra de "quem pode ver qual conversa" (numero atribuido a
+  // outro vendedor, numero exclusivo do administrador etc). Sem este ref, o
+  // som tocava pra QUALQUER mensagem do tenant inteiro - inclusive as que a
+  // pessoa nunca veria na lista. `items` ja vem filtrado pelo mesmo
+  // getChatAccountVisibility usado no servidor; o ref existe so porque o
+  // efeito do realtime nao pode depender de `items` sem recriar o canal a
+  // cada atualizacao da lista.
+  const visibleConversationIdsRef = useRef<Set<string>>(new Set(initialItems.map((item) => item.id)));
+
+  useEffect(() => {
+    visibleConversationIdsRef.current = new Set(items.map((item) => item.id));
+  }, [items]);
 
   const playNotificationSound = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -155,8 +168,18 @@ export function ConversationListLive({
           filter: `tenant_id=eq.${tenantId}`,
         },
         (payload) => {
-          const row = payload.new as { direction?: string } | null;
-          if (row?.direction === "inbound") playNotificationSound();
+          const row = payload.new as { direction?: string; conversation_id?: string } | null;
+          // So toca se a conversa e uma que esta na lista desta pessoa agora.
+          // Conversa nova (ainda nao refletida no estado) fica sem som ate o
+          // proximo refresh - troca aceitavel por nunca mais tocar pra
+          // mensagem que a pessoa nem pode ver.
+          if (
+            row?.direction === "inbound" &&
+            row.conversation_id &&
+            visibleConversationIdsRef.current.has(row.conversation_id)
+          ) {
+            playNotificationSound();
+          }
           scheduleContactsRefresh();
         },
       )
