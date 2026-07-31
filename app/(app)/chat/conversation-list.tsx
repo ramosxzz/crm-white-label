@@ -14,6 +14,7 @@ import {
   Square,
   Volume2,
   VolumeX,
+  Loader2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -128,6 +129,11 @@ export function ConversationList({
   const pathname = usePathname();
   const router = useRouter();
   const activeLeadId = pathname.startsWith("/chat/") ? (pathname.split("/")[2] ?? null) : null;
+  const [openingLeadId, setOpeningLeadId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setOpeningLeadId(null);
+  }, [pathname]);
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState<AdvancedFilters>(DEFAULT_ADVANCED_FILTERS);
@@ -416,6 +422,7 @@ export function ConversationList({
           </div>
         ) : filtered.map((c) => {
           const active = activeLeadId === c.leadId;
+          const opening = openingLeadId === c.leadId && !active;
           const selected = selectedIds.has(c.leadId);
           const preview =
             c.lastPreview != null
@@ -432,13 +439,17 @@ export function ConversationList({
               onClick={(e) => {
                 // Em modo selecao o clique marca/desmarca em vez de navegar -
                 // o mesmo comportamento do card no Kanban.
-                if (!selectMode) return;
+                if (!selectMode) {
+                  setOpeningLeadId(c.leadId);
+                  return;
+                }
                 e.preventDefault();
                 toggleLeadSelected(c.leadId);
               }}
+              aria-busy={opening}
               className={cn(
                 "relative flex gap-3 border-b border-border/35 py-3 pl-4 pr-3 transition-colors duration-150 hover:bg-brand/10 dark:hover:bg-brand/15",
-                active && !selectMode && "bg-brand-muted dark:bg-brand/10",
+                (active || opening) && !selectMode && "bg-brand-muted dark:bg-brand/10",
                 selected && "bg-brand/10 dark:bg-brand/15",
               )}
             >
@@ -446,7 +457,7 @@ export function ConversationList({
               <span
                 className={cn(
                   "absolute inset-y-0 left-0 w-1",
-                  active && !selectMode ? "bg-brand" : STATUS_META[c.status].dot,
+                  (active || opening) && !selectMode ? "bg-brand" : STATUS_META[c.status].dot,
                 )}
                 aria-hidden
               />
@@ -481,6 +492,7 @@ export function ConversationList({
                     {c.leadName}
                   </p>
                   <div className="flex shrink-0 items-center gap-2">
+                    {opening && <Loader2 className="h-3.5 w-3.5 animate-spin text-brand" aria-label="Abrindo conversa" />}
                     {c.callCount != null && <CallAttemptMarker count={c.callCount} />}
                     {c.lastAt && (
                       <span

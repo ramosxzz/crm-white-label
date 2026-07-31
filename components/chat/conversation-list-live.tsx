@@ -4,12 +4,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchConversationItems } from "@/lib/chat/client";
 import type { ConversationListItem } from "@/lib/chat/types";
+import {
+  applyRealtimeMessageToConversationItems,
+  type RealtimeConversationMessage,
+} from "@/lib/chat/realtime-conversation-update";
 import { ConversationList, type StatusFilter } from "@/app/(app)/chat/conversation-list";
 
 /** Fallback se realtime falhar. */
 // Realtime ja atualiza a lista; polling e rede de seguranca, lento e so visivel.
 const CONTACT_POLL_MS = 90_000;
-const CONTACT_REALTIME_REFRESH_MS = 1_200;
+const CONTACT_REALTIME_REFRESH_MS = 400;
 const CONTACT_REFRESH_MIN_INTERVAL_MS = 3_000;
 const CONTACT_ACTIVE_REFRESH_COOLDOWN_MS = 15_000;
 
@@ -30,6 +34,8 @@ export function ConversationListLive({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const contactRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contactRefreshInFlightRef = useRef(false);
+  const contactRefreshPendingRef = useRef(false);
+  const refreshContactsRef = useRef<(options?: { force?: boolean }) => Promise<void>>(async () => {});
   const lastContactRefreshAtRef = useRef(0);
   const notificationAudioRef = useRef<HTMLAudioElement | null>(null);
   // A assinatura de realtime abaixo so filtra por tenant_id: o Postgres Changes
@@ -59,10 +65,25 @@ export function ConversationListLive({
 
   const refreshContacts = useCallback(async (options: { force?: boolean } = {}) => {
     const now = Date.now();
-    if (contactRefreshInFlightRef.current) return;
-    if (!options.force && now - lastContactRefreshAtRef.current < CONTACT_REFRESH_MIN_INTERVAL_MS) return;
+    if (contactRefreshInFlightRef.current) {
+      contactRefreshPendingRef.current = true;
+      return;
+    }
+
+    const remainingCooldown = CONTACT_REFRESH_MIN_INTERVAL_MS - (now - lastContactRefreshAtRef.current);
+    if (!options.force && remainingCooldown > 0) {
+      contactRefreshPendingRef.current = true;
+      if (contactRefreshTimerRef.current) clearTimeout(contactRefreshTimerRef.current);
+      contactRefreshTimerRef.current = setTimeout(() => {
+        contactRefreshTimerRef.current = null;
+        contactRefreshPendingRef.current = false;
+        void refreshContactsRef.current();
+      }, remainingCooldown);
+      return;
+    }
 
     contactRefreshInFlightRef.current = true;
+    contactRefreshPendingRef.current = false;
     try {
       // A lista em estado precisa ser sempre a base completa. Pesquisa e
       // status sao aplicados localmente por ConversationList; substituir a
@@ -74,8 +95,18 @@ export function ConversationListLive({
     } finally {
       lastContactRefreshAtRef.current = Date.now();
       contactRefreshInFlightRef.current = false;
+      if (contactRefreshPendingRef.current) {
+        if (contactRefreshTimerRef.current) clearTimeout(contactRefreshTimerRef.current);
+        contactRefreshTimerRef.current = setTimeout(() => {
+          contactRefreshTimerRef.current = null;
+          contactRefreshPendingRef.current = false;
+          void refreshContactsRef.current();
+        }, CONTACT_REFRESH_MIN_INTERVAL_MS);
+      }
     }
   }, [tenantId]);
+
+  refreshContactsRef.current = refreshContacts;
 
   const handleManualRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -115,10 +146,15 @@ export function ConversationListLive({
     }
   }, []);
 
-  const scheduleContactsRefresh = useCallback(() => {
+  const scheduleContactsRefresh = useCallback((delayMs = CONTACT_REALTIME_REFRESH_MS) => {
     if (contactRefreshTimerRef.current) clearTimeout(contactRefreshTimerRef.current);
-    contactRefreshTimerRef.current = setTimeout(() => void refreshContacts(), CONTACT_REALTIME_REFRESH_MS);
-  }, [refreshContacts]);
+    contactRefreshPendingRef.current = true;
+    contactRefreshTimerRef.current = setTimeout(() => {
+      contactRefreshTimerRef.current = null;
+      contactRefreshPendingRef.current = false;
+      void refreshContactsRef.current();
+    }, delayMs);
+  }, []);
 
   useEffect(() => {
     setItems(initialItems);
@@ -168,19 +204,32 @@ export function ConversationListLive({
           filter: `tenant_id=eq.${tenantId}`,
         },
         (payload) => {
-          const row = payload.new as { direction?: string; conversation_id?: string } | null;
+          const row = payload.new as RealtimeConversationMessage | null;
+          const isVisibleConversation = Boolean(
+            row?.conversation_id && visibleConversationIdsRef.current.has(row.conversation_id),
+          );
+          if (row) {
+            setItems((current) => applyRealtimeMessageToConversationItems(current, row).items);
+          }
           // So toca se a conversa e uma que esta na lista desta pessoa agora.
           // Conversa nova (ainda nao refletida no estado) fica sem som ate o
           // proximo refresh - troca aceitavel por nunca mais tocar pra
           // mensagem que a pessoa nem pode ver.
           if (
             row?.direction === "inbound" &&
-            row.conversation_id &&
-            visibleConversationIdsRef.current.has(row.conversation_id)
+            isVisibleConversation
           ) {
-            playNotificationSound();
+            // O card e o contador entram primeiro no próximo frame; o som vem
+            // depois, acompanhando o que a pessoa já consegue ver na tela.
+            requestAnimationFrame(playNotificationSound);
           }
-          scheduleContactsRefresh();
+          // Para conversa existente o payload já atualizou a tela. A espera
+          // maior evita uma consulta precoce sobrescrever o estado otimista
+          // antes de `conversations` terminar de atualizar. Conversas novas
+          // ainda precisam da consulta rápida para obter lead e permissões.
+          scheduleContactsRefresh(
+            isVisibleConversation ? CONTACT_REFRESH_MIN_INTERVAL_MS : CONTACT_REALTIME_REFRESH_MS,
+          );
         },
       )
       .on(
