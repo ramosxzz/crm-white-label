@@ -663,6 +663,47 @@ function SendMessageConfig({
         </span>
       </label>
 
+      <div className="space-y-2 rounded-lg border border-border/70 p-3">
+        <label className="flex cursor-pointer items-start gap-2">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 rounded border-border accent-brand"
+            checked={Boolean(config.business_hours_only)}
+            onChange={(e) => set("business_hours_only", e.target.checked)}
+          />
+          <span className="text-xs">
+            <span className="font-medium">Só enviar em horário comercial</span>
+            <span className="mt-0.5 block text-muted-foreground">
+              Fora da janela a mensagem não é descartada: fica na fila e sai na
+              próxima abertura. Evita mandar de madrugada e o número ser bloqueado.
+            </span>
+          </span>
+        </label>
+
+        {Boolean(config.business_hours_only) && (
+          <div className="flex items-center gap-2 pl-6">
+            <Input
+              type="number"
+              min={0}
+              max={23}
+              className="h-8 w-16"
+              value={String(config.send_hour_start ?? 8)}
+              onChange={(e) => set("send_hour_start", Number(e.target.value))}
+            />
+            <span className="text-xs text-muted-foreground">até</span>
+            <Input
+              type="number"
+              min={1}
+              max={24}
+              className="h-8 w-16"
+              value={String(config.send_hour_end ?? 21)}
+              onChange={(e) => set("send_hour_end", Number(e.target.value))}
+            />
+            <span className="text-xs text-muted-foreground">h (Brasília)</span>
+          </div>
+        )}
+      </div>
+
       {VARIABLES_HINT}
     </div>
   );

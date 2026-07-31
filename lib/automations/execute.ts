@@ -3,6 +3,7 @@ import { createProvider } from "@/lib/whatsapp/factory";
 import { triggerApi4comCall } from "@/lib/integrations/api4com";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
 import { getWhatsAppAccountForLead } from "@/lib/whatsapp/account-for-lead";
+import { deferUntil, DEFAULT_SEND_START_HOUR, DEFAULT_SEND_END_HOUR } from "@/lib/automations/sending-window";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 
 type Block = {
@@ -25,6 +26,37 @@ type FlowConfig = {
   blocks: Block[];
   connections: Connection[];
 };
+
+/**
+ * Este bloco manda mensagem com janela de horario? Se sim, com quais limites.
+ *
+ * A marcacao fica na sub-acao de mensagem (que e onde o usuario configura),
+ * mas quem segura o envio e o bloco - e ele que tem o passo com resume_at.
+ */
+function sendingWindowOf(block: Block): { start: number; end: number } | null {
+  const cfg = block.data.config ?? {};
+  const kind = block.data.kind ?? block.type;
+
+  const configs: Record<string, unknown>[] = [];
+  if (kind === "action_group" && Array.isArray(cfg.actions)) {
+    for (const item of cfg.actions as { kind?: string; config?: Record<string, unknown> }[]) {
+      if (item?.kind === "send_message" && item.config) configs.push(item.config);
+    }
+  } else if (kind === "send_message") {
+    configs.push(cfg);
+  }
+
+  for (const c of configs) {
+    if (!c.business_hours_only) continue;
+    const start = Number(c.send_hour_start ?? DEFAULT_SEND_START_HOUR);
+    const end = Number(c.send_hour_end ?? DEFAULT_SEND_END_HOUR);
+    return {
+      start: Number.isFinite(start) ? start : DEFAULT_SEND_START_HOUR,
+      end: Number.isFinite(end) ? end : DEFAULT_SEND_END_HOUR,
+    };
+  }
+  return null;
+}
 
 function findNextBlocks(
   blockId: string,
@@ -483,8 +515,9 @@ export async function processExecution(
     }
 
     // Espera ainda nao vencida: o cron so muda pra 'pending' quando resume_at
-    // passa. Enquanto seguir 'waiting', este ramo para aqui de novo.
-    if (kind === "wait" && priorStatus === "waiting") {
+    // passa. Vale pro bloco "aguardar" e pra mensagem segurada pela janela de
+    // horario - sem isso, cada passagem do cron criaria outra espera igual.
+    if (priorStatus === "waiting") {
       pausedOnWait = true;
       continue;
     }
@@ -500,6 +533,27 @@ export async function processExecution(
         .eq("block_id", block.id);
       queue.push(...findNextBlocks(block.id, connections, blocks).filter((b) => !visited.has(b.id)));
       continue;
+    }
+
+    // Fora da janela de horario: segura o bloco e solta na proxima abertura.
+    // Fica como espera (nao como concluido) pra o cron retomar do mesmo ponto -
+    // a mensagem e adiada, nunca descartada.
+    const windowCfg = sendingWindowOf(block);
+    if (windowCfg) {
+      const runAt = deferUntil(new Date(), windowCfg.start, windowCfg.end);
+      if (runAt) {
+        await supabase.from("automation_execution_steps").insert({
+          execution_id: executionId,
+          tenant_id: tenantId,
+          block_id: block.id,
+          block_type: kind,
+          status: "waiting",
+          resume_at: runAt.toISOString(),
+          input_payload: { deferred_by_sending_window: true, window: windowCfg },
+        });
+        pausedOnWait = true;
+        continue;
+      }
     }
 
     // Record the step
