@@ -14,7 +14,7 @@ import { fetchApi4comCalls } from "@/lib/integrations/api4com";
 import { listQuickMessages } from "@/app/(app)/settings/quick-messages-actions";
 import { canManageServiceOrders } from "@/lib/auth/roles";
 import { listConsultants } from "@/lib/field-service/users";
-import type { FieldServicePartner } from "@/lib/supabase/database.types";
+import type { FieldServicePartner, WhatsAppProviderKind } from "@/lib/supabase/database.types";
 import type { ConversationStatus } from "@/lib/chat/types";
 
 /** Busca tudo que o ChatThread precisa pra renderizar um lead. Usado tanto
@@ -203,12 +203,14 @@ export async function getChatThreadData(leadId: string) {
     media_type?: string | null;
     user_id?: string | null;
     sender_name?: string | null;
+    edited_at?: string | null;
+    deleted_at?: string | null;
   }[] = [];
 
   if (convo?.id) {
     const { data } = await service
       .from("messages")
-      .select("id, external_id, body, direction, created_at, status, media_url, media_type, reply_to_message_id, reply_to_external_id, reply_to_body, reply_to_sender_name, user_id")
+      .select("id, external_id, body, direction, created_at, status, media_url, media_type, reply_to_message_id, reply_to_external_id, reply_to_body, reply_to_sender_name, user_id, edited_at, deleted_at")
       .eq("conversation_id", convo.id)
       .eq("tenant_id", ctx.tenantId)
       .order("created_at", { ascending: false })
@@ -242,9 +244,17 @@ export async function getChatThreadData(leadId: string) {
         reply_to_sender_name: r.reply_to_sender_name as string | null,
         user_id: userId,
         sender_name: userId ? (namesByUser.get(userId) ?? null) : null,
+        edited_at: r.edited_at as string | null,
+        deleted_at: r.deleted_at as string | null,
       };
     });
   }
+
+  const conversationProviderKind = (
+    (whatsappAccountsRes.data ?? []).find(
+      (account) => account.id === convo?.whatsapp_account_id,
+    )?.provider ?? null
+  ) as WhatsAppProviderKind | null;
 
   return {
     leadId: lead.id,
@@ -254,6 +264,7 @@ export async function getChatThreadData(leadId: string) {
     leadAvatarUrl: getCachedWhatsAppProfilePicture(lead.custom_fields),
     conversationId: convo?.id ?? null,
     conversationAccountId: (convo as { whatsapp_account_id?: string | null } | null)?.whatsapp_account_id ?? null,
+    conversationProviderKind,
     channel: (convo?.channel === "instagram" ? "instagram" : "whatsapp") as "whatsapp" | "instagram",
     initialStatus: (convo?.status as ConversationStatus | null) ?? "nao_iniciada",
     initialAutomationsEnabled: lead.automations_enabled ?? true,

@@ -12,6 +12,7 @@ import {
   PROVIDER_TIMEOUT_TEXT_MS,
 } from "./fetch-with-timeout";
 import type {
+  DeleteMessageInput,
   InboundNormalized,
   SendMediaInput,
   SendMessageInput,
@@ -432,6 +433,27 @@ export class ZapiProvider implements WhatsAppProvider {
       status: "sent",
       raw: data,
     };
+  }
+
+  async deleteMessage(input: DeleteMessageInput): Promise<void> {
+    const phone = normalizeWhatsAppPhone(input.to);
+    if (!phone) throw new Error("Z-API: telefone invalido para apagar a mensagem");
+
+    const params = new URLSearchParams({
+      messageId: input.externalId,
+      phone,
+      owner: input.fromMe ? "true" : "false",
+    });
+    const res = await fetchWithTimeout(
+      `${this.basePath("/messages")}?${params.toString()}`,
+      { method: "DELETE", headers: this.headers() },
+      PROVIDER_TIMEOUT_TEXT_MS,
+      "Z-API",
+    );
+    if (!res.ok) {
+      const raw = await res.json().catch(() => null);
+      throw new Error(zapiErrorMessage(raw, res.status));
+    }
   }
 
   async sendMedia(input: SendMediaInput): Promise<SendMessageResult> {

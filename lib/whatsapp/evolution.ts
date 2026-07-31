@@ -6,6 +6,8 @@ import {
   PROVIDER_TIMEOUT_TEXT_MS,
 } from "./fetch-with-timeout";
 import type {
+  DeleteMessageInput,
+  EditMessageInput,
   InboundNormalized,
   SendMediaInput,
   SendMessageInput,
@@ -113,6 +115,57 @@ export class EvolutionProvider implements WhatsAppProvider {
     const data = (await res.json()) as { key?: { id?: string } };
     if (!res.ok) return { externalId: "", status: "failed", raw: data };
     return { externalId: data.key?.id ?? "", status: "sent", raw: data };
+  }
+
+  async editMessage(input: EditMessageInput): Promise<void> {
+    const number = normalizeWhatsAppPhone(input.to);
+    if (!number) throw new Error("Evolution: telefone invalido para editar a mensagem");
+
+    const remoteJid = `${number}@s.whatsapp.net`;
+    const url = `${this.creds.base_url.replace(/\/$/, "")}/chat/updateMessage/${encodeURIComponent(this.creds.instance)}`;
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers: { apikey: this.creds.api_key, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          number,
+          text: input.body,
+          key: { id: input.externalId, remoteJid, fromMe: true },
+        }),
+      },
+      PROVIDER_TIMEOUT_TEXT_MS,
+      "Evolution",
+    );
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new Error(`Evolution: falha ao editar mensagem (HTTP ${res.status})${detail ? `: ${detail.slice(0, 200)}` : ""}`);
+    }
+  }
+
+  async deleteMessage(input: DeleteMessageInput): Promise<void> {
+    const number = normalizeWhatsAppPhone(input.to);
+    if (!number) throw new Error("Evolution: telefone invalido para apagar a mensagem");
+
+    const url = `${this.creds.base_url.replace(/\/$/, "")}/chat/deleteMessageForEveryone/${encodeURIComponent(this.creds.instance)}`;
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: "DELETE",
+        headers: { apikey: this.creds.api_key, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: input.externalId,
+          fromMe: input.fromMe,
+          remoteJid: `${number}@s.whatsapp.net`,
+        }),
+      },
+      PROVIDER_TIMEOUT_TEXT_MS,
+      "Evolution",
+    );
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new Error(`Evolution: falha ao apagar mensagem (HTTP ${res.status})${detail ? `: ${detail.slice(0, 200)}` : ""}`);
+    }
   }
 
   async getConnectionStatus(): Promise<{ connected: boolean; state?: string; error?: string }> {

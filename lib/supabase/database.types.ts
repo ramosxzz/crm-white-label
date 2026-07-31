@@ -462,6 +462,8 @@ export interface ApiWebhookDelivery {
   status_code: number | null;
   response_body: string | null;
   error: string | null;
+  edited_at: string | null;
+  deleted_at: string | null;
   created_at: string;
 }
 

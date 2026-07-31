@@ -44,7 +44,7 @@ import { CallButton } from "@/components/leads/call-button";
 import { WhatsAppCallButton } from "@/components/leads/whatsapp-call-button";
 import { NewServiceOrderDialog } from "@/app/(app)/os/new-service-order-dialog";
 import type { FieldServiceUser } from "@/lib/field-service/users";
-import type { FieldServicePartner } from "@/lib/supabase/database.types";
+import type { FieldServicePartner, WhatsAppProviderKind } from "@/lib/supabase/database.types";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,6 +67,7 @@ import { QuickRepliesPicker } from "@/components/chat/quick-replies-picker";
 import { createClient } from "@/lib/supabase/client";
 import { fetchMessages } from "@/lib/chat/client";
 import type { ChatMessage, ConversationStatus } from "@/lib/chat/types";
+import { messageMutationCapabilities } from "@/lib/chat/message-mutation-capabilities";
 import { CONVERSATION_STATUSES, STATUS_META } from "@/lib/chat/status";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -91,6 +92,8 @@ import {
   updateChatLeadBusiness,
   updateChatLeadNotes,
   updateChatLeadTags,
+  editChatMessage,
+  deleteChatMessage,
 } from "../actions";
 
 type MediaKind = "image" | "video" | "audio" | "document";
@@ -278,6 +281,7 @@ function buildLeadDetailsFromRow(
 }
 
 function replyPreview(message: ChatMessage): string {
+  if (message.deleted_at) return "Mensagem apagada";
   const body = message.body?.trim();
   if (body) return body.slice(0, 180);
   const type = message.media_type?.toLowerCase() ?? "";
@@ -297,6 +301,7 @@ export function ChatThread({
   channel = "whatsapp",
   conversationId: initialConversationId,
   conversationAccountId = null,
+  conversationProviderKind = null,
   currentUserId,
   initialStatus = "nao_iniciada",
   initialAutomationsEnabled = true,
@@ -321,6 +326,7 @@ export function ChatThread({
   channel?: "whatsapp" | "instagram";
   conversationId: string | null;
   conversationAccountId?: string | null;
+  conversationProviderKind?: WhatsAppProviderKind | null;
   currentUserId?: string;
   initialStatus?: ConversationStatus;
   initialAutomationsEnabled?: boolean;
@@ -400,6 +406,10 @@ export function ChatThread({
   // drawer no mobile para o CRM ficar 100% usavel pelo celular.
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
+  const [editMessageText, setEditMessageText] = useState("");
+  const [deletingMessage, setDeletingMessage] = useState<ChatMessage | null>(null);
+  const [messageMutationPending, setMessageMutationPending] = useState(false);
   const [pending, start] = useTransition();
   const [uploading, setUploading] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -986,6 +996,62 @@ export function ChatThread({
       .catch((err) => notifyError(err));
   }
 
+  function openEditMessage(message: ChatMessage) {
+    setEditingMessage(message);
+    setEditMessageText(message.body ?? "");
+  }
+
+  function submitMessageEdit() {
+    const message = editingMessage;
+    const body = editMessageText.trim();
+    if (!message || !body || messageMutationPending) return;
+
+    setMessageMutationPending(true);
+    void editChatMessage({ messageId: message.id, body })
+      .then((updated) => {
+        setMessages((prev) =>
+          prev.map((item) =>
+            item.id === updated.id
+              ? { ...item, body: updated.body, edited_at: updated.edited_at }
+              : item,
+          ),
+        );
+        setEditingMessage(null);
+        setEditMessageText("");
+        notify({ title: "Mensagem editada no WhatsApp.", tone: "success" });
+      })
+      .catch((error) => notifyError(error))
+      .finally(() => setMessageMutationPending(false));
+  }
+
+  function confirmMessageDelete() {
+    const message = deletingMessage;
+    if (!message || messageMutationPending) return;
+
+    setMessageMutationPending(true);
+    void deleteChatMessage({ messageId: message.id })
+      .then((deleted) => {
+        setMessages((prev) =>
+          prev.map((item) =>
+            item.id === deleted.id
+              ? {
+                  ...item,
+                  body: null,
+                  media_url: null,
+                  media_type: null,
+                  deleted_at: deleted.deleted_at,
+                }
+              : item,
+          ),
+        );
+        setReplyTo((current) => (current?.id === deleted.id ? null : current));
+        setDeletingMessage(null);
+        notify({ title: "Mensagem apagada para todos.", tone: "success" });
+      })
+      .catch((error) => notifyError(error))
+      .finally(() => setMessageMutationPending(false));
+  }
+
   const nextScheduled = pendingScheduled[0];
   const busy = pending || uploading;
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
@@ -1001,6 +1067,11 @@ export function ChatThread({
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, [mobileActionsOpen]);
+
+  const mutationCapabilities = useMemo(
+    () => messageMutationCapabilities(conversationProviderKind),
+    [conversationProviderKind],
+  );
 
   // Lista de mensagens memoizada: sem isso, cada tecla digitada no campo
   // de mensagem re-renderizava todas as bolhas (e seus <audio>), travando
@@ -1020,6 +1091,21 @@ export function ChatThread({
                     const sameAuthor = prev?.direction === m.direction && prev?.sender_name === m.sender_name;
                     const outbound = m.direction === "outbound";
                     const showSender = outbound && m.sender_name && !sameAuthor;
+                    const canEdit = Boolean(
+                      outbound &&
+                      !m.deleted_at &&
+                      !m.media_url &&
+                      !m.media_type &&
+                      m.external_id &&
+                      m.body?.trim() &&
+                      mutationCapabilities.canEdit,
+                    );
+                    const canDelete = Boolean(
+                      outbound &&
+                      !m.deleted_at &&
+                      m.external_id &&
+                      mutationCapabilities.canDelete,
+                    );
                     return (
                       <div
                         key={m.id}
@@ -1029,15 +1115,47 @@ export function ChatThread({
                           sameAuthor ? "mt-0.5" : "mt-3",
                         )}
                       >
-                        {outbound && (
-                          <button
-                            type="button"
-                            onClick={() => setReplyTo(m)}
-                            className="mb-1 grid h-7 w-7 place-items-center rounded-full border border-border/50 bg-card/85 text-muted-foreground opacity-0 shadow-sm transition hover:text-foreground group-hover:opacity-100"
-                            title="Responder"
-                          >
-                            <Reply className="h-3.5 w-3.5" />
-                          </button>
+                        {outbound && !m.deleted_at && (
+                          <div className="mb-1 flex items-center gap-1 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100">
+                            {(canEdit || canDelete) && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="grid h-7 w-7 place-items-center rounded-full border border-border/50 bg-card/85 text-muted-foreground shadow-sm transition hover:text-foreground"
+                                    title="Ações da mensagem"
+                                  >
+                                    <MoreHorizontal className="h-3.5 w-3.5" />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" side="top" className="w-44">
+                                  {canEdit && (
+                                    <DropdownMenuItem onSelect={() => openEditMessage(m)} className="cursor-pointer gap-2">
+                                      <Pencil className="h-4 w-4" />
+                                      Editar mensagem
+                                    </DropdownMenuItem>
+                                  )}
+                                  {canDelete && (
+                                    <DropdownMenuItem
+                                      onSelect={() => setDeletingMessage(m)}
+                                      className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                      Apagar para todos
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setReplyTo(m)}
+                              className="grid h-7 w-7 place-items-center rounded-full border border-border/50 bg-card/85 text-muted-foreground shadow-sm transition hover:text-foreground"
+                              title="Responder"
+                            >
+                              <Reply className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         )}
                         <div
                           className={cn(
@@ -1063,10 +1181,11 @@ export function ChatThread({
                                 minute: "2-digit",
                               })}
                             </span>
+                            {m.edited_at && !m.deleted_at && <span className="italic">editada</span>}
                             {outbound && <MessageStatusLabel status={m.status} />}
                           </div>
                         </div>
-                        {!outbound && (
+                        {!outbound && !m.deleted_at && (
                           <button
                             type="button"
                             onClick={() => setReplyTo(m)}
@@ -1083,7 +1202,7 @@ export function ChatThread({
               </div>
             ))}
     </>
-  ), [grouped]);
+  ), [grouped, mutationCapabilities.canDelete, mutationCapabilities.canEdit]);
 
   return (
     <section className="flex min-h-0 flex-1 bg-[hsl(var(--chat-surface))]">
@@ -1659,6 +1778,94 @@ export function ChatThread({
         )}
       </div>
 
+      <Dialog
+        open={Boolean(editingMessage)}
+        onOpenChange={(open) => {
+          if (!open && !messageMutationPending) {
+            setEditingMessage(null);
+            setEditMessageText("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5 text-brand" />
+              Editar mensagem
+            </DialogTitle>
+            <DialogDescription>
+              O novo texto também será atualizado na conversa do WhatsApp.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-message-text">Mensagem</Label>
+            <Textarea
+              id="edit-message-text"
+              rows={5}
+              maxLength={4096}
+              value={editMessageText}
+              onChange={(event) => setEditMessageText(event.target.value)}
+              autoFocus
+            />
+            <p className="text-right text-xs text-muted-foreground">{editMessageText.length}/4096</p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditingMessage(null)}
+              disabled={messageMutationPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="brand"
+              onClick={submitMessageEdit}
+              disabled={
+                messageMutationPending ||
+                !editMessageText.trim() ||
+                editMessageText.trim() === editingMessage?.body?.trim()
+              }
+            >
+              {messageMutationPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Salvar edição
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(deletingMessage)}
+        onOpenChange={(open) => {
+          if (!open && !messageMutationPending) setDeletingMessage(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Apagar mensagem para todos?
+            </DialogTitle>
+            <DialogDescription>
+              A mensagem será removida no WhatsApp e ficará identificada como apagada no histórico do CRM.
+            </DialogDescription>
+          </DialogHeader>
+          {deletingMessage?.body && (
+            <div className="max-h-32 overflow-y-auto rounded-lg border border-border/60 bg-muted/35 px-3 py-2 text-sm text-muted-foreground">
+              {deletingMessage.body}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletingMessage(null)} disabled={messageMutationPending}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={confirmMessageDelete} disabled={messageMutationPending}>
+              {messageMutationPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Apagar para todos
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Dialog de renomear contato */}
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
         <DialogContent>
@@ -1924,6 +2131,15 @@ function StatusSelector({
 }
 
 function MessageContent({ message: m }: { message: ChatMessage }) {
+  if (m.deleted_at) {
+    return (
+      <p className="flex items-center gap-1.5 italic opacity-70">
+        <Trash2 className="h-3.5 w-3.5" />
+        Mensagem apagada
+      </p>
+    );
+  }
+
   const type = m.media_type?.toLowerCase() ?? "";
   const url = m.media_url?.trim();
   const isLocalPreview = m.id.startsWith("opt-") || m.id.startsWith("optimistic-");

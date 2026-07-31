@@ -13,6 +13,8 @@ export type ChatMessage = {
   reply_to_sender_name?: string | null;
   user_id?: string | null;
   sender_name?: string | null;
+  edited_at?: string | null;
+  deleted_at?: string | null;
 };
 
 export type ConversationStatus =

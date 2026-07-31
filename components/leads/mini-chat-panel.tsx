@@ -15,6 +15,8 @@ type Message = {
   created_at: string;
   media_url?: string | null;
   media_type?: string | null;
+  edited_at?: string | null;
+  deleted_at?: string | null;
 };
 
 export function MiniChatPanel({
@@ -59,6 +61,14 @@ export function MiniChatPanel({
         { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
         (payload) => {
           setMessages((prev) => [...prev, payload.new as Message]);
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
+        (payload) => {
+          const row = payload.new as Message;
+          setMessages((prev) => prev.map((message) => (message.id === row.id ? { ...message, ...row } : message)));
         },
       )
       .subscribe();
@@ -112,7 +122,14 @@ export function MiniChatPanel({
                 m.direction === "outbound" ? "bg-brand text-brand-foreground" : "bg-muted text-foreground",
               )}
             >
-              {m.body || (m.media_url ? "[mídia]" : "")}
+              {m.deleted_at ? (
+                <span className="italic opacity-75">Mensagem apagada</span>
+              ) : (
+                <>
+                  {m.body || (m.media_url ? "[mídia]" : "")}
+                  {m.edited_at && <span className="ml-1 text-[10px] italic opacity-70">editada</span>}
+                </>
+              )}
               <div className="mt-1 text-[10px] opacity-70">
                 {new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
               </div>

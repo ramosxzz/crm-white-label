@@ -226,6 +226,201 @@ export async function sendChatMedia(input: {
   }
 }
 
+type MessageMutationContext = {
+  message: {
+    id: string;
+    conversation_id: string;
+    external_id: string;
+    body: string | null;
+    direction: "inbound" | "outbound";
+    media_url: string | null;
+    media_type: string | null;
+    deleted_at: string | null;
+  };
+  conversation: {
+    id: string;
+    lead_id: string;
+    whatsapp_account_id: string;
+  };
+  account: WhatsAppAccount;
+  leadPhone: string;
+};
+
+async function loadMessageMutationContext(
+  messageId: string,
+  ctx: Awaited<ReturnType<typeof requireContext>>,
+): Promise<MessageMutationContext> {
+  const service = createServiceClient();
+  const { data: messageData, error: messageError } = await service
+    .from("messages")
+    .select("id, conversation_id, external_id, body, direction, media_url, media_type, deleted_at")
+    .eq("id", messageId)
+    .eq("tenant_id", ctx.tenantId)
+    .maybeSingle();
+  if (messageError) throw new Error(messageError.message);
+
+  const message = messageData as MessageMutationContext["message"] | null;
+  if (!message) throw new Error("Mensagem nao encontrada");
+  if (message.direction !== "outbound") throw new Error("Somente mensagens enviadas podem ser alteradas");
+  if (!message.external_id?.trim()) throw new Error("Esta mensagem ainda nao possui identificador do WhatsApp");
+  if (message.deleted_at) throw new Error("Esta mensagem ja foi apagada");
+
+  const { data: conversationData, error: conversationError } = await service
+    .from("conversations")
+    .select("id, lead_id, channel, whatsapp_account_id")
+    .eq("id", message.conversation_id)
+    .eq("tenant_id", ctx.tenantId)
+    .maybeSingle();
+  if (conversationError) throw new Error(conversationError.message);
+
+  const conversationRow = conversationData as {
+    id: string;
+    lead_id: string;
+    channel: string;
+    whatsapp_account_id: string | null;
+  } | null;
+  if (!conversationRow || conversationRow.channel !== "whatsapp") {
+    throw new Error("Edicao e exclusao estao disponiveis somente no WhatsApp");
+  }
+
+  const visibility = await getChatAccountVisibility(ctx.tenantId, ctx.userId, ctx.role);
+  if (!canAccessConversationAccount(conversationRow.whatsapp_account_id, visibility)) {
+    throw new Error("Sem acesso a esta conversa");
+  }
+  if (!conversationRow.whatsapp_account_id) {
+    throw new Error("A conversa nao esta vinculada a uma conta do WhatsApp");
+  }
+
+  const [{ data: accountData, error: accountError }, { data: leadData, error: leadError }] = await Promise.all([
+    service
+      .from("whatsapp_accounts")
+      .select("*")
+      .eq("id", conversationRow.whatsapp_account_id)
+      .eq("tenant_id", ctx.tenantId)
+      .maybeSingle(),
+    service
+      .from("leads")
+      .select("phone")
+      .eq("id", conversationRow.lead_id)
+      .eq("tenant_id", ctx.tenantId)
+      .maybeSingle(),
+  ]);
+  if (accountError) throw new Error(accountError.message);
+  if (leadError) throw new Error(leadError.message);
+  const account = accountData as WhatsAppAccount | null;
+  const leadPhone = (leadData as { phone?: string | null } | null)?.phone?.trim();
+  if (!account) throw new Error("Conta do WhatsApp nao encontrada");
+  if (!leadPhone) throw new Error("O lead nao possui telefone valido para alterar a mensagem");
+
+  return {
+    message: { ...message, external_id: message.external_id.trim() },
+    conversation: {
+      id: conversationRow.id,
+      lead_id: conversationRow.lead_id,
+      whatsapp_account_id: conversationRow.whatsapp_account_id,
+    },
+    account,
+    leadPhone,
+  };
+}
+
+export async function editChatMessage(input: {
+  messageId: string;
+  body: string;
+}): Promise<{ id: string; body: string; edited_at: string }> {
+  const ctx = await requireContext();
+  const body = input.body.trim();
+  if (!body) throw new Error("Escreva o novo texto da mensagem");
+  if (body.length > 4_096) throw new Error("A mensagem pode ter no maximo 4.096 caracteres");
+
+  const mutation = await loadMessageMutationContext(input.messageId, ctx);
+  if (mutation.message.media_url || mutation.message.media_type) {
+    throw new Error("Somente mensagens de texto podem ser editadas");
+  }
+  if (body === mutation.message.body?.trim()) {
+    throw new Error("O texto novo e igual ao atual");
+  }
+
+  const provider = createProvider(mutation.account);
+  if (!provider.editMessage) {
+    throw new Error("Esta conta do WhatsApp nao permite editar mensagens pelo CRM");
+  }
+  await provider.editMessage({
+    to: mutation.leadPhone,
+    externalId: mutation.message.external_id,
+    body,
+  });
+
+  const editedAt = new Date().toISOString();
+  const service = createServiceClient();
+  const { data, error } = await service
+    .from("messages")
+    .update({ body, edited_at: editedAt })
+    .eq("id", mutation.message.id)
+    .eq("tenant_id", ctx.tenantId)
+    .is("deleted_at", null)
+    .select("id")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("A mensagem foi alterada no WhatsApp, mas nao foi atualizada no CRM");
+
+  await logLeadActivity(service, {
+    tenantId: ctx.tenantId,
+    leadId: mutation.conversation.lead_id,
+    userId: ctx.userId,
+    kind: "message_edited",
+    payload: { message_id: mutation.message.id },
+  });
+  revalidatePath(`/chat/${mutation.conversation.lead_id}`);
+  revalidatePath("/chat");
+  return { id: mutation.message.id, body, edited_at: editedAt };
+}
+
+export async function deleteChatMessage(input: {
+  messageId: string;
+}): Promise<{ id: string; deleted_at: string }> {
+  const ctx = await requireContext();
+  const mutation = await loadMessageMutationContext(input.messageId, ctx);
+  const provider = createProvider(mutation.account);
+  if (!provider.deleteMessage) {
+    throw new Error("Esta conta do WhatsApp nao permite apagar mensagens pelo CRM");
+  }
+  await provider.deleteMessage({
+    to: mutation.leadPhone,
+    externalId: mutation.message.external_id,
+    fromMe: true,
+  });
+
+  const deletedAt = new Date().toISOString();
+  const service = createServiceClient();
+  const { data, error } = await service
+    .from("messages")
+    .update({
+      body: null,
+      media_url: null,
+      media_type: null,
+      deleted_at: deletedAt,
+    })
+    .eq("id", mutation.message.id)
+    .eq("tenant_id", ctx.tenantId)
+    .is("deleted_at", null)
+    .select("id")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("A mensagem foi apagada no WhatsApp, mas nao foi atualizada no CRM");
+
+  await logLeadActivity(service, {
+    tenantId: ctx.tenantId,
+    leadId: mutation.conversation.lead_id,
+    userId: ctx.userId,
+    kind: "message_deleted",
+    payload: { message_id: mutation.message.id },
+  });
+  revalidatePath(`/chat/${mutation.conversation.lead_id}`);
+  revalidatePath("/chat");
+  return { id: mutation.message.id, deleted_at: deletedAt };
+}
+
 export async function scheduleChatMessage(input: {
   leadId: string;
   body: string;
@@ -1081,7 +1276,7 @@ export async function getLeadChatThread(leadId: string): Promise<{
 
   const { data } = await supabase
     .from("messages")
-    .select("id, external_id, body, direction, created_at, status, media_url, media_type, user_id")
+    .select("id, external_id, body, direction, created_at, status, media_url, media_type, user_id, edited_at, deleted_at")
     .eq("tenant_id", ctx.tenantId)
     .eq("conversation_id", conv.id)
     .order("created_at", { ascending: true })

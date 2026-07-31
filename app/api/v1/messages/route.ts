@@ -35,7 +35,7 @@ export async function GET(req: Request) {
 
     const { data, error } = await supabase
       .from("messages")
-      .select("id, external_id, body, direction, created_at, status, media_url, media_type")
+      .select("id, external_id, body, direction, created_at, status, media_url, media_type, edited_at, deleted_at")
       .eq("conversation_id", conversation.id)
       .eq("tenant_id", ctx.tenantId)
       .order("created_at", { ascending: false })

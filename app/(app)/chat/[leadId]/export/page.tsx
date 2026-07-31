@@ -59,7 +59,7 @@ export default async function ConversationExportPage({ params }: { params: Promi
   const { data: messages } = conversation
     ? await service
         .from("messages")
-        .select("id, direction, body, media_type, created_at")
+        .select("id, direction, body, media_type, created_at, edited_at, deleted_at")
         .eq("tenant_id", ctx.tenantId)
         .eq("conversation_id", conversation.id)
         .order("created_at", { ascending: true })
@@ -92,8 +92,15 @@ export default async function ConversationExportPage({ params }: { params: Promi
                   <strong>{outgoing ? "Equipe" : title}</strong>
                   <time className="shrink-0 text-slate-500">{when(message.created_at)}</time>
                 </div>
-                {message.body && <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{message.body}</p>}
-                {mediaLabel(message.media_type) && <p className="mt-2 text-xs italic text-slate-500">[{mediaLabel(message.media_type)}]</p>}
+                {message.deleted_at ? (
+                  <p className="mt-2 text-sm italic text-slate-500">Mensagem apagada</p>
+                ) : (
+                  <>
+                    {message.body && <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{message.body}</p>}
+                    {mediaLabel(message.media_type) && <p className="mt-2 text-xs italic text-slate-500">[{mediaLabel(message.media_type)}]</p>}
+                    {message.edited_at && <p className="mt-1 text-[10px] italic text-slate-500">editada</p>}
+                  </>
+                )}
               </li>
             );
           })}

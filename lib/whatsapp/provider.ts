@@ -34,6 +34,18 @@ export interface SendMessageResult {
   raw?: unknown;
 }
 
+export interface EditMessageInput {
+  to: string;
+  externalId: string;
+  body: string;
+}
+
+export interface DeleteMessageInput {
+  to: string;
+  externalId: string;
+  fromMe: boolean;
+}
+
 export interface InboundNormalized {
   externalId: string;
   /** Telefone do lead/contato (legado; use contactPhone/contactLid). */
@@ -76,5 +88,9 @@ export interface WhatsAppProvider {
   sendMedia?(input: SendMediaInput): Promise<SendMessageResult>;
   /** Busca a foto publica do perfil do contato, quando o provedor disponibiliza. */
   fetchProfilePicture?(phone: string): Promise<string | null>;
+  /** Edita uma mensagem de texto ja enviada, quando o provedor oferece suporte. */
+  editMessage?(input: EditMessageInput): Promise<void>;
+  /** Apaga uma mensagem para todos, quando o provedor oferece suporte. */
+  deleteMessage?(input: DeleteMessageInput): Promise<void>;
   parseWebhook(payload: unknown): InboundNormalized[];
 }

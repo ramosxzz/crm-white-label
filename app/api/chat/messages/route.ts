@@ -40,6 +40,8 @@ function mapMessage(row: Record<string, unknown>, namesByUser: Map<string, strin
     reply_to_sender_name: row.reply_to_sender_name as string | null,
     user_id: userId,
     sender_name: userId ? (namesByUser.get(userId) ?? null) : null,
+    edited_at: row.edited_at as string | null,
+    deleted_at: row.deleted_at as string | null,
   };
 }
 
@@ -74,7 +76,7 @@ export async function GET(req: NextRequest) {
   // cronologica antes de devolver, mantendo o contrato da resposta.
   const { data, error } = await supabase
     .from("messages")
-    .select("id, external_id, body, direction, created_at, status, media_url, media_type, reply_to_message_id, reply_to_external_id, reply_to_body, reply_to_sender_name, user_id")
+    .select("id, external_id, body, direction, created_at, status, media_url, media_type, reply_to_message_id, reply_to_external_id, reply_to_body, reply_to_sender_name, user_id, edited_at, deleted_at")
     .eq("conversation_id", conversationId)
     .eq("tenant_id", ctx.tenantId)
     .order("created_at", { ascending: false })
