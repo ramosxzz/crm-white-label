@@ -469,6 +469,9 @@ export function ChatThread({
     try {
       const next = await fetchMessages(conversationId);
       setMessages((prev) => mergeMessages(prev, next));
+      if (document.visibilityState === "visible") {
+        await markConversationRead(conversationId);
+      }
     } catch {
       /* mantém estado atual */
     }
@@ -642,6 +645,9 @@ export function ChatThread({
           const row = payload.new as ChatMessage;
           shouldStickToBottomRef.current = row.direction === "outbound" || isNearBottom();
           setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : mergeMessages(prev, [row])));
+          if (row.direction === "inbound" && document.visibilityState === "visible") {
+            void markConversationRead(conversationId);
+          }
         },
       )
       .on(

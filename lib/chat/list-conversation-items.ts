@@ -6,26 +6,72 @@ import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 import { canSeeAllLeads } from "@/lib/auth/roles";
 import type { MemberRole } from "@/lib/supabase/database.types";
 
+export type ChatAccountVisibility = {
+  blockedAccountIds: string[];
+  allowUnlinkedConversations: boolean;
+};
+
+type AccountVisibilityRow = {
+  id: string;
+  assigned_to: string | null;
+};
+
 /**
- * Vendedor/atendente nao pode ver conversas de um numero WhatsApp atribuido
- * a OUTRA pessoa especifica. Numero sem dono (assigned_to null - comum em
- * tenants com um so numero compartilhado) continua visivel pra todo mundo.
- * Owner/admin/gerente veem tudo (retorna null = sem restricao).
+ * Gestao ve tudo. Vendedor ve exclusivamente os numeros atribuidos a ele,
+ * inclusive quando ainda existem conversas antigas sem conta identificada.
+ * Atendente preserva o modo compartilhado dos tenants sem numero individual.
  */
-export async function getBlockedWhatsappAccountIds(
+export function buildChatAccountVisibility(
+  accounts: AccountVisibilityRow[],
+  userId: string,
+  role: MemberRole,
+): ChatAccountVisibility | null {
+  if (canSeeAllLeads(role)) return null;
+
+  const ownedIds = accounts
+    .filter((account) => account.assigned_to === userId)
+    .map((account) => account.id);
+  const mustUseOwnNumbers = role === "vendedor" || ownedIds.length > 0;
+  const allowedIds = new Set(
+    mustUseOwnNumbers
+      ? ownedIds
+      : accounts.filter((account) => account.assigned_to === null).map((account) => account.id),
+  );
+
+  return {
+    blockedAccountIds: accounts
+      .filter((account) => !allowedIds.has(account.id))
+      .map((account) => account.id),
+    allowUnlinkedConversations: !mustUseOwnNumbers,
+  };
+}
+
+export async function getChatAccountVisibility(
   tenantId: string,
   userId: string,
   role: MemberRole,
-): Promise<string[] | null> {
+): Promise<ChatAccountVisibility | null> {
   if (canSeeAllLeads(role)) return null;
   const supabase = createServiceClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("whatsapp_accounts")
-    .select("id")
-    .eq("tenant_id", tenantId)
-    .not("assigned_to", "is", null)
-    .neq("assigned_to", userId);
-  return (data ?? []).map((row) => row.id);
+    .select("id, assigned_to")
+    .eq("tenant_id", tenantId);
+  if (error) throw new Error(error.message);
+  return buildChatAccountVisibility(
+    (data ?? []) as AccountVisibilityRow[],
+    userId,
+    role,
+  );
+}
+
+export function canAccessConversationAccount(
+  whatsappAccountId: string | null,
+  visibility: ChatAccountVisibility | null,
+): boolean {
+  if (!visibility) return true;
+  if (!whatsappAccountId) return visibility.allowUnlinkedConversations;
+  return !visibility.blockedAccountIds.includes(whatsappAccountId);
 }
 
 type ChatConversationRow = {
@@ -69,7 +115,7 @@ export async function listConversationItemsForTenant(
   limit = 100,
   filters: ConversationListFilters = {},
   tenantName?: string | null,
-  blockedWhatsappAccountIds?: string[] | null,
+  visibility?: ChatAccountVisibility | null,
 ): Promise<ConversationListItem[]> {
   const supabase = createServiceClient();
   const rpcClient = supabase as unknown as ChatConversationRpcClient;
@@ -78,7 +124,7 @@ export async function listConversationItemsForTenant(
   const hasFilters = Boolean(search || (status && status !== "todas"));
 
   if (hasFilters) {
-    return listFilteredConversationItemsForTenant(tenantId, limit, { search, status }, tenantName, blockedWhatsappAccountIds);
+    return listFilteredConversationItemsForTenant(tenantId, limit, { search, status }, tenantName, visibility);
   }
 
   const [{ data: rows, error }, { data: waAccount }] = await Promise.all([
@@ -133,16 +179,17 @@ export async function listConversationItemsForTenant(
     (waAccount as WhatsAppAccount | null) ?? null,
     { tenantName },
   );
-  return filterByAllowedAccounts(items, blockedWhatsappAccountIds);
+  return filterByAllowedAccounts(items, visibility);
 }
 
 export function filterByAllowedAccounts(
   items: ConversationListItem[],
-  blockedWhatsappAccountIds?: string[] | null,
+  visibility?: ChatAccountVisibility | null,
 ): ConversationListItem[] {
-  if (!blockedWhatsappAccountIds || blockedWhatsappAccountIds.length === 0) return items;
-  const blocked = new Set(blockedWhatsappAccountIds);
-  return items.filter((item) => !item.whatsappAccountId || !blocked.has(item.whatsappAccountId));
+  if (!visibility) return items;
+  return items.filter((item) =>
+    canAccessConversationAccount(item.whatsappAccountId, visibility),
+  );
 }
 
 async function listFilteredConversationItemsForTenant(
@@ -150,7 +197,7 @@ async function listFilteredConversationItemsForTenant(
   limit: number,
   filters: { search: string; status: string },
   tenantName?: string | null,
-  blockedWhatsappAccountIds?: string[] | null,
+  visibility?: ChatAccountVisibility | null,
 ): Promise<ConversationListItem[]> {
   const supabase = createServiceClient();
   const cappedLimit = Math.min(Math.max(limit, 1), 300);
@@ -199,7 +246,7 @@ async function listFilteredConversationItemsForTenant(
     (waAccount as WhatsAppAccount | null) ?? null,
     { tenantName },
   );
-  return filterByAllowedAccounts(items, blockedWhatsappAccountIds);
+  return filterByAllowedAccounts(items, visibility);
 }
 
 async function findMatchingLeadIds(tenantId: string, search: string): Promise<string[]> {

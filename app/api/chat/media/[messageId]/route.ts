@@ -5,6 +5,10 @@ import { createServiceClient } from "@/lib/supabase/server";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 import { defaultContentType, isWhatsAppEncryptedMediaUrl, persistWhatsAppMedia } from "@/lib/whatsapp/media-storage";
 import { getR2Object, isR2Url, r2KeyFromUrl } from "@/lib/storage/r2";
+import {
+  canAccessConversationAccount,
+  getChatAccountVisibility,
+} from "@/lib/chat/list-conversation-items";
 
 type CloudApiCredentials = {
   access_token?: string;
@@ -148,6 +152,13 @@ export async function GET(req: NextRequest, props: { params: Promise<{ messageId
     .maybeSingle();
 
   const conversation = rawConversation as { whatsapp_account_id: string | null } | null;
+  const visibility = await getChatAccountVisibility(ctx.tenantId, ctx.userId, ctx.role);
+  if (
+    !conversation ||
+    !canAccessConversationAccount(conversation.whatsapp_account_id, visibility)
+  ) {
+    return responseError("Midia nao encontrada", 404);
+  }
   const accountId = conversation?.whatsapp_account_id;
   const { data: account } = accountId
     ? await db

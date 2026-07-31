@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listConversationItemsForTenant, getBlockedWhatsappAccountIds } from "@/lib/chat/list-conversation-items";
+import { listConversationItemsForTenant, getChatAccountVisibility } from "@/lib/chat/list-conversation-items";
 import { fetchLeadCallCountsForTenant } from "@/lib/integrations/call-counts";
 import { requireContext } from "@/lib/tenant";
 
@@ -26,13 +26,13 @@ export async function GET(request: Request) {
     const search = url.searchParams.get("q");
     const status = url.searchParams.get("status");
     const hasSearch = Boolean(search?.trim());
-    const blockedAccountIds = await getBlockedWhatsappAccountIds(ctx.tenantId, ctx.userId, ctx.role);
+    const visibility = await getChatAccountVisibility(ctx.tenantId, ctx.userId, ctx.role);
     const conversations = await listConversationItemsForTenant(
       ctx.tenantId,
       hasSearch ? 200 : 300,
       { search, status },
       ctx.tenant.name,
-      blockedAccountIds,
+      visibility,
     );
     const callCounts = ctx.tenant.calls_dashboard_enabled
       ? await fetchLeadCallCountsForTenant(ctx.tenantId, { includeApi4com: true })

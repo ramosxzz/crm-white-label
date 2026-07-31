@@ -101,6 +101,10 @@ export async function createLead(formData: FormData) {
       pipeline_id: pipelineRow?.pipeline_id,
       value_cents: parsed.value_cents ?? 0,
       referred_by_partner_id: parsed.referred_by_partner_id ?? null,
+      assigned_to:
+        ctx.role === "vendedor" && ctx.tenant.lead_assignment_enabled
+          ? ctx.userId
+          : null,
     })
     .select("id")
     .single();
@@ -120,7 +124,10 @@ export async function createLead(formData: FormData) {
       // Lead indicado por parceiro (loja/vendedor): fica sem dono de proposito,
       // pra coordenadora triar manualmente - pedido explicito do ACT, pra nao
       // cair no sorteio automatico junto com os leads de marketing.
-      if (parsed.referred_by_partner_id) {
+      if (ctx.role === "vendedor" && ctx.tenant.lead_assignment_enabled) {
+        // No tenant com distribuicao ativa, o lead cadastrado pela propria
+        // vendedora permanece com ela e nao entra no fluxo automatico.
+      } else if (parsed.referred_by_partner_id) {
         // no-op: sem modo ausente, sem round-robin.
       } else {
         // Modo ausente tem prioridade: se ativo, o lead vai direto para o
@@ -403,10 +410,11 @@ export async function exportLeadsCSV(input: {
   const ctx = await requireContext();
   const supabase = await createClient();
 
-  // Mesmo corte da listagem: vendedor com atribuicao ligada so exporta o
-  // que e dele. A RLS ja garante isso no banco; aqui e pra contagem bater.
-  const restrictToOwn = ctx.tenant.lead_assignment_enabled && !canSeeAllLeads(ctx.role);
-
+  // Quem ve o que e decidido pela RLS (private.can_access_lead), nao aqui.
+  // Filtrar por assigned_to nesta consulta parecia "a mesma coisa", mas a
+  // regra do banco e mais ampla: o vendedor tambem alcanca o lead pela conta
+  // de WhatsApp atribuida a ele. Repetir o corte aqui deixaria de fora leads
+  // que ele esta vendo na tela, e o arquivo sairia menor que a listagem.
   let query = supabase
     .from("leads")
     .select("name, phone, email, source, value_cents, created_at, stage_id, assigned_to")
@@ -416,7 +424,6 @@ export async function exportLeadsCSV(input: {
   if (input.stageIds && input.stageIds.length > 0) query = query.in("stage_id", input.stageIds);
   if (input.startIso) query = query.gte("created_at", input.startIso);
   if (input.endIso) query = query.lte("created_at", input.endIso);
-  if (restrictToOwn) query = query.eq("assigned_to", ctx.userId);
 
   const { data: rows, error } = await query;
   if (error) throw new Error(error.message);

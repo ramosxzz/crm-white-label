@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { notify, notifyError } from "@/lib/ui/feedback";
 import { moveLeadsToStage } from "@/app/(app)/leads/actions";
+import { matchesConversationSearch } from "@/lib/chat/conversation-search";
 
 export type { ConversationListItem };
 
@@ -207,7 +208,6 @@ export function ConversationList({
   ).length;
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
     const result = items.filter((c) => {
       if (statusFilter !== "todas" && c.status !== statusFilter) return false;
       if (appliedFilters.instanceId !== "todos" && c.whatsappAccountId !== appliedFilters.instanceId) return false;
@@ -221,12 +221,7 @@ export function ConversationList({
       if (!isWithinPeriod(c.lastAt, appliedFilters.lastMessagePeriod)) return false;
       if (!matchesArrivedFilter(c.leadCreatedAt, appliedFilters.arrived, appliedFilters.arrivedDate)) return false;
       if (appliedFilters.minStars > 0 && c.qualityStars < appliedFilters.minStars) return false;
-      if (!q) return true;
-      return (
-        c.leadName.toLowerCase().includes(q) ||
-        c.leadSubtitle.toLowerCase().includes(q) ||
-        c.leadPhone.replace(/\D/g, "").includes(q.replace(/\D/g, ""))
-      );
+      return matchesConversationSearch(c, query);
     });
 
     result.sort((a, b) => {

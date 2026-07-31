@@ -3,7 +3,10 @@ import { notFound } from "next/navigation";
 import { PrintOnOpen } from "./print-on-open";
 import { createServiceClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
-import { getBlockedWhatsappAccountIds } from "@/lib/chat/list-conversation-items";
+import {
+  canAccessConversationAccount,
+  getChatAccountVisibility,
+} from "@/lib/chat/list-conversation-items";
 import { displayLeadName } from "@/lib/leads/display";
 
 function when(value: string) {
@@ -45,8 +48,13 @@ export default async function ConversationExportPage({ params }: { params: Promi
     whatsapp_account_id: string | null;
     channel: string;
   } | null;
-  const blocked = await getBlockedWhatsappAccountIds(ctx.tenantId, ctx.userId, ctx.role);
-  if (conversation?.whatsapp_account_id && blocked?.includes(conversation.whatsapp_account_id)) notFound();
+  const visibility = await getChatAccountVisibility(ctx.tenantId, ctx.userId, ctx.role);
+  if (
+    conversation &&
+    !canAccessConversationAccount(conversation.whatsapp_account_id, visibility)
+  ) {
+    notFound();
+  }
 
   const { data: messages } = conversation
     ? await service

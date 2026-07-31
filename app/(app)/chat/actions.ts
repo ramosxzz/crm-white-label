@@ -11,6 +11,10 @@ import { sendChatMessageCore } from "@/lib/chat/send-message-core";
 import { sendChatMediaCore } from "@/lib/chat/send-media-core";
 import { createProvider } from "@/lib/whatsapp/factory";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
+import {
+  canAccessConversationAccount,
+  getChatAccountVisibility,
+} from "@/lib/chat/list-conversation-items";
 
 const LABEL_COLORS = ["#7c3aed", "#2563eb", "#059669", "#dc2626", "#d97706", "#0891b2"];
 
@@ -169,7 +173,11 @@ export async function sendInstagramMessage(input: {
       .single();
     await supabase
       .from("conversations")
-      .update({ last_message_at: new Date().toISOString(), status: "em_atendimento" })
+      .update({
+        last_message_at: new Date().toISOString(),
+        unread_count: 0,
+        status: "em_atendimento",
+      })
       .eq("id", conversationId);
 
     revalidatePath("/chat");
@@ -584,15 +592,32 @@ export async function setLeadAutomations(input: { leadId: string; enabled: boole
 
 export async function markConversationRead(conversationId: string) {
   const ctx = await requireContext();
-  const supabase = await createClient();
+  const supabase = createServiceClient();
+
+  const { data: conversation, error: conversationError } = await supabase
+    .from("conversations")
+    .select("id, whatsapp_account_id, unread_count")
+    .eq("id", conversationId)
+    .eq("tenant_id", ctx.tenantId)
+    .maybeSingle();
+  if (conversationError) throw new Error(conversationError.message);
+  if (!conversation) return;
+
+  const visibility = await getChatAccountVisibility(ctx.tenantId, ctx.userId, ctx.role);
+  if (!canAccessConversationAccount(conversation.whatsapp_account_id, visibility)) {
+    throw new Error("Sem acesso a esta conversa");
+  }
+  if ((conversation.unread_count ?? 0) === 0) return;
 
   // Abrir/ler a conversa apenas zera o nao-lido. NAO muda o status: so sai de
   // "aguardando" quando o atendente de fato responde (ver sendChatMessage).
-  await supabase
+  const { error } = await supabase
     .from("conversations")
     .update({ unread_count: 0 })
     .eq("id", conversationId)
     .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/chat");
 }
 
 const VALID_STATUSES = ["nao_iniciada", "aguardando", "em_atendimento", "resolvida"] as const;

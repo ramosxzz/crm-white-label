@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { PageHeader } from "@/components/app/page-header";
 import { LeadsOpsDashboard } from "@/components/dashboard/leads-ops-dashboard";
@@ -20,6 +20,7 @@ import { getMetaAdsCrmSales } from "@/lib/meta/crm-attribution";
 import { canSeeFullDashboard, canManageCompanySettings } from "@/lib/auth/roles";
 import { listTenantUserOptions } from "@/lib/tenant/users";
 import { LeadForwardingControl } from "@/components/dashboard/lead-forwarding-control";
+import { getSellerDashboardMetrics } from "@/lib/dashboard/seller-metrics";
 
 export default async function DashboardPage({
   searchParams,
@@ -38,38 +39,12 @@ export default async function DashboardPage({
   const dayLabel = formatBRTDateLong(selDate);
 
   if (!canSeeFullDashboard(ctx.role)) {
-    const [{ count: messagesSentToday }, { data: convos }, { count: assignedLeads }, { count: newAssignedToday }] =
-      await Promise.all([
-        supabase
-          .from("messages")
-          .select("*", { count: "exact", head: true })
-          .eq("tenant_id", ctx.tenantId)
-          .eq("direction", "outbound")
-          .eq("user_id", ctx.userId)
-          .gte("created_at", today.startIso)
-          .lte("created_at", today.endIso),
-        supabase
-          .from("messages")
-          .select("conversation_id")
-          .eq("tenant_id", ctx.tenantId)
-          .eq("direction", "outbound")
-          .eq("user_id", ctx.userId)
-          .gte("created_at", today.startIso)
-          .lte("created_at", today.endIso),
-        supabase
-          .from("leads")
-          .select("id", { count: "exact", head: true })
-          .eq("tenant_id", ctx.tenantId)
-          .eq("assigned_to", ctx.userId),
-        supabase
-          .from("leads")
-          .select("id", { count: "exact", head: true })
-          .eq("tenant_id", ctx.tenantId)
-          .eq("assigned_to", ctx.userId)
-          .gte("created_at", today.startIso)
-          .lte("created_at", today.endIso),
-      ]);
-    const conversationsToday = new Set((convos ?? []).map((m) => m.conversation_id)).size;
+    const sellerMetrics = await getSellerDashboardMetrics(createServiceClient(), {
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      startIso: today.startIso,
+      endIso: today.endIso,
+    });
 
     return (
       <div>
@@ -81,10 +56,7 @@ export default async function DashboardPage({
         <SellerDashboard
           data={{
             dateLabel: dayLabel,
-            messagesSentToday: messagesSentToday ?? 0,
-            conversationsToday,
-            assignedLeads: assignedLeads ?? 0,
-            newAssignedToday: newAssignedToday ?? 0,
+            ...sellerMetrics,
           }}
         />
       </div>

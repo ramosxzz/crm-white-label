@@ -84,10 +84,6 @@ export default async function LeadsPage({
   const to = from + LEADS_PAGE_SIZE - 1;
 
   const canAssign = canSeeAllLeads(ctx.role) && ctx.tenant.lead_assignment_enabled;
-  // Vendedor com atribuicao ativa no tenant so ve o que foi mandado pra ele
-  // (RLS garante isso no banco tambem - aqui e so pra a pagina bater com a
-  // contagem certa).
-  const restrictToOwn = ctx.tenant.lead_assignment_enabled && !canSeeAllLeads(ctx.role);
 
   // 500 leads de uma vez travava o scroll da pagina (renderizava tudo numa
   // tabela so). Pagina no servidor em vez de trazer tudo.
@@ -103,9 +99,6 @@ export default async function LeadsPage({
   }
   if (stageFilterIds.length > 0) {
     leadsQuery = leadsQuery.in("stage_id", stageFilterIds);
-  }
-  if (restrictToOwn) {
-    leadsQuery = leadsQuery.eq("assigned_to", ctx.userId);
   }
 
   const [{ data: leads, count: totalCount }, { data: stages }, members, { data: partners }] = await Promise.all([
