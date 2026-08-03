@@ -439,6 +439,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
       referral: msg.referral || null,
 
+      receivingAccountOwnerId: account.assigned_to ?? null,
+
     });
 
 

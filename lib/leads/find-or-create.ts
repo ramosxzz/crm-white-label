@@ -71,6 +71,12 @@ export async function findOrCreateWhatsAppLead(
     stageId?: string | null;
     pipelineId?: string | null;
     referral?: ReferralInput;
+    /** Dono do numero de WhatsApp que recebeu a mensagem (whatsapp_accounts.assigned_to).
+     * Vira o responsavel inicial do lead novo, pra tenants com numero por
+     * vendedor o cliente ja nascer atribuido a quem realmente vai atender -
+     * senao ele fica sem dono e some pro vendedor quando lead_assignment_enabled
+     * estiver ligado. */
+    receivingAccountOwnerId?: string | null;
   },
 ): Promise<string | null> {
   const existing = await findLeadByContact(supabase, tenantId, {
@@ -118,6 +124,7 @@ export async function findOrCreateWhatsAppLead(
       stage_id: contact.stageId ?? null,
       pipeline_id: contact.pipelineId ?? null,
       custom_fields: customFields,
+      assigned_to: contact.receivingAccountOwnerId ?? null,
     })
     .select("id")
     .single();
