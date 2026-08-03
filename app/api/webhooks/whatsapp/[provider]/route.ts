@@ -326,89 +326,51 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
     if (isSelfWhatsAppContact(account, { phone: contactPhone, lid: contactLid })) continue;
 
+    // externalId e o id da mensagem no WhatsApp. Duas contas conectadas do
+    // MESMO tenant conversando entre si (ex: duas atendentes se falando pelos
+    // proprios numeros comerciais) geram o MESMO externalId em duas
+    // conversas diferentes - cada instancia entrega seu proprio webhook. Por
+    // isso a unicidade e por (conversation_id, external_id), nao global; so
+    // sabemos a conversa mais abaixo, entao guardamos o achado daqui pra usar
+    // la (reentrega de verdade = mesma conversa; instancia irma = conversa
+    // diferente, insere normalmente).
+    type ExistingMsgRow = {
+      id: string;
+      tenant_id: string;
+      body: string | null;
+      status: DbMessageStatus | null;
+      conversation_id: string | null;
+    };
+    let sameTenantRowsWithExternalId: ExistingMsgRow[] = [];
+
     if (msg.externalId) {
 
-      // Busca GLOBAL (sem filtro de tenant_id): external_id e o id da mensagem
-      // no WhatsApp e so pode existir uma vez em toda a tabela. Se ja existe em
-      // outro tenant, e reentrega/retry do mesmo evento (Evolution reenvia ate
+      // Busca GLOBAL (sem filtro de tenant_id): pode haver mais de uma linha
+      // agora (uma por conversa/instancia). Se alguma pertence a OUTRO
+      // tenant, e reentrega/retry do mesmo evento (Evolution reenvia ate
       // 10x) batendo em outra conta - nunca deve ser inserida de novo em
       // tenant nenhum (evita duplicacao e vazamento entre tenants).
-      const { data: existingMsg } = await supabase
+      const { data: existingRows } = await supabase
 
         .from("messages")
 
         .select("id, tenant_id, body, status, conversation_id")
 
-        .eq("external_id", msg.externalId)
+        .eq("external_id", msg.externalId);
 
-        .maybeSingle();
-
-      if (isCrossTenantDuplicate(existingMsg, account.tenant_id)) {
+      const crossTenantMatch = (existingRows ?? []).find((row) =>
+        isCrossTenantDuplicate(row, account.tenant_id),
+      );
+      if (crossTenantMatch) {
         console.error(
-          `[webhook][${provider}] external_id ${msg.externalId} ja pertence ao tenant ${existingMsg.tenant_id}, ignorando entrega duplicada para o tenant ${account.tenant_id}.`,
+          `[webhook][${provider}] external_id ${msg.externalId} ja pertence ao tenant ${crossTenantMatch.tenant_id}, ignorando entrega duplicada para o tenant ${account.tenant_id}.`,
         );
         continue;
       }
 
-      if (existingMsg) {
-
-        const prevBody = (existingMsg as { body?: string | null }).body ?? "";
-
-        const canUpgradeBody =
-
-          msg.body &&
-
-          msg.body !== ZAPI_PHONE_PLACEHOLDER &&
-
-          prevBody === ZAPI_PHONE_PLACEHOLDER;
-
-        const currentStatus = (existingMsg as { status?: DbMessageStatus | null }).status;
-
-        const canUpgradeStatus =
-          msg.messageStatus &&
-          shouldUpgradeMessageStatus(currentStatus, msg.messageStatus);
-
-        const media =
-          canUpgradeBody && (msg.mediaUrl || msg.mediaBase64)
-            ? await persistWhatsAppMedia(supabase, account, {
-                tenantId: account.tenant_id,
-                conversationId: (existingMsg as { conversation_id?: string }).conversation_id ?? "",
-                messageId: existingMsg.id,
-                externalId: msg.externalId,
-                mediaUrl: msg.mediaUrl,
-                mediaType: msg.mediaType,
-                mediaBase64: msg.mediaBase64,
-                mediaMimeType: msg.mediaMimeType,
-                mediaFileName: msg.mediaFileName,
-              })
-            : null;
-
-        if (canUpgradeBody || canUpgradeStatus) {
-
-          await supabase
-
-            .from("messages")
-
-            .update({
-
-              ...(canUpgradeBody
-                ? {
-                    body: msg.body,
-                    media_url: media?.mediaUrl ?? msg.mediaUrl ?? null,
-                    media_type: media?.mediaType ?? msg.mediaType ?? null,
-                  }
-                : {}),
-              ...(canUpgradeStatus ? { status: msg.messageStatus } : {}),
-            })
-
-            .eq("id", existingMsg.id);
-
-        }
-
-        continue;
-
-      }
-
+      sameTenantRowsWithExternalId = (existingRows ?? []).filter(
+        (row): row is ExistingMsgRow => row.tenant_id === account.tenant_id,
+      );
     }
 
     if (msg.messageStatus && !msg.body && !msg.mediaUrl && !msg.mediaBase64) {
@@ -554,6 +516,60 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
 
     if (!conversationId) continue;
+
+    // So agora sabemos a conversa: se o mesmo external_id ja esta gravado
+    // NESSA conversa, e reentrega de verdade (retry do provider) - atualiza
+    // no lugar em vez de duplicar. Se so existe em OUTRA conversa do mesmo
+    // tenant, e a instancia irma da mesma mensagem (duas contas nossas se
+    // falando) - segue pro insert normal abaixo, cada conversa com sua copia.
+    const existingMsgSameConversation = sameTenantRowsWithExternalId.find(
+      (row) => row.conversation_id === conversationId,
+    );
+    if (existingMsgSameConversation) {
+      const prevBody = existingMsgSameConversation.body ?? "";
+
+      const canUpgradeBody =
+        msg.body &&
+        msg.body !== ZAPI_PHONE_PLACEHOLDER &&
+        prevBody === ZAPI_PHONE_PLACEHOLDER;
+
+      const canUpgradeStatus =
+        msg.messageStatus &&
+        shouldUpgradeMessageStatus(existingMsgSameConversation.status, msg.messageStatus);
+
+      const media =
+        canUpgradeBody && (msg.mediaUrl || msg.mediaBase64)
+          ? await persistWhatsAppMedia(supabase, account, {
+              tenantId: account.tenant_id,
+              conversationId,
+              messageId: existingMsgSameConversation.id,
+              externalId: msg.externalId,
+              mediaUrl: msg.mediaUrl,
+              mediaType: msg.mediaType,
+              mediaBase64: msg.mediaBase64,
+              mediaMimeType: msg.mediaMimeType,
+              mediaFileName: msg.mediaFileName,
+            })
+          : null;
+
+      if (canUpgradeBody || canUpgradeStatus) {
+        await supabase
+          .from("messages")
+          .update({
+            ...(canUpgradeBody
+              ? {
+                  body: msg.body,
+                  media_url: media?.mediaUrl ?? msg.mediaUrl ?? null,
+                  media_type: media?.mediaType ?? msg.mediaType ?? null,
+                }
+              : {}),
+            ...(canUpgradeStatus ? { status: msg.messageStatus } : {}),
+          })
+          .eq("id", existingMsgSameConversation.id);
+      }
+
+      continue;
+    }
 
     const hasMedia = Boolean(msg.mediaType || msg.mediaUrl || msg.mediaBase64);
 

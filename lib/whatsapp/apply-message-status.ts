@@ -17,21 +17,24 @@ export async function applyMessageStatusUpdates(
 
   for (const update of updates) {
     for (const externalId of update.externalIds) {
-      const { data: row } = await supabase
+      // external_id e unico por conversa, nao mais globalmente - duas contas
+      // do mesmo tenant conversando entre si podem gerar duas mensagens
+      // (uma por conversa) com o mesmo external_id. Atualiza todas as que
+      // baterem em vez de assumir uma unica linha.
+      const { data: rows } = await supabase
         .from("messages")
         .select("id, status")
         .eq("tenant_id", tenantId)
         .eq("external_id", externalId)
-        .eq("direction", "outbound")
-        .maybeSingle();
+        .eq("direction", "outbound");
 
-      if (!row) continue;
+      for (const row of rows ?? []) {
+        const current = (row.status as DbMessageStatus | null) ?? "pending";
+        if (!shouldUpgradeMessageStatus(current, update.status)) continue;
 
-      const current = (row.status as DbMessageStatus | null) ?? "pending";
-      if (!shouldUpgradeMessageStatus(current, update.status)) continue;
-
-      await supabase.from("messages").update({ status: update.status }).eq("id", row.id);
-      applied++;
+        await supabase.from("messages").update({ status: update.status }).eq("id", row.id);
+        applied++;
+      }
     }
   }
 
