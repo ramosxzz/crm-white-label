@@ -541,6 +541,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
           status: nextStatus,
 
+          // Autocura: conversa antiga sem numero vinculado (ou vinculada a
+          // outro numero de uma entrega anterior) ficava invisivel pra
+          // vendedor quando o tenant separa por numero - o dono do numero
+          // que realmente entregou essa mensagem agora e sempre a fonte da
+          // verdade, nao o que foi gravado da primeira vez.
+          whatsapp_account_id: account.id,
+
         })
 
         .eq("id", conversationId);
