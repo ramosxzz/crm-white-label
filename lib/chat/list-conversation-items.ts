@@ -21,28 +21,31 @@ type AccountVisibilityRow = {
  * Quem enxerga quais conversas.
  *
  * Gestao ve tudo. Vendedor ve os numeros dele mais os marcados como da equipe.
- * Atendente preserva o modo compartilhado dos tenants sem numero individual.
+ * Atendente preserva o modo compartilhado dos tenants sem numero individual
+ * (so fica restrito se ele mesmo tiver um numero proprio).
  *
- * Dois cuidados que ja custaram acesso de cliente:
+ * A separacao por numero e uma configuracao independente do "distribuir
+ * leads" do Kanban (`tenants.lead_assignment_enabled`) - sao features
+ * diferentes (uma e por numero de WhatsApp, a outra e por lead) e um tenant
+ * pode querer so uma delas. Ja existiu aqui um atalho que desligava esta
+ * restricao inteira quando `lead_assignment_enabled` estava off - quebrou a
+ * Vasos Fortuna, que usa numero por vendedor mas nao usa distribuicao de
+ * leads: o Kanban liberava geral (certo) mas o chat tambem liberava geral
+ * (errado - vendedor lia numero de colega e do admin). Removido; quem decide
+ * a restricao aqui e so o papel do usuario e o `assigned_to` de cada numero.
  *
- * 1. Tenant com distribuicao de leads DESLIGADA nao separa por pessoa - e o que
- *    a RLS de leads ja faz (`not lead_assignment_enabled` libera todo mundo).
- *    Aplicar escopo so aqui deixava a tela mais restrita que o banco, sem que a
- *    configuracao dissesse isso em lugar nenhum.
- *
- * 2. "Sem responsavel" nao vira "de ninguem" pro vendedor. Com um unico numero
- *    da loja e nenhum dono, a regra antiga zerava a lista e o vendedor abria o
- *    chat vazio (aconteceu na Atacado Moda Sul). Numero da equipe agora e
- *    escolha explicita - `shared_with_all` -, nao deducao a partir do nulo.
+ * Cuidado que ja custou acesso de cliente: "sem responsavel" nao pode virar
+ * "de ninguem" pro vendedor. Com um unico numero da loja e nenhum dono, a
+ * regra antiga zerava a lista e o vendedor abria o chat vazio (aconteceu na
+ * Atacado Moda Sul). Numero da equipe agora e escolha explicita -
+ * `shared_with_all` -, nao deducao a partir do nulo.
  */
 export function buildChatAccountVisibility(
   accounts: AccountVisibilityRow[],
   userId: string,
   role: MemberRole,
-  leadAssignmentEnabled = true,
 ): ChatAccountVisibility | null {
   if (canSeeAllLeads(role)) return null;
-  if (!leadAssignmentEnabled) return null;
 
   const isShared = (account: AccountVisibilityRow) => account.shared_with_all === true;
   const ownedIds = accounts
@@ -79,19 +82,12 @@ export async function getChatAccountVisibility(
 ): Promise<ChatAccountVisibility | null> {
   if (canSeeAllLeads(role)) return null;
   const supabase = createServiceClient();
-  // A flag do tenant entra aqui em vez de virar parametro: sao 7 chamadores
-  // e nenhum deles decide isso - quem decide e a configuracao da empresa.
-  const [{ data, error }, { data: tenantRow }] = await Promise.all([
-    supabase.from("whatsapp_accounts").select("id, assigned_to, shared_with_all").eq("tenant_id", tenantId),
-    supabase.from("tenants").select("lead_assignment_enabled").eq("id", tenantId).maybeSingle(),
-  ]);
+  const { data, error } = await supabase
+    .from("whatsapp_accounts")
+    .select("id, assigned_to, shared_with_all")
+    .eq("tenant_id", tenantId);
   if (error) throw new Error(error.message);
-  return buildChatAccountVisibility(
-    (data ?? []) as AccountVisibilityRow[],
-    userId,
-    role,
-    (tenantRow as { lead_assignment_enabled?: boolean } | null)?.lead_assignment_enabled ?? true,
-  );
+  return buildChatAccountVisibility((data ?? []) as AccountVisibilityRow[], userId, role);
 }
 
 export function canAccessConversationAccount(

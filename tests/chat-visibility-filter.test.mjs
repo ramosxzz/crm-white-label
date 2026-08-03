@@ -126,20 +126,10 @@ test("sem responsavel continua invisivel pro vendedor - nao vira compartilhado s
   assert.deepEqual(filterByAllowedAccounts([item("orfao")], visibility), []);
 });
 
-test("tenant sem distribuicao de leads nao separa por numero", async () => {
-  // A RLS de leads ja libera tudo quando lead_assignment_enabled e false;
-  // a tela nao pode ficar mais restrita que o banco.
-  const { buildChatAccountVisibility } = await loadModule();
-  const visibility = buildChatAccountVisibility(
-    [{ id: "acc-a", assigned_to: "seller-b" }],
-    "seller-a",
-    "vendedor",
-    false,
-  );
-  assert.equal(visibility, null);
-});
-
-test("com distribuicao ligada o escopo por vendedor continua valendo", async () => {
+test("separacao por numero vale mesmo com distribuicao de leads desligada", async () => {
+  // Caso Vasos Fortuna: numero por vendedor, mas lead_assignment_enabled
+  // desligado no Kanban. As duas features sao independentes - a restricao
+  // de numero nao pode depender da flag do Kanban.
   const { buildChatAccountVisibility, filterByAllowedAccounts } = await loadModule();
   const visibility = buildChatAccountVisibility(
     [
@@ -148,7 +138,6 @@ test("com distribuicao ligada o escopo por vendedor continua valendo", async () 
     ],
     "seller-a",
     "vendedor",
-    true,
   );
   const result = filterByAllowedAccounts([item("meu"), item("colega")], visibility);
   assert.deepEqual(result.map((i) => i.whatsappAccountId), ["meu"]);
