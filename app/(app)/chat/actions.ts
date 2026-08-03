@@ -15,6 +15,7 @@ import {
   canAccessConversationAccount,
   getChatAccountVisibility,
 } from "@/lib/chat/list-conversation-items";
+import { normalizePhone } from "@/lib/utils";
 
 const LABEL_COLORS = ["#7c3aed", "#2563eb", "#059669", "#dc2626", "#d97706", "#0891b2"];
 
@@ -783,6 +784,50 @@ export async function setLeadAutomations(input: { leadId: string; enabled: boole
     .eq("tenant_id", ctx.tenantId);
   if (error) throw new Error(error.message);
   revalidatePath(`/chat/${input.leadId}`);
+}
+
+/** Clicar num numero de telefone dentro do texto de uma mensagem (igual o
+ * WhatsApp faz) abre a conversa daquele numero - cria um lead novo se ainda
+ * nao existir, do jeito que o WhatsApp abriria um chat novo. */
+export async function openLeadByPhone(rawPhone: string): Promise<{ leadId: string }> {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+  const phone = normalizePhone(rawPhone);
+  if (!phone) throw new Error("Numero invalido");
+
+  const { data: existing } = await supabase
+    .from("leads")
+    .select("id")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("phone", phone)
+    .maybeSingle();
+  if (existing) return { leadId: existing.id };
+
+  const { data: pipeline } = await supabase
+    .from("pipelines")
+    .select("id, pipeline_stages(id, position)")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("is_default", true)
+    .single();
+  const stages = (pipeline as { pipeline_stages?: { id: string; position: number }[] } | null)
+    ?.pipeline_stages?.sort((a, b) => a.position - b.position);
+
+  const { data: created, error } = await supabase
+    .from("leads")
+    .insert({
+      tenant_id: ctx.tenantId,
+      name: phone,
+      phone,
+      source: "manual",
+      stage_id: stages?.[0]?.id,
+      pipeline_id: (pipeline as { id?: string } | null)?.id,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/leads");
+  return { leadId: created.id };
 }
 
 export async function markConversationRead(conversationId: string) {

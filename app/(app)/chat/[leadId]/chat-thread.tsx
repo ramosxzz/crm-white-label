@@ -1,6 +1,7 @@
 "use client";
 
 import { notify, notifyError } from "@/lib/ui/feedback";
+import { LinkifiedText } from "@/components/chat/linkified-text";
 import { mediaSizeError } from "@/lib/whatsapp/media-limits";
 import { withTimeout } from "@/lib/async/with-timeout";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -2176,7 +2177,7 @@ function MessageContent({ message: m }: { message: ChatMessage }) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={src} alt="" loading="lazy" decoding="async" className="max-h-64 max-w-full rounded-lg object-cover" />
         {m.body && m.body !== "📷 Imagem" && (
-          <p className="whitespace-pre-wrap break-words">{m.body}</p>
+          <LinkifiedText text={m.body} className="whitespace-pre-wrap break-words" />
         )}
       </div>
     );
@@ -2198,7 +2199,7 @@ function MessageContent({ message: m }: { message: ChatMessage }) {
         {quoted}
         <video controls preload="none" src={src} className="max-h-64 max-w-full rounded-lg" />
         {m.body && !m.body.startsWith("🎬") && (
-          <p className="whitespace-pre-wrap break-words">{m.body}</p>
+          <LinkifiedText text={m.body} className="whitespace-pre-wrap break-words" />
         )}
       </div>
     );
@@ -2230,7 +2231,7 @@ function MessageContent({ message: m }: { message: ChatMessage }) {
   return (
     <>
       {quoted}
-      <p className="whitespace-pre-wrap break-words">{m.body}</p>
+      <LinkifiedText text={m.body ?? ""} className="whitespace-pre-wrap break-words" />
     </>
   );
 }
