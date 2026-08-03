@@ -227,6 +227,8 @@ export function ConversationList({
     ([key, value]) => value !== DEFAULT_ADVANCED_FILTERS[key as keyof AdvancedFilters],
   ).length;
 
+  const instanceLabelById = useMemo(() => new Map(instances.map((i) => [i.id, i.label])), [instances]);
+
   const filtered = useMemo(() => {
     const result = items.filter((c) => {
       if (statusFilter !== "todas" && c.status !== statusFilter) return false;
@@ -241,7 +243,8 @@ export function ConversationList({
       if (!isWithinPeriod(c.lastAt, appliedFilters.lastMessagePeriod)) return false;
       if (!matchesArrivedFilter(c.leadCreatedAt, appliedFilters.arrived, appliedFilters.arrivedDate)) return false;
       if (appliedFilters.minStars > 0 && c.qualityStars < appliedFilters.minStars) return false;
-      return matchesConversationSearch(c, query);
+      const attendantLabel = c.whatsappAccountId ? instanceLabelById.get(c.whatsappAccountId) : undefined;
+      return matchesConversationSearch(c, query) || (Boolean(attendantLabel) && matchesConversationSearch({ leadName: attendantLabel!, leadSubtitle: "", leadPhone: "" }, query));
     });
 
     result.sort((a, b) => {
@@ -251,7 +254,7 @@ export function ConversationList({
     });
 
     return result;
-  }, [items, query, statusFilter, appliedFilters]);
+  }, [items, query, statusFilter, appliedFilters, instanceLabelById]);
 
   function openFilters() {
     setDraftFilters(appliedFilters);
@@ -548,7 +551,7 @@ export function ConversationList({
             </div>
 
             <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
-              <FilterField label="Instancias">
+              <FilterField label="Atendente / número">
                 <Select
                   value={draftFilters.instanceId}
                   onValueChange={(v) => setDraftFilters((f) => ({ ...f, instanceId: v }))}
