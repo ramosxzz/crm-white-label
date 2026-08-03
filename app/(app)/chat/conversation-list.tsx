@@ -425,11 +425,15 @@ export function ConversationList({
           const opening = openingLeadId === c.leadId && !active;
           const selected = selectedIds.has(c.leadId);
           const preview =
-            c.lastPreview != null
-              ? c.lastDirection === "outbound"
-                ? `Voce: ${c.lastPreview}`
-                : c.lastPreview
-              : "";
+            c.presence === "composing"
+              ? "digitando..."
+              : c.presence === "recording"
+                ? "gravando áudio..."
+                : c.lastPreview != null
+                  ? c.lastDirection === "outbound"
+                    ? `Voce: ${c.lastPreview}`
+                    : c.lastPreview
+                  : "";
 
           return (
             <Link
@@ -511,6 +515,7 @@ export function ConversationList({
                     className={cn(
                       "truncate text-xs text-muted-foreground",
                       c.unread > 0 && "font-medium text-foreground",
+                      c.presence && "italic text-brand",
                     )}
                   >
                     {preview || c.leadSubtitle}

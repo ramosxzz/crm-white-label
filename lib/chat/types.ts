@@ -41,6 +41,8 @@ export type ConversationListItem = {
   leadCreatedAt: string | null;
   callCount?: number;
   qualityStars: number;
+  /** "digitando"/"gravando audio" ao vivo - null quando ninguem esta no ato. */
+  presence?: "composing" | "recording" | null;
 };
 
 export type GroupLabelItem = {

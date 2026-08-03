@@ -22,6 +22,8 @@ import {
   type DbMessageStatus,
 } from "@/lib/whatsapp/zapi-status";
 import { parseEvolutionMessageStatusUpdates } from "@/lib/whatsapp/evolution-status";
+import { parseEvolutionPresenceUpdate } from "@/lib/whatsapp/evolution-presence";
+import { findLeadByContact } from "@/lib/leads/find-by-contact";
 
 import { isValidWhatsAppPhone, normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
 
@@ -263,6 +265,38 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
     if (statusUpdates.length > 0) {
       const applied = await applyMessageStatusUpdates(supabase, account.tenant_id, statusUpdates);
       return NextResponse.json({ ok: true, parsed: 0, statusUpdates: applied });
+    }
+
+    if (evoPayload.event === "presence.update") {
+      const presence = parseEvolutionPresenceUpdate(payload);
+      if (presence) {
+        // So atualiza conversa que ja existe - "digitando" de um contato sem
+        // conversa nenhuma nao serve pra nada e nao deve criar lead.
+        const lead = await findLeadByContact(supabase, account.tenant_id, { phone: presence.phone });
+        const { data: conversation } = lead
+          ? await supabase
+              .from("conversations")
+              .select("id")
+              .eq("tenant_id", account.tenant_id)
+              .eq("lead_id", lead.id)
+              .eq("whatsapp_account_id", account.id)
+              .maybeSingle()
+          : { data: null };
+
+        if (conversation) {
+          if (presence.state) {
+            await supabase.from("conversation_presence").upsert({
+              tenant_id: account.tenant_id,
+              conversation_id: conversation.id,
+              state: presence.state,
+              updated_at: new Date().toISOString(),
+            });
+          } else {
+            await supabase.from("conversation_presence").delete().eq("conversation_id", conversation.id);
+          }
+        }
+      }
+      return NextResponse.json({ ok: true, parsed: 0 });
     }
   }
 

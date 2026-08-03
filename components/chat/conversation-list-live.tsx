@@ -16,6 +16,9 @@ const CONTACT_POLL_MS = 90_000;
 const CONTACT_REALTIME_REFRESH_MS = 400;
 const CONTACT_REFRESH_MIN_INTERVAL_MS = 3_000;
 const CONTACT_ACTIVE_REFRESH_COOLDOWN_MS = 15_000;
+// Rede de seguranca: se a Evolution nunca mandar o presence "parou" (paused/
+// available), o indicador nao pode ficar preso pra sempre.
+const PRESENCE_EXPIRE_MS = 8_000;
 
 export function ConversationListLive({
   tenantId,
@@ -38,6 +41,7 @@ export function ConversationListLive({
   const refreshContactsRef = useRef<(options?: { force?: boolean }) => Promise<void>>(async () => {});
   const lastContactRefreshAtRef = useRef(0);
   const notificationAudioRef = useRef<HTMLAudioElement | null>(null);
+  const presenceTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   // A assinatura de realtime abaixo so filtra por tenant_id: o Postgres Changes
   // nao enxerga a regra de "quem pode ver qual conversa" (numero atribuido a
   // outro vendedor, numero exclusivo do administrador etc). Sem este ref, o
@@ -51,6 +55,27 @@ export function ConversationListLive({
   useEffect(() => {
     visibleConversationIdsRef.current = new Set(items.map((item) => item.id));
   }, [items]);
+
+  const setPresence = useCallback((conversationId: string, state: "composing" | "recording" | null) => {
+    const timers = presenceTimersRef.current;
+    const existingTimer = timers.get(conversationId);
+    if (existingTimer) clearTimeout(existingTimer);
+    timers.delete(conversationId);
+
+    setItems((current) =>
+      current.map((item) => (item.id === conversationId ? { ...item, presence: state } : item)),
+    );
+
+    if (state) {
+      const timer = setTimeout(() => {
+        timers.delete(conversationId);
+        setItems((current) =>
+          current.map((item) => (item.id === conversationId ? { ...item, presence: null } : item)),
+        );
+      }, PRESENCE_EXPIRE_MS);
+      timers.set(conversationId, timer);
+    }
+  }, []);
 
   const playNotificationSound = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -255,13 +280,33 @@ export function ConversationListLive({
         // (e os filtros por etapa) so refletiam apos o poll de 90s.
         () => scheduleContactsRefresh(),
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "conversation_presence",
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const oldRow = payload.old as { conversation_id?: string } | null;
+            if (oldRow?.conversation_id) setPresence(oldRow.conversation_id, null);
+            return;
+          }
+          const row = payload.new as { conversation_id?: string; state?: "composing" | "recording" } | null;
+          if (row?.conversation_id) setPresence(row.conversation_id, row.state ?? null);
+        },
+      )
       .subscribe();
 
     return () => {
       if (contactRefreshTimerRef.current) clearTimeout(contactRefreshTimerRef.current);
+      for (const timer of presenceTimersRef.current.values()) clearTimeout(timer);
+      presenceTimersRef.current.clear();
       void supabase.removeChannel(channel);
     };
-  }, [tenantId, scheduleContactsRefresh, playNotificationSound]);
+  }, [tenantId, scheduleContactsRefresh, playNotificationSound, setPresence]);
 
   return (
     <ConversationList
