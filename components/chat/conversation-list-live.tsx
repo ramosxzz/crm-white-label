@@ -16,6 +16,7 @@ const CONTACT_POLL_MS = 90_000;
 const CONTACT_REALTIME_REFRESH_MS = 400;
 const CONTACT_REFRESH_MIN_INTERVAL_MS = 3_000;
 const CONTACT_ACTIVE_REFRESH_COOLDOWN_MS = 15_000;
+const SEARCH_DEBOUNCE_MS = 250;
 // Rede de seguranca: se a Evolution nunca mandar o presence "parou" (paused/
 // available), o indicador nao pode ficar preso pra sempre.
 const PRESENCE_EXPIRE_MS = 8_000;
@@ -33,6 +34,8 @@ export function ConversationListLive({
 }) {
   const [items, setItems] = useState(initialItems);
   const [query, setQuery] = useState("");
+  const [searchItems, setSearchItems] = useState<ConversationListItem[] | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("todas");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const contactRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -53,8 +56,10 @@ export function ConversationListLive({
   const visibleConversationIdsRef = useRef<Set<string>>(new Set(initialItems.map((item) => item.id)));
 
   useEffect(() => {
-    visibleConversationIdsRef.current = new Set(items.map((item) => item.id));
-  }, [items]);
+    visibleConversationIdsRef.current = new Set(
+      [...items, ...(searchItems ?? [])].map((item) => item.id),
+    );
+  }, [items, searchItems]);
 
   const setPresence = useCallback((conversationId: string, state: "composing" | "recording" | null) => {
     const timers = presenceTimersRef.current;
@@ -65,12 +70,22 @@ export function ConversationListLive({
     setItems((current) =>
       current.map((item) => (item.id === conversationId ? { ...item, presence: state } : item)),
     );
+    setSearchItems((current) =>
+      current?.map((item) =>
+        item.id === conversationId ? { ...item, presence: state } : item,
+      ) ?? null,
+    );
 
     if (state) {
       const timer = setTimeout(() => {
         timers.delete(conversationId);
         setItems((current) =>
           current.map((item) => (item.id === conversationId ? { ...item, presence: null } : item)),
+        );
+        setSearchItems((current) =>
+          current?.map((item) =>
+            item.id === conversationId ? { ...item, presence: null } : item,
+          ) ?? null,
         );
       }, PRESENCE_EXPIRE_MS);
       timers.set(conversationId, timer);
@@ -185,6 +200,39 @@ export function ConversationListLive({
     setItems(initialItems);
   }, [initialItems]);
 
+  // A lista normal traz so as conversas mais recentes para manter o chat
+  // leve. Ao pesquisar, consulta o servidor para encontrar tambem contatos
+  // antigos, sempre com a mesma regra de tenant/numero do usuario logado.
+  useEffect(() => {
+    const search = query.trim();
+    if (!search) {
+      setSearchItems(null);
+      setIsSearching(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setIsSearching(true);
+    const timer = setTimeout(() => {
+      void fetchConversationItems(tenantId, { query: search, signal: controller.signal })
+        .then(setSearchItems)
+        .catch((error: unknown) => {
+          if (!(error instanceof DOMException && error.name === "AbortError")) {
+            // Mantem o filtro local como contingencia se a rede oscilar.
+            setSearchItems(null);
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setIsSearching(false);
+        });
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query, tenantId]);
+
   useEffect(() => {
     const timer = setTimeout(() => void syncMissingProfilePictures(items), 600);
     return () => clearTimeout(timer);
@@ -235,6 +283,9 @@ export function ConversationListLive({
           );
           if (row) {
             setItems((current) => applyRealtimeMessageToConversationItems(current, row).items);
+            setSearchItems((current) =>
+              current ? applyRealtimeMessageToConversationItems(current, row).items : null,
+            );
           }
           // So toca se a conversa e uma que esta na lista desta pessoa agora.
           // Conversa nova (ainda nao refletida no estado) fica sem som ate o
@@ -311,12 +362,14 @@ export function ConversationListLive({
   return (
     <ConversationList
       items={items}
+      searchItems={searchItems}
       query={query}
       statusFilter={statusFilter}
       onQueryChange={setQuery}
       onStatusFilterChange={setStatusFilter}
       onRefresh={handleManualRefresh}
       isRefreshing={isRefreshing}
+      isSearching={isSearching}
       instances={instances}
       stages={stages}
       tenantId={tenantId}

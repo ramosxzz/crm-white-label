@@ -229,11 +229,16 @@ async function listFilteredConversationItemsForTenant(
   const search = filters.search.trim();
   const status = filters.status.trim();
   let leadIds: string[] | null = null;
+  let accountIds: string[] | null = null;
 
   if (search) {
-    const matches = await findMatchingLeadIds(tenantId, search);
-    leadIds = [...new Set(matches)];
-    if (leadIds.length === 0) return [];
+    const [leadMatches, accountMatches] = await Promise.all([
+      findMatchingLeadIds(tenantId, search),
+      findMatchingAccountIds(tenantId, search),
+    ]);
+    leadIds = [...new Set(leadMatches)];
+    accountIds = [...new Set(accountMatches)];
+    if (leadIds.length === 0 && accountIds.length === 0) return [];
   }
 
   let query = supabase
@@ -244,7 +249,15 @@ async function listFilteredConversationItemsForTenant(
     .limit(cappedLimit);
 
   if (status && status !== "todas") query = query.eq("status", status);
-  if (leadIds) query = query.in("lead_id", leadIds);
+  if (leadIds && accountIds && leadIds.length > 0 && accountIds.length > 0) {
+    query = query.or(
+      `lead_id.in.(${leadIds.join(",")}),whatsapp_account_id.in.(${accountIds.join(",")})`,
+    );
+  } else if (leadIds && leadIds.length > 0) {
+    query = query.in("lead_id", leadIds);
+  } else if (accountIds && accountIds.length > 0) {
+    query = query.in("whatsapp_account_id", accountIds);
+  }
 
   const [{ data: rows, error }, { data: waAccount }] = await Promise.all([
     query,
@@ -297,6 +310,36 @@ async function findMatchingLeadIds(tenantId: string, search: string): Promise<st
   const failed = results.find((result) => result.error);
   if (failed?.error) throw new Error(failed.error.message);
 
+  return results.flatMap((result) =>
+    ((result.data ?? []) as { id: string }[]).map((row) => row.id),
+  );
+}
+
+async function findMatchingAccountIds(tenantId: string, search: string): Promise<string[]> {
+  const supabase = createServiceClient();
+  const digits = search.replace(/\D/g, "");
+  const queries = [
+    supabase
+      .from("whatsapp_accounts")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .ilike("display_name", `%${search}%`)
+      .limit(100),
+  ];
+  if (digits.length >= 4) {
+    queries.push(
+      supabase
+        .from("whatsapp_accounts")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .ilike("phone_number", `%${digits}%`)
+        .limit(100),
+    );
+  }
+
+  const results = await Promise.all(queries);
+  const failed = results.find((result) => result.error);
+  if (failed?.error) throw new Error(failed.error.message);
   return results.flatMap((result) =>
     ((result.data ?? []) as { id: string }[]).map((row) => row.id),
   );

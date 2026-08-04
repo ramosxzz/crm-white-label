@@ -105,23 +105,27 @@ function isWithinPeriod(lastAt: string | null, period: LastMessagePeriodFilter):
 
 export function ConversationList({
   items,
+  searchItems,
   query,
   statusFilter,
   onQueryChange,
   onStatusFilterChange,
   onRefresh,
   isRefreshing,
+  isSearching,
   instances,
   stages,
   tenantId,
 }: {
   items: ConversationListItem[];
+  searchItems?: ConversationListItem[] | null;
   query: string;
   statusFilter: StatusFilter;
   onQueryChange: (query: string) => void;
   onStatusFilterChange: (status: StatusFilter) => void;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  isSearching?: boolean;
   instances: { id: string; label: string }[];
   stages: { id: string; name: string }[];
   tenantId?: string;
@@ -228,9 +232,12 @@ export function ConversationList({
   ).length;
 
   const instanceLabelById = useMemo(() => new Map(instances.map((i) => [i.id, i.label])), [instances]);
+  const displayedItems = query.trim() && searchItems !== null && searchItems !== undefined
+    ? searchItems
+    : items;
 
   const filtered = useMemo(() => {
-    const result = items.filter((c) => {
+    const result = displayedItems.filter((c) => {
       if (statusFilter !== "todas" && c.status !== statusFilter) return false;
       if (appliedFilters.instanceId !== "todos" && c.whatsappAccountId !== appliedFilters.instanceId) return false;
       if (appliedFilters.tag !== "todos" && !c.tags.includes(appliedFilters.tag)) return false;
@@ -254,7 +261,7 @@ export function ConversationList({
     });
 
     return result;
-  }, [items, query, statusFilter, appliedFilters, instanceLabelById]);
+  }, [displayedItems, query, statusFilter, appliedFilters, instanceLabelById]);
 
   function openFilters() {
     setDraftFilters(appliedFilters);
@@ -336,10 +343,16 @@ export function ConversationList({
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Pesquisar conversa..."
-            className="h-10 rounded-lg border-border/60 bg-background/50 pl-9"
+            className="h-10 rounded-lg border-border/60 bg-background/50 pl-9 pr-9"
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
           />
+          {isSearching && (
+            <Loader2
+              className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground"
+              aria-label="Pesquisando conversas"
+            />
+          )}
         </div>
 
         {selectMode ? (
@@ -417,10 +430,22 @@ export function ConversationList({
       <div className="flex-1 overflow-y-auto">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center px-6 py-20 text-center">
-            <Inbox className="mb-3 h-10 w-10 text-muted-foreground/60" />
-            <p className="text-sm font-medium">Nenhuma conversa</p>
+            {isSearching ? (
+              <Loader2 className="mb-3 h-10 w-10 animate-spin text-muted-foreground/60" />
+            ) : (
+              <Inbox className="mb-3 h-10 w-10 text-muted-foreground/60" />
+            )}
+            <p className="text-sm font-medium">
+              {isSearching
+                ? "Pesquisando conversas..."
+                : query.trim()
+                  ? "Nenhuma conversa encontrada"
+                  : "Nenhuma conversa"}
+            </p>
             <p className="mt-1 max-w-[240px] text-xs text-muted-foreground">
-              As mensagens do WhatsApp aparecem aqui automaticamente.
+              {query.trim()
+                ? "Tente buscar por outro nome ou telefone."
+                : "As mensagens do WhatsApp aparecem aqui automaticamente."}
             </p>
           </div>
         ) : filtered.map((c) => {

@@ -25,14 +25,17 @@ export async function fetchMessages(conversationId: string): Promise<ChatMessage
 
 export async function fetchConversationItems(
   tenantId: string,
-  options: { query?: string; status?: string } = {},
+  options: { query?: string; status?: string; signal?: AbortSignal } = {},
 ): Promise<ConversationListItem[]> {
   void tenantId;
   const params = new URLSearchParams();
   if (options.query?.trim()) params.set("q", options.query.trim());
   if (options.status?.trim()) params.set("status", options.status.trim());
   const url = params.size > 0 ? `/api/chat/conversations?${params.toString()}` : "/api/chat/conversations";
-  const res = await fetch(withFreshParam(url), noStoreFetchOptions);
+  const res = await fetch(withFreshParam(url), {
+    ...noStoreFetchOptions,
+    signal: options.signal,
+  });
   const payload = (await res.json()) as { conversations?: ConversationListItem[]; error?: string };
   if (!res.ok) throw new Error(payload.error ?? "Falha ao carregar conversas");
   return payload.conversations ?? [];
