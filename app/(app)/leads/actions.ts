@@ -14,6 +14,7 @@ import { forwardNewLead } from "@/lib/leads/forward-new-lead";
 import { dispatchWebhookEvent } from "@/lib/api/dispatch-webhook";
 import { listTenantUserOptions } from "@/lib/tenant/users";
 import { suggestCsvMapping, type CsvFieldMapping } from "@/lib/ai/csv-mapping";
+import { isDuplicateLeadPhoneError, prepareSpreadsheetLeads } from "@/lib/leads/spreadsheet-import";
 
 const leadSchema = z.object({
   name: z.string().min(1, "Nome obrigatorio"),
@@ -519,21 +520,64 @@ export async function importLeadsCSV(
   const stageId = stages?.[0]?.id;
   const pipelineId = (pipeline as { id?: string } | null)?.id;
 
-  const inserts = rows
-    .filter((r) => r.name?.trim())
-    .map((r) => ({
+  const prepared = prepareSpreadsheetLeads(rows);
+  let skippedDuplicates = prepared.skippedDuplicates;
+
+  // Evita que um telefone que ja existe no tenant invalide o lote inteiro.
+  // A verificacao antecipada deixa o caminho comum rapido; o fallback abaixo
+  // ainda cobre concorrencia e linhas ocultas por RLS.
+  const phones = prepared.rows.flatMap((row) => (row.phone ? [row.phone] : []));
+  const existingPhones = new Set<string>();
+  for (let index = 0; index < phones.length; index += 500) {
+    const { data: existing, error: existingError } = await supabase
+      .from("leads")
+      .select("phone")
+      .eq("tenant_id", ctx.tenantId)
+      .in("phone", phones.slice(index, index + 500));
+    if (existingError) throw new Error(existingError.message);
+    for (const row of existing ?? []) {
+      if (row.phone) existingPhones.add(row.phone);
+    }
+  }
+
+  const newRows = prepared.rows.filter((row) => {
+    if (!row.phone || !existingPhones.has(row.phone)) return true;
+    skippedDuplicates++;
+    return false;
+  });
+
+  const inserts = newRows.map((r) => ({
       tenant_id: ctx.tenantId,
-      name: r.name.trim(),
-      phone: r.phone ? normalizePhone(r.phone) : null,
-      email: r.email?.trim() || null,
-      source: r.source?.trim() || "csv-import",
+      name: r.name,
+      phone: r.phone,
+      email: r.email,
+      source: r.source || "csv-import",
       stage_id: stageId,
       pipeline_id: pipelineId,
       assigned_to: assignedTo || null,
     }));
 
-  if (inserts.length === 0) return { count: 0 };
-  const { data: createdLeads, error, count } = await supabase.from("leads").insert(inserts, { count: "exact" }).select("id");
+  if (inserts.length === 0) {
+    return { count: 0, skippedDuplicates, invalidPhones: prepared.invalidPhones };
+  }
+
+  let { data: createdLeads, error } = await supabase.from("leads").insert(inserts).select("id");
+  if (error && isDuplicateLeadPhoneError(error)) {
+    // O insert em lote e atomico. Se surgiu um duplicado entre a consulta e
+    // a gravacao (ou ele estava invisivel por RLS), tenta cada linha para nao
+    // perder todas as outras.
+    createdLeads = [];
+    for (const insert of inserts) {
+      const { data: created, error: rowError } = await supabase.from("leads").insert(insert).select("id").maybeSingle();
+      if (isDuplicateLeadPhoneError(rowError)) {
+        skippedDuplicates++;
+        continue;
+      }
+      if (rowError) throw new Error(rowError.message);
+      if (created) createdLeads.push(created);
+    }
+    error = null;
+  }
   if (error) throw new Error(error.message);
   // Atribuicao explicita (planilha mandada pra alguem especifico) tem
   // prioridade - so distribui por round-robin quem ficou sem dono.
@@ -548,5 +592,9 @@ export async function importLeadsCSV(
   }
   revalidatePath("/leads");
   revalidatePath("/kanban");
-  return { count: count ?? inserts.length };
+  return {
+    count: createdLeads?.length ?? 0,
+    skippedDuplicates,
+    invalidPhones: prepared.invalidPhones,
+  };
 }

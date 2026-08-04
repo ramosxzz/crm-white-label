@@ -143,12 +143,22 @@ export function ImportCsvDialog({
   function onConfirm() {
     start(async () => {
       try {
-        const { count } = await importLeadsCSV(rows, canAssign && assignedTo !== "auto" ? assignedTo : null);
-        setResult(`${count} leads importados`);
+        const { count, skippedDuplicates, invalidPhones } = await importLeadsCSV(
+          rows,
+          canAssign && assignedTo !== "auto" ? assignedTo : null,
+        );
+        const summary = [`${count} lead${count === 1 ? "" : "s"} importado${count === 1 ? "" : "s"}`];
+        if (skippedDuplicates > 0) {
+          summary.push(`${skippedDuplicates} duplicado${skippedDuplicates === 1 ? "" : "s"} ignorado${skippedDuplicates === 1 ? "" : "s"}`);
+        }
+        if (invalidPhones > 0) {
+          summary.push(`${invalidPhones} sem telefone valido`);
+        }
+        setResult(summary.join(" · "));
         setTimeout(() => {
           setOpen(false);
           reset();
-        }, 1200);
+        }, 3000);
       } catch (err) {
         notifyError(err);
       }
