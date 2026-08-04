@@ -32,6 +32,8 @@ export type LeadsDashboardData = {
     value_cents: number | null;
   }[];
   weekTrend: { date: string; label: string; count: number }[];
+  starsDistribution: { stars: number; count: number }[];
+  starsAverage: number;
 };
 
 export function buildLeadsByHour(leads: { created_at: string }[], startIso: string) {
@@ -70,6 +72,20 @@ export function aggregateSources(leads: { source: string | null }[]) {
     .map(([source, count]) => ({ source, count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 6);
+}
+
+export function aggregateStars(leads: { quality_stars: number | null }[]) {
+  const counts = [0, 0, 0, 0, 0, 0];
+  let total = 0;
+  for (const lead of leads) {
+    const stars = Math.min(5, Math.max(0, lead.quality_stars ?? 0));
+    counts[stars]++;
+    total += stars;
+  }
+  const distribution = counts.map((count, stars) => ({ stars, count }));
+  const rated = leads.length - counts[0];
+  const average = rated > 0 ? total / rated : 0;
+  return { distribution, average };
 }
 
 export function buildWeekTrend(leads: { created_at: string }[]) {

@@ -506,6 +506,8 @@ export async function cancelScheduledMessage(input: { id: string; leadId: string
   revalidatePath(`/chat/${input.leadId}`);
 }
 
+const CLOSE_CHANNEL_PREFIX = "Fechado: ";
+
 export async function updateChatLeadBusiness(input: {
   leadId: string;
   valueCents: number;
@@ -513,6 +515,8 @@ export async function updateChatLeadBusiness(input: {
   stageId: string | null;
   assignedTo: string | null;
   lostReason?: string | null;
+  lostPain?: string | null;
+  closeChannel?: string | null;
 }) {
   const ctx = await requireContext();
   const supabase = await createClient();
@@ -520,19 +524,22 @@ export async function updateChatLeadBusiness(input: {
 
   const { data: lead } = await supabase
     .from("leads")
-    .select("assigned_to, stage_id, won_at")
+    .select("assigned_to, stage_id, won_at, tags")
     .eq("id", input.leadId)
     .eq("tenant_id", ctx.tenantId)
     .single();
   if (!lead) throw new Error("Lead nao encontrado");
-  const currentLead = lead as { assigned_to: string | null; stage_id: string | null; won_at: string | null };
+  const currentLead = lead as { assigned_to: string | null; stage_id: string | null; won_at: string | null; tags: string[] | null };
 
   let pipelineId = input.pipelineId;
   let stageId = input.stageId;
   // Marca/limpa won_at ao mover para (ou sair de) uma etapa de ganho.
   let wonAtPatch: { won_at: string | null } | null = null;
-  // Motivo da desistencia so faz sentido numa etapa de perda; some das demais.
-  let lostReasonPatch: { lost_reason: string | null } | null = null;
+  // Motivo/dor da desistencia so fazem sentido numa etapa de perda; somem das demais.
+  let lostReasonPatch: { lost_reason: string | null; lost_pain: string | null } | null = null;
+  // Canal de fechamento vira uma tag "Fechado: X" - so faz sentido numa etapa
+  // de ganho. Substitui qualquer tag de canal anterior (nao acumula).
+  let tagsPatch: { tags: string[] } | null = null;
   if (stageId) {
     const { data: stage } = await supabase
       .from("pipeline_stages")
@@ -548,14 +555,20 @@ export async function updateChatLeadBusiness(input: {
       if (!currentLead.won_at || currentLead.stage_id !== stageId) {
         wonAtPatch = { won_at: new Date().toISOString() };
       }
+      const withoutChannel = (currentLead.tags ?? []).filter((t) => !t.startsWith(CLOSE_CHANNEL_PREFIX));
+      const channel = input.closeChannel?.trim();
+      tagsPatch = { tags: channel ? [...withoutChannel, `${CLOSE_CHANNEL_PREFIX}${channel}`] : withoutChannel };
     } else {
       wonAtPatch = { won_at: null };
     }
-    lostReasonPatch = { lost_reason: isLost ? (input.lostReason?.trim() || null) : null };
+    lostReasonPatch = {
+      lost_reason: isLost ? (input.lostReason?.trim() || null) : null,
+      lost_pain: isLost ? (input.lostPain?.trim() || null) : null,
+    };
   } else {
     // Sem etapa: lead sai do pipeline, deixa de ser um ganho.
     wonAtPatch = { won_at: null };
-    lostReasonPatch = { lost_reason: null };
+    lostReasonPatch = { lost_reason: null, lost_pain: null };
   }
   if (pipelineId) {
     const { data: pipeline } = await supabase
@@ -600,6 +613,7 @@ export async function updateChatLeadBusiness(input: {
       assigned_to: input.assignedTo,
       ...(wonAtPatch ?? {}),
       ...(lostReasonPatch ?? {}),
+      ...(tagsPatch ?? {}),
     })
     .eq("id", input.leadId)
     .eq("tenant_id", ctx.tenantId);
@@ -688,6 +702,8 @@ export async function updateChatLeadBusiness(input: {
   revalidatePath("/leads");
   revalidatePath(`/leads/${input.leadId}`);
   revalidatePath("/kanban");
+
+  return { tags: tagsPatch?.tags ?? currentLead.tags ?? [] };
 }
 
 export async function updateChatLeadTags(input: { leadId: string; tags: string[] }) {

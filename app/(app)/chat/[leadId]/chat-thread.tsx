@@ -122,12 +122,13 @@ type LeadDetails = {
   openTasksCount: number;
   qualityStars: number;
   lostReason: string | null;
+  lostPain: string | null;
 };
 
 type PipelineOption = {
   id: string;
   name: string;
-  stages: { id: string; name: string; color: string | null; position: number | null; is_lost?: boolean | null }[];
+  stages: { id: string; name: string; color: string | null; position: number | null; is_lost?: boolean | null; is_won?: boolean | null }[];
 };
 
 type ScheduledMessage = {
@@ -160,6 +161,7 @@ type LeadDetailsRow = {
   created_at: string;
   quality_stars: number | null;
   lost_reason: string | null;
+  lost_pain: string | null;
 };
 
 function detectMediaKind(mime: string): MediaKind {
@@ -172,6 +174,7 @@ function detectMediaKind(mime: string): MediaKind {
 // Realtime ja atualiza em tempo real; o polling e so uma rede de seguranca
 // (caso o realtime perca um evento) e roda devagar e so com a aba visivel.
 const POLL_MS = 90_000;
+const CLOSE_CHANNEL_OPTIONS = ["Ligação", "Mensagem", "WhatsApp", "Presencial", "Indicação", "Outro"];
 
 // Teto pro upload de midia do chat. Nao cancela o upload de verdade (a rede
 // pode continuar tentando em segundo plano), mas garante que a tela nunca
@@ -278,6 +281,7 @@ function buildLeadDetailsFromRow(
     openTasksCount: previous?.openTasksCount ?? 0,
     qualityStars: row.quality_stars ?? 0,
     lostReason: row.lost_reason,
+    lostPain: row.lost_pain,
   };
 }
 
@@ -492,7 +496,7 @@ export function ChatThread({
     const supabase = createClient();
     const { data } = await supabase
       .from("leads")
-      .select("pipeline_id, stage_id, assigned_to, email, source, notes, tags, value_cents, created_at, quality_stars, lost_reason")
+      .select("pipeline_id, stage_id, assigned_to, email, source, notes, tags, value_cents, created_at, quality_stars, lost_reason, lost_pain")
       .eq("id", leadId)
       .eq("tenant_id", tenantId)
       .maybeSingle();
@@ -2461,6 +2465,8 @@ function LeadSidePanel({
   const [localStars, setLocalStars] = useState<number | null>(null);
   const [businessDirty, setBusinessDirty] = useState(false);
   const [lostReason, setLostReason] = useState(details?.lostReason ?? "");
+  const [lostPain, setLostPain] = useState(details?.lostPain ?? "");
+  const [closeChannel, setCloseChannel] = useState("");
   const stageOwnerPipelineId = useMemo(() => {
     if (!details?.stageId) return null;
     return pipelineOptions.find((pipeline) => pipeline.stages.some((stage) => stage.id === details.stageId))?.id ?? null;
@@ -2487,6 +2493,8 @@ function LeadSidePanel({
     setBusinessDirty(false);
     setLocalStars(null);
     setLostReason(details?.lostReason ?? "");
+    setLostPain(details?.lostPain ?? "");
+    setCloseChannel("");
   }, [leadId]);
 
   useEffect(() => {
@@ -2574,8 +2582,13 @@ function LeadSidePanel({
       stageId: businessDraft.stageId === "none" ? null : businessDraft.stageId,
       assignedTo: businessDraft.assignedTo === "none" ? null : businessDraft.assignedTo,
       lostReason,
+      lostPain,
+      closeChannel,
     })
-      .then(() => setBusinessDirty(false))
+      .then((res) => {
+        setBusinessDirty(false);
+        if (res?.tags) setTags(res.tags);
+      })
       .catch((err) => notifyError(err))
       .finally(() => setBusinessSaving(false));
   }
@@ -2841,17 +2854,56 @@ function LeadSidePanel({
           </div>
 
           {selectedStages.find((stage) => stage.id === businessDraft.stageId)?.is_lost && (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Dor do cliente</Label>
+                <Input
+                  value={lostPain}
+                  onChange={(e) => {
+                    setBusinessDirty(true);
+                    setLostPain(e.target.value);
+                  }}
+                  placeholder="Ex: precisa resolver o problema antes de decidir"
+                  className="h-9 bg-background/70"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Motivo da desistência</Label>
+                <Input
+                  value={lostReason}
+                  onChange={(e) => {
+                    setBusinessDirty(true);
+                    setLostReason(e.target.value);
+                  }}
+                  placeholder="Ex: financeiro, valor caro..."
+                  className="h-9 bg-background/70"
+                />
+              </div>
+            </>
+          )}
+
+          {selectedStages.find((stage) => stage.id === businessDraft.stageId)?.is_won && (
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Motivo da desistência</Label>
-              <Input
-                value={lostReason}
-                onChange={(e) => {
+              <Label className="text-xs text-muted-foreground">Canal de fechamento</Label>
+              <Select
+                value={closeChannel || "none"}
+                onValueChange={(value) => {
                   setBusinessDirty(true);
-                  setLostReason(e.target.value);
+                  setCloseChannel(value === "none" ? "" : value);
                 }}
-                placeholder="Ex: financeiro, valor caro..."
-                className="h-9 bg-background/70"
-              />
+              >
+                <SelectTrigger className="h-9 bg-background/70">
+                  <SelectValue placeholder="Como fechou?" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Não informado</SelectItem>
+                  {CLOSE_CHANNEL_OPTIONS.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 

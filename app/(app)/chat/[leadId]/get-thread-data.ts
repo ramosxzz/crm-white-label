@@ -40,7 +40,7 @@ export async function getChatThreadData(leadId: string) {
   ] = await Promise.all([
     service
       .from("leads")
-      .select("id, name, phone, email, source, notes, tags, value_cents, created_at, assigned_to, pipeline_id, stage_id, automations_enabled, custom_fields, quality_stars, lost_reason")
+      .select("id, name, phone, email, source, notes, tags, value_cents, created_at, assigned_to, pipeline_id, stage_id, automations_enabled, custom_fields, quality_stars, lost_reason, lost_pain")
       .eq("id", leadId)
       .eq("tenant_id", ctx.tenantId)
       .single(),
@@ -74,7 +74,7 @@ export async function getChatThreadData(leadId: string) {
       .order("created_at"),
     service
       .from("pipelines")
-      .select("id, name, pipeline_stages(id, name, color, position, is_lost)")
+      .select("id, name, pipeline_stages(id, name, color, position, is_lost, is_won)")
       .eq("tenant_id", ctx.tenantId)
       .order("name"),
     service
@@ -119,6 +119,7 @@ export async function getChatThreadData(leadId: string) {
     custom_fields: Record<string, unknown> | null;
     quality_stars: number | null;
     lost_reason: string | null;
+    lost_pain: string | null;
   } | null;
   if (!lead) notFound();
 
@@ -297,7 +298,7 @@ export async function getChatThreadData(leadId: string) {
     pipelineOptions: ((pipelinesRes.data ?? []) as {
       id: string;
       name: string;
-      pipeline_stages?: { id: string; name: string; color: string | null; position: number | null; is_lost?: boolean | null }[];
+      pipeline_stages?: { id: string; name: string; color: string | null; position: number | null; is_lost?: boolean | null; is_won?: boolean | null }[];
     }[]).map((pipeline) => ({
       id: pipeline.id,
       name: pipeline.name,
@@ -321,6 +322,7 @@ export async function getChatThreadData(leadId: string) {
       openTasksCount: openTasksRes.count ?? 0,
       qualityStars: lead.quality_stars ?? 0,
       lostReason: lead.lost_reason,
+      lostPain: lead.lost_pain,
     },
   };
 }

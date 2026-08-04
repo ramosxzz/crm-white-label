@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   ShoppingCart,
   BadgeCheck,
+  Star,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -198,15 +199,67 @@ export function LeadsOpsDashboard({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Últimos 7 dias</CardTitle>
-          <CardDescription>Tendência de novos leads na semana</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <LeadsPerDayChart data={data.weekTrend} />
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 lg:grid-cols-12">
+        <Card className="lg:col-span-7">
+          <CardHeader>
+            <CardTitle>Últimos 7 dias</CardTitle>
+            <CardDescription>Tendência de novos leads na semana</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <LeadsPerDayChart data={data.weekTrend} />
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-5">
+          <CardHeader>
+            <CardTitle>Qualidade dos leads</CardTitle>
+            <CardDescription>
+              {data.starsAverage > 0
+                ? `Média ${data.starsAverage.toFixed(1)} estrelas (leads avaliados)`
+                : "Distribuição por estrelas atribuídas"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {(() => {
+              const total = data.starsDistribution.reduce((sum, s) => sum + s.count, 0);
+              if (total === 0) return <EmptyChart message="Nenhum lead cadastrado ainda." compact />;
+              return [...data.starsDistribution].reverse().map(({ stars, count }) => {
+                const pct = total ? Math.round((count / total) * 100) : 0;
+                return (
+                  <div key={stars} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-1 font-medium">
+                        {stars === 0 ? (
+                          "Sem avaliação"
+                        ) : (
+                          Array.from({ length: 5 }).map((_, i) => (
+                            <Star
+                              key={i}
+                              className={cn(
+                                "h-3.5 w-3.5",
+                                i < stars ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30",
+                              )}
+                            />
+                          ))
+                        )}
+                      </span>
+                      <span className="tabular-nums text-muted-foreground">
+                        {count} · {pct}%
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={cn("h-full rounded-full transition-all", stars === 0 ? "bg-muted-foreground/40" : "bg-amber-400")}
+                        style={{ width: `${Math.max(pct, 2)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">

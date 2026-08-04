@@ -11,6 +11,7 @@ import {
 import { DashboardDateFilter } from "@/components/dashboard/dashboard-date-filter";
 import {
   aggregateSources,
+  aggregateStars,
   buildLeadsByHour,
   buildWeekTrend,
   type LeadsDashboardData,
@@ -86,6 +87,7 @@ export default async function DashboardPage({
     productsResult,
     activeReservationsResult,
     { data: tenantMeta },
+    { data: allLeadsStars },
   ] = await Promise.all([
     supabase
       .from("leads")
@@ -144,6 +146,7 @@ export default async function DashboardPage({
       .select("meta_ad_account_id, meta_ads_access_token, meta_capi_token, lead_forward_user_id")
       .eq("id", ctx.tenantId)
       .single(),
+    supabase.from("leads").select("quality_stars").eq("tenant_id", ctx.tenantId),
   ]);
   const products = productsResult.data ?? [];
   const activeReservations = activeReservationsResult.data ?? [];
@@ -165,6 +168,7 @@ export default async function DashboardPage({
     isLost: s.is_lost,
   }));
 
+  const { distribution: starsDistribution, average: starsAverage } = aggregateStars(allLeadsStars ?? []);
   const wonToday = wonTodayCount ?? 0;
   const pipelineValueTodayCents = (leadsToday ?? []).reduce((a, l) => a + (l.value_cents ?? 0), 0);
   const reservedByProduct = new Map<string, number>();
@@ -208,6 +212,8 @@ export default async function DashboardPage({
       };
     }),
     weekTrend: buildWeekTrend(leadsWeek ?? []),
+    starsDistribution,
+    starsAverage,
   };
 
   const metaAds = await getMetaAdsDashboard({
