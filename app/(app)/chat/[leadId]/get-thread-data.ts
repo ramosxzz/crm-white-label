@@ -323,6 +323,7 @@ export async function getChatThreadData(leadId: string) {
       qualityStars: lead.quality_stars ?? 0,
       lostReason: lead.lost_reason,
       lostPain: lead.lost_pain,
+      creativeName: (lead.custom_fields?.meta_creative_name as string | undefined) ?? null,
     },
   };
 }

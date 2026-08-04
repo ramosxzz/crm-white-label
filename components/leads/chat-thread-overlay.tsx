@@ -35,7 +35,14 @@ export function ChatThreadOverlay({ leadId, onClose }: { leadId: string; onClose
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4">
-      <div className="flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-background shadow-2xl sm:h-[92vh]">
+      {/* O painel de detalhes do lead (dentro do ChatThread) usa
+          `position: fixed` pra virar gaveta em telas estreitas - certo na
+          pagina cheia /chat/[leadId] (fixed = janela), mas aqui dentro do
+          modal isso escapava do recorte arredondado do card e ficava colado
+          na borda real do navegador em vez da borda do modal, cortando
+          visualmente o painel. `transform` no card cria um novo bloco de
+          referencia pra "fixed", prendendo a gaveta dentro do modal. */}
+      <div className="flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-background shadow-2xl [transform:translateZ(0)] sm:h-[92vh]">
         <div className="flex shrink-0 items-center justify-end border-b border-border/50 bg-card/78 px-3 py-1.5">
           <button
             type="button"

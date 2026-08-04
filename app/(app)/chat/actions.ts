@@ -517,6 +517,8 @@ export async function updateChatLeadBusiness(input: {
   lostReason?: string | null;
   lostPain?: string | null;
   closeChannel?: string | null;
+  source?: string | null;
+  creativeName?: string | null;
 }) {
   const ctx = await requireContext();
   const supabase = await createClient();
@@ -524,12 +526,31 @@ export async function updateChatLeadBusiness(input: {
 
   const { data: lead } = await supabase
     .from("leads")
-    .select("assigned_to, stage_id, won_at, tags")
+    .select("assigned_to, stage_id, won_at, tags, custom_fields")
     .eq("id", input.leadId)
     .eq("tenant_id", ctx.tenantId)
     .single();
   if (!lead) throw new Error("Lead nao encontrado");
-  const currentLead = lead as { assigned_to: string | null; stage_id: string | null; won_at: string | null; tags: string[] | null };
+  const currentLead = lead as {
+    assigned_to: string | null;
+    stage_id: string | null;
+    won_at: string | null;
+    tags: string[] | null;
+    custom_fields: Record<string, unknown> | null;
+  };
+
+  // Origem e criativo sao editaveis o tempo todo (nao dependem de etapa) -
+  // origem de onde o lead veio, criativo qual anuncio/peca especifica.
+  const sourcePatch = input.source !== undefined ? { source: input.source?.trim() || null } : {};
+  const customFieldsPatch =
+    input.creativeName !== undefined
+      ? {
+          custom_fields: {
+            ...(currentLead.custom_fields ?? {}),
+            meta_creative_name: input.creativeName?.trim() || null,
+          },
+        }
+      : {};
 
   let pipelineId = input.pipelineId;
   let stageId = input.stageId;
@@ -614,6 +635,8 @@ export async function updateChatLeadBusiness(input: {
       ...(wonAtPatch ?? {}),
       ...(lostReasonPatch ?? {}),
       ...(tagsPatch ?? {}),
+      ...sourcePatch,
+      ...customFieldsPatch,
     })
     .eq("id", input.leadId)
     .eq("tenant_id", ctx.tenantId);

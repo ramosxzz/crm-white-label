@@ -123,6 +123,7 @@ type LeadDetails = {
   qualityStars: number;
   lostReason: string | null;
   lostPain: string | null;
+  creativeName: string | null;
 };
 
 type PipelineOption = {
@@ -162,6 +163,7 @@ type LeadDetailsRow = {
   quality_stars: number | null;
   lost_reason: string | null;
   lost_pain: string | null;
+  custom_fields: Record<string, unknown> | null;
 };
 
 function detectMediaKind(mime: string): MediaKind {
@@ -174,7 +176,8 @@ function detectMediaKind(mime: string): MediaKind {
 // Realtime ja atualiza em tempo real; o polling e so uma rede de seguranca
 // (caso o realtime perca um evento) e roda devagar e so com a aba visivel.
 const POLL_MS = 90_000;
-const CLOSE_CHANNEL_OPTIONS = ["Ligação", "Mensagem", "WhatsApp", "Presencial", "Indicação", "Outro"];
+const CLOSE_CHANNEL_OPTIONS = ["Ligação", "Reunião (Meet)", "Reunião presencial", "WhatsApp", "Outro"];
+const LEAD_SOURCE_OPTIONS = ["Social Seller", "Indicação", "Anúncio Meta", "Anúncio Google", "WhatsApp", "Instagram", "Site", "Outro"];
 
 // Teto pro upload de midia do chat. Nao cancela o upload de verdade (a rede
 // pode continuar tentando em segundo plano), mas garante que a tela nunca
@@ -282,6 +285,7 @@ function buildLeadDetailsFromRow(
     qualityStars: row.quality_stars ?? 0,
     lostReason: row.lost_reason,
     lostPain: row.lost_pain,
+    creativeName: (row.custom_fields?.meta_creative_name as string | undefined) ?? null,
   };
 }
 
@@ -496,7 +500,7 @@ export function ChatThread({
     const supabase = createClient();
     const { data } = await supabase
       .from("leads")
-      .select("pipeline_id, stage_id, assigned_to, email, source, notes, tags, value_cents, created_at, quality_stars, lost_reason, lost_pain")
+      .select("pipeline_id, stage_id, assigned_to, email, source, notes, tags, value_cents, created_at, quality_stars, lost_reason, lost_pain, custom_fields")
       .eq("id", leadId)
       .eq("tenant_id", tenantId)
       .maybeSingle();
@@ -1246,6 +1250,15 @@ export function ChatThread({
             </button>
             <p className="truncate text-xs text-muted-foreground md:hidden">{displayPhone}</p>
           </div>
+          {/* Estrela ali embaixo no painel lateral era facil de esquecer de
+              preencher - fica aqui em cima, sempre visivel ao abrir o chat. */}
+          <StarRating
+            value={leadDetails?.qualityStars ?? 0}
+            onChange={(next) => {
+              setLeadDetails((current) => (current ? { ...current, qualityStars: next } : current));
+              void setLeadQualityStars({ leadId, stars: next }).catch((err) => notifyError(err));
+            }}
+          />
           <Button
             type="button"
             variant="outline"
@@ -2469,11 +2482,19 @@ function LeadSidePanel({
   const [tagInput, setTagInput] = useState("");
   const [tagsSaving, setTagsSaving] = useState(false);
   const [businessSaving, setBusinessSaving] = useState(false);
-  const [localStars, setLocalStars] = useState<number | null>(null);
   const [businessDirty, setBusinessDirty] = useState(false);
   const [lostReason, setLostReason] = useState(details?.lostReason ?? "");
   const [lostPain, setLostPain] = useState(details?.lostPain ?? "");
   const [closeChannel, setCloseChannel] = useState("");
+  function deriveSourceSelect(value: string): string {
+    if (!value) return "none";
+    return LEAD_SOURCE_OPTIONS.includes(value) ? value : "Outro";
+  }
+  const [sourceSelect, setSourceSelect] = useState(() => deriveSourceSelect(details?.source ?? ""));
+  const [sourceCustomText, setSourceCustomText] = useState(() =>
+    deriveSourceSelect(details?.source ?? "") === "Outro" ? (details?.source ?? "") : "",
+  );
+  const [creativeDraft, setCreativeDraft] = useState(details?.creativeName ?? "");
   const stageOwnerPipelineId = useMemo(() => {
     if (!details?.stageId) return null;
     return pipelineOptions.find((pipeline) => pipeline.stages.some((stage) => stage.id === details.stageId))?.id ?? null;
@@ -2498,10 +2519,12 @@ function LeadSidePanel({
     setNotes(details?.notes ?? "");
     setNotesDirty(false);
     setBusinessDirty(false);
-    setLocalStars(null);
     setLostReason(details?.lostReason ?? "");
     setLostPain(details?.lostPain ?? "");
     setCloseChannel("");
+    setSourceSelect(deriveSourceSelect(details?.source ?? ""));
+    setSourceCustomText(deriveSourceSelect(details?.source ?? "") === "Outro" ? (details?.source ?? "") : "");
+    setCreativeDraft(details?.creativeName ?? "");
   }, [leadId]);
 
   useEffect(() => {
@@ -2591,6 +2614,8 @@ function LeadSidePanel({
       lostReason,
       lostPain,
       closeChannel,
+      source: sourceSelect === "none" ? "" : sourceSelect === "Outro" ? sourceCustomText : sourceSelect,
+      creativeName: creativeDraft,
     })
       .then((res) => {
         setBusinessDirty(false);
@@ -2664,7 +2689,6 @@ function LeadSidePanel({
         <InfoRow label="Nome" value={leadName} />
         <InfoRow label="E-mail" value={details?.email || "Email do lead"} muted={!details?.email} />
         <InfoRow label="Telefone" value={channel === "instagram" ? "Instagram Direct" : formatPhone(leadPhone)} />
-        <InfoRow label="Origem" value={details?.source || "Nao informada"} muted={!details?.source} />
         <InfoRow label="Entrada" value={formatShortDate(details?.createdAt)} />
       </PanelSection>
 
@@ -2761,16 +2785,6 @@ function LeadSidePanel({
       </PanelSection>
       )}
 
-      <PanelSection title="Qualidade do lead">
-        <StarRating
-          value={localStars ?? details?.qualityStars ?? 0}
-          onChange={(next) => {
-            setLocalStars(next);
-            void setLeadQualityStars({ leadId, stars: next }).catch((err) => notifyError(err));
-          }}
-        />
-      </PanelSection>
-
       <PanelSection title="Negócio">
         <div className="space-y-3">
           <div className="space-y-1.5">
@@ -2786,6 +2800,53 @@ function LeadSidePanel({
                 setBusinessDraft((current) => ({ ...current, valueReais: event.target.value }));
               }}
               className="h-9 bg-background/70 text-right"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Origem</Label>
+            <Select
+              value={sourceSelect}
+              onValueChange={(value) => {
+                setBusinessDirty(true);
+                setSourceSelect(value);
+              }}
+            >
+              <SelectTrigger className="h-9 bg-background/70">
+                <SelectValue placeholder="Selecione a origem" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Não informada</SelectItem>
+                {LEAD_SOURCE_OPTIONS.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {sourceSelect === "Outro" && (
+              <Input
+                value={sourceCustomText}
+                onChange={(e) => {
+                  setBusinessDirty(true);
+                  setSourceCustomText(e.target.value);
+                }}
+                placeholder="Qual origem?"
+                className="h-9 bg-background/70"
+              />
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Criativo</Label>
+            <Input
+              value={creativeDraft}
+              onChange={(e) => {
+                setBusinessDirty(true);
+                setCreativeDraft(e.target.value);
+              }}
+              placeholder="Qual anúncio/peça o lead veio"
+              className="h-9 bg-background/70"
             />
           </div>
 
