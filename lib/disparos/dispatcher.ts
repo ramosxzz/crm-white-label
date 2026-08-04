@@ -49,10 +49,14 @@ async function runDispatchLoop(campaignId: string): Promise<void> {
     }
 
     try {
-      await sendToRecipient(supabase, campaign, recipient.lead_id);
+      const externalMessageId = await sendToRecipient(supabase, campaign, recipient.lead_id);
       await supabase
         .from("campaign_recipients")
-        .update({ status: "sent", sent_at: new Date().toISOString() })
+        .update({
+          status: "sent",
+          sent_at: new Date().toISOString(),
+          external_message_id: externalMessageId,
+        })
         .eq("id", recipient.id);
     } catch (err) {
       await supabase
@@ -78,7 +82,7 @@ async function sendToRecipient(
   supabase: ReturnType<typeof createServiceClient>,
   campaign: CampaignRow,
   leadId: string,
-): Promise<void> {
+): Promise<string | null> {
   const { data: lead } = await supabase
     .from("leads")
     .select("id, name, phone, email, source")
@@ -97,7 +101,7 @@ async function sendToRecipient(
     if (!quickMessage) throw new Error("Mensagem rapida nao encontrada");
 
     if (quickMessage.media_url) {
-      await sendChatMediaCore(supabase, {
+      const result = await sendChatMediaCore(supabase, {
         tenantId: campaign.tenant_id,
         userId: campaign.created_by,
         leadId,
@@ -106,28 +110,29 @@ async function sendToRecipient(
         mediaKind: (quickMessage.media_type ?? "document") as MediaKind,
         caption: quickMessage.body ? renderMessageTemplate(quickMessage.body, lead) : undefined,
       });
-      return;
+      return result.message.external_id ?? null;
     }
 
     const body = renderMessageTemplate(quickMessage.body ?? "", lead);
-    await sendChatMessageCore(supabase, {
+    const result = await sendChatMessageCore(supabase, {
       tenantId: campaign.tenant_id,
       userId: campaign.created_by,
       leadId,
       accountId: campaign.account_id ?? undefined,
       body,
     });
-    return;
+    return result.message.external_id ?? null;
   }
 
   const body = renderMessageTemplate(campaign.body_text ?? "", lead);
-  await sendChatMessageCore(supabase, {
+  const result = await sendChatMessageCore(supabase, {
     tenantId: campaign.tenant_id,
     userId: campaign.created_by,
     leadId,
     accountId: campaign.account_id ?? undefined,
     body,
   });
+  return result.message.external_id ?? null;
 }
 
 function sleep(ms: number): Promise<void> {

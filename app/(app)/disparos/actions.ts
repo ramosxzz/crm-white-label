@@ -8,14 +8,31 @@ import { startCampaignDispatch } from "@/lib/disparos/dispatcher";
 export async function listBroadcastLeads() {
   const ctx = await requireContext();
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("leads")
-    .select("id, name, phone")
-    .eq("tenant_id", ctx.tenantId)
-    .not("phone", "is", null)
-    .order("name")
-    .limit(500);
-  return data ?? [];
+  const pageSize = 1000;
+  const leads: Array<{
+    id: string;
+    name: string;
+    phone: string | null;
+    source: string | null;
+    created_at: string;
+  }> = [];
+
+  // O Supabase limita a quantidade de linhas por resposta. Paginar evita
+  // esconder contatos antigos ou uma importacao recente em tenants maiores.
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("leads")
+      .select("id, name, phone, source, created_at")
+      .eq("tenant_id", ctx.tenantId)
+      .not("phone", "is", null)
+      .order("created_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (error) throw new Error(error.message);
+    leads.push(...(data ?? []));
+    if (!data || data.length < pageSize) break;
+  }
+
+  return leads;
 }
 
 export async function listMessageTemplates() {
@@ -131,18 +148,43 @@ export async function getCampaignRecipients(campaignId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("campaign_recipients")
-    .select("id, phone, status, error, sent_at, leads(name)")
+    .select("id, phone, status, error, sent_at, external_message_id, leads(name)")
     .eq("campaign_id", campaignId)
     .eq("tenant_id", ctx.tenantId)
     .order("created_at", { ascending: true });
-  return (data ?? []) as Array<{
+  const recipients = (data ?? []) as Array<{
     id: string;
     phone: string;
     status: string;
     error: string | null;
     sent_at: string | null;
+    external_message_id: string | null;
     leads: { name: string } | null;
   }>;
+
+  const externalIds = recipients.flatMap((recipient) =>
+    recipient.external_message_id ? [recipient.external_message_id] : [],
+  );
+  const statuses = new Map<string, { status: string; error: string | null }>();
+  for (let index = 0; index < externalIds.length; index += 200) {
+    const { data: messages } = await supabase
+      .from("messages")
+      .select("external_id, status, error")
+      .eq("tenant_id", ctx.tenantId)
+      .in("external_id", externalIds.slice(index, index + 200));
+    for (const message of messages ?? []) {
+      if (message.external_id) statuses.set(message.external_id, { status: message.status, error: message.error });
+    }
+  }
+
+  return recipients.map((recipient) => {
+    const delivery = recipient.external_message_id ? statuses.get(recipient.external_message_id) : null;
+    return {
+      ...recipient,
+      delivery_status: delivery?.status ?? null,
+      delivery_error: delivery?.error ?? null,
+    };
+  });
 }
 
 export async function getLatestCampaign() {

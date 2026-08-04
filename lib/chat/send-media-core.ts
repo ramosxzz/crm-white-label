@@ -134,7 +134,7 @@ export async function sendChatMediaCore(
       .from("messages")
       .update({ status: "sent", external_id: result.externalId })
       .eq("id", pendingMsg!.id)
-      .select("id, body, direction, created_at, status, media_url, media_type")
+      .select("id, external_id, body, direction, created_at, status, media_url, media_type")
       .single();
     await supabase
       .from("conversations")
@@ -153,6 +153,7 @@ export async function sendChatMediaCore(
       conversationId,
       message: (sentRow ?? {
         id: pendingMsg!.id,
+        external_id: result.externalId,
         body: previewBody,
         direction: "outbound",
         created_at: new Date().toISOString(),

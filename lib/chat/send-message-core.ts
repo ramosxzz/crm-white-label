@@ -188,7 +188,7 @@ export async function sendChatMessageCore(
       })
       .eq("id", pendingMsg!.id)
       .select(
-        "id, body, direction, created_at, status, reply_to_message_id, reply_to_external_id, reply_to_body, reply_to_sender_name",
+        "id, external_id, body, direction, created_at, status, reply_to_message_id, reply_to_external_id, reply_to_body, reply_to_sender_name",
       )
       .single();
     await supabase
@@ -208,6 +208,7 @@ export async function sendChatMessageCore(
       conversationId,
       message: (sentRow ?? {
         id: pendingMsg!.id,
+        external_id: result.externalId,
         body: input.body,
         direction: "outbound",
         created_at: new Date().toISOString(),
