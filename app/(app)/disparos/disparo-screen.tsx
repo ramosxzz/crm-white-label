@@ -60,6 +60,8 @@ export function DisparoScreen({
   const [bodyText, setBodyText] = useState("");
   const [quickMessageId, setQuickMessageId] = useState("");
   const [delaySeconds, setDelaySeconds] = useState(10);
+  const [dailyCap, setDailyCap] = useState<number | "">("");
+  const [businessHoursOnly, setBusinessHoursOnly] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -158,6 +160,8 @@ export function DisparoScreen({
         quickMessageId: mode === "quick_message" ? quickMessageId : undefined,
         accountId: accountId || undefined,
         delaySeconds,
+        dailyCap: dailyCap === "" ? undefined : dailyCap,
+        businessHoursOnly,
         leadIds: [...selectedIds],
       });
       setCampaignId(id);
@@ -309,12 +313,38 @@ export function DisparoScreen({
                 onChange={(e) => setDelaySeconds(Number(e.target.value) || 10)}
                 className="w-28"
               />
-              <span className="text-sm text-muted-foreground">segundos (10 é o recomendado)</span>
+              <span className="text-sm text-muted-foreground">segundos entre mensagens</span>
             </div>
           </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Limite diário</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={1}
+                placeholder="Sem limite"
+                value={dailyCap}
+                onChange={(e) => setDailyCap(e.target.value === "" ? "" : Number(e.target.value))}
+                className="w-28"
+              />
+              <span className="text-sm text-muted-foreground">
+                mensagens por dia (recomendado 50-60 pra cobrança, evita banimento)
+              </span>
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-border accent-brand"
+              checked={businessHoursOnly}
+              onChange={(e) => setBusinessHoursOnly(e.target.checked)}
+            />
+            Enviar só em horário comercial (8h-21h, Brasília)
+          </label>
         </CardContent>
       </Card>
-
 
       <BroadcastLeadPicker
         leads={leads}

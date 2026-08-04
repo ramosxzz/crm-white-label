@@ -4,6 +4,7 @@ import { triggerApi4comCall } from "@/lib/integrations/api4com";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
 import { getWhatsAppAccountForLead } from "@/lib/whatsapp/account-for-lead";
 import { deferUntil, DEFAULT_SEND_START_HOUR, DEFAULT_SEND_END_HOUR } from "@/lib/automations/sending-window";
+import { dayGreeting } from "@/lib/whatsapp/day-greeting";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 
 type Block = {
@@ -458,6 +459,13 @@ export async function processExecution(
     const { data: leadRow } = await supabase.from("leads").select("*").eq("id", leadId).single();
     if (leadRow) lead = leadRow as Record<string, unknown>;
   }
+  // Variaveis calculadas, nao vem direto de coluna: primeiro nome (evita
+  // "Ola Joao da Silva Souza" em mensagem curta) e a saudacao do horario em
+  // que a mensagem efetivamente sai (importante pra cadencia de renovacao
+  // que manda mais de uma mensagem ao longo do mesmo dia).
+  const leadName = String(lead.name ?? "").trim();
+  lead.first_name = leadName ? leadName.split(/\s+/)[0] : "";
+  lead.day_greeting = dayGreeting();
 
   // Um fluxo pode ter varios blocos de "Inicio", cada um com seu proprio
   // caminho de acoes (ex: mensagens rapidas diferentes movendo pra etapas

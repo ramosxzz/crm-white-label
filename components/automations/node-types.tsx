@@ -90,6 +90,7 @@ export const AVAILABLE_TRIGGERS: { kind: string; label: string; description: str
   { kind: "appointment_created", label: "Agendamento criado", description: "Quando um agendamento é criado" },
   { kind: "appointment_near", label: "Agendamento próximo", description: "Quando um agendamento está próximo" },
   { kind: "lead_inactive", label: "Lead inativo", description: "Quando o lead fica sem resposta" },
+  { kind: "contract_expiring", label: "Contrato vencendo", description: "3 dias antes e no dia do vencimento (custom_fields.renewal_date)" },
 ];
 
 // Sub-acoes disponiveis para adicionar dentro do bloco "Acao" (executadas em sequencia).

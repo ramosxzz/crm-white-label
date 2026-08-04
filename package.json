@@ -12,6 +12,7 @@
     "deploy:vps": "bash scripts/deploy-vps.sh",
     "preview:cloudflare": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy:cloudflare": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "demo:create": "node scripts/create-demo-account.mjs",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts",
     "supabase:types": "supabase gen types typescript --local > lib/supabase/database.types.ts"
   },

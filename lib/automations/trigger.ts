@@ -7,7 +7,8 @@ export type TriggerKind =
   | "message_sent"
   | "appointment_created"
   | "appointment_near"
-  | "lead_inactive";
+  | "lead_inactive"
+  | "contract_expiring";
 
 type FlowConfigBlock = {
   id: string;

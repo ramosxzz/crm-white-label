@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { processExecution } from "@/lib/automations/execute";
 import { processScheduledMessages } from "@/lib/chat/process-scheduled";
 import { processAppointmentReminders } from "@/lib/agenda/reminders";
+import { scanContractsExpiring } from "@/lib/automations/contract-expiring";
 
 export const dynamic = "force-dynamic";
 
@@ -73,11 +74,15 @@ export async function POST(req: NextRequest) {
   // Envia confirmações de reunião (12h / 2h / 30min antes)
   const remindersSent = await processAppointmentReminders(supabase);
 
+  // Dispara o trigger "contract_expiring" pros leads que vencem em breve
+  const contractsFired = await scanContractsExpiring(supabase);
+
   return NextResponse.json({
     ok: true,
     processed,
     resumed: waitingSteps?.length ?? 0,
     scheduledSent,
     remindersSent,
+    contractsFired,
   });
 }

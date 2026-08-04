@@ -81,6 +81,8 @@ export async function startBroadcast(input: {
   quickMessageId?: string;
   accountId?: string;
   delaySeconds: number;
+  dailyCap?: number;
+  businessHoursOnly?: boolean;
   leadIds: string[];
 }) {
   const ctx = await requireContext();
@@ -110,6 +112,8 @@ export async function startBroadcast(input: {
       quick_message_id: input.messageMode === "quick_message" ? input.quickMessageId : null,
       account_id: input.accountId || null,
       delay_seconds: Math.max(1, Math.round(input.delaySeconds || 10)),
+      daily_cap: input.dailyCap && input.dailyCap > 0 ? Math.round(input.dailyCap) : null,
+      business_hours_only: input.businessHoursOnly ?? true,
       started_at: new Date().toISOString(),
       created_by: ctx.userId,
     })

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, MessageCircle } from "lucide-react";
+import { Eye, Loader2, MessageCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { buildDemoWhatsappUrl } from "@/lib/demo-whatsapp";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const demoUrl = buildDemoWhatsappUrl();
+
+  function fillDemoCredentials() {
+    setEmail("demo@solairew.com");
+    setPassword("12345678");
+    setError(null);
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -99,6 +105,17 @@ export default function LoginPage() {
             "Entrar"
           )}
         </Button>
+        <div className="rounded-lg border border-brand/20 bg-brand/5 p-4 text-center">
+          <p className="text-sm font-medium text-foreground">Conheça o CRM agora</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Acesse nosso ambiente de demonstração com dados fictícios.
+          </p>
+          <Button type="button" variant="outline" className="mt-3 w-full" onClick={fillDemoCredentials}>
+            <Eye className="h-4 w-4" />
+            Usar acesso de demonstração
+          </Button>
+          <p className="mt-2 text-xs text-muted-foreground">Senha da demonstração: 12345678</p>
+        </div>
         <div className="rounded-lg border border-border bg-muted/30 p-4 text-center">
           <p className="text-sm font-medium text-foreground">Quer conhecer o CRM?</p>
           <p className="mt-1 text-xs text-muted-foreground">

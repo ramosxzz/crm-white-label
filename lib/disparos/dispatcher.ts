@@ -3,6 +3,12 @@ import { sendChatMessageCore } from "@/lib/chat/send-message-core";
 import { sendChatMediaCore } from "@/lib/chat/send-media-core";
 import { renderMessageTemplate } from "@/lib/disparos/template";
 import type { MediaKind } from "@/lib/whatsapp/provider";
+import { deferUntil, nextWindowOpening } from "@/lib/automations/sending-window";
+
+function sameBrtDay(a: Date, b: Date): boolean {
+  const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" });
+  return fmt.format(a) === fmt.format(b);
+}
 
 // Loop assincrono em memoria, um processo Node persistente na VPS (nao
 // serverless) - evita depender de um cron externo incerto pra dar conta de
@@ -26,10 +32,40 @@ async function runDispatchLoop(campaignId: string): Promise<void> {
   for (;;) {
     const { data: campaign } = await supabase
       .from("campaigns")
-      .select("id, tenant_id, status, message_mode, body_text, quick_message_id, account_id, delay_seconds, created_by")
+      .select(
+        "id, tenant_id, status, message_mode, body_text, quick_message_id, account_id, delay_seconds, created_by, daily_cap, business_hours_only, send_hour_start, send_hour_end",
+      )
       .eq("id", campaignId)
       .maybeSingle();
     if (!campaign || campaign.status === "cancelled") return;
+
+    if (campaign.business_hours_only) {
+      const wait = deferUntil(new Date(), campaign.send_hour_start, campaign.send_hour_end);
+      if (wait) {
+        await sleep(wait.getTime() - Date.now());
+        continue;
+      }
+    }
+
+    if (campaign.daily_cap && campaign.daily_cap > 0) {
+      const now = new Date();
+      const { data: sentToday } = await supabase
+        .from("campaign_recipients")
+        .select("sent_at")
+        .eq("campaign_id", campaignId)
+        .eq("status", "sent")
+        .not("sent_at", "is", null);
+      const countToday = (sentToday ?? []).filter((r) => sameBrtDay(new Date(r.sent_at as string), now)).length;
+      if (countToday >= campaign.daily_cap) {
+        const nextOpening = nextWindowOpening(
+          new Date(now.getTime() + 24 * 60 * 60 * 1000),
+          campaign.send_hour_start,
+          campaign.send_hour_end,
+        );
+        await sleep(Math.max(60_000, nextOpening.getTime() - Date.now()));
+        continue;
+      }
+    }
 
     const { data: recipient } = await supabase
       .from("campaign_recipients")
