@@ -47,6 +47,22 @@ test("reconhece cabecalhos comuns sem precisar chamar IA", async () => {
   assert.equal(isReliableCsvMapping(mapping), true);
 });
 
+test("reconhece Fones e Loja no formato da planilha Paola", async () => {
+  const { heuristicCsvMapping, isReliableCsvMapping } = await loadModule(
+    "lib/leads/spreadsheet-mapping.ts",
+    "spreadsheet-paola-mapping",
+  );
+
+  const mapping = heuristicCsvMapping(["Nome", "Cidade", "Loja", "Fones"]);
+  assert.deepEqual(mapping, {
+    name: "Nome",
+    phone: "Fones",
+    email: null,
+    source: "Loja",
+  });
+  assert.equal(isReliableCsvMapping(mapping), true);
+});
+
 for (const bookType of ["xlsx", "xls"]) {
   test(`le a primeira aba de um arquivo ${bookType.toUpperCase()}`, async () => {
     const { parseExcelBuffer } = await loadModule(
