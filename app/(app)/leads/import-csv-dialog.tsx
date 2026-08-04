@@ -8,9 +8,18 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { notifyError } from "@/lib/ui/feedback";
 import { getCsvMappingSuggestion, importLeadsCSV } from "./actions";
-import type { CsvFieldMapping } from "@/lib/ai/csv-mapping";
+import {
+  heuristicCsvMapping,
+  isReliableCsvMapping,
+  type CsvFieldMapping,
+} from "@/lib/leads/spreadsheet-mapping";
+import { parseExcelBuffer, type SpreadsheetRow } from "@/lib/leads/spreadsheet-file";
 
 type ParsedLead = { name: string; phone?: string; email?: string; source?: string };
+type ReadingStage = "file" | "mapping" | null;
+
+const SUPPORTED_EXTENSIONS = ["csv", "xls", "xlsx"];
+const AI_CLIENT_TIMEOUT_MS = 7_000;
 
 const FIELD_LABELS: Record<keyof CsvFieldMapping, string> = {
   name: "Nome",
@@ -18,6 +27,61 @@ const FIELD_LABELS: Record<keyof CsvFieldMapping, string> = {
   email: "Email",
   source: "Origem",
 };
+
+function getExtension(fileName: string): string {
+  return fileName.split(".").pop()?.toLowerCase() ?? "";
+}
+
+async function parseExcelFile(file: File): Promise<{ headers: string[]; rows: SpreadsheetRow[] }> {
+  return parseExcelBuffer(await file.arrayBuffer());
+}
+
+function parseCsvFile(file: File): Promise<{ headers: string[]; rows: SpreadsheetRow[] }> {
+  return new Promise((resolve, reject) => {
+    Papa.parse<SpreadsheetRow>(file, {
+      header: true,
+      skipEmptyLines: "greedy",
+      transformHeader: (header) => header.trim(),
+      complete: (parsed) => {
+        const headers = parsed.meta.fields?.filter(Boolean) ?? [];
+        if (headers.length === 0) {
+          reject(new Error("O arquivo CSV nao possui cabecalhos."));
+          return;
+        }
+        resolve({ headers, rows: parsed.data });
+      },
+      error: reject,
+    });
+  });
+}
+
+function getMappedLeads(rows: SpreadsheetRow[], mapping: CsvFieldMapping): ParsedLead[] {
+  return rows
+    .map((row) => ({
+      name: (mapping.name ? row[mapping.name] : "")?.trim() ?? "",
+      phone: (mapping.phone ? row[mapping.phone] : "")?.trim(),
+      email: (mapping.email ? row[mapping.email] : "")?.trim(),
+      source: (mapping.source ? row[mapping.source] : "")?.trim(),
+    }))
+    .filter((row) => row.name);
+}
+
+async function suggestMapping(headers: string[], sampleRows: SpreadsheetRow[]): Promise<CsvFieldMapping> {
+  const localMapping = heuristicCsvMapping(headers);
+  if (isReliableCsvMapping(localMapping)) return localMapping;
+
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      getCsvMappingSuggestion(headers, sampleRows.slice(0, 3)),
+      new Promise<CsvFieldMapping>((resolve) => {
+        timeout = setTimeout(() => resolve(localMapping), AI_CLIENT_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
 
 export function ImportCsvDialog({
   canAssign,
@@ -27,7 +91,7 @@ export function ImportCsvDialog({
   members: { id: string; name: string }[];
 }) {
   const [open, setOpen] = useState(false);
-  const [reading, setReading] = useState(false);
+  const [readingStage, setReadingStage] = useState<ReadingStage>(null);
   const [pending, start] = useTransition();
   const [result, setResult] = useState<string | null>(null);
 
@@ -47,36 +111,33 @@ export function ImportCsvDialog({
     e.target.value = "";
     if (!file) return;
     reset();
-    setReading(true);
+    const extension = getExtension(file.name);
+    if (!SUPPORTED_EXTENSIONS.includes(extension)) {
+      notifyError(new Error("Formato nao suportado. Use CSV, XLS ou XLSX."));
+      return;
+    }
 
-    Papa.parse<Record<string, string>>(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: async (parsed) => {
-        try {
-          const headers = parsed.meta.fields ?? [];
-          const suggested = await getCsvMappingSuggestion(headers, parsed.data.slice(0, 3));
-          const parsedRows = parsed.data
-            .map((r) => ({
-              name: (suggested.name ? r[suggested.name] : "")?.trim() ?? "",
-              phone: (suggested.phone ? r[suggested.phone] : "")?.trim(),
-              email: (suggested.email ? r[suggested.email] : "")?.trim(),
-              source: (suggested.source ? r[suggested.source] : "")?.trim(),
-            }))
-            .filter((r) => r.name);
-          setMapping(suggested);
-          setRows(parsedRows);
-        } catch (err) {
-          notifyError(err);
-        } finally {
-          setReading(false);
+    void (async () => {
+      setReadingStage("file");
+      try {
+        const parsed = extension === "csv" ? await parseCsvFile(file) : await parseExcelFile(file);
+        setReadingStage("mapping");
+        const suggested = await suggestMapping(parsed.headers, parsed.rows);
+        const parsedRows = getMappedLeads(parsed.rows, suggested);
+        setMapping(suggested);
+        setRows(parsedRows);
+
+        if (!suggested.name) {
+          notifyError(new Error("Nao foi possivel identificar a coluna de nome do lead."));
+        } else if (parsedRows.length === 0) {
+          notifyError(new Error("Nenhum lead preenchido foi encontrado na planilha."));
         }
-      },
-      error: (err) => {
-        setReading(false);
-        notifyError(err);
-      },
-    });
+      } catch (err) {
+        notifyError(err, "Nao foi possivel ler a planilha.");
+      } finally {
+        setReadingStage(null);
+      }
+    })();
   }
 
   function onConfirm() {
@@ -104,33 +165,38 @@ export function ImportCsvDialog({
     >
       <DialogTrigger asChild>
         <Button variant="outline">
-          <Upload className="h-4 w-4" /> Importar CSV
+          <Upload className="h-4 w-4" /> Importar planilha
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Importar leads (CSV)</DialogTitle>
+          <DialogTitle>Importar leads por planilha</DialogTitle>
           <DialogDescription>
-            Envie a planilha com qualquer cabeçalho — a IA identifica nome, telefone, email e origem sozinha.
+            Envie um arquivo CSV, XLS ou XLSX. O sistema identifica nome, telefone, email e origem automaticamente.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <input
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={onPickFile}
-            disabled={reading || pending}
+            disabled={readingStage !== null || pending}
             className="block w-full text-sm"
           />
 
-          {reading && (
+          {readingStage && (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Sparkles className="h-4 w-4 animate-pulse text-brand" /> Lendo a planilha com IA...
+              {readingStage === "mapping" ? (
+                <Sparkles className="h-4 w-4 animate-pulse text-brand" />
+              ) : (
+                <Loader2 className="h-4 w-4 animate-spin text-brand" />
+              )}
+              {readingStage === "mapping" ? "Identificando as colunas..." : "Lendo o arquivo..."}
             </p>
           )}
 
-          {!reading && mapping && (
+          {!readingStage && mapping && (
             <div className="space-y-3 rounded-lg border border-border/70 p-3">
               <div className="flex flex-wrap gap-2 text-xs">
                 {(Object.keys(FIELD_LABELS) as (keyof CsvFieldMapping)[]).map((field) => (

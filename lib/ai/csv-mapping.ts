@@ -1,38 +1,13 @@
+import {
+  heuristicCsvMapping,
+  isReliableCsvMapping,
+  type CsvFieldMapping,
+} from "@/lib/leads/spreadsheet-mapping";
+
+export type { CsvFieldMapping } from "@/lib/leads/spreadsheet-mapping";
+
 const DEFAULT_MODEL = "meta/llama-3.3-70b-instruct";
-
-export type CsvFieldMapping = {
-  name: string | null;
-  phone: string | null;
-  email: string | null;
-  source: string | null;
-};
-
-const HEURISTIC_ALIASES: Record<keyof CsvFieldMapping, string[]> = {
-  name: ["name", "nome", "nome completo", "cliente", "lead"],
-  phone: ["phone", "telefone", "celular", "whatsapp", "fone", "numero", "número"],
-  email: ["email", "e-mail"],
-  source: ["source", "origem", "canal"],
-};
-
-function normalizeHeader(header: string): string {
-  return header
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .trim()
-    .toLowerCase();
-}
-
-/** Sem IA (chave nao configurada, ou a chamada falhou): tenta bater o
- * cabecalho com os nomes mais comuns em portugues/ingles. */
-export function heuristicCsvMapping(headers: string[]): CsvFieldMapping {
-  const normalized = headers.map((h) => ({ raw: h, norm: normalizeHeader(h) }));
-  const mapping: CsvFieldMapping = { name: null, phone: null, email: null, source: null };
-  for (const field of Object.keys(HEURISTIC_ALIASES) as (keyof CsvFieldMapping)[]) {
-    const match = normalized.find((h) => HEURISTIC_ALIASES[field].includes(h.norm));
-    mapping[field] = match?.raw ?? null;
-  }
-  return mapping;
-}
+const AI_MAPPING_TIMEOUT_MS = 6_000;
 
 /** Pede pra IA mapear os cabecalhos da planilha (em qualquer idioma/ordem/
  * nome) pros 4 campos que o CRM entende. So manda o cabecalho + 2 linhas de
@@ -43,8 +18,11 @@ export async function suggestCsvMapping(
   headers: string[],
   sampleRows: Record<string, string>[],
 ): Promise<CsvFieldMapping> {
+  const heuristic = heuristicCsvMapping(headers);
+  if (isReliableCsvMapping(heuristic)) return heuristic;
+
   const apiKey = process.env.AI_API_KEY;
-  if (!apiKey || headers.length === 0) return heuristicCsvMapping(headers);
+  if (!apiKey || headers.length === 0) return heuristic;
 
   const baseUrl = (process.env.AI_BASE_URL ?? "https://integrate.api.nvidia.com/v1").replace(/\/$/, "");
   const model = process.env.AI_MODEL || DEFAULT_MODEL;
@@ -59,6 +37,9 @@ export async function suggestCsvMapping(
     `Exemplos de linhas: ${JSON.stringify(sampleRows.slice(0, 3))}`,
   ].join("\n");
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), AI_MAPPING_TIMEOUT_MS);
+
   try {
     const resp = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
@@ -69,25 +50,29 @@ export async function suggestCsvMapping(
         temperature: 0,
         max_tokens: 300,
       }),
+      signal: controller.signal,
     });
-    if (!resp.ok) return heuristicCsvMapping(headers);
+    if (!resp.ok) return heuristic;
     const data = (await resp.json()) as { choices?: { message?: { content?: string } }[] };
     const text = data?.choices?.[0]?.message?.content?.trim() ?? "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return heuristicCsvMapping(headers);
+    if (!jsonMatch) return heuristic;
     const parsed = JSON.parse(jsonMatch[0]) as Partial<CsvFieldMapping>;
 
     const headerSet = new Set(headers);
     const mapping: CsvFieldMapping = { name: null, phone: null, email: null, source: null };
     for (const field of Object.keys(mapping) as (keyof CsvFieldMapping)[]) {
       const value = parsed[field];
-      mapping[field] = typeof value === "string" && headerSet.has(value) ? value : null;
+      const aiValue = typeof value === "string" && headerSet.has(value) ? value : null;
+      mapping[field] = heuristic[field] ?? aiValue;
     }
     // Se a IA nao achou nem o nome, provavelmente devolveu algo inutil -
     // melhor cair pra heuristica do que importar tudo sem nome.
-    if (!mapping.name) return heuristicCsvMapping(headers);
+    if (!mapping.name) return heuristic;
     return mapping;
   } catch {
-    return heuristicCsvMapping(headers);
+    return heuristic;
+  } finally {
+    clearTimeout(timeout);
   }
 }
