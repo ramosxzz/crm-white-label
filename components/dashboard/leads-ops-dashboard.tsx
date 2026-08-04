@@ -24,7 +24,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { formatBRTTime } from "@/lib/date/brt";
 import type { LeadsDashboardData } from "@/lib/leads/dashboard-metrics";
 import { formatCurrencyBRL, cn } from "@/lib/utils";
-import { LeadsByStageChart, LeadsPerDayChart, LeadsTodayHourChart } from "@/app/(app)/dashboard/charts";
+import { LeadsByStageChart, LeadsByStageDonut, LeadsPerDayChart, LeadsTodayHourChart } from "@/app/(app)/dashboard/charts";
 import type { MetaAdsDashboardData } from "@/lib/meta/ads-insights";
 import { MetaAdsDateFilter } from "@/components/dashboard/meta-ads-date-filter";
 
@@ -163,39 +163,50 @@ export function LeadsOpsDashboard({
         </Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-12">
-        <Card className="lg:col-span-5">
-          <CardHeader>
-            <CardTitle>Funil atual</CardTitle>
-            <CardDescription>
-              {totalPipeline} leads distribuídos · snapshot do pipeline
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {totalPipeline === 0 ? (
-              <EmptyChart message="Pipeline vazio — cadastre o primeiro lead." />
-            ) : (
-              <LeadsByStageChart
-                data={data.pipelineByStage.map((s) => ({
-                  name: s.name,
-                  color: s.color,
-                  count: s.count,
-                }))}
-              />
-            )}
-          </CardContent>
-        </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Funil atual</CardTitle>
+          <CardDescription>
+            {totalPipeline} leads distribuídos · snapshot do pipeline
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {totalPipeline === 0 ? (
+            <EmptyChart message="Pipeline vazio — cadastre o primeiro lead." />
+          ) : (
+            <div className="grid gap-6 lg:grid-cols-12">
+              <div className="lg:col-span-7">
+                <LeadsByStageChart
+                  data={data.pipelineByStage.map((s) => ({
+                    name: s.name,
+                    color: s.color,
+                    count: s.count,
+                  }))}
+                />
+              </div>
+              <div className="flex items-center lg:col-span-5">
+                <LeadsByStageDonut
+                  data={data.pipelineByStage.map((s) => ({
+                    name: s.name,
+                    color: s.color,
+                    count: s.count,
+                  }))}
+                />
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-        <Card className="lg:col-span-7">
-          <CardHeader>
-            <CardTitle>Últimos 7 dias</CardTitle>
-            <CardDescription>Tendência de novos leads na semana</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <LeadsPerDayChart data={data.weekTrend} />
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Últimos 7 dias</CardTitle>
+          <CardDescription>Tendência de novos leads na semana</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <LeadsPerDayChart data={data.weekTrend} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
