@@ -83,7 +83,8 @@ export default async function LeadsPage({
   const from = (page - 1) * LEADS_PAGE_SIZE;
   const to = from + LEADS_PAGE_SIZE - 1;
 
-  const canAssign = canSeeAllLeads(ctx.role) && ctx.tenant.lead_assignment_enabled;
+  const canAssignLeads = canSeeAllLeads(ctx.role);
+  const canAssign = canAssignLeads && ctx.tenant.lead_assignment_enabled;
 
   // 500 leads de uma vez travava o scroll da pagina (renderizava tudo numa
   // tabela so). Pagina no servidor em vez de trazer tudo.
@@ -108,7 +109,7 @@ export default async function LeadsPage({
       .select("id, name, color")
       .eq("tenant_id", ctx.tenantId)
       .order("position"),
-    canAssign ? listTenantUserOptions(ctx.tenantId) : Promise.resolve([]),
+    canAssignLeads ? listTenantUserOptions(ctx.tenantId) : Promise.resolve([]),
     ctx.tenant.field_service_enabled
       ? supabase
           .from("field_service_partners")
@@ -140,7 +141,7 @@ export default async function LeadsPage({
         description={`${dateFilter.label} · ${totalCount ?? 0} resultado${(totalCount ?? 0) === 1 ? "" : "s"}`}
         actions={
           <>
-            <ImportCsvDialog />
+            <ImportCsvDialog canAssign={canAssignLeads} members={members} />
             <NewLeadDialog stages={stages ?? []} partners={partners ?? []} />
           </>
         }

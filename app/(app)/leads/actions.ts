@@ -13,6 +13,7 @@ import { notifyUser, getTenantOwnerId } from "@/lib/notifications/notify";
 import { forwardNewLead } from "@/lib/leads/forward-new-lead";
 import { dispatchWebhookEvent } from "@/lib/api/dispatch-webhook";
 import { listTenantUserOptions } from "@/lib/tenant/users";
+import { suggestCsvMapping, type CsvFieldMapping } from "@/lib/ai/csv-mapping";
 
 const leadSchema = z.object({
   name: z.string().min(1, "Nome obrigatorio"),
@@ -476,9 +477,36 @@ export async function deleteLead(id: string) {
   revalidatePath("/chat");
 }
 
-export async function importLeadsCSV(rows: Array<{ name: string; phone?: string; email?: string; source?: string }>) {
+// So le cabecalho + poucas linhas de exemplo, nunca a planilha inteira -
+// rapido mesmo com milhares de linhas. `requireContext` so pra nao expor
+// isso a quem nao esta logado; qualquer papel que pode importar pode pedir
+// a sugestao.
+export async function getCsvMappingSuggestion(
+  headers: string[],
+  sampleRows: Record<string, string>[],
+): Promise<CsvFieldMapping> {
+  await requireContext();
+  return suggestCsvMapping(headers, sampleRows);
+}
+
+export async function importLeadsCSV(
+  rows: Array<{ name: string; phone?: string; email?: string; source?: string }>,
+  assignedTo?: string | null,
+) {
   const ctx = await requireContext();
   const supabase = await createClient();
+
+  // So owner/admin/gerente podem escolher pra quem manda a planilha inteira.
+  if (assignedTo && !canSeeAllLeads(ctx.role)) throw new Error("Sem permissao para atribuir leads");
+  if (assignedTo) {
+    const { data: member } = await supabase
+      .from("tenant_members")
+      .select("user_id")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("user_id", assignedTo)
+      .maybeSingle();
+    if (!member) throw new Error("Usuario nao pertence a este workspace");
+  }
 
   const { data: pipeline } = await supabase
     .from("pipelines")
@@ -501,16 +529,21 @@ export async function importLeadsCSV(rows: Array<{ name: string; phone?: string;
       source: r.source?.trim() || "csv-import",
       stage_id: stageId,
       pipeline_id: pipelineId,
+      assigned_to: assignedTo || null,
     }));
 
   if (inserts.length === 0) return { count: 0 };
   const { data: createdLeads, error, count } = await supabase.from("leads").insert(inserts, { count: "exact" }).select("id");
   if (error) throw new Error(error.message);
-  for (const lead of createdLeads ?? []) {
-    try {
-      await autoAssignLead(lead.id);
-    } catch (assignmentError) {
-      console.error("Erro ao distribuir lead importado automaticamente:", assignmentError);
+  // Atribuicao explicita (planilha mandada pra alguem especifico) tem
+  // prioridade - so distribui por round-robin quem ficou sem dono.
+  if (!assignedTo) {
+    for (const lead of createdLeads ?? []) {
+      try {
+        await autoAssignLead(lead.id);
+      } catch (assignmentError) {
+        console.error("Erro ao distribuir lead importado automaticamente:", assignmentError);
+      }
     }
   }
   revalidatePath("/leads");
