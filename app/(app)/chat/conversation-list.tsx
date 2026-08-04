@@ -231,7 +231,6 @@ export function ConversationList({
     ([key, value]) => value !== DEFAULT_ADVANCED_FILTERS[key as keyof AdvancedFilters],
   ).length;
 
-  const instanceLabelById = useMemo(() => new Map(instances.map((i) => [i.id, i.label])), [instances]);
   const displayedItems = query.trim() && searchItems !== null && searchItems !== undefined
     ? searchItems
     : items;
@@ -250,8 +249,7 @@ export function ConversationList({
       if (!isWithinPeriod(c.lastAt, appliedFilters.lastMessagePeriod)) return false;
       if (!matchesArrivedFilter(c.leadCreatedAt, appliedFilters.arrived, appliedFilters.arrivedDate)) return false;
       if (appliedFilters.minStars > 0 && c.qualityStars < appliedFilters.minStars) return false;
-      const attendantLabel = c.whatsappAccountId ? instanceLabelById.get(c.whatsappAccountId) : undefined;
-      return matchesConversationSearch(c, query) || (Boolean(attendantLabel) && matchesConversationSearch({ leadName: attendantLabel!, leadSubtitle: "", leadPhone: "" }, query));
+      return matchesConversationSearch(c, query);
     });
 
     result.sort((a, b) => {
@@ -261,7 +259,7 @@ export function ConversationList({
     });
 
     return result;
-  }, [displayedItems, query, statusFilter, appliedFilters, instanceLabelById]);
+  }, [displayedItems, query, statusFilter, appliedFilters]);
 
   function openFilters() {
     setDraftFilters(appliedFilters);
