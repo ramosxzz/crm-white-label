@@ -736,7 +736,10 @@ export function ChatThread({
           return mergeMessages(withoutOpt, [result.message]);
         });
       } catch (err) {
-        setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
+        // Marca como falhou em vez de sumir com a bolha - senao a pessoa
+        // nem sabe que precisa reenviar (parecia que a mensagem nunca
+        // existiu).
+        setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? { ...m, status: "failed" } : m)));
         notifyError(err);
       }
     });
@@ -796,11 +799,15 @@ export function ChatThread({
           const withoutOpt = prev.filter((m) => m.id !== optimisticId);
           return mergeMessages(withoutOpt, [result.message]);
         });
+        URL.revokeObjectURL(localUrl);
       } catch (err) {
-        setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+        // Idem: mantem a bolha marcada como "falhou" em vez de apagar -
+        // reportado com audio na Atacado Moda Sul (parecia que sumia sem
+        // deixar rastro do que aconteceu). Nao revoga a URL local: e o
+        // preview que sobra pra pessoa ouvir/ver o que tentou mandar.
+        setMessages((prev) => prev.map((m) => (m.id === optimisticId ? { ...m, status: "failed" } : m)));
         notifyError(err);
       } finally {
-        URL.revokeObjectURL(localUrl);
         setUploading(false);
       }
     },
@@ -855,7 +862,7 @@ export function ChatThread({
       if (!conversationId) setConversationId(result.conversationId);
       setMessages((prev) => mergeMessages(prev.filter((m) => m.id !== optimisticId), [result.message]));
     } catch (err) {
-      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+      setMessages((prev) => prev.map((m) => (m.id === optimisticId ? { ...m, status: "failed" } : m)));
       notifyError(err);
     } finally {
       setUploading(false);
