@@ -674,6 +674,15 @@ const Column = memo(function Column({
   const stageLeadIds = leads.map((lead) => lead.id);
   const selectedInStage = stageLeadIds.filter((leadId) => selectedIds.has(leadId)).length;
   const allStageSelected = stageLeadIds.length > 0 && selectedInStage === stageLeadIds.length;
+
+  // Colunas com muitos leads (100+) travavam o board inteiro: cada lead virava
+  // um card montado no DOM + registrado no dnd-kit pro calculo de colisao do
+  // drag, mesmo fora da viewport. Mostra so um lote por vez e revela mais sob
+  // demanda - com busca/filtro ativo mostra tudo (lista ja vem pequena).
+  const PAGE_SIZE = 30;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const shownLeads = isFiltering ? leads : leads.slice(0, visibleCount);
+  const remaining = leads.length - shownLeads.length;
   return (
     <div
       ref={setNodeRef}
@@ -709,9 +718,9 @@ const Column = memo(function Column({
         </div>
       </div>
 
-      <SortableContext items={leads.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+      <SortableContext items={shownLeads.map((l) => l.id)} strategy={verticalListSortingStrategy}>
         <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-3">
-          {leads.map((l) => (
+          {shownLeads.map((l) => (
             <LeadCard
               key={l.id}
               lead={l}
@@ -728,6 +737,15 @@ const Column = memo(function Column({
             <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border/70 p-8 text-center text-xs text-muted-foreground">
               {isFiltering ? "Nenhum lead encontrado nesta etapa" : "Solte um lead aqui"}
             </div>
+          )}
+          {remaining > 0 && (
+            <button
+              type="button"
+              onClick={() => setVisibleCount((v) => v + PAGE_SIZE)}
+              className="rounded-lg border border-dashed border-border/70 py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-brand/40 hover:text-brand"
+            >
+              Carregar mais {Math.min(PAGE_SIZE, remaining)}
+            </button>
           )}
         </div>
       </SortableContext>
