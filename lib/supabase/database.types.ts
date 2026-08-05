@@ -471,6 +471,8 @@ export interface Profile {
   id: string;
   full_name: string | null;
   avatar_url: string | null;
+  job_title: string | null;
+  bio: string | null;
   default_tenant_id: string | null;
   last_seen_update_at: string;
   created_at: string;

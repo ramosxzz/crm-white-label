@@ -77,16 +77,33 @@ export async function removeTenantLogo() {
   revalidatePath("/", "layout");
 }
 
-export async function updateProfileName(fullName: string) {
+export async function updateProfile(input: {
+  fullName: string;
+  jobTitle?: string;
+  bio?: string;
+  avatarUrl?: string | null;
+}) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Nao autenticado");
   const { error } = await supabase
     .from("profiles")
-    .update({ full_name: fullName.trim() })
+    .update({
+      full_name: input.fullName.trim(),
+      job_title: input.jobTitle?.trim() || null,
+      bio: input.bio?.trim() || null,
+      ...(input.avatarUrl !== undefined ? { avatar_url: input.avatarUrl } : {}),
+    })
     .eq("id", user.id);
   if (error) throw new Error(error.message);
   revalidatePath("/", "layout");
+}
+
+export async function getAvatarPath() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Nao autenticado");
+  return user.id;
 }
 
 export async function updateApi4comExtension(extension: string) {

@@ -16,10 +16,16 @@ export default async function SettingsPage() {
   const supabase = await createClient();
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, api4com_extension")
+    .select("full_name, avatar_url, job_title, bio, api4com_extension")
     .eq("id", ctx.userId)
     .single();
-  const currentProfile = profile as { full_name?: string | null; api4com_extension?: string | null } | null;
+  const currentProfile = profile as {
+    full_name?: string | null;
+    avatar_url?: string | null;
+    job_title?: string | null;
+    bio?: string | null;
+    api4com_extension?: string | null;
+  } | null;
 
   return (
     <div className="space-y-6 p-6">
@@ -31,7 +37,12 @@ export default async function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ProfileForm currentName={currentProfile?.full_name ?? ""} />
+          <ProfileForm
+            currentName={currentProfile?.full_name ?? ""}
+            currentAvatarUrl={currentProfile?.avatar_url}
+            currentJobTitle={currentProfile?.job_title}
+            currentBio={currentProfile?.bio}
+          />
         </CardContent>
       </Card>
 
