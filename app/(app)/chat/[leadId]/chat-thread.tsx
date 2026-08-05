@@ -422,6 +422,9 @@ export function ChatThread({
   // Painel de detalhes do lead (tags, negocio, notas): fixo no desktop,
   // drawer no mobile para o CRM ficar 100% usavel pelo celular.
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
+  // No desktop (xl+) o painel de detalhes ficava sempre aberto, sem opcao de
+  // recolher - pedido explicito pra poder minimizar quando nao precisar.
+  const [desktopPanelOpen, setDesktopPanelOpen] = useState(true);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
   const [editMessageText, setEditMessageText] = useState("");
@@ -1352,9 +1355,12 @@ export function ChatThread({
             type="button"
             variant="outline"
             size="icon"
-            className="shrink-0 rounded-lg xl:hidden"
-            onClick={() => setSidePanelOpen(true)}
-            title="Detalhes do contato"
+            className="shrink-0 rounded-lg"
+            onClick={() => {
+              setSidePanelOpen(true);
+              setDesktopPanelOpen((open) => !open);
+            }}
+            title={desktopPanelOpen ? "Recolher detalhes do contato" : "Mostrar detalhes do contato"}
           >
             <PanelRight className="h-4 w-4" />
           </Button>
@@ -2075,6 +2081,7 @@ export function ChatThread({
         onFinalize={() => changeStatus("resolvida")}
         mobileOpen={sidePanelOpen}
         onMobileClose={() => setSidePanelOpen(false)}
+        desktopOpen={desktopPanelOpen}
       />
     </section>
   );
@@ -2447,6 +2454,7 @@ function LeadSidePanel({
   onFinalize,
   mobileOpen,
   onMobileClose,
+  desktopOpen = true,
 }: {
   leadId: string;
   leadName: string;
@@ -2461,6 +2469,7 @@ function LeadSidePanel({
   onFinalize: () => void;
   mobileOpen: boolean;
   onMobileClose: () => void;
+  desktopOpen?: boolean;
 }) {
   const [notes, setNotes] = useState(details?.notes ?? "");
   const [notesDirty, setNotesDirty] = useState(false);
@@ -2621,9 +2630,10 @@ function LeadSidePanel({
       )}
       <aside
         className={cn(
-          "fixed inset-y-0 right-0 z-50 w-[86vw] max-w-sm shrink-0 overflow-y-auto border-l border-border/60 bg-card backdrop-blur-xl transition-transform duration-200",
-          "xl:static xl:z-auto xl:w-[360px] xl:max-w-none xl:translate-x-0 xl:bg-card/78",
+          "fixed inset-y-0 right-0 z-50 w-[86vw] max-w-sm shrink-0 overflow-y-auto border-l border-border/60 bg-card backdrop-blur-xl transition-[width,transform] duration-200",
+          "xl:static xl:z-auto xl:max-w-none xl:translate-x-0 xl:bg-card/78",
           mobileOpen ? "translate-x-0" : "translate-x-full xl:translate-x-0",
+          desktopOpen ? "xl:w-[360px]" : "xl:w-0 xl:overflow-hidden xl:border-l-0",
         )}
       >
       <div className="flex items-center justify-between border-b border-border/60 p-4">
