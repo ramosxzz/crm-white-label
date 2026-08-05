@@ -87,6 +87,23 @@ export async function findOrCreateWhatsAppLead(
     if (contact.lid) {
       await attachWhatsAppLidToLead(supabase, existing.id, tenantId, contact.lid);
     }
+
+    // Lead pode ter sido criado antes do pushName/profile.name estar disponivel
+    // (ex: primeira mensagem sem nome no payload). Se o nome atual e so o
+    // fallback generico (telefone/"Contato"), atualiza assim que um nome real chegar -
+    // sem sobrescrever nome que o usuario ja editou manualmente no CRM.
+    const contactName = normalizeInboundContactName(contact.name, contact.ignoredNames);
+    if (contactName) {
+      const currentName = ((existing as any).name ?? "").trim();
+      const genericName = displayLeadName(null, existing.phone);
+      if (!currentName || currentName === genericName) {
+        await supabase
+          .from("leads")
+          .update({ name: displayLeadName(contactName, existing.phone) })
+          .eq("id", existing.id);
+      }
+    }
+
     if (contact.referral) {
       const currentFields = (existing as any).custom_fields || {};
       const referralFields = buildMetaReferralFields(contact.referral);
