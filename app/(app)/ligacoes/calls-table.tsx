@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CallButton } from "@/components/leads/call-button";
+import { formatBRTDateTime } from "@/lib/date/brt";
 import { WhatsAppCallButton } from "@/components/leads/whatsapp-call-button";
 import { StarRating } from "@/components/leads/star-rating";
 import { CallLeadPanel } from "./call-lead-panel";
@@ -143,7 +144,7 @@ export function CallsTable({
             {pagedCalls.map((c) => (
               <tr key={c.id} className="border-b border-border/40 last:border-0 hover:bg-muted/30">
                 <td className="px-5 py-3 text-muted-foreground">
-                  {new Date(c.startedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                  {formatBRTDateTime(c.startedAt)}
                 </td>
                 <td className="px-5 py-3 font-mono">{c.to}</td>
                 <td className="px-5 py-3">

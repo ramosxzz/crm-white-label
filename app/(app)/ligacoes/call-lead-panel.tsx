@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { updateChatLeadBusiness, updateChatLeadNotes, updateChatLeadTags, scheduleChatMessage, cancelScheduledMessage } from "../chat/actions";
 import { scheduleCall, createAppointment } from "../agenda/actions";
 import { getLeadCallPanelData, setLeadQualityStars } from "./actions";
+import { formatBRTDateTime } from "@/lib/date/brt";
 import { LeadTimeline } from "@/components/leads/lead-timeline";
 import { StarRating } from "@/components/leads/star-rating";
 import { MiniChatPanel } from "@/components/leads/mini-chat-panel";
@@ -330,7 +331,7 @@ export function CallLeadPanel({
                 <div className="mt-3 space-y-1.5">
                   {scheduledMessages.map((m) => (
                     <div key={m.id} className="flex items-center justify-between rounded-md border border-border/60 px-2 py-1.5 text-xs">
-                      <span className="truncate">{m.body ?? "Mídia"} · {new Date(m.send_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+                      <span className="truncate">{m.body ?? "Mídia"} · {formatBRTDateTime(m.send_at)}</span>
                       <button type="button" onClick={() => cancelMessage(m.id)} className="shrink-0 text-muted-foreground hover:text-destructive">
                         <X className="h-3.5 w-3.5" />
                       </button>

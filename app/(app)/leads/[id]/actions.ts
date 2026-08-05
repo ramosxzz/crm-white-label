@@ -87,7 +87,11 @@ export async function addLeadNote(input: { leadId: string; text: string }) {
     .single();
   if (leadError || !lead) throw new Error("Lead nao encontrado");
 
-  const timestamp = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+  const timestamp = new Date().toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    dateStyle: "short",
+    timeStyle: "short",
+  });
   const currentNotes = typeof lead.notes === "string" ? lead.notes.trim() : "";
   const nextNotes = currentNotes ? `${currentNotes}\n\n[${timestamp}] ${text}` : `[${timestamp}] ${text}`;
 

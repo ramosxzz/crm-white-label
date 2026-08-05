@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { addLeadNote } from "./actions";
+import { formatBRTFullDateTime } from "@/lib/date/brt";
 
 type ActivityRow = {
   id: string;
@@ -75,7 +76,7 @@ export function NotesPanel({
             <div key={n.id} className="rounded-lg border border-border/60 bg-background/40 p-3">
               <p className="whitespace-pre-wrap text-sm">{n.text}</p>
               <p className="mt-1.5 text-xs text-muted-foreground">
-                {n.author} · {new Date(n.createdAt).toLocaleString("pt-BR")}
+                {n.author} · {formatBRTFullDateTime(n.createdAt)}
               </p>
             </div>
           ))}

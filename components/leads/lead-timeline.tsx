@@ -2,10 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { listLeadTimeline, type LeadTimelineEntry } from "@/app/(app)/chat/actions";
-
-function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-}
+import { formatBRTDateTime as formatDateTime } from "@/lib/date/brt";
 
 function describeEntry(entry: LeadTimelineEntry): string {
   const p = entry.payload;

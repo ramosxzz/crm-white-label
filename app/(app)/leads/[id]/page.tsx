@@ -32,6 +32,7 @@ import { TechnicalProfilePanel } from "./technical-profile-panel";
 import { TaskPanel } from "./task-panel";
 import { NotesPanel } from "./notes-panel";
 import { ValuePanel } from "./value-panel";
+import { formatBRTFullDate, formatBRTFullDateTime } from "@/lib/date/brt";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -137,7 +138,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                 )}
                 <span className="inline-flex items-center gap-1.5">
                   <Calendar className="h-3.5 w-3.5" />
-                  Criado em {new Date(lead.created_at).toLocaleDateString("pt-BR")}
+                  Criado em {formatBRTFullDate(lead.created_at)}
                 </span>
               </div>
             </div>
@@ -177,7 +178,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                 <ValuePanel leadId={lead.id} items={valueItems ?? []} totalCents={lead.value_cents ?? 0} />
               </Info>
               <Info label="Origem">{lead.source ?? "-"}</Info>
-              <Info label="Atualizado">{new Date(lead.updated_at).toLocaleString("pt-BR")}</Info>
+              <Info label="Atualizado">{formatBRTFullDateTime(lead.updated_at)}</Info>
               <Info label="Tags" full>
                 <div className="flex flex-wrap gap-1.5">
                   {lead.tags?.length
@@ -223,7 +224,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                       <div className="min-w-0 flex-1 pt-0.5">
                         <p className="font-medium leading-snug">{meta.label}</p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(a.created_at).toLocaleString("pt-BR")}
+                          {formatBRTFullDateTime(a.created_at)}
                           {author ? ` · ${author}` : ""}
                         </p>
                       </div>

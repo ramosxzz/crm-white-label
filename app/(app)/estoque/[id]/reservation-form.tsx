@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createReservation } from "../actions";
+import { formatBRTFullDateTime } from "@/lib/date/brt";
 
 export function ReservationForm({
   productId,
@@ -21,7 +22,7 @@ export function ReservationForm({
       </select>
       <select name="appointment_id" className="h-9 rounded-md border border-input bg-background px-3 text-sm">
         <option value="">Horario opcional</option>
-        {appointments.map((appointment) => <option key={appointment.id} value={appointment.id}>{new Date(appointment.starts_at).toLocaleString("pt-BR")}</option>)}
+        {appointments.map((appointment) => <option key={appointment.id} value={appointment.id}>{formatBRTFullDateTime(appointment.starts_at)}</option>)}
       </select>
       <Button>Reservar</Button>
     </form>

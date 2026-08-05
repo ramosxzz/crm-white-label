@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { completeLeadTask, createLeadTask } from "./actions";
+import { formatBRTFullDateTime } from "@/lib/date/brt";
 
 type TaskRow = {
   id: string;
@@ -70,7 +71,7 @@ export function TaskPanel({ leadId, tasks, currentUserId }: { leadId: string; ta
                 {task.notes && <p className="mt-1 text-xs text-muted-foreground">{task.notes}</p>}
                 <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                   <Clock3 className="h-3 w-3" />
-                  {task.due_at ? new Date(task.due_at).toLocaleString("pt-BR") : "Sem prazo"}
+                  {task.due_at ? formatBRTFullDateTime(task.due_at) : "Sem prazo"}
                   {" · "}{task.assigned_to === currentUserId ? "Voce" : "Equipe"}
                 </p>
               </div>

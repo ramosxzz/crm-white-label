@@ -14,6 +14,7 @@ import { MeetingOutcomeDialog } from "./meeting-outcome-dialog";
 import { MonthCalendar } from "./month-calendar";
 import { ScheduledMessagesPanel } from "./scheduled-messages-panel";
 import { ScheduledCallsPanel } from "../ligacoes/scheduled-calls-panel";
+import { formatBRTTime } from "@/lib/date/brt";
 
 const statusLabel = { scheduled: "Agendado", confirmed: "Confirmado", completed: "Concluido", cancelled: "Cancelado", no_show: "Nao compareceu" };
 
@@ -116,7 +117,7 @@ export default async function AgendaPage({ searchParams }: { searchParams?: Prom
             return (
               <div key={appointment.id} className="flex flex-wrap items-center gap-4 py-4">
                 <div className="w-20 shrink-0">
-                  <p className="font-mono text-lg font-semibold">{new Date(appointment.starts_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>
+                  <p className="font-mono text-lg font-semibold">{formatBRTTime(appointment.starts_at)}</p>
                   <p className="text-xs text-muted-foreground">{appointment.duration_minutes} min</p>
                 </div>
                 <div className="min-w-48 flex-1">

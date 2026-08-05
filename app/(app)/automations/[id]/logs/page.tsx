@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
+import { formatBRTFullDateTime } from "@/lib/date/brt";
 
 const statusConfig = {
   running: { label: "Executando", icon: Clock, color: "text-blue-600" },
@@ -129,7 +130,7 @@ export default async function AutomationLogsPage({
                       <div className="flex-1 min-w-0 space-y-0.5">
                         <p className="text-sm font-medium truncate">{leadName}</p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(exec.started_at).toLocaleString("pt-BR")}
+                          {formatBRTFullDateTime(exec.started_at)}
                           {duration !== null && ` · ${duration}s`}
                         </p>
                         {exec.error_message && (

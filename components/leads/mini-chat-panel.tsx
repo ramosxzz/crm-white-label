@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { getLeadChatThread, sendChatMessage } from "@/app/(app)/chat/actions";
+import { formatBRTTime } from "@/lib/date/brt";
 
 type Message = {
   id: string;
@@ -131,7 +132,7 @@ export function MiniChatPanel({
                 </>
               )}
               <div className="mt-1 text-[10px] opacity-70">
-                {new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                {formatBRTTime(m.created_at)}
               </div>
             </div>
           </div>

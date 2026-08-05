@@ -105,7 +105,7 @@ export async function startBroadcast(input: {
     .from("campaigns")
     .insert({
       tenant_id: ctx.tenantId,
-      name: `Disparo ${new Date().toLocaleString("pt-BR")}`,
+      name: `Disparo ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`,
       status: "running",
       message_mode: input.messageMode,
       body_text: input.messageMode === "text" ? input.bodyText : null,

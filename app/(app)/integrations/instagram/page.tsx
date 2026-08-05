@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import Link from "next/link";
+import { formatBRTFullDate } from "@/lib/date/brt";
 
 async function getAccount() {
   const ctx = await requireContext();
@@ -168,7 +169,7 @@ export default async function InstagramIntegrationPage(props: { searchParams?: P
                 )}
                 <p>
                   <span className="font-medium">Conectado em:</span>{" "}
-                  {new Date(account.created_at).toLocaleDateString("pt-BR")}
+                  {formatBRTFullDate(account.created_at)}
                 </p>
               </div>
               <form action={disconnectAccount}>

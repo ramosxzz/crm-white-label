@@ -11,6 +11,7 @@ import { TransferForm } from "./transfer-form";
 import { ReservationForm } from "./reservation-form";
 import { availableStock } from "@/lib/estoque/reservations";
 import { consumeReservation, releaseReservation, listStockLocations } from "../actions";
+import { formatBRTFullDateTime } from "@/lib/date/brt";
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -146,7 +147,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                   <span className="flex items-center gap-3">
                     <span className="font-semibold">{m.quantity}</span>
                     <span className="text-xs text-muted-foreground">
-                      {new Date(m.created_at).toLocaleString("pt-BR")}
+                      {formatBRTFullDateTime(m.created_at)}
                     </span>
                   </span>
                 </li>

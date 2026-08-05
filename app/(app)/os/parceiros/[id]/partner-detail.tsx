@@ -12,6 +12,7 @@ import { SERVICE_ORDER_STATUS_LABEL } from "@/lib/field-service/status";
 import { notify, notifyError } from "@/lib/ui/feedback";
 import type { FieldServicePartner, ServiceOrderStatus } from "@/lib/supabase/database.types";
 import { updatePartner } from "../actions";
+import { formatBRTFullDate } from "@/lib/date/brt";
 
 export type ReferredOrder = {
   id: string;
@@ -26,7 +27,7 @@ export type ReferredOrder = {
 };
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("pt-BR");
+  return formatBRTFullDate(iso);
 }
 
 /**

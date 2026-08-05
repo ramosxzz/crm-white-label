@@ -81,3 +81,36 @@ export function formatBRTDateShort(iso: string) {
     year: "2-digit",
   });
 }
+
+/** "05/08 14:30" - usado em banners de agendamento, historico de ligacoes etc. */
+export function formatBRTDateTime(iso: string) {
+  return new Date(iso).toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/** "05/08/2026" - data completa com ano, sem hora. */
+export function formatBRTFullDate(iso: string) {
+  return new Date(iso).toLocaleDateString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+/** "05/08/2026 14:30" - data completa + hora. */
+export function formatBRTFullDateTime(iso: string) {
+  return new Date(iso).toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}

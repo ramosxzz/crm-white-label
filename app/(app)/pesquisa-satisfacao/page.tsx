@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchSatisfactionSurveys } from "@/lib/integrations/satisfaction-survey";
 import { cn } from "@/lib/utils";
+import { formatBRTDateTime } from "@/lib/date/brt";
 
 export default async function SatisfactionSurveyPage() {
   const ctx = await requireContext();
@@ -113,7 +114,7 @@ export default async function SatisfactionSurveyPage() {
                   <p className="text-sm italic">&ldquo;{s.comments}&rdquo;</p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     <strong>{s.boutiqueName ?? "Lojista Anônimo"}</strong> (Nota {s.npsScore}) ·{" "}
-                    {new Date(s.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                    {formatBRTDateTime(s.createdAt)}
                   </p>
                 </div>
               ))

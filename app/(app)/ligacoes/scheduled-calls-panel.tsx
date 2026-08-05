@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CallButton } from "@/components/leads/call-button";
 import { WhatsAppCallButton } from "@/components/leads/whatsapp-call-button";
 import { cancelAppointment } from "../agenda/actions";
+import { formatBRTDateTime } from "@/lib/date/brt";
 
 type ScheduledCallRow = {
   id: string;
@@ -42,7 +43,7 @@ export function ScheduledCallsPanel({ calls }: { calls: ScheduledCallRow[] }) {
               </Link>
               {c.notes && <p className="truncate text-xs text-muted-foreground">{c.notes}</p>}
               <p className="text-xs text-muted-foreground">
-                {new Date(c.starts_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                {formatBRTDateTime(c.starts_at)}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">

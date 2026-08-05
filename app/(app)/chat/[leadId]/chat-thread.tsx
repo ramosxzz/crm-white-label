@@ -1,6 +1,7 @@
 "use client";
 
 import { notify, notifyError } from "@/lib/ui/feedback";
+import { formatBRTTime, formatBRTDateTime, formatBRTFullDate } from "@/lib/date/brt";
 import { LinkifiedText } from "@/components/chat/linkified-text";
 import { mediaSizeError } from "@/lib/whatsapp/media-limits";
 import { withTimeout } from "@/lib/async/with-timeout";
@@ -188,14 +189,21 @@ const MEDIA_UPLOAD_TIMEOUT_MS = 4 * 60_000;
 const MEDIA_UPLOAD_TIMEOUT_MESSAGE =
   "A conexão está muito lenta para enviar esse arquivo agora. Tente novamente com um Wi-Fi melhor, ou envie um arquivo menor.";
 
+// Compara pelo dia no fuso de Brasilia, nao do runtime que renderiza (o
+// container da VPS roda em UTC) - senao mensagem de madrugada/fim de noite
+// aparecia com o rotulo do dia errado.
+function brtDateKey(date: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(date);
+}
+
 function dayLabel(iso: string): string {
   const d = new Date(iso);
   const today = new Date();
-  const yesterday = new Date();
-  yesterday.setDate(today.getDate() - 1);
-  if (d.toDateString() === today.toDateString()) return "Hoje";
-  if (d.toDateString() === yesterday.toDateString()) return "Ontem";
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (brtDateKey(d) === brtDateKey(today)) return "Hoje";
+  if (brtDateKey(d) === brtDateKey(yesterday)) return "Ontem";
+  return d.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "short" });
 }
 
 function mergeMessages(prev: ChatMessage[], incoming: ChatMessage[]): ChatMessage[] {
@@ -1191,12 +1199,7 @@ export function ChatThread({
                               outbound ? "text-chat-outbound-meta" : "text-muted-foreground",
                             )}
                           >
-                            <span>
-                              {new Date(m.created_at).toLocaleTimeString("pt-BR", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
+                            <span>{formatBRTTime(m.created_at)}</span>
                             {m.edited_at && !m.deleted_at && <span className="italic">editada</span>}
                             {outbound && <MessageStatusLabel status={m.status} />}
                           </div>
@@ -1481,12 +1484,7 @@ export function ChatThread({
                     : `${pendingScheduled.length} mensagens agendadas`}
                   <span className="font-normal text-amber-900/75 dark:text-amber-100/75">
                     {" "}
-                    para {new Date(nextScheduled.send_at).toLocaleString("pt-BR", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    para {formatBRTDateTime(nextScheduled.send_at)}
                   </span>
                 </p>
                 <p className="truncate text-xs text-amber-900/70 dark:text-amber-100/65">
@@ -1524,12 +1522,7 @@ export function ChatThread({
                     : `${pendingScheduledCalls.length} ligações agendadas`}
                   <span className="font-normal text-muted-foreground">
                     {" "}
-                    para {new Date(pendingScheduledCalls[0].starts_at).toLocaleString("pt-BR", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    para {formatBRTDateTime(pendingScheduledCalls[0].starts_at)}
                   </span>
                 </p>
                 {pendingScheduledCalls[0].notes && (
@@ -2032,7 +2025,7 @@ export function ChatThread({
                       <div className="min-w-0">
                         <p className="truncate">{s.media_url ? "🎤 Áudio agendado" : s.body}</p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(s.send_at).toLocaleString("pt-BR")}
+                          {formatBRTDateTime(s.send_at)}
                         </p>
                       </div>
                       <Button
@@ -2411,16 +2404,11 @@ function formatMoney(cents: number): string {
 
 function formatShortDate(iso?: string | null): string {
   if (!iso) return "Sem data";
-  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return formatBRTFullDate(iso);
 }
 
 function formatCallDate(iso: string): string {
-  return new Date(iso).toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatBRTDateTime(iso);
 }
 
 function formatDuration(seconds: number): string {

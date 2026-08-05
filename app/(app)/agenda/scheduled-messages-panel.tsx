@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CallButton } from "@/components/leads/call-button";
 import { WhatsAppCallButton } from "@/components/leads/whatsapp-call-button";
 import { cancelScheduledMessage } from "../chat/actions";
+import { formatBRTDateTime } from "@/lib/date/brt";
 
 type ScheduledMessageRow = {
   id: string;
@@ -50,7 +51,7 @@ export function ScheduledMessagesPanel({
               </Link>
               <p className="truncate text-xs text-muted-foreground">{m.body ?? "Mídia"}</p>
               <p className="text-xs text-muted-foreground">
-                {new Date(m.send_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                {formatBRTDateTime(m.send_at)}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
