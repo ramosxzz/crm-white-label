@@ -80,6 +80,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LeadDeleteButton } from "@/components/leads/lead-delete-button";
 import { LeadTimeline } from "@/components/leads/lead-timeline";
 import { StarRating } from "@/components/leads/star-rating";
+import { SaleStockDialog, type SaleStockProduct, type SaleStockLocation } from "@/components/estoque/sale-stock-dialog";
 import { isCallAnswered } from "@/lib/integrations/call-answered";
 import {
   sendChatMessage,
@@ -334,6 +335,8 @@ export function ChatThread({
   leadDetails: initialLeadDetails,
   callsEnabled = false,
   fieldService = null,
+  saleStockProducts = null,
+  saleStockLocations = null,
 }: {
   leadId: string;
   tenantId: string;
@@ -360,6 +363,8 @@ export function ChatThread({
   callsEnabled?: boolean;
   /** null quando o tenant nao tem o ERP W+ ou o usuario nao pode abrir OS. */
   fieldService?: { consultants: FieldServiceUser[]; partners: FieldServicePartner[] } | null;
+  saleStockProducts?: SaleStockProduct[] | null;
+  saleStockLocations?: SaleStockLocation[] | null;
 }) {
   const isInstagram = channel === "instagram";
   const displayPhone = isInstagram ? "Instagram Direct" : displayLeadSubtitle(leadPhone);
@@ -2082,6 +2087,8 @@ export function ChatThread({
         mobileOpen={sidePanelOpen}
         onMobileClose={() => setSidePanelOpen(false)}
         desktopOpen={desktopPanelOpen}
+        saleStockProducts={saleStockProducts}
+        saleStockLocations={saleStockLocations}
       />
     </section>
   );
@@ -2455,6 +2462,8 @@ function LeadSidePanel({
   mobileOpen,
   onMobileClose,
   desktopOpen = true,
+  saleStockProducts = null,
+  saleStockLocations = null,
 }: {
   leadId: string;
   leadName: string;
@@ -2470,6 +2479,8 @@ function LeadSidePanel({
   mobileOpen: boolean;
   onMobileClose: () => void;
   desktopOpen?: boolean;
+  saleStockProducts?: SaleStockProduct[] | null;
+  saleStockLocations?: SaleStockLocation[] | null;
 }) {
   const [notes, setNotes] = useState(details?.notes ?? "");
   const [notesDirty, setNotesDirty] = useState(false);
@@ -2492,6 +2503,15 @@ function LeadSidePanel({
     deriveSourceSelect(details?.source ?? "") === "Outro" ? (details?.source ?? "") : "",
   );
   const [creativeDraft, setCreativeDraft] = useState(details?.creativeName ?? "");
+  const [saleDeductOpen, setSaleDeductOpen] = useState(false);
+  function stageIsWon(stageId: string | null): boolean {
+    if (!stageId) return false;
+    for (const pipeline of pipelineOptions) {
+      const stage = pipeline.stages.find((s) => s.id === stageId);
+      if (stage) return Boolean(stage.is_won);
+    }
+    return false;
+  }
   const stageOwnerPipelineId = useMemo(() => {
     if (!details?.stageId) return null;
     return pipelineOptions.find((pipeline) => pipeline.stages.some((stage) => stage.id === details.stageId))?.id ?? null;
@@ -2601,6 +2621,8 @@ function LeadSidePanel({
   function saveBusiness() {
     const parsed = Number(businessDraft.valueReais.replace(/\./g, "").replace(",", "."));
     const valueCents = Math.round(Math.max(0, Number.isFinite(parsed) ? parsed : 0) * 100);
+    const wasWon = stageIsWon(details?.stageId ?? null);
+    const willBeWon = stageIsWon(businessDraft.stageId === "none" ? null : businessDraft.stageId);
     setBusinessSaving(true);
     void updateChatLeadBusiness({
       leadId,
@@ -2617,6 +2639,7 @@ function LeadSidePanel({
       .then((res) => {
         setBusinessDirty(false);
         if (res?.tags) setTags(res.tags);
+        if (!wasWon && willBeWon && saleStockProducts) setSaleDeductOpen(true);
       })
       .catch((err) => notifyError(err))
       .finally(() => setBusinessSaving(false));
@@ -2989,6 +3012,16 @@ function LeadSidePanel({
         <LeadTimeline leadId={leadId} />
       </PanelSection>
       </aside>
+
+      {saleDeductOpen && saleStockProducts && saleStockLocations && (
+        <SaleStockDialog
+          leadId={leadId}
+          leadName={leadName}
+          products={saleStockProducts}
+          locations={saleStockLocations}
+          onClose={() => setSaleDeductOpen(false)}
+        />
+      )}
     </>
   );
 }

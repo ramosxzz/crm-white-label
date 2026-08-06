@@ -33,8 +33,9 @@ import { Input } from "@/components/ui/input";
 import { setLeadQualityStars } from "../ligacoes/actions";
 import { getSharedStageFilter, setSharedStageFilter } from "@/lib/chat/shared-stage-filter";
 import { updateChatLeadTags } from "../chat/actions";
+import { SaleStockDialog, type SaleStockProduct, type SaleStockLocation } from "@/components/estoque/sale-stock-dialog";
 
-type Stage = { id: string; name: string; color: string | null; position: number };
+type Stage = { id: string; name: string; color: string | null; position: number; is_won?: boolean | null };
 type Lead = {
   id: string;
   name: string;
@@ -97,6 +98,8 @@ export function KanbanBoard({
   callCounts = {},
   callsEnabled = false,
   tenantId,
+  saleStockProducts = null,
+  saleStockLocations = null,
 }: {
   pipelines: { id: string; name: string; is_default: boolean }[];
   activePipelineId: string | null;
@@ -105,6 +108,8 @@ export function KanbanBoard({
   callCounts?: Record<string, number>;
   callsEnabled?: boolean;
   tenantId?: string;
+  saleStockProducts?: SaleStockProduct[] | null;
+  saleStockLocations?: SaleStockLocation[] | null;
 }) {
   const router = useRouter();
   const [stages, setStages] = useState(initialStages);
@@ -119,6 +124,7 @@ export function KanbanBoard({
   const [bulkStageId, setBulkStageId] = useState("");
   const [bulkMoving, setBulkMoving] = useState(false);
   const [chatLead, setChatLead] = useState<{ id: string; name: string } | null>(null);
+  const [saleDeductLead, setSaleDeductLead] = useState<{ id: string; name: string } | null>(null);
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
     // Toque no celular: precisa de um "long press" curto antes de iniciar o
@@ -354,6 +360,12 @@ export function KanbanBoard({
     const targetStageId = findStageFromDropTarget(overId) ?? lead.stage_id ?? stages[0]?.id ?? null;
     if (!targetStageId) return;
 
+    const originalStageWon = stages.find((s) => s.id === lead.stage_id)?.is_won ?? false;
+    const targetStageWon = stages.find((s) => s.id === targetStageId)?.is_won ?? false;
+    if (saleStockProducts && targetStageWon && !originalStageWon) {
+      setSaleDeductLead({ id: leadId, name: lead.name });
+    }
+
     setLeads((prev) =>
       prev.map((l) => (l.id === leadId ? { ...l, stage_id: targetStageId } : l)),
     );
@@ -515,6 +527,16 @@ export function KanbanBoard({
 
     {chatLead && (
       <ChatThreadOverlay leadId={chatLead.id} onClose={() => setChatLead(null)} />
+    )}
+
+    {saleDeductLead && saleStockProducts && saleStockLocations && (
+      <SaleStockDialog
+        leadId={saleDeductLead.id}
+        leadName={saleDeductLead.name}
+        products={saleStockProducts}
+        locations={saleStockLocations}
+        onClose={() => setSaleDeductLead(null)}
+      />
     )}
 
     {filtersOpen && (

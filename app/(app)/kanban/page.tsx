@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { PageHeader } from "@/components/app/page-header";
 import { fetchLeadCallCountsForTenant } from "@/lib/integrations/call-counts";
+import { getSaleStockContext } from "@/lib/estoque/sale-stock-actions";
 import { KanbanBoard } from "./kanban-board";
 
 export default async function KanbanPage({ searchParams }: { searchParams?: Promise<{ pipeline?: string }> }) {
@@ -22,7 +23,7 @@ export default async function KanbanPage({ searchParams }: { searchParams?: Prom
     ? await Promise.all([
         supabase
           .from("pipeline_stages")
-          .select("id, name, color, position")
+          .select("id, name, color, position, is_won")
           .eq("tenant_id", ctx.tenantId)
           .eq("pipeline_id", activePipeline.id)
           .order("position"),
@@ -35,9 +36,10 @@ export default async function KanbanPage({ searchParams }: { searchParams?: Prom
       ])
     : [{ data: [] }, { data: [] }];
 
-  const callCounts = await fetchLeadCallCountsForTenant(ctx.tenantId, {
-    includeApi4com: ctx.tenant.calls_dashboard_enabled,
-  });
+  const [callCounts, saleStock] = await Promise.all([
+    fetchLeadCallCountsForTenant(ctx.tenantId, { includeApi4com: ctx.tenant.calls_dashboard_enabled }),
+    getSaleStockContext(),
+  ]);
   const visibleLeadIds = new Set((leads ?? []).map((lead) => lead.id));
   const visibleCallCounts = Object.fromEntries(
     Object.entries(callCounts).filter(([leadId]) => visibleLeadIds.has(leadId)),
@@ -56,6 +58,8 @@ export default async function KanbanPage({ searchParams }: { searchParams?: Prom
           callCounts={visibleCallCounts}
           callsEnabled={ctx.tenant.calls_dashboard_enabled}
           tenantId={ctx.tenantId}
+          saleStockProducts={saleStock?.products ?? null}
+          saleStockLocations={saleStock?.locations ?? null}
         />
       </div>
     </div>

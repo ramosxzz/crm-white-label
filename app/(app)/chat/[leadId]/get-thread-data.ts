@@ -14,6 +14,7 @@ import { fetchApi4comCalls } from "@/lib/integrations/api4com";
 import { listQuickMessages } from "@/app/(app)/settings/quick-messages-actions";
 import { canManageServiceOrders } from "@/lib/auth/roles";
 import { listConsultants } from "@/lib/field-service/users";
+import { getSaleStockContext } from "@/lib/estoque/sale-stock-actions";
 import type { FieldServicePartner, WhatsAppProviderKind } from "@/lib/supabase/database.types";
 import type { ConversationStatus } from "@/lib/chat/types";
 
@@ -37,6 +38,7 @@ export async function getChatThreadData(leadId: string) {
     api4comCalls,
     serviceOrderConsultants,
     serviceOrderPartnersRes,
+    saleStock,
   ] = await Promise.all([
     service
       .from("leads")
@@ -100,6 +102,7 @@ export async function getChatThreadData(leadId: string) {
           .order("kind")
           .order("name")
       : Promise.resolve({ data: [] as FieldServicePartner[] }),
+    getSaleStockContext(),
   ]);
 
   const lead = leadRes.data as {
@@ -287,6 +290,8 @@ export async function getChatThreadData(leadId: string) {
     ),
     recentCalls,
     callsEnabled: ctx.tenant.calls_dashboard_enabled,
+    saleStockProducts: saleStock?.products ?? null,
+    saleStockLocations: saleStock?.locations ?? null,
     // null = tenant sem o ERP W+ ou usuario sem permissao de abrir OS.
     fieldService:
       ctx.tenant.field_service_enabled && canManageServiceOrders(ctx.role)
