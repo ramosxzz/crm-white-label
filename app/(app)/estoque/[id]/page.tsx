@@ -9,8 +9,16 @@ import { formatCurrencyBRL } from "@/lib/utils";
 import { MovementForm } from "./movement-form";
 import { TransferForm } from "./transfer-form";
 import { ReservationForm } from "./reservation-form";
+import { RecipeForm } from "./recipe-form";
+import { ProduceForm } from "./produce-form";
 import { availableStock } from "@/lib/estoque/reservations";
-import { consumeReservation, releaseReservation, listStockLocations } from "../actions";
+import {
+  consumeReservation,
+  releaseReservation,
+  listStockLocations,
+  getProductRecipe,
+  listProductsForRecipe,
+} from "../actions";
 import { formatBRTFullDateTime } from "@/lib/date/brt";
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -28,15 +36,25 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
     .single();
   if (!product) notFound();
 
-  const [{ data: movements }, { data: reservations }, { data: leads }, { data: appointments }, locations, { data: stockByLocation }] =
-    await Promise.all([
-      supabase.from("stock_movements").select("*").eq("product_id", id).order("created_at", { ascending: false }).limit(50),
-      supabase.from("stock_reservations").select("id, product_id, quantity, status, leads(name), appointments(starts_at)").eq("product_id", id).order("created_at", { ascending: false }),
-      supabase.from("leads").select("id, name").eq("tenant_id", ctx.tenantId).order("name"),
-      supabase.from("appointments").select("id, starts_at").eq("tenant_id", ctx.tenantId).order("starts_at", { ascending: false }).limit(50),
-      listStockLocations(),
-      supabase.from("product_stock").select("location_id, quantity").eq("product_id", id),
-    ]);
+  const [
+    { data: movements },
+    { data: reservations },
+    { data: leads },
+    { data: appointments },
+    locations,
+    { data: stockByLocation },
+    recipeItems,
+    materialOptions,
+  ] = await Promise.all([
+    supabase.from("stock_movements").select("*").eq("product_id", id).order("created_at", { ascending: false }).limit(50),
+    supabase.from("stock_reservations").select("id, product_id, quantity, status, leads(name), appointments(starts_at)").eq("product_id", id).order("created_at", { ascending: false }),
+    supabase.from("leads").select("id, name").eq("tenant_id", ctx.tenantId).order("name"),
+    supabase.from("appointments").select("id, starts_at").eq("tenant_id", ctx.tenantId).order("starts_at", { ascending: false }).limit(50),
+    listStockLocations(),
+    supabase.from("product_stock").select("location_id, quantity").eq("product_id", id),
+    getProductRecipe(id),
+    listProductsForRecipe(id),
+  ]);
   const available = availableStock(product.stock_quantity, reservations ?? []);
   const reserved = product.stock_quantity - available;
 
@@ -94,6 +112,27 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           <CardHeader><CardTitle>Transferir entre locais</CardTitle></CardHeader>
           <CardContent>
             <TransferForm productId={product.id} locations={locations} />
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-3">
+          <CardHeader><CardTitle>Receita de producao</CardTitle></CardHeader>
+          <CardContent>
+            <RecipeForm
+              productId={product.id}
+              materials={materialOptions}
+              initialItems={recipeItems.map((item) => ({
+                materialProductId: item.materialProductId,
+                quantity: item.quantity,
+              }))}
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-3">
+          <CardHeader><CardTitle>Fabricar</CardTitle></CardHeader>
+          <CardContent>
+            <ProduceForm productId={product.id} locations={locations} hasRecipe={recipeItems.length > 0} />
           </CardContent>
         </Card>
 

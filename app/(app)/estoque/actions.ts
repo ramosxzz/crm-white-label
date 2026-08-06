@@ -144,6 +144,83 @@ export async function transferStock(input: {
   revalidatePath(`/estoque/${input.productId}`);
 }
 
+export async function getProductRecipe(productId: string) {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("product_recipe_items")
+    .select("id, material_product_id, quantity, products!product_recipe_items_material_product_id_fkey(name)")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("product_id", productId);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((item) => ({
+    id: item.id as string,
+    materialProductId: item.material_product_id as string,
+    quantity: item.quantity as number,
+    materialName: (item.products as unknown as { name: string } | null)?.name ?? "Produto removido",
+  }));
+}
+
+export async function saveProductRecipe(
+  productId: string,
+  items: { materialProductId: string; quantity: number }[],
+) {
+  const ctx = await requireContext();
+  assertStockModuleEnabled(ctx);
+  const supabase = await createClient();
+
+  const cleaned = items.filter((item) => item.materialProductId && item.quantity > 0);
+  if (cleaned.some((item) => item.materialProductId === productId)) {
+    throw new Error("Um produto nao pode ser materia-prima de si mesmo");
+  }
+
+  const { error: deleteError } = await supabase
+    .from("product_recipe_items")
+    .delete()
+    .eq("tenant_id", ctx.tenantId)
+    .eq("product_id", productId);
+  if (deleteError) throw new Error(deleteError.message);
+
+  if (cleaned.length > 0) {
+    const { error: insertError } = await supabase.from("product_recipe_items").insert(
+      cleaned.map((item) => ({
+        tenant_id: ctx.tenantId,
+        product_id: productId,
+        material_product_id: item.materialProductId,
+        quantity: item.quantity,
+      })),
+    );
+    if (insertError) throw new Error(insertError.message);
+  }
+  revalidatePath(`/estoque/${productId}`);
+}
+
+export async function produceProduct(input: { productId: string; locationId: string; quantity: number }) {
+  const ctx = await requireContext();
+  assertStockModuleEnabled(ctx);
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("produce_product", {
+    p_tenant_id: ctx.tenantId,
+    p_product_id: input.productId,
+    p_location_id: input.locationId,
+    p_quantity: input.quantity,
+    p_user_id: ctx.userId,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/estoque");
+  revalidatePath(`/estoque/${input.productId}`);
+}
+
+export async function listProductsForRecipe(excludeProductId?: string) {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+  let query = supabase.from("products").select("id, name").eq("tenant_id", ctx.tenantId).order("name");
+  if (excludeProductId) query = query.neq("id", excludeProductId);
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 export async function listStockLocations() {
   const ctx = await requireContext();
   const supabase = await createClient();
