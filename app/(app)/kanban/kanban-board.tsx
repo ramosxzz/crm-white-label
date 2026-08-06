@@ -786,10 +786,11 @@ const LeadCard = memo(function LeadCard({
     transform: CSS.Translate.toString(transform),
     transition,
     opacity: isDragging || dragging ? 0.4 : 1,
-    // Sem isso o Safari/PWA intercepta o touque pra rolar a tela antes do
-    // TouchSensor conseguir ativar o drag - no desktop (mouse) nunca dava
-    // esse problema, so no toque.
-    touchAction: "none" as const,
+    // "none" bloqueava TODO scroll nativo no toque (coluna parecia travada/
+    // vazia no PWA, so dava pra ver o card do topo) - "pan-y" deixa o gesto
+    // vertical seguir sendo scroll nativo e ainda funciona com o delay do
+    // TouchSensor (200ms parado = arrasta; swipe direto = rola a lista).
+    touchAction: "pan-y" as const,
   };
 
   function changeStars(next: number) {
