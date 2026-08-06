@@ -371,6 +371,7 @@ export interface Tenant {
   email: string | null;
   phone: string | null;
   stock_enabled: boolean;
+  stock_deduct_on_won: boolean;
   satisfaction_survey_enabled: boolean;
   calls_dashboard_enabled: boolean;
   broadcast_enabled: boolean;
@@ -677,6 +678,15 @@ export interface ProductStock {
   product_id: string;
   location_id: string;
   quantity: number;
+}
+
+export interface ProductRecipeItem {
+  id: string;
+  tenant_id: string;
+  product_id: string;
+  material_product_id: string;
+  quantity: number;
+  created_at: string;
 }
 
 export interface AttendantStatus {

@@ -86,6 +86,7 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
   const [color, setColor] = useState(tenant.brand_color ?? suggestBrandColorFromName(tenant.name));
   const [logoUrl, setLogoUrl] = useState<string | null>(tenant.logo_url);
   const [stockEnabled, setStockEnabled] = useState(tenant.stock_enabled);
+  const [stockDeductOnWon, setStockDeductOnWon] = useState(tenant.stock_deduct_on_won);
   const [callsEnabled, setCallsEnabled] = useState(tenant.calls_dashboard_enabled);
   const [broadcastEnabled, setBroadcastEnabled] = useState(tenant.broadcast_enabled);
   const [fieldServiceEnabled, setFieldServiceEnabled] = useState(tenant.field_service_enabled);
@@ -110,6 +111,7 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
           website,
           brand_color: color,
           stock_enabled: stockEnabled,
+          stock_deduct_on_won: stockDeductOnWon,
           calls_dashboard_enabled: callsEnabled,
           broadcast_enabled: broadcastEnabled,
           field_service_enabled: fieldServiceEnabled,
@@ -341,6 +343,30 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
             disabled={!canEdit}
           />
         </div>
+        {stockEnabled && (
+          <div className="mt-4 flex flex-col gap-4 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand">
+                <Boxes className="h-4 w-4" />
+              </span>
+              <div>
+                <Label htmlFor="stock-deduct-on-won" className="text-sm font-semibold">
+                  Baixa de estoque ao fechar venda
+                </Label>
+                <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
+                  Ao mover um lead para uma etapa de "ganho" (no Kanban ou no Chat), abre um modal
+                  para dar baixa no produto vendido.
+                </p>
+              </div>
+            </div>
+            <FeatureToggle
+              id="stock-deduct-on-won"
+              checked={stockDeductOnWon}
+              onChange={setStockDeductOnWon}
+              disabled={!canEdit}
+            />
+          </div>
+        )}
       </div>
 
       <div className="rounded-xl border border-border/70 bg-card p-4">

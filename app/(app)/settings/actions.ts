@@ -12,6 +12,7 @@ export async function updateTenantInfo(input: {
   website?: string;
   brand_color?: string;
   stock_enabled?: boolean;
+  stock_deduct_on_won?: boolean;
   calls_dashboard_enabled?: boolean;
   broadcast_enabled?: boolean;
   field_service_enabled?: boolean;
@@ -35,6 +36,7 @@ export async function updateTenantInfo(input: {
       website: input.website ?? null,
       brand_color: input.brand_color ?? null,
       stock_enabled: input.stock_enabled ?? true,
+      stock_deduct_on_won: input.stock_deduct_on_won ?? false,
       calls_dashboard_enabled: input.calls_dashboard_enabled ?? false,
       broadcast_enabled: input.broadcast_enabled ?? false,
       field_service_enabled: input.field_service_enabled ?? false,
