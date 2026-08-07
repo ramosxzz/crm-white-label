@@ -78,7 +78,7 @@ export async function findOrCreateWhatsAppLead(
      * estiver ligado. */
     receivingAccountOwnerId?: string | null;
   },
-): Promise<string | null> {
+): Promise<{ id: string; created: boolean } | null> {
   const existing = await findLeadByContact(supabase, tenantId, {
     phone: contact.phone,
     lid: contact.lid,
@@ -120,7 +120,7 @@ export async function findOrCreateWhatsAppLead(
           .eq("id", existing.id);
       }
     }
-    return existing.id;
+    return { id: existing.id, created: false };
   }
 
   const customFields: Record<string, any> = {};
@@ -149,7 +149,7 @@ export async function findOrCreateWhatsAppLead(
   if (!error && created?.id) {
     // Modo ausente: encaminha o lead novo para o vendedor escolhido, se ativo.
     await forwardNewLead(supabase, tenantId, created.id);
-    return created.id;
+    return { id: created.id, created: true };
   }
 
   const retry = await findLeadByContact(supabase, tenantId, {
@@ -160,7 +160,7 @@ export async function findOrCreateWhatsAppLead(
     if (contact.lid) {
       await attachWhatsAppLidToLead(supabase, retry.id, tenantId, contact.lid);
     }
-    return retry.id;
+    return { id: retry.id, created: false };
   }
 
   return null;

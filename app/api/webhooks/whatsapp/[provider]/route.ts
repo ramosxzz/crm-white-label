@@ -419,7 +419,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
 
 
-    const leadId = await findOrCreateWhatsAppLead(supabase, account.tenant_id, {
+    const leadResult = await findOrCreateWhatsAppLead(supabase, account.tenant_id, {
 
       phone: phoneDigits,
 
@@ -441,7 +441,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
 
 
-    if (!leadId) continue;
+    if (!leadResult) continue;
+    const leadId = leadResult.id;
+
+    // Sem isso, automacoes com gatilho "lead criado" nunca disparavam pra
+    // leads que chegam pelo WhatsApp (a maioria) - so funcionava pra leads
+    // criados manualmente ou pela API publica, que ja chamam esse trigger.
+    if (leadResult.created) {
+      void fireAutomationTrigger(account.tenant_id, "lead_created", leadId, { source: "whatsapp" });
+    }
 
     void supabase
       .from("leads")
