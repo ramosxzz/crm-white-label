@@ -1,5 +1,7 @@
 import { ThemeToggle } from "@/components/theme-toggle";
 import Link from "next/link";
+import Aurora from "@/components/effects/aurora";
+import ShinyText from "@/components/effects/shiny-text";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -29,6 +31,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
       {/* Right: hero panel */}
       <div className="relative hidden overflow-hidden bg-[#0f1117] lg:flex lg:flex-col lg:justify-between lg:p-12">
+        {/* Aurora - substitui o glow estatico por um fundo com movimento sutil */}
+        <div className="absolute inset-0">
+          <Aurora colorStops={["#4F46E5", "#7C3AED", "#38BDF8"]} amplitude={0.8} blend={0.4} speed={0.4} />
+        </div>
+
         {/* Grid pattern */}
         <div
           className="absolute inset-0 opacity-[0.04]"
@@ -39,9 +46,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           }}
         />
 
-        {/* Glow */}
-        <div className="absolute -top-32 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-brand/20 blur-[100px]" />
-
         <div className="relative">
           <div className="flex items-center gap-3">
             <div className="grid h-10 w-10 place-items-center rounded-xl bg-brand text-brand-foreground font-display text-base font-bold shadow-lg">
@@ -49,7 +53,14 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             </div>
             <div>
               <p className="font-display text-lg font-semibold text-white">Solaire W+ CRM</p>
-              <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">Plataforma White-Label</p>
+              <ShinyText
+                text="PLATAFORMA WHITE-LABEL"
+                className="text-[10px] uppercase tracking-[0.2em]"
+                color="rgba(255,255,255,0.4)"
+                shineColor="#ffffff"
+                speed={3}
+                delay={1.5}
+              />
             </div>
           </div>
         </div>
