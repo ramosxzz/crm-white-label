@@ -9,16 +9,17 @@ export default function SignupPage() {
   );
 
   return (
-    <div>
+    <main className="grid min-h-screen place-items-center bg-[#05070c] p-6 text-white">
+      <div className="w-full max-w-md border border-white/10 bg-white/[0.035] p-7 shadow-2xl sm:p-9">
       <div className="mb-8 space-y-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-muted/40 text-foreground">
+        <div className="flex h-12 w-12 items-center justify-center border border-white/15 bg-white/[0.06] text-cyan-300">
           <ShieldCheck className="h-5 w-5" />
         </div>
         <div className="space-y-2">
           <h1 className="font-display text-3xl font-semibold tracking-tight">
             Cadastro somente por demo
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm leading-6 text-white/50">
             Para manter o CRM seguro e bem configurado para cada empresa, novos acessos agora sao
             liberados diretamente pelo time Solaire W+.
           </p>
@@ -39,6 +40,7 @@ export default function SignupPage() {
           </Link>
         </Button>
       </div>
-    </div>
+      </div>
+    </main>
   );
 }

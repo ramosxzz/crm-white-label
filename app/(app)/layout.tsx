@@ -42,7 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <>
-      <TenantTheme brandColor={ctx.tenant.brand_color} />
+      <TenantTheme brandColor={ctx.userEmail === "demo@solairew.com" ? "#2563EB" : ctx.tenant.brand_color} />
       <TenantPageTitle tenantName={ctx.tenant.name} />
       <MobileMenuProvider>
         <div className="flex h-[100dvh] overflow-hidden">

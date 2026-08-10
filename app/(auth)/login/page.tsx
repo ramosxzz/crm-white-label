@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, Loader2, MessageCircle } from "lucide-react";
+import { ArrowRight, Eye, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { buildDemoWhatsappUrl } from "@/lib/demo-whatsapp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { mapSignupError } from "@/lib/auth/signup-errors";
+import { LoginShowcase } from "@/components/auth/login-showcase";
 
 function withTimeout<T>(promise: Promise<T>, ms: number) {
   return Promise.race([
@@ -27,8 +27,6 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
-  const demoUrl = buildDemoWhatsappUrl();
-
   function fillDemoCredentials() {
     setEmail("demo@solairew.com");
     setPassword("12345678");
@@ -61,15 +59,17 @@ export default function LoginPage() {
   }
 
   return (
-    <div>
-      <div className="mb-8 space-y-2">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Bem-vindo de volta</h1>
-        <p className="text-sm text-muted-foreground">Entre com sua conta para acessar o painel</p>
-      </div>
+    <LoginShowcase>
+      <div>
+        <div className="mb-7 space-y-2">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300">Área segura</p>
+          <h1 className="font-display text-3xl font-semibold tracking-tight text-white">Entrar no CRM W+</h1>
+          <p className="text-sm leading-6 text-white/50">Use os dados da sua conta para acessar a operação.</p>
+        </div>
 
-      <form onSubmit={onSubmit} className="space-y-5">
+        <form onSubmit={onSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email" className="text-white/80">Email</Label>
           <Input
             id="email"
             type="email"
@@ -78,16 +78,18 @@ export default function LoginPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="voce@empresa.com"
+            className="border-white/15 bg-white/[0.04] text-white placeholder:text-white/25"
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="password">Senha</Label>
+          <Label htmlFor="password" className="text-white/80">Senha</Label>
           <PasswordInput
             id="password"
             autoComplete="current-password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            className="border-white/15 bg-white/[0.04] text-white"
           />
         </div>
         {error && (
@@ -95,40 +97,25 @@ export default function LoginPage() {
             {error}
           </div>
         )}
-        <Button type="submit" variant="brand" size="lg" className="w-full" disabled={loading || redirecting}>
+        <Button type="submit" size="lg" className="w-full bg-white text-[#05070c] hover:bg-cyan-50" disabled={loading || redirecting}>
           {loading || redirecting ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
               {redirecting ? "Abrindo CRM..." : "Entrando..."}
             </>
           ) : (
-            "Entrar"
+            <>
+              Entrar no CRM
+              <ArrowRight className="h-4 w-4" />
+            </>
           )}
         </Button>
-        <div className="rounded-lg border border-brand/20 bg-brand/5 p-4 text-center">
-          <p className="text-sm font-medium text-foreground">Conheça o CRM agora</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Acesse nosso ambiente de demonstração com dados fictícios.
-          </p>
-          <Button type="button" variant="outline" className="mt-3 w-full" onClick={fillDemoCredentials}>
-            <Eye className="h-4 w-4" />
-            Usar acesso de demonstração
-          </Button>
-          <p className="mt-2 text-xs text-muted-foreground">Senha da demonstração: 12345678</p>
-        </div>
-        <div className="rounded-lg border border-border bg-muted/30 p-4 text-center">
-          <p className="text-sm font-medium text-foreground">Quer conhecer o CRM?</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Solicite uma demo e liberamos o acesso com seguranca.
-          </p>
-          <Button asChild type="button" variant="outline" className="mt-3 w-full">
-            <a href={demoUrl} target="_blank" rel="noreferrer">
-              <MessageCircle className="h-4 w-4" />
-              Solicitar demo
-            </a>
-          </Button>
-        </div>
-      </form>
-    </div>
+          <button type="button" onClick={fillDemoCredentials} className="mx-auto flex items-center gap-2 py-1 text-xs text-white/45 transition-colors hover:text-white">
+            <Eye className="h-3.5 w-3.5" />
+            Preencher acesso de demonstração
+          </button>
+        </form>
+      </div>
+    </LoginShowcase>
   );
 }

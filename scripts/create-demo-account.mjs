@@ -41,7 +41,7 @@ if (profileError) throw new Error(profileError.message);
 if (!profile?.default_tenant_id) {
   const { data: tenant, error } = await supabase
     .from("tenants")
-    .insert({ name: "Solaire W+ Demonstração", slug: "solaire-w-demo", brand_color: "#f97316" })
+    .insert({ name: "Solaire W+ Demonstração", slug: "solaire-w-demo", brand_color: "#2563EB" })
     .select("id")
     .single();
   if (error) throw new Error(error.message);
@@ -57,7 +57,7 @@ const { error: tenantError } = await supabase
   .from("tenants")
   .update({
     name: "Solaire W+ Demonstração",
-    brand_color: "#f97316",
+    brand_color: "#2563EB",
     tagline: "Ambiente seguro com dados fictícios",
     stock_enabled: true,
     broadcast_enabled: false,
