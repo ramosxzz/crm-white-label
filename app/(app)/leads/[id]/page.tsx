@@ -28,7 +28,7 @@ import { LeadFilesPanel } from "./lead-files-panel";
 import { LeadDeleteButton } from "@/components/leads/lead-delete-button";
 import { ScheduleMeetingButton } from "@/components/leads/schedule-meeting-button";
 import { CallButton } from "@/components/leads/call-button";
-import { TechnicalProfilePanel } from "./technical-profile-panel";
+import { TechnicalProfilePanel, type Definition } from "./technical-profile-panel";
 import { TaskPanel } from "./task-panel";
 import { NotesPanel } from "./notes-panel";
 import { ValuePanel } from "./value-panel";
@@ -194,7 +194,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
           <TechnicalProfilePanel
             leadId={lead.id}
-            definitions={technicalDefinitions ?? []}
+            definitions={(technicalDefinitions ?? []) as Definition[]}
             initialValues={(lead.custom_fields ?? {}) as Record<string, unknown>}
           />
 

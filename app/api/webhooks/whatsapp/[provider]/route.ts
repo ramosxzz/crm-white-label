@@ -11,6 +11,7 @@ import { ZAPI_PHONE_PLACEHOLDER } from "@/lib/whatsapp/zapi";
 import { unwrapZapiPayloadForLog } from "@/lib/whatsapp/zapi-log";
 
 import { findOrCreateWhatsAppLead } from "@/lib/leads/find-or-create";
+import { toJson } from "@/lib/utils";
 
 import { applyMessageStatusUpdates } from "@/lib/whatsapp/apply-message-status";
 import { isSelfWhatsAppContact } from "@/lib/whatsapp/self-contact";
@@ -19,7 +20,6 @@ import { syncLeadWhatsAppProfilePicture } from "@/lib/whatsapp/profile-picture";
 import {
   parseZapiMessageStatusUpdates,
   shouldUpgradeMessageStatus,
-  type DbMessageStatus,
 } from "@/lib/whatsapp/zapi-status";
 import { parseEvolutionMessageStatusUpdates } from "@/lib/whatsapp/evolution-status";
 import { parseEvolutionPresenceUpdate } from "@/lib/whatsapp/evolution-presence";
@@ -33,7 +33,7 @@ import { fireAutomationTrigger } from "@/lib/automations/trigger";
 import { dispatchWebhookEvent } from "@/lib/api/dispatch-webhook";
 import { nextConversationUnreadCount } from "@/lib/chat/unread-count";
 
-import type { WhatsAppAccount, WhatsAppProviderKind } from "@/lib/supabase/database.types";
+import type { Message, WhatsAppAccount, WhatsAppProviderKind } from "@/lib/supabase/database.types";
 
 import {
   collectNestedStringValues,
@@ -226,7 +226,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
       contact_phone: value?.metadata?.display_phone_number?.replace(/\D/g, "") ?? null,
       contact_lid: value?.metadata?.phone_number_id ?? null,
       parsed_count: (value?.messages?.length ?? 0) + (value?.statuses?.length ?? 0),
-      payload: payload as Record<string, unknown>,
+      payload: toJson(payload),
     });
   }
 
@@ -258,7 +258,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
       contact_phone: null,
       contact_lid: null,
       parsed_count: 0,
-      payload: payload as Record<string, unknown>,
+      payload: toJson(payload),
     });
 
     const statusUpdates = parseEvolutionMessageStatusUpdates(payload);
@@ -340,7 +340,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
       contact_phone: logPayload?.phone ?? null,
       contact_lid: logPayload?.chatLid ?? logPayload?.senderLid ?? null,
       parsed_count: messages.length,
-      payload: payload as Record<string, unknown>,
+      payload: toJson(payload),
     });
   }
 
@@ -368,13 +368,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
     // sabemos a conversa mais abaixo, entao guardamos o achado daqui pra usar
     // la (reentrega de verdade = mesma conversa; instancia irma = conversa
     // diferente, insere normalmente).
-    type ExistingMsgRow = {
-      id: string;
-      tenant_id: string;
-      body: string | null;
-      status: DbMessageStatus | null;
-      conversation_id: string | null;
-    };
+    // Deriva do Message real (banco): status e conversation_id nao sao
+    // nullable na tabela - declarar nullable aqui a mao (como antes) fazia o
+    // predicado de tipo abaixo falhar, porque um tipo mais permissivo que a
+    // linha real nunca e um subtipo valido dela.
+    type ExistingMsgRow = Pick<Message, "id" | "tenant_id" | "body" | "status" | "conversation_id">;
     let sameTenantRowsWithExternalId: ExistingMsgRow[] = [];
 
     if (msg.externalId) {
@@ -451,22 +449,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
       void fireAutomationTrigger(account.tenant_id, "lead_created", leadId, { source: "whatsapp" });
     }
 
-    void supabase
-      .from("leads")
-      .select("id, tenant_id, phone, custom_fields")
-      .eq("id", leadId)
-      .eq("tenant_id", account.tenant_id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!data) return null;
-        return syncLeadWhatsAppProfilePicture(supabase, account, {
+    // IIFE em vez de encadear .then().catch() direto no builder: o builder do
+    // Postgrest e so "thenable" (PromiseLike), nao Promise completo, entao nao
+    // tem .catch() proprio - encadear quebra o tipo mesmo funcionando em runtime.
+    void (async () => {
+      try {
+        const { data } = await supabase
+          .from("leads")
+          .select("id, tenant_id, phone, custom_fields")
+          .eq("id", leadId)
+          .eq("tenant_id", account.tenant_id)
+          .maybeSingle();
+        if (!data) return;
+        await syncLeadWhatsAppProfilePicture(supabase, account, {
           id: data.id,
           tenant_id: data.tenant_id,
           phone: data.phone,
           custom_fields: (data.custom_fields as Record<string, unknown> | null) ?? null,
         });
-      })
-      .catch(() => null);
+      } catch {
+        // melhor esforco - nao pode derrubar o webhook por causa da foto de perfil
+      }
+    })();
 
 
 

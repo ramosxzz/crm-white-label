@@ -107,16 +107,18 @@ export async function sendChatMessageCore(
 
   if (!conversationId) throw new Error("Falha ao criar conversa");
 
-  let replyTo:
-    | {
-        id: string;
-        external_id: string | null;
-        body: string | null;
-        media_type: string | null;
-        direction: "inbound" | "outbound";
-        user_id: string | null;
-      }
-    | null = null;
+  type ReplyToRow = {
+    id: string;
+    external_id: string | null;
+    body: string | null;
+    media_type: string | null;
+    direction: "inbound" | "outbound";
+    user_id: string | null;
+  };
+  // `typeof replyTo` dentro da propria atribuicao de replyTo faz o TS inferir
+  // `never` (self-reference na expressao) - por isso o tipo tem nome proprio
+  // em vez de ser inline na declaracao do let.
+  let replyTo: ReplyToRow | null = null;
   let replySenderName: string | null = null;
   if (input.replyToMessageId) {
     const { data } = await supabase
@@ -126,7 +128,7 @@ export async function sendChatMessageCore(
       .eq("tenant_id", input.tenantId)
       .eq("conversation_id", conversationId)
       .maybeSingle();
-    replyTo = (data as typeof replyTo) ?? null;
+    replyTo = (data as ReplyToRow | null) ?? null;
     if (replyTo?.user_id) {
       const { data: profile } = await supabase
         .from("profiles")

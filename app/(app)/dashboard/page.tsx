@@ -128,7 +128,7 @@ export default async function DashboardPage({
     funnelPeriod.bounds
       ? supabase.rpc("funnel_metrics", {
           p_tenant_id: ctx.tenantId,
-          p_pipeline_id: null,
+          p_pipeline_id: undefined,
           p_from: funnelPeriod.bounds.startIso,
           p_to: funnelPeriod.bounds.endIso,
         })

@@ -12,7 +12,12 @@ import {
   canReviewServiceOrder,
 } from "@/lib/auth/roles";
 import { canTransitionServiceOrder } from "@/lib/field-service/status";
-import type { CommissionParty, ServiceOrder, ServiceOrderStatus } from "@/lib/supabase/database.types";
+import type {
+  CommissionParty,
+  Database,
+  ServiceOrder,
+  ServiceOrderStatus,
+} from "@/lib/supabase/database.types";
 import { formatCurrencyBRL } from "@/lib/utils";
 
 type Ctx = Awaited<ReturnType<typeof requireContext>>;
@@ -96,10 +101,15 @@ function readForm(formData: FormData, key: string) {
  * que duas criacoes simultaneas nao gerem o mesmo numero - nesse caso a segunda
  * falha e a gente tenta de novo com o proximo numero.
  */
+type ServiceOrderInsert = Omit<
+  Database["public"]["Tables"]["service_orders"]["Insert"],
+  "tenant_id" | "code_seq"
+>;
+
 async function insertWithSequentialCode(
   supabase: Awaited<ReturnType<typeof createClient>>,
   tenantId: string,
-  payload: Record<string, unknown>,
+  payload: ServiceOrderInsert,
 ): Promise<ServiceOrder> {
   for (let attempt = 0; attempt < 5; attempt++) {
     const { data: last } = await supabase
@@ -559,7 +569,7 @@ export async function transitionServiceOrder(input: {
     return;
   }
 
-  const patch: Record<string, unknown> = {
+  const patch: Database["public"]["Tables"]["service_orders"]["Update"] = {
     status: parsed.to,
     updated_at: new Date().toISOString(),
   };

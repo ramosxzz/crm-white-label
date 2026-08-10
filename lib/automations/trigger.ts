@@ -1,4 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/server";
+import { toJson } from "@/lib/utils";
 
 export type TriggerKind =
   | "lead_created"
@@ -100,7 +101,7 @@ export async function fireAutomationTrigger(
             version_id: version.id,
             lead_id: leadId,
             trigger_kind: kind,
-            trigger_payload: triggerBlockId ? { ...payload, _trigger_block_id: triggerBlockId } : payload,
+            trigger_payload: toJson(triggerBlockId ? { ...payload, _trigger_block_id: triggerBlockId } : payload),
             idempotency_key: idempotencyKey,
             status: "running",
           })

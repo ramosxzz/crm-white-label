@@ -81,9 +81,9 @@ export default async function FunilPage({
 
   const { data } = await supabase.rpc("funnel_metrics", {
     p_tenant_id: ctx.tenantId,
-    p_pipeline_id: activePipeline?.id ?? null,
-    p_from: dateFilter.bounds?.startIso ?? null,
-    p_to: dateFilter.bounds?.endIso ?? null,
+    p_pipeline_id: activePipeline?.id ?? undefined,
+    p_from: dateFilter.bounds?.startIso ?? undefined,
+    p_to: dateFilter.bounds?.endIso ?? undefined,
   });
 
   const stages: FunnelStage[] = ((data ?? []) as FunnelRow[]).map((row) => ({

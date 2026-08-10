@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
+import { toJson } from "@/lib/utils";
 
 const APP_ID = process.env.META_APP_ID!;
 const APP_SECRET = process.env.META_APP_SECRET!;
@@ -100,7 +101,7 @@ export async function POST(req: NextRequest) {
         .update({
           phone_number: (phoneData.display_phone_number ?? "").replace(/\D/g, ""),
           display_name: phoneData.verified_name ?? null,
-          credentials,
+          credentials: toJson(credentials),
           is_active: true,
         })
         .eq("id", existing.id)
@@ -112,7 +113,7 @@ export async function POST(req: NextRequest) {
         provider: "cloud_api",
         phone_number: (phoneData.display_phone_number ?? "").replace(/\D/g, ""),
         display_name: phoneData.verified_name ?? null,
-        credentials,
+        credentials: toJson(credentials),
         is_active: true,
       });
       if (error) throw new Error(error.message);

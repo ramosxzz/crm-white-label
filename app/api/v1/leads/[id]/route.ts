@@ -7,6 +7,7 @@ import { apiJson, apiErrorResponse, CORS_HEADERS } from "@/lib/api/response";
 import { fireAutomationTrigger } from "@/lib/automations/trigger";
 import { dispatchWebhookEvent } from "@/lib/api/dispatch-webhook";
 import { normalizePhone } from "@/lib/utils";
+import type { Database } from "@/lib/supabase/database.types";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +64,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const parsed = updateLeadSchema.parse(body);
 
     const supabase = createServiceClient();
-    const patch: Record<string, unknown> = { ...parsed };
+    const patch: Database["public"]["Tables"]["leads"]["Update"] = { ...parsed };
     if (parsed.phone) patch.phone = normalizePhone(parsed.phone);
 
     if (parsed.stage_id) {

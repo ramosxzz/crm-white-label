@@ -169,7 +169,7 @@ export function LeadsByStageDonut({ data }: { data: { name: string; color: strin
   );
 }
 
-export function LeadsPerDayChart({ data }: { data: { date: string; count: number }[] }) {
+export function LeadsPerDayChart({ data }: { data: { date: string; label?: string; count: number }[] }) {
   const formatted = data.map((d) => ({ ...d, label: d.label ?? d.date.slice(5) }));
   return (
     <ResponsiveContainer width="100%" height={260}>

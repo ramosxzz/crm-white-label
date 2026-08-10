@@ -2,7 +2,7 @@ import { buildConversationItems } from "@/lib/chat/build-conversation-items";
 import type { ConversationLeadRow } from "@/lib/chat/conversation-filter";
 import type { ConversationListItem } from "@/lib/chat/types";
 import { createServiceClient } from "@/lib/supabase/server";
-import type { WhatsAppAccount } from "@/lib/supabase/database.types";
+import type { ConversationStatus, WhatsAppAccount } from "@/lib/supabase/database.types";
 import { canSeeAllLeads } from "@/lib/auth/roles";
 import type { MemberRole } from "@/lib/supabase/database.types";
 
@@ -243,7 +243,9 @@ async function listFilteredConversationItemsForTenant(
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(cappedLimit);
 
-  if (status && status !== "todas") query = query.eq("status", status);
+  // O filtro vem da UI, sempre um dos valores do select - "todas" ja foi
+  // descartado acima, entao o resto e garantidamente um status valido.
+  if (status && status !== "todas") query = query.eq("status", status as ConversationStatus);
   if (leadIds) query = query.in("lead_id", leadIds);
 
   const [{ data: rows, error }, { data: waAccount }] = await Promise.all([

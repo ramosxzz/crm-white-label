@@ -1,4 +1,4 @@
-type Definition = {
+export type Definition = {
   key: string;
   field_type: "text" | "number" | "date" | "select" | "boolean" | "file";
   is_required: boolean;
@@ -8,7 +8,10 @@ export function normalizeCustomFieldValues(
   definitions: Definition[],
   values: Record<string, unknown>,
 ) {
-  return Object.fromEntries(definitions.flatMap((definition) => {
+  // Anotacao explicita de retorno: sem ela, os 3 branches (number/boolean/
+  // string) formam uma uniao de tuplas heterogeneas que o TS nao consegue
+  // encaixar no overload de flatMap (quer um shape de tupla so).
+  return Object.fromEntries(definitions.flatMap((definition): [string, unknown][] => {
     const raw = values[definition.key];
     if ((raw === undefined || raw === null || raw === "") && definition.is_required) {
       throw new Error(`Campo obrigatorio: ${definition.key}`);

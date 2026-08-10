@@ -107,7 +107,7 @@ export async function optimizeShiftRoute(input: {
 
   const orderIds = (assignments ?? []).map((row: any) => row.service_order_id as string);
   if (orderIds.length === 0) {
-    return { optimized: 0, skipped: 0, distanceLabel: "0 m", durationLabel: "0 min" };
+    return { optimized: 0, skipped: 0, distanceLabel: "0 m", durationLabel: "0 min", changed: false, sequence: [] };
   }
 
   const { data: orders } = await supabase
@@ -121,7 +121,7 @@ export async function optimizeShiftRoute(input: {
 
   const shiftOrders = (orders ?? []) as any[];
   if (shiftOrders.length === 0) {
-    return { optimized: 0, skipped: 0, distanceLabel: "0 m", durationLabel: "0 min" };
+    return { optimized: 0, skipped: 0, distanceLabel: "0 m", durationLabel: "0 min", changed: false, sequence: [] };
   }
 
   const coords = await ensureGeocoded(ctx, shiftOrders);

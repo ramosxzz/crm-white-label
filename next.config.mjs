@@ -12,10 +12,6 @@ const nextConfig = {
   experimental: {
     serverActions: { bodySizeLimit: "10mb" },
   },
-  typescript: {
-    // Tipos de joins do Supabase exigem cast manual; build ja foi validado, ignorar erros aqui
-    ignoreBuildErrors: true,
-  },
   eslint: {
     ignoreDuringBuilds: true,
   },

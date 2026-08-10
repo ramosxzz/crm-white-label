@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { canTransitionServiceOrder } from "@/lib/field-service/status";
 import { isWithinTrackingWindow } from "@/lib/field-service/tracking-window";
-import type { ServiceOrderStatus } from "@/lib/supabase/database.types";
+import type { Database, ServiceOrderStatus } from "@/lib/supabase/database.types";
 
 type Ctx = Awaited<ReturnType<typeof requireContext>>;
 
@@ -190,7 +190,7 @@ export async function fieldTransition(input: {
     }
   }
 
-  const patch: Record<string, unknown> = {
+  const patch: Database["public"]["Tables"]["service_orders"]["Update"] = {
     status: parsed.to,
     updated_at: new Date().toISOString(),
   };
@@ -246,8 +246,8 @@ export async function closeFieldServiceOrder(input: {
     p_user_id: ctx.userId,
     p_closure_type: parsed.closure_type,
     p_answers: parsed.answers,
-    p_observations: parsed.observations || null,
-    p_quote_description: parsed.quote_description || null,
+    p_observations: parsed.observations || undefined,
+    p_quote_description: parsed.quote_description || undefined,
   });
   if (error) throw new Error(error.message);
 

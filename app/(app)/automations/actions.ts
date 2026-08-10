@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { toJson } from "@/lib/utils";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
@@ -87,7 +88,7 @@ export async function saveFlowDraft(
     // Ja existe um rascunho: atualiza no lugar.
     const { error } = await supabase
       .from("automation_versions")
-      .update({ config })
+      .update({ config: toJson(config) })
       .eq("id", latestRow.id)
       .eq("tenant_id", ctx.tenantId);
     if (error) return { ok: false };
@@ -98,7 +99,7 @@ export async function saveFlowDraft(
       flow_id: flowId,
       tenant_id: ctx.tenantId,
       version_number: nextVersion,
-      config,
+      config: toJson(config),
     });
     if (error) return { ok: false };
   }
@@ -201,7 +202,7 @@ export async function saveFlowVersion(
     flow_id: flowId,
     tenant_id: ctx.tenantId,
     version_number: nextVersion,
-    config,
+    config: toJson(config),
     published_at: new Date().toISOString(),
   });
 

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { toJson } from "@/lib/utils";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import type { WhatsAppAccount, WhatsAppProviderKind } from "@/lib/supabase/database.types";
@@ -55,7 +56,7 @@ async function syncZapiWebhooks(
   const fakeAccount = {
     provider: "zapi" as const,
     phone_number: input.phone_number?.replace(/\D/g, "") ?? "",
-    credentials: input.credentials,
+    credentials: toJson(input.credentials),
   } as WhatsAppAccount;
 
   const zapi = new ZapiProvider(fakeAccount);
@@ -87,7 +88,7 @@ async function syncEvolutionWebhook(input: {
     const base = await getAppBaseUrl();
     const fakeAccount = {
       provider: "evolution" as const,
-      credentials: input.credentials,
+      credentials: toJson(input.credentials),
     } as WhatsAppAccount;
     const evo = new EvolutionProvider(fakeAccount);
     await evo.configureWebhook(`${base}/api/webhooks/whatsapp/evolution`);
@@ -107,7 +108,7 @@ async function syncCloudApiWebhook(input: {
     const { CloudApiProvider } = await import("@/lib/whatsapp/cloud-api");
     const fakeAccount = {
       provider: "cloud_api" as const,
-      credentials: input.credentials,
+      credentials: toJson(input.credentials),
     } as WhatsAppAccount;
     const cloud = new CloudApiProvider(fakeAccount);
     await cloud.getPhoneNumberStatus();
@@ -242,7 +243,7 @@ export async function saveWhatsAppAccount(input: {
         display_name: input.display_name ?? null,
         assigned_to: assignedTo,
         shared_with_all: sharedWithAll,
-        credentials: input.credentials,
+        credentials: toJson(input.credentials),
         is_active: input.is_active,
       })
       .eq("id", input.id)
@@ -256,7 +257,7 @@ export async function saveWhatsAppAccount(input: {
       display_name: input.display_name ?? null,
       assigned_to: assignedTo,
       shared_with_all: sharedWithAll,
-      credentials: input.credentials,
+      credentials: toJson(input.credentials),
       is_active: input.is_active,
     });
     if (error) throw new Error(error.message);
@@ -316,7 +317,7 @@ export async function setWhatsAppAccountActive(input: { id: string; is_active: b
 
   const { error } = await supabase
     .from("whatsapp_accounts")
-    .update({ is_active: input.is_active, credentials })
+    .update({ is_active: input.is_active, credentials: toJson(credentials) })
     .eq("id", input.id)
     .eq("tenant_id", ctx.tenantId);
   if (error) throw new Error(error.message);
@@ -335,7 +336,7 @@ export async function testWhatsAppConnection(input: {
     const { CloudApiProvider } = await import("@/lib/whatsapp/cloud-api");
     const fakeAccount = {
       provider: "cloud_api" as const,
-      credentials: input.credentials,
+      credentials: toJson(input.credentials),
     } as WhatsAppAccount;
 
     try {
@@ -365,7 +366,7 @@ export async function testWhatsAppConnection(input: {
     const { EvolutionProvider } = await import("@/lib/whatsapp/evolution");
     const fakeAccount = {
       provider: "evolution" as const,
-      credentials: input.credentials,
+      credentials: toJson(input.credentials),
     } as WhatsAppAccount;
 
     try {
@@ -400,7 +401,7 @@ export async function testWhatsAppConnection(input: {
   const { ZapiProvider } = await import("@/lib/whatsapp/zapi");
   const fakeAccount = {
     provider: "zapi" as const,
-    credentials: input.credentials,
+    credentials: toJson(input.credentials),
   } as WhatsAppAccount;
 
   try {

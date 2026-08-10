@@ -59,14 +59,18 @@ export async function POST(req: NextRequest) {
     .eq("is_default", true)
     .maybeSingle();
 
-  const { data: stage } = await supabase
-    .from("pipeline_stages")
-    .select("id")
-    .eq("tenant_id", keyRow.tenant_id)
-    .eq("pipeline_id", pipe?.id)
-    .order("position", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  // Sem pipeline padrao configurado pro tenant, nao ha etapa inicial pra
+  // buscar - segue sem stage_id em vez de mandar undefined pro filtro.
+  const { data: stage } = pipe?.id
+    ? await supabase
+        .from("pipeline_stages")
+        .select("id")
+        .eq("tenant_id", keyRow.tenant_id)
+        .eq("pipeline_id", pipe.id)
+        .order("position", { ascending: true })
+        .limit(1)
+        .maybeSingle()
+    : { data: null };
 
   const { data: lead, error: leadErr } = await supabase
     .from("leads")
@@ -77,7 +81,10 @@ export async function POST(req: NextRequest) {
       name,
       email,
       phone,
-      value,
+      // Coluna real e value_cents (inteiro). "value" nao existe na tabela -
+      // o Supabase vinha descartando o valor em silencio em toda integracao
+      // externa que mandasse esse campo, sem erro nenhum no retorno.
+      value_cents: value != null ? Math.round(value * 100) : null,
       notes,
       source,
     })

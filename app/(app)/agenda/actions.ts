@@ -6,7 +6,7 @@ import { canTransitionAppointment } from "@/lib/agenda/status";
 import { notifyAppointmentAssignee } from "@/lib/agenda/appointment-notifications";
 import { assertRole, canManageOperationalSetup, canOperateLead } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
-import type { AppointmentStatus } from "@/lib/supabase/database.types";
+import type { AppointmentStatus, Database } from "@/lib/supabase/database.types";
 import { requireContext } from "@/lib/tenant";
 import { logLeadActivity } from "@/lib/leads/activity-log";
 
@@ -232,7 +232,7 @@ export async function setMeetingOutcome(formData: FormData) {
   const newStatus =
     outcome === "no_show" ? "no_show" : outcome === "pending" ? "scheduled" : "completed";
 
-  const update: Record<string, unknown> = {
+  const update: Database["public"]["Tables"]["appointments"]["Update"] = {
     outcome,
     status: newStatus,
     cost_cents: Number.isFinite(cost) ? Math.round(cost * 100) : 0,

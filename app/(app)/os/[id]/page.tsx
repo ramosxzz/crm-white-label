@@ -25,6 +25,7 @@ import { listTechnicians } from "@/lib/field-service/users";
 import type {
   ServiceOrderItem,
   ServiceOrderQuote,
+  ServiceOrderShift,
   ServiceOrderStatus,
   PaymentMethodRate,
   FinancialAdjustmentRequest,
@@ -342,7 +343,7 @@ export default async function ServiceOrderDetailPage({
               serviceOrderId={order.id}
               technicians={technicians}
               currentDate={order.service_date}
-              currentShift={order.shift}
+              currentShift={order.shift as ServiceOrderShift | null}
               currentTechnicianIds={assignedIds}
             />
           )}

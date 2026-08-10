@@ -44,7 +44,11 @@ export default async function AutomationLogsPage({
     .limit(100);
 
   // Fetch lead names for display
-  const leadIds = [...new Set((executions ?? []).map((e) => e.lead_id).filter(Boolean))];
+  // .filter(Boolean) nao estreita (string|null)[] pra string[] no TS - precisa
+  // de um predicado de tipo explicito.
+  const leadIds = [
+    ...new Set((executions ?? []).map((e) => e.lead_id).filter((id): id is string => id != null)),
+  ];
   const { data: leads } = leadIds.length
     ? await supabase.from("leads").select("id, name").in("id", leadIds)
     : { data: [] };

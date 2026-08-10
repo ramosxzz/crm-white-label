@@ -137,7 +137,7 @@ export async function transferStock(input: {
     p_to_location_id: input.toLocationId,
     p_quantity: input.quantity,
     p_user_id: ctx.userId,
-    p_reason: input.reason ?? null,
+    p_reason: input.reason ?? undefined,
   });
   if (error) throw new Error(error.message);
   revalidatePath("/estoque");

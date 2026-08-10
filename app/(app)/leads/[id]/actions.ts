@@ -2,9 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { canOperateLead, assertRole } from "@/lib/auth/roles";
-import { normalizeCustomFieldValues } from "@/lib/leads/custom-fields";
+import { normalizeCustomFieldValues, type Definition } from "@/lib/leads/custom-fields";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
+import { toJson } from "@/lib/utils";
 
 export async function updateTechnicalProfile(leadId: string, values: Record<string, unknown>) {
   const ctx = await requireContext();
@@ -26,14 +27,17 @@ export async function updateTechnicalProfile(leadId: string, values: Record<stri
   ]);
   if (!lead) throw new Error("Lead nao encontrado");
 
-  const normalized = normalizeCustomFieldValues(definitions ?? [], values);
+  // field_type e CHECK no banco, nao enum - o Supabase nao consegue tipar
+  // como literal-union, so como string. Os valores reais sao garantidos pela
+  // constraint (text/number/date/select/boolean/file), entao o cast e seguro.
+  const normalized = normalizeCustomFieldValues((definitions ?? []) as Definition[], values);
   const customFields = {
     ...((lead.custom_fields ?? {}) as Record<string, unknown>),
     ...normalized,
   };
   const { error } = await supabase
     .from("leads")
-    .update({ custom_fields: customFields })
+    .update({ custom_fields: toJson(customFields) })
     .eq("id", leadId)
     .eq("tenant_id", ctx.tenantId);
   if (error) throw new Error(error.message);
@@ -43,7 +47,7 @@ export async function updateTechnicalProfile(leadId: string, values: Record<stri
     lead_id: leadId,
     user_id: ctx.userId,
     kind: "technical_profile_updated",
-    payload: normalized,
+    payload: toJson(normalized),
   });
   revalidatePath(`/leads/${leadId}`);
 }
