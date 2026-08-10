@@ -158,7 +158,7 @@ export default async function AgendaPage({ searchParams }: { searchParams?: Prom
           </div>
         </div>
 
-        <div className={`grid gap-5 ${ctx.tenant.calls_dashboard_enabled ? "md:grid-cols-2" : ""}`}>
+        <div className={`grid items-start gap-5 ${ctx.tenant.calls_dashboard_enabled ? "md:grid-cols-2" : ""}`}>
           {ctx.tenant.calls_dashboard_enabled && <ScheduledCallsPanel calls={scheduledCalls} />}
           <ScheduledMessagesPanel messages={scheduledMessages} showCallButton={ctx.tenant.calls_dashboard_enabled} />
         </div>
