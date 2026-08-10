@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, ChevronLeft, ChevronRight, Clock3, Phone, UserRound, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Clock3, Phone, UserRound, Users, X } from "lucide-react";
 import { PageHeader } from "@/components/app/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -114,6 +114,7 @@ export default async function AgendaPage({ searchParams }: { searchParams?: Prom
             const lead = appointment.leads as unknown as { id: string; name: string } | null;
             const professional = appointment.professionals as unknown as { name: string } | null;
             const service = appointment.services as unknown as { name: string } | null;
+            const appointmentKind = (appointment as { kind?: string }).kind ?? "meeting";
             return (
               <div key={appointment.id} className="flex flex-wrap items-center gap-4 py-4">
                 <div className="w-20 shrink-0">
@@ -122,17 +123,22 @@ export default async function AgendaPage({ searchParams }: { searchParams?: Prom
                 </div>
                 <div className="min-w-48 flex-1">
                   <p className="flex items-center gap-1.5 font-medium">
-                    {(appointment as { kind?: string }).kind === "call" && <Phone className="h-3.5 w-3.5 text-brand" />}
-                    {lead?.name ?? "Sem cliente vinculado"}
+                    {appointmentKind === "call" && <Phone className="h-3.5 w-3.5 text-brand" />}
+                    {appointmentKind === "internal" && <Users className="h-3.5 w-3.5 text-brand" />}
+                    {appointmentKind === "internal"
+                      ? appointment.notes?.split("\n")[0] || "Alinhamento interno"
+                      : lead?.name ?? "Sem cliente vinculado"}
                   </p>
                   <p className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1"><UserRound className="h-3 w-3" />{professional?.name ?? "Sem profissional"}</span>
-                    {(appointment as { kind?: string }).kind !== "call" && (
+                    {appointmentKind === "meeting" && (
                       <span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />{service?.name ?? "Sem servico"}</span>
                     )}
                   </p>
                 </div>
-                <Badge variant="secondary">{(appointment as { kind?: string }).kind === "call" ? "Ligação" : "Reunião"}</Badge>
+                <Badge variant={appointmentKind === "internal" ? "outline" : "secondary"}>
+                  {appointmentKind === "call" ? "Ligação" : appointmentKind === "internal" ? "Interno" : "Reunião"}
+                </Badge>
                 <Badge variant={appointment.status === "completed" ? "success" : appointment.status === "cancelled" || appointment.status === "no_show" ? "destructive" : "outline"}>
                   {statusLabel[appointment.status as keyof typeof statusLabel]}
                 </Badge>

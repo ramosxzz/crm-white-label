@@ -19,7 +19,9 @@ const appointmentSchema = z.object({
   starts_at: z.string().min(1),
   duration_minutes: z.number().int().positive(),
   notes: z.string().optional(),
-  kind: z.enum(["meeting", "call"]).default("meeting"),
+  // "internal" e alinhamento da equipe: nao tem lead, nao gera atividade no
+  // historico de nenhum cliente e nao dispara lembrete pra ninguem de fora.
+  kind: z.enum(["meeting", "call", "internal"]).default("meeting"),
 });
 
 function refreshAgenda() {
@@ -42,6 +44,10 @@ export async function createAppointment(formData: FormData) {
   });
   const supabase = await createClient();
   const startsAtIso = new Date(parsed.starts_at).toISOString();
+  // Alinhamento interno nunca fica amarrado a um cliente, mesmo se alguem
+  // deixar um selecionado por engano: senao o compromisso apareceria no
+  // historico daquele lead e contaria como reuniao comercial nas metricas.
+  if (parsed.kind === "internal") parsed.lead_id = undefined;
   const { data: lead } = parsed.lead_id
     ? await supabase
         .from("leads")

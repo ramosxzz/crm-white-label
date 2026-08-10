@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatBRTTime } from "@/lib/date/brt";
 import type { LeadsDashboardData } from "@/lib/leads/dashboard-metrics";
+import { CardPeriodFilter } from "@/components/dashboard/card-period-filter";
 import { formatCurrencyBRL, cn } from "@/lib/utils";
 import { LeadsByStageChart, LeadsByStageDonut, LeadsPerDayChart, LeadsTodayHourChart } from "@/app/(app)/dashboard/charts";
 import type { MetaAdsDashboardData } from "@/lib/meta/ads-insights";
@@ -165,11 +166,17 @@ export function LeadsOpsDashboard({
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Funil atual</CardTitle>
-          <CardDescription>
-            {totalPipeline} leads distribuídos · snapshot do pipeline
-          </CardDescription>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1.5">
+            <CardTitle>Funil atual</CardTitle>
+            <CardDescription>
+              {totalPipeline} leads distribuídos ·{" "}
+              {data.funnelPeriod === "all"
+                ? "snapshot do pipeline"
+                : "leads criados no período, na etapa em que estão hoje"}
+            </CardDescription>
+          </div>
+          <CardPeriodFilter param="funil" active={data.funnelPeriod} baseParams={data.periodParams} />
         </CardHeader>
         <CardContent>
           {totalPipeline === 0 ? (
@@ -211,13 +218,16 @@ export function LeadsOpsDashboard({
         </Card>
 
         <Card className="lg:col-span-5">
-          <CardHeader>
-            <CardTitle>Qualidade dos leads</CardTitle>
-            <CardDescription>
-              {data.starsAverage > 0
-                ? `Média ${data.starsAverage.toFixed(1)} estrelas (leads avaliados)`
-                : "Distribuição por estrelas atribuídas"}
-            </CardDescription>
+          <CardHeader className="space-y-3">
+            <div className="space-y-1.5">
+              <CardTitle>Qualidade dos leads</CardTitle>
+              <CardDescription>
+                {data.starsAverage > 0
+                  ? `Média ${data.starsAverage.toFixed(1)} estrelas (leads avaliados)`
+                  : "Distribuição por estrelas atribuídas"}
+              </CardDescription>
+            </div>
+            <CardPeriodFilter param="estrelas" active={data.starsPeriod} baseParams={data.periodParams} />
           </CardHeader>
           <CardContent className="space-y-3">
             {(() => {

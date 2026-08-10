@@ -22,16 +22,30 @@ import { canSeeFullDashboard, canManageCompanySettings } from "@/lib/auth/roles"
 import { listTenantUserOptions } from "@/lib/tenant/users";
 import { LeadForwardingControl } from "@/components/dashboard/lead-forwarding-control";
 import { getSellerDashboardMetrics } from "@/lib/dashboard/seller-metrics";
+import { resolvePeriodFilter } from "@/lib/date/period-filter";
 
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; ads?: string }>;
+  searchParams: Promise<{
+    date?: string;
+    ads?: string;
+    funil?: string;
+    funilDia?: string;
+    estrelas?: string;
+    estrelasDia?: string;
+  }>;
 }) {
   const ctx = await requireContext();
   const supabase = await createClient();
   const todayBounds = getBRTDayBounds();
   const sp = await searchParams;
+
+  // Periodo proprio de cada cartao. Default "todos" para manter o
+  // comportamento anterior de quem ja usa a tela: sem escolher nada, os dois
+  // cartoes seguem mostrando o acumulado.
+  const funnelPeriod = resolvePeriodFilter(sp.funil, sp.funilDia);
+  const starsPeriod = resolvePeriodFilter(sp.estrelas, sp.estrelasDia);
   // Dia selecionado no filtro (default: hoje). Nao permite futuro.
   const parsed = sp.date ? getBRTDayBoundsFromDateString(sp.date) : null;
   const today = parsed && parsed.dateStr <= todayBounds.dateStr ? parsed : todayBounds;
@@ -107,7 +121,18 @@ export default async function DashboardPage({
       .select("created_at")
       .eq("tenant_id", ctx.tenantId)
       .gte("created_at", `${weekStartStr}T00:00:00-03:00`),
-    supabase.rpc("dashboard_stage_counts", { p_tenant_id: ctx.tenantId }),
+    // Sem recorte de data usa o RPC enxuto de sempre. Com recorte cai no
+    // funnel_metrics, que aceita intervalo e ja filtra por leads.created_at -
+    // e mais caro (calcula tempo medio por etapa), entao so paga quando o
+    // usuario realmente filtra.
+    funnelPeriod.bounds
+      ? supabase.rpc("funnel_metrics", {
+          p_tenant_id: ctx.tenantId,
+          p_pipeline_id: null,
+          p_from: funnelPeriod.bounds.startIso,
+          p_to: funnelPeriod.bounds.endIso,
+        })
+      : supabase.rpc("dashboard_stage_counts", { p_tenant_id: ctx.tenantId }),
     supabase
       .from("pipeline_stages")
       .select("id, name, color, position, is_won, is_lost")
@@ -146,7 +171,12 @@ export default async function DashboardPage({
       .select("meta_ad_account_id, meta_ads_access_token, meta_capi_token, lead_forward_user_id")
       .eq("id", ctx.tenantId)
       .single(),
-    supabase.from("leads").select("quality_stars").eq("tenant_id", ctx.tenantId),
+    (() => {
+      const q = supabase.from("leads").select("quality_stars").eq("tenant_id", ctx.tenantId);
+      return starsPeriod.bounds
+        ? q.gte("created_at", starsPeriod.bounds.startIso).lte("created_at", starsPeriod.bounds.endIso)
+        : q;
+    })(),
   ]);
   const products = productsResult.data ?? [];
   const activeReservations = activeReservationsResult.data ?? [];
@@ -214,6 +244,16 @@ export default async function DashboardPage({
     weekTrend: buildWeekTrend(leadsWeek ?? []),
     starsDistribution,
     starsAverage,
+    funnelPeriod: funnelPeriod.active,
+    starsPeriod: starsPeriod.active,
+    periodParams: {
+      date: sp.date,
+      ads: sp.ads,
+      funil: sp.funil,
+      funilDia: sp.funilDia,
+      estrelas: sp.estrelas,
+      estrelasDia: sp.estrelasDia,
+    },
   };
 
   const metaAds = await getMetaAdsDashboard({

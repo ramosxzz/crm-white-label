@@ -32,7 +32,11 @@ export function AppointmentDialog({
             <select id="agenda-kind" name="kind" defaultValue="meeting" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
               <option value="meeting">Reunião</option>
               <option value="call">Ligação</option>
+              <option value="internal">Alinhamento interno</option>
             </select>
+            <p className="text-xs text-muted-foreground">
+              Alinhamento interno não vincula cliente nem envia lembrete por WhatsApp.
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="agenda-lead">Cliente</Label>

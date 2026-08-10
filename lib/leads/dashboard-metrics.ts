@@ -1,4 +1,5 @@
 import { getBRTDayBounds, getBRTYesterdayBounds } from "@/lib/date/brt";
+import type { PeriodFilter } from "@/lib/date/period-filter";
 
 export type LeadsDashboardData = {
   dateLabel: string;
@@ -34,6 +35,12 @@ export type LeadsDashboardData = {
   weekTrend: { date: string; label: string; count: number }[];
   starsDistribution: { stars: number; count: number }[];
   starsAverage: number;
+  /** Periodo ativo do cartao de funil (rosca), por data de criacao do lead. */
+  funnelPeriod: PeriodFilter;
+  /** Periodo ativo do cartao de estrelas, por data de criacao do lead. */
+  starsPeriod: PeriodFilter;
+  /** Parametros atuais da URL, pra os filtros nao apagarem uns aos outros. */
+  periodParams: Record<string, string | undefined>;
 };
 
 export function buildLeadsByHour(leads: { created_at: string }[], startIso: string) {
