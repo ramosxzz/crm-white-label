@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   KanbanSquare,
+  ListChecks,
   Users,
   MessageCircle,
   MessageSquareText,
@@ -38,6 +39,7 @@ const navItems = [
   { href: "/leads", label: "Leads", icon: Users },
   { href: "/kanban", label: "Kanban", icon: KanbanSquare },
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
+  { href: "/tarefas", label: "Tarefas", icon: ListChecks },
   { href: "/reunioes", label: "Reuniões", icon: CalendarCheck },
   { href: "/chat", label: "Conversas", icon: MessageCircle },
   { href: "/mensagens-rapidas", label: "Mensagens rápidas", icon: MessageSquareText },

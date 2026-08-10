@@ -7,6 +7,7 @@ import {
   CalendarDays,
   CalendarCheck,
   KanbanSquare,
+  ListChecks,
   MessageCircle,
   MessageSquareText,
   MoreHorizontal,
@@ -65,6 +66,7 @@ export function MobileBottomNav({
   const operationItems: MoreItem[] = [
     ...(!isSeller ? [{ href: "/funil", label: "Funil", icon: Filter }] : []),
     ...(!isSeller ? [{ href: "/atendimento", label: "Atendimento", icon: Timer }] : []),
+    { href: "/tarefas", label: "Tarefas", icon: ListChecks },
     // Mostra receita/custo/ROI do tenant inteiro - mesmo corte do sidebar.
     ...(!isSeller ? [{ href: "/reunioes", label: "Reuniões", icon: CalendarCheck }] : []),
     { href: "/mensagens-rapidas", label: "Mensagens rápidas", icon: MessageSquareText },
