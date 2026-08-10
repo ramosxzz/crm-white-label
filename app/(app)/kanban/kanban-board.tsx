@@ -1,7 +1,7 @@
 "use client";
 
 import { notify } from "@/lib/ui/feedback";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -279,6 +279,7 @@ export function KanbanBoard({
     return () => { void supabase.removeChannel(channel); };
   }, [activePipelineId]);
 
+  const leadsByStageRef = useRef<Map<string, Lead[]>>(new Map());
   const leadsByStage = useMemo(() => {
     const map = new Map<string, Lead[]>();
     stages.forEach((s) => map.set(s.id, []));
@@ -293,6 +294,23 @@ export function KanbanBoard({
       }
     });
     map.forEach((arr) => arr.sort((a, b) => a.position - b.position));
+
+    // Mantem a MESMA referencia de array pra coluna que nao mudou de fato -
+    // setLeads sempre cria um array novo (ate quando so 1 lead mudou em
+    // outra coluna, via realtime ou drag), entao sem isso TODAS as colunas
+    // recebiam uma prop "leads" nova a cada pequena mudanca e o memo() do
+    // Column nunca surtia efeito - board inteiro re-renderizava por qualquer
+    // coisa. Como os leads OUTROS mantem a mesma referencia de objeto
+    // (`setLeads` só cria um objeto novo pro lead que mudou), comparar por
+    // referencia + ordem já detecta corretamente "essa coluna não mudou".
+    const previous = leadsByStageRef.current;
+    map.forEach((arr, stageId) => {
+      const prevArr = previous.get(stageId);
+      if (prevArr && prevArr.length === arr.length && prevArr.every((lead, i) => lead === arr[i])) {
+        map.set(stageId, prevArr);
+      }
+    });
+    leadsByStageRef.current = map;
     return map;
   }, [leads, stages]);
 
