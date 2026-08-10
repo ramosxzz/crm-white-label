@@ -131,9 +131,7 @@
   }
   html {
     color-scheme: light dark;
-    height: 100%;
     background: hsl(var(--background));
-    overflow-x: hidden;
   }
   @media (prefers-reduced-motion: no-preference) {
     html {

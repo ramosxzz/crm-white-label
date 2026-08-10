@@ -12,6 +12,6 @@ export const config = {
     // (middlewareClientMaxBodySize); payloads maiores da Evolution (media
     // inline em base64) ficavam truncados e quebravam o JSON.parse do
     // webhook. Excluir a rota do middleware evita esse limite por completo.
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|pwa/|api/webhooks|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|pwa/|api/webhooks|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp4|webm)$).*)",
   ],
 };
