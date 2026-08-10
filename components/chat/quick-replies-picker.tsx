@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { motion } from "motion/react";
 import { Zap, Settings2, Plus, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,19 +61,26 @@ export function QuickRepliesPicker({
             </Button>
           </div>
         ) : (
-          messages.map((m) => (
+          messages.map((m, index) => (
             <DropdownMenuItem
               key={m.id}
               className="flex cursor-pointer flex-col items-start gap-0.5 py-2"
               onSelect={() => onPick(m)}
+              asChild
             >
-              <span className="flex items-center gap-1.5 text-sm font-medium">
-                {m.media_type === "audio" && <Mic className="h-3.5 w-3.5 text-brand" />}
-                {m.title}
-              </span>
-              <span className="line-clamp-2 text-xs text-muted-foreground">
-                {m.media_type === "audio" ? "Áudio pronto para prévia" : m.body}
-              </span>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.85, y: -4 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ duration: 0.15, delay: Math.min(index, 8) * 0.025 }}
+              >
+                <span className="flex items-center gap-1.5 text-sm font-medium">
+                  {m.media_type === "audio" && <Mic className="h-3.5 w-3.5 text-brand" />}
+                  {m.title}
+                </span>
+                <span className="line-clamp-2 text-xs text-muted-foreground">
+                  {m.media_type === "audio" ? "Áudio pronto para prévia" : m.body}
+                </span>
+              </motion.div>
             </DropdownMenuItem>
           ))
         )}
