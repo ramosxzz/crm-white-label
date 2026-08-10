@@ -36,14 +36,13 @@ export default async function KanbanPage({ searchParams }: { searchParams?: Prom
       ])
     : [{ data: [] }, { data: [] }];
 
+  const leadIds = (leads ?? []).map((lead) => lead.id);
   const [callCounts, saleStock] = await Promise.all([
-    fetchLeadCallCountsForTenant(ctx.tenantId, { includeApi4com: ctx.tenant.calls_dashboard_enabled }),
+    leadIds.length > 0
+      ? fetchLeadCallCountsForTenant(ctx.tenantId, { includeApi4com: ctx.tenant.calls_dashboard_enabled, leadIds })
+      : Promise.resolve({}),
     getSaleStockContext(),
   ]);
-  const visibleLeadIds = new Set((leads ?? []).map((lead) => lead.id));
-  const visibleCallCounts = Object.fromEntries(
-    Object.entries(callCounts).filter(([leadId]) => visibleLeadIds.has(leadId)),
-  );
 
   return (
     <div className="flex h-full flex-col">
@@ -55,7 +54,7 @@ export default async function KanbanPage({ searchParams }: { searchParams?: Prom
           activePipelineId={activePipeline?.id ?? null}
           initialStages={stages ?? []}
           initialLeads={leads ?? []}
-          callCounts={visibleCallCounts}
+          callCounts={callCounts}
           callsEnabled={ctx.tenant.calls_dashboard_enabled}
           tenantId={ctx.tenantId}
           saleStockProducts={saleStock?.products ?? null}
