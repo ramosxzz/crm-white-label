@@ -114,10 +114,33 @@ function loadFacebookSdk(): Promise<void> {
 export function WhatsAppEmbeddedSignupButton() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [sdkReady, setSdkReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const signupData = useRef<{ wabaId?: string; phoneNumberId?: string; businessId?: string }>({});
+  const loginTimeout = useRef<number | null>(null);
 
   useEffect(() => {
+    let active = true;
+
+    if (!APP_ID || !CONFIG_ID) {
+      setError("Configuracao do Meta App incompleta. Contate o suporte.");
+    } else {
+      // O SDK precisa estar pronto antes do clique. Se aguardarmos o download
+      // dentro do onClick, o navegador deixa de considerar FB.login uma acao
+      // direta do usuario e pode bloquear o popup do Cadastro Incorporado.
+      void loadFacebookSdk()
+        .then(() => {
+          if (!active) return;
+          setSdkReady(true);
+          setError(null);
+        })
+        .catch((err) => {
+          if (!active) return;
+          setSdkReady(false);
+          setError(err instanceof Error ? err.message : SDK_BLOCKED_MESSAGE);
+        });
+    }
+
     function handleMessage(event: MessageEvent) {
       let hostname: string;
       try {
@@ -141,20 +164,42 @@ export function WhatsAppEmbeddedSignupButton() {
       }
     }
     window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
+    return () => {
+      active = false;
+      window.removeEventListener("message", handleMessage);
+      if (loginTimeout.current !== null) window.clearTimeout(loginTimeout.current);
+    };
   }, []);
 
-  async function handleClick() {
+  function handleClick() {
     setError(null);
     if (!APP_ID || !CONFIG_ID) {
       setError("Configuracao do Meta App incompleta. Contate o suporte.");
       return;
     }
+
+    if (!sdkReady || !window.FB?.login) {
+      setError("A conexao com a Meta ainda esta sendo preparada. Aguarde alguns segundos e tente novamente.");
+      return;
+    }
+
     setLoading(true);
     try {
-      await loadFacebookSdk();
-      window.FB!.login(
+      // Nunca deixa o botao girando indefinidamente caso o navegador bloqueie
+      // o popup ou a Meta nao devolva o callback de cancelamento.
+      if (loginTimeout.current !== null) window.clearTimeout(loginTimeout.current);
+      loginTimeout.current = window.setTimeout(() => {
+        setLoading(false);
+        setError("A janela da Meta nao respondeu. Libere pop-ups para este site e tente novamente.");
+        loginTimeout.current = null;
+      }, 90_000);
+
+      window.FB.login(
         async (response) => {
+          if (loginTimeout.current !== null) {
+            window.clearTimeout(loginTimeout.current);
+            loginTimeout.current = null;
+          }
           const code = response.authResponse?.code;
           if (!code) {
             setLoading(false);
@@ -186,6 +231,10 @@ export function WhatsAppEmbeddedSignupButton() {
         },
       );
     } catch (err) {
+      if (loginTimeout.current !== null) {
+        window.clearTimeout(loginTimeout.current);
+        loginTimeout.current = null;
+      }
       setLoading(false);
       setError(err instanceof Error ? err.message : "Nao foi possivel carregar o SDK da Meta.");
     }
@@ -193,9 +242,9 @@ export function WhatsAppEmbeddedSignupButton() {
 
   return (
     <div className="flex flex-col items-center gap-2 sm:items-start">
-      <Button variant="brand" size="lg" className="shrink-0" onClick={handleClick} disabled={loading}>
-        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-        Conectar WhatsApp com Facebook
+      <Button variant="brand" size="lg" className="shrink-0" onClick={handleClick} disabled={loading || !sdkReady}>
+        {loading || !sdkReady ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+        {sdkReady ? "Conectar WhatsApp com Facebook" : "Preparando conexao com a Meta"}
       </Button>
       {error && (
         <div className="max-w-md space-y-1 text-sm text-destructive">
