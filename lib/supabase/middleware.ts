@@ -19,6 +19,7 @@ export async function updateSession(request: NextRequest) {
     isAuthRoute ||
     url.pathname.startsWith("/api/auth/signup") ||
     url.pathname.startsWith("/api/auth/instagram") ||
+    url.pathname.startsWith("/api/auth/meta/data-deletion") ||
     url.pathname.startsWith("/api/health") ||
     url.pathname.startsWith("/api/webhooks") ||
     url.pathname.startsWith("/api/intake") ||
@@ -34,6 +35,7 @@ export async function updateSession(request: NextRequest) {
     url.pathname === "/sw.js" ||
     url.pathname.startsWith("/pwa/") ||
     url.pathname.startsWith("/privacy") ||
+    url.pathname.startsWith("/data-deletion") ||
     url.pathname.startsWith("/terms") ||
     url.pathname.startsWith("/_next") ||
     url.pathname.startsWith("/favicon");

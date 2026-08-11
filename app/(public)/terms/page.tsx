@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
+import { getAppBaseUrl } from "@/lib/app-url";
 
 export const metadata: Metadata = {
   title: "Termos de Uso | Solaire W+ CRM",
   description: "Termos de uso da plataforma Solaire W+ CRM.",
 };
 
-const UPDATED_AT = "15 de junho de 2026";
+const UPDATED_AT = "11 de agosto de 2026";
 const CONTACT_EMAIL = "solairew3@gmail.com";
 const APP_NAME = "Solaire W+ CRM";
-const APP_URL = "https://solaire-w-crm.raminhos6899.workers.dev";
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  const appUrl = await getAppBaseUrl();
+
   return (
     <article className="prose prose-neutral dark:prose-invert max-w-none">
       <h1>Termos de Uso</h1>
@@ -18,7 +20,7 @@ export default function TermsPage() {
 
       <p>
         Ao se cadastrar e utilizar o <strong>{APP_NAME}</strong>, disponível em{" "}
-        <a href={APP_URL}>{APP_URL}</a>, você concorda com os presentes Termos de Uso. Leia-os
+        <a href={appUrl}>{appUrl}</a>, você concorda com os presentes Termos de Uso. Leia-os
         atentamente antes de utilizar a plataforma.
       </p>
 

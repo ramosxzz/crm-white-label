@@ -13,6 +13,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
           </Link>
           <nav className="flex items-center gap-4 text-sm text-muted-foreground">
             <Link href="/privacy" className="hover:text-foreground transition-colors">Privacidade</Link>
+            <Link href="/data-deletion" className="hover:text-foreground transition-colors">Excluir dados</Link>
             <Link href="/terms" className="hover:text-foreground transition-colors">Termos</Link>
           </nav>
         </div>

@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
+import { getAppBaseUrl } from "@/lib/app-url";
 
 export const metadata: Metadata = {
   title: "Política de Privacidade | Solaire W+ CRM",
   description: "Política de privacidade da plataforma Solaire W+ CRM.",
 };
 
-const UPDATED_AT = "15 de junho de 2026";
+const UPDATED_AT = "11 de agosto de 2026";
 const CONTACT_EMAIL = "solairew3@gmail.com";
 const APP_NAME = "Solaire W+ CRM";
-const APP_URL = "https://solaire-w-crm.raminhos6899.workers.dev";
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  const appUrl = await getAppBaseUrl();
+
   return (
     <article className="prose prose-neutral dark:prose-invert max-w-none">
       <h1>Política de Privacidade</h1>
@@ -19,7 +21,7 @@ export default function PrivacyPage() {
       <p>
         Esta Política de Privacidade descreve como o <strong>{APP_NAME}</strong> (&quot;nós&quot;,
         &quot;nosso&quot; ou &quot;Plataforma&quot;), disponível em{" "}
-        <a href={APP_URL}>{APP_URL}</a>, coleta, usa, armazena e protege as informações dos
+        <a href={appUrl}>{appUrl}</a>, coleta, usa, armazena e protege as informações dos
         usuários e dos leads gerenciados por meio de nossa plataforma.
       </p>
 
@@ -29,8 +31,9 @@ export default function PrivacyPage() {
       <p>
         O {APP_NAME} é uma plataforma SaaS (Software como Serviço) de CRM white-label que permite
         a empresas gerenciar leads, conversas e automações de atendimento. Cada empresa que se
-        cadastra na plataforma é responsável pelos dados que insere e coleta por meio de suas
-        integrações.
+        cadastra na plataforma é controladora dos dados de seus próprios clientes e responsável
+        pelos dados que insere e coleta por meio de suas integrações. A plataforma atua como
+        operadora desses dados para prestar o serviço contratado.
       </p>
       <p>
         Contato do responsável pela plataforma:{" "}
@@ -62,24 +65,36 @@ export default function PrivacyPage() {
         <li>Cookies de sessão necessários para o funcionamento do sistema</li>
       </ul>
 
-      <h2>3. Integração com Meta (Facebook e Instagram)</h2>
+      <h2>3. Integrações com a Meta (WhatsApp Business e Instagram)</h2>
       <p>
-        Nossa plataforma oferece integração com a API do Instagram (Meta Platforms) para capturar
-        leads via Direct Messages. Ao conectar uma conta do Instagram:
+        A plataforma permite que uma empresa conecte contas e números que administra na Meta.
+        A conexão só ocorre após autorização expressa do administrador da conta pelo fluxo oficial
+        de Cadastro Incorporado ou login da Meta.
       </p>
       <ul>
         <li>
-          Solicitamos permissões de <code>instagram_business_basic</code> e{" "}
-          <code>instagram_business_manage_messages</code> para receber e processar mensagens.
+          No WhatsApp Business, usamos <code>whatsapp_business_management</code> para identificar
+          e configurar a WABA e os números escolhidos, registrar o número, assinar webhooks e
+          consultar informações e modelos pertencentes à conta conectada.
         </li>
         <li>
-          Os tokens de acesso fornecidos pelo Meta são armazenados de forma segura e utilizados
-          exclusivamente para receber mensagens recebidas na conta conectada.
+          Usamos <code>whatsapp_business_messaging</code> para enviar e receber mensagens em nome
+          da empresa autorizada, processar mídia compatível e acompanhar estados de envio, entrega
+          e leitura. Fora da janela de atendimento, o envio depende de modelo aprovado pela Meta.
         </li>
         <li>
-          <strong>Não vendemos, compartilhamos ou utilizamos dados do Instagram para fins
-          publicitários.</strong> Os dados são usados exclusivamente para criar e gerenciar leads
-          dentro da plataforma.
+          Na integração com Instagram, quando habilitada, usamos as permissões aprovadas no app
+          para receber e responder mensagens e associá-las ao lead correto.
+        </li>
+        <li>
+          Identificadores de conta, tokens de acesso e mensagens ficam disponíveis apenas no
+          servidor e para os usuários autorizados da empresa correspondente, com isolamento por
+          tenant.
+        </li>
+        <li>
+          <strong>Não vendemos Dados da Plataforma da Meta nem os utilizamos para publicidade não
+          relacionada.</strong> Esses dados são tratados somente para oferecer as funcionalidades
+          solicitadas pela empresa que conectou a conta.
         </li>
         <li>
           Cada empresa é responsável por obter o consentimento adequado de seus contatos conforme
@@ -87,10 +102,9 @@ export default function PrivacyPage() {
         </li>
       </ul>
       <p>
-        Para solicitar a exclusão dos dados coletados via integração com Instagram, utilize o
-        endpoint de exclusão de dados disponível em:{" "}
-        <code>{APP_URL}/api/auth/instagram/data-deletion</code>, conforme exigido pelas Políticas
-        de Plataforma da Meta.
+        Para desconectar uma integração e solicitar a exclusão dos Dados da Plataforma da Meta,
+        consulte as instruções em <a href={`${appUrl}/data-deletion`}>{appUrl}/data-deletion</a>
+        {" "}ou escreva para <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
       </p>
 
       <h2>4. Como usamos as informações</h2>
@@ -110,8 +124,10 @@ export default function PrivacyPage() {
       </p>
       <ul>
         <li>
-          <strong>Provedores de infraestrutura:</strong> Supabase (banco de dados e autenticação)
-          e Cloudflare (hospedagem), que atuam como processadores de dados sob contrato.
+          <strong>Provedores de infraestrutura:</strong> Supabase (banco de dados, autenticação e
+          armazenamento), Cloudflare (rede, DNS e serviços de mídia, quando habilitados) e o
+          provedor da infraestrutura de aplicação, que atuam como operadores de dados para a
+          prestação do serviço.
         </li>
         <li>
           <strong>Meta Platforms:</strong> para troca de tokens e recebimento de mensagens via
@@ -184,7 +200,7 @@ export default function PrivacyPage() {
           <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
         </li>
         <li>
-          <strong>Plataforma:</strong> <a href={APP_URL}>{APP_URL}</a>
+          <strong>Plataforma:</strong> <a href={appUrl}>{appUrl}</a>
         </li>
       </ul>
     </article>
