@@ -131,7 +131,12 @@ export default function Aurora(props: {
     const renderer = new Renderer({
       alpha: true,
       premultipliedAlpha: true,
-      antialias: true,
+      // antialias nao faz sentido aqui: e um quad cobrindo a tela inteira,
+      // sem borda de poligono pra suavizar - so custo de GPU a toa.
+      antialias: false,
+      // Sem isso, em tela com escala do Windows (125%/150%) o shader roda
+      // pixel a pixel em 2-3x mais pixels do que o necessario, pra sempre.
+      dpr: Math.min(window.devicePixelRatio || 1, 1.5),
     });
     const gl = renderer.gl;
     gl.clearColor(0, 0, 0, 0);
@@ -178,24 +183,43 @@ export default function Aurora(props: {
     ctn.appendChild(gl.canvas);
 
     let animateId = 0;
+    // Fundo decorativo atras do hero: sem pausar, o shader continua
+    // desenhando a tela inteira pra sempre mesmo depois que o usuario rola
+    // pra baixo e nunca mais ve essa secao.
+    let visible = true;
+    let lastStopsKey = "";
     const update = (t: number) => {
-      animateId = requestAnimationFrame(update);
+      animateId = visible ? requestAnimationFrame(update) : 0;
       const { time = t * 0.01, speed = 1.0 } = propsRef.current;
       program.uniforms.uTime.value = time * speed * 0.1;
       program.uniforms.uAmplitude.value = propsRef.current.amplitude ?? 1.0;
       program.uniforms.uBlend.value = propsRef.current.blend ?? blend;
       const stops = propsRef.current.colorStops ?? colorStops;
-      program.uniforms.uColorStops.value = stops.map((hex) => {
-        const c = new Color(hex);
-        return [c.r, c.g, c.b];
-      });
+      const stopsKey = stops.join(",");
+      if (stopsKey !== lastStopsKey) {
+        lastStopsKey = stopsKey;
+        program.uniforms.uColorStops.value = stops.map((hex) => {
+          const c = new Color(hex);
+          return [c.r, c.g, c.b];
+        });
+      }
       renderer.render({ scene: mesh });
     };
     animateId = requestAnimationFrame(update);
 
     resize();
 
+    const visibilityObserver = new IntersectionObserver(
+      ([entry]) => {
+        visible = entry.isIntersecting;
+        if (visible && animateId === 0) animateId = requestAnimationFrame(update);
+      },
+      { threshold: 0 },
+    );
+    visibilityObserver.observe(ctn);
+
     return () => {
+      visibilityObserver.disconnect();
       cancelAnimationFrame(animateId);
       window.removeEventListener("resize", resize);
       if (ctn && gl.canvas.parentNode === ctn) {

@@ -151,7 +151,12 @@
     font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
     font-variant-numeric: tabular-nums;
     background-image: linear-gradient(180deg, hsl(var(--background)) 0%, hsl(0 0% 97%) 100%);
-    background-attachment: fixed;
+    /* attachment:fixed forca o navegador a redesenhar esse fundo a cada
+       frame de rolagem - nas paginas internas o body nunca chegava a rolar
+       de verdade (tem shell proprio com scroll interno), entao o custo
+       ficava adormecido. A landing e a primeira tela onde o body rola de
+       verdade, e foi ai que isso passou a travar o scroll. O gradiente e
+       sutil o bastante pra ninguem notar a diferenca sem o fixed. */
   }
   .dark body {
     background-image: linear-gradient(180deg, hsl(var(--background)) 0%, hsl(0 0% 4%) 100%);

@@ -174,12 +174,6 @@ export default function ParticleText({
 
     const render = (now: number) => {
       context.clearRect(0, 0, width, height);
-      if (glow && !reducedMotion) {
-        context.shadowBlur = particleSize * 3;
-        context.shadowColor = highlightColor;
-      } else {
-        context.shadowBlur = 0;
-      }
 
       pointer.smoothX += (pointer.x - pointer.smoothX) * 0.18;
       pointer.smoothY += (pointer.y - pointer.smoothY) * 0.18;
@@ -222,9 +216,7 @@ export default function ParticleText({
       });
 
       context.globalAlpha = 1;
-      context.shadowBlur = 0;
       if (gathering && complete) gathering = false;
-
       const stillMoving = particles.some(
         (particle) => Math.abs(particle.x - particle.targetX) > 0.15 || Math.abs(particle.y - particle.targetY) > 0.15,
       );
@@ -233,7 +225,7 @@ export default function ParticleText({
     };
 
     const ensureRenderLoop = () => {
-      if (animationFrame === null) animationFrame = window.requestAnimationFrame(render);
+      if (animationFrame === null && visible) animationFrame = window.requestAnimationFrame(render);
     };
 
     const sampleText = async () => {
@@ -248,6 +240,13 @@ export default function ParticleText({
       canvas.height = Math.max(1, Math.floor(height * dpr));
       canvas.style.width = "100%";
       canvas.style.height = "100%";
+      // Glow via CSS em vez de context.shadowBlur: o shadowBlur do Canvas2D e
+      // rasterizado em software e recalculado por FORMA desenhada - com
+      // milhares de particulas a 60fps pra sempre, isso sozinho travava a
+      // pagina. drop-shadow no elemento e composto pela GPU uma vez por
+      // quadro, pro canvas inteiro, com efeito visual equivalente.
+      canvas.style.filter =
+        glow && !reducedMotion ? `drop-shadow(0 0 ${(particleSize * 1.6).toFixed(1)}px ${highlightColor})` : "none";
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       const computed = window.getComputedStyle(container);
@@ -304,7 +303,10 @@ export default function ParticleText({
         }
       }
 
-      const maxParticles = Math.max(900, Math.min(5200, Math.floor((width * height) / 90)));
+      // Tetos mais baixos que o original (era ate 5200): cada particula a
+      // mais e mais um desenho por quadro, pra sempre - o custo e linear e
+      // constante, nao um pico unico.
+      const maxParticles = Math.max(700, Math.min(2200, Math.floor((width * height) / 140)));
       const stride = Math.max(1, Math.ceil(targets.length / maxParticles));
       const baseRgb = hexToRgb(color);
       const highlightRgb = hexToRgb(highlightColor);
