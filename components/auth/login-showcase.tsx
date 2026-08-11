@@ -10,7 +10,6 @@ import {
   MessageCircleMore,
   Sparkles,
 } from "lucide-react";
-import Aurora from "@/components/effects/aurora";
 import ParticleText from "@/components/effects/particle-text";
 import ShinyText from "@/components/effects/shiny-text";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
@@ -88,14 +87,13 @@ export function LoginShowcase({ children }: { children: ReactNode }) {
         </div>
 
         <section id="inicio" className="relative min-h-screen overflow-hidden px-5 pb-20 pt-28 sm:px-8 lg:px-12 lg:pb-24 lg:pt-32">
-          <div className="absolute inset-0 opacity-80">
-            <Aurora
-              colorStops={["#2563EB", "#4F46E5", "#06B6D4"]}
-              amplitude={0.72}
-              blend={0.34}
-              speed={0.35}
-            />
-          </div>
+          <div
+            className="absolute inset-0 opacity-80"
+            style={{
+              background:
+                "radial-gradient(ellipse at 24% 12%, rgba(37,99,235,.34), transparent 46%), radial-gradient(ellipse at 76% 18%, rgba(6,182,212,.2), transparent 42%), linear-gradient(180deg, #060914 0%, #05070c 72%)",
+            }}
+          />
           <div
             className="absolute inset-0 opacity-[0.075]"
             style={{
@@ -123,19 +121,19 @@ export function LoginShowcase({ children }: { children: ReactNode }) {
               <ParticleText
                 text="CRM W+"
                 particleSize={1.8}
-                density={5}
+                density={7}
                 color="#F8FAFC"
                 highlightColor="#38BDF8"
                 scatter={165}
                 gatherDuration={1450}
                 stagger={360}
-                pointerRepel={32}
+                pointerRepel={24}
                 repelRadius={110}
-                idleDrift={0.42}
+                idleDrift={0}
                 trigger="hover"
                 fontSize="clamp(4.2rem, 12vw, 10rem)"
                 fontWeight={800}
-                glow
+                glow={false}
                 className="font-display"
               />
             </div>
@@ -178,19 +176,18 @@ export function LoginShowcase({ children }: { children: ReactNode }) {
               <div className="relative aspect-video overflow-hidden bg-black">
                 <video
                   className="h-full w-full object-contain"
-                  autoPlay
                   muted
                   loop
                   playsInline
                   controls
-                  preload="metadata"
-                  poster="/videos/crm-w-plus-poster.png"
+                  preload="none"
+                  poster="/videos/crm-w-plus-poster.webp"
                   aria-label="Demonstração das funcionalidades do CRM W+"
                 >
                   <source src="/videos/crm-w-plus-overview.mp4" type="video/mp4" />
                 </video>
                 <div className="pointer-events-none absolute left-4 top-4 border border-white/10 bg-[#05070c]/80 px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.16em] text-cyan-200 backdrop-blur-md sm:left-5 sm:top-5 sm:text-[10px]">
-                  Apresentação do produto · 18s
+                  Clique para assistir · 18s
                 </div>
               </div>
             </div>

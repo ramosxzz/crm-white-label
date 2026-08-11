@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/app/page-header";
@@ -9,7 +9,9 @@ import { WebhooksManager } from "./webhooks-manager";
 
 export default async function ApiIntegrationPage() {
   const ctx = await requireContext();
-  const supabase = await createClient();
+  // api_keys e api_webhooks nao sao expostas por RLS aos clientes. O contexto
+  // autenticado define o tenant e todas as consultas continuam filtradas nele.
+  const supabase = createServiceClient();
   const [{ data: keys }, { data: webhooks }] = await Promise.all([
     supabase.from("api_keys").select("*").eq("tenant_id", ctx.tenantId).order("created_at", { ascending: false }),
     supabase.from("api_webhooks").select("*").eq("tenant_id", ctx.tenantId).order("created_at", { ascending: false }),

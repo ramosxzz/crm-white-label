@@ -1,6 +1,6 @@
 "use client";
 
-import { confirmDialog } from "@/lib/ui/feedback";
+import { confirmDialog, notifyError } from "@/lib/ui/feedback";
 import { useState, useTransition } from "react";
 import { Copy, Plus, Power, Trash2, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,9 +41,13 @@ export function ApiKeysManager({ keys, canEdit }: { keys: ApiKey[]; canEdit: boo
     e.preventDefault();
     if (!name.trim() || scopes.size === 0) return;
     start(async () => {
-      const { key } = await createApiKey({ name, scopes: [...scopes] });
-      setFreshKey(key);
-      setName("");
+      try {
+        const { key } = await createApiKey({ name, scopes: [...scopes] });
+        setFreshKey(key);
+        setName("");
+      } catch (error) {
+        notifyError(error, "Nao foi possivel gerar a chave de API.");
+      }
     });
   }
 

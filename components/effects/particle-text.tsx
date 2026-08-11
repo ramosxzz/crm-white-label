@@ -130,6 +130,7 @@ export default function ParticleText({
     let gathering = false;
     let gatherStart = 0;
     let reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let visible = true;
     let width = 0;
     let height = 0;
 
@@ -223,7 +224,12 @@ export default function ParticleText({
       context.globalAlpha = 1;
       context.shadowBlur = 0;
       if (gathering && complete) gathering = false;
-      animationFrame = window.requestAnimationFrame(render);
+
+      const stillMoving = particles.some(
+        (particle) => Math.abs(particle.x - particle.targetX) > 0.15 || Math.abs(particle.y - particle.targetY) > 0.15,
+      );
+      const keepAnimating = visible && !reducedMotion && (gathering || pointer.active || idleDrift > 0 || stillMoving);
+      animationFrame = keepAnimating ? window.requestAnimationFrame(render) : null;
     };
 
     const ensureRenderLoop = () => {
@@ -362,8 +368,12 @@ export default function ParticleText({
       pointer.x = event.clientX - rect.left;
       pointer.y = event.clientY - rect.top;
       pointer.active = true;
+      ensureRenderLoop();
     };
-    const handlePointerLeave = () => { pointer.active = false; };
+    const handlePointerLeave = () => {
+      pointer.active = false;
+      ensureRenderLoop();
+    };
     const handlePointerEnter = (event: PointerEvent) => {
       handlePointerMove(event);
       if (trigger === "hover") startGather(true);
@@ -384,11 +394,21 @@ export default function ParticleText({
     canvas.addEventListener("click", handleClick);
     const resizeObserver = new ResizeObserver(queueSample);
     resizeObserver.observe(container);
+    const intersectionObserver = new IntersectionObserver(([entry]) => {
+      visible = entry?.isIntersecting ?? true;
+      if (visible) ensureRenderLoop();
+      else if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+        animationFrame = null;
+      }
+    }, { rootMargin: "120px" });
+    intersectionObserver.observe(container);
     void sampleText();
 
     return () => {
       buildId += 1;
       resizeObserver.disconnect();
+      intersectionObserver.disconnect();
       reduceMotionQuery.removeEventListener("change", handleReduceMotionChange);
       canvas.removeEventListener("pointerenter", handlePointerEnter);
       canvas.removeEventListener("pointermove", handlePointerMove);
