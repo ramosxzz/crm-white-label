@@ -195,7 +195,7 @@ export function WhatsAppEmbeddedSignupButton() {
       }, 90_000);
 
       window.FB.login(
-        async (response) => {
+        (response) => {
           if (loginTimeout.current !== null) {
             window.clearTimeout(loginTimeout.current);
             loginTimeout.current = null;
@@ -208,20 +208,25 @@ export function WhatsAppEmbeddedSignupButton() {
             }
             return;
           }
-          try {
-            const res = await fetch("/api/auth/whatsapp/embedded-signup", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ code, ...signupData.current }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Falha ao concluir conexao");
-            router.refresh();
-          } catch (err) {
-            setError((err as Error).message);
-          } finally {
-            setLoading(false);
-          }
+
+          // O SDK valida que o callback seja uma Function comum e rejeita uma
+          // AsyncFunction. O trabalho assincrono fica encapsulado aqui dentro.
+          void (async () => {
+            try {
+              const res = await fetch("/api/auth/whatsapp/embedded-signup", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ code, ...signupData.current }),
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || "Falha ao concluir conexao");
+              router.refresh();
+            } catch (err) {
+              setError((err as Error).message);
+            } finally {
+              setLoading(false);
+            }
+          })();
         },
         {
           config_id: CONFIG_ID,

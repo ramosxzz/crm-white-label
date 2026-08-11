@@ -132,6 +132,12 @@ export default async function PrivacyPage() {
           como operadores de dados para a prestação do serviço.
         </li>
         <li>
+          <strong>Monitoramento e recursos opcionais:</strong> Functional Software, Inc. (Sentry),
+          para diagnóstico de erros e desempenho; Google LLC (Google Maps Platform), para mapas,
+          geocodificação e rotas; e API4COM Tecnologia e Serviços LTDA, para telefonia comercial.
+          Google Maps e API4COM recebem dados somente quando o recurso correspondente é utilizado.
+        </li>
+        <li>
           <strong>Meta Platforms:</strong> para troca de tokens e recebimento de mensagens via
           API, conforme as Políticas de Plataforma da Meta.
         </li>
