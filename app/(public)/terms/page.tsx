@@ -23,6 +23,10 @@ export default async function TermsPage() {
         <a href={appUrl}>{appUrl}</a>, você concorda com os presentes Termos de Uso. Leia-os
         atentamente antes de utilizar a plataforma.
       </p>
+      <p>
+        O {APP_NAME} é oferecido pela <strong>WEBSTER E HOPPE LTDA</strong>, inscrita no CNPJ sob
+        o nº <strong>54.488.348/0001-07</strong>.
+      </p>
 
       <hr />
 

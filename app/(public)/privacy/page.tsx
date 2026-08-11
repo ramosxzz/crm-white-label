@@ -29,11 +29,13 @@ export default async function PrivacyPage() {
 
       <h2>1. Quem somos</h2>
       <p>
-        O {APP_NAME} é uma plataforma SaaS (Software como Serviço) de CRM white-label que permite
-        a empresas gerenciar leads, conversas e automações de atendimento. Cada empresa que se
-        cadastra na plataforma é controladora dos dados de seus próprios clientes e responsável
-        pelos dados que insere e coleta por meio de suas integrações. A plataforma atua como
-        operadora desses dados para prestar o serviço contratado.
+        O {APP_NAME} é oferecido pela <strong>WEBSTER E HOPPE LTDA</strong>, inscrita no CNPJ sob
+        o nº <strong>54.488.348/0001-07</strong>. A plataforma é um serviço SaaS (Software como
+        Serviço) de CRM white-label que permite a empresas gerenciar leads, conversas e automações
+        de atendimento. Cada empresa que se cadastra na plataforma é controladora dos dados de
+        seus próprios clientes e responsável pelos dados que insere e coleta por meio de suas
+        integrações. A plataforma atua como operadora desses dados para prestar o serviço
+        contratado.
       </p>
       <p>
         Contato do responsável pela plataforma:{" "}
@@ -125,9 +127,9 @@ export default async function PrivacyPage() {
       <ul>
         <li>
           <strong>Provedores de infraestrutura:</strong> Supabase (banco de dados, autenticação e
-          armazenamento), Cloudflare (rede, DNS e serviços de mídia, quando habilitados) e o
-          provedor da infraestrutura de aplicação, que atuam como operadores de dados para a
-          prestação do serviço.
+          armazenamento), Cloudflare (rede, DNS e serviços de mídia, quando habilitados) e
+          Hostinger International Ltd. (hospedagem da infraestrutura de aplicação), que atuam
+          como operadores de dados para a prestação do serviço.
         </li>
         <li>
           <strong>Meta Platforms:</strong> para troca de tokens e recebimento de mensagens via
