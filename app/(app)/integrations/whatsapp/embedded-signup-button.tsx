@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { MessageCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -23,6 +22,7 @@ const CONFIG_ID = process.env.NEXT_PUBLIC_META_WHATSAPP_CONFIG_ID;
 const FACEBOOK_SDK_ID = "facebook-jssdk";
 const FACEBOOK_SDK_URL = "https://connect.facebook.net/pt_BR/sdk.js";
 const FACEBOOK_SDK_TIMEOUT_MS = 15_000;
+const EMBEDDED_SIGNUP_TIMEOUT_MS = 10 * 60_000;
 
 let facebookSdkPromise: Promise<void> | null = null;
 
@@ -112,7 +112,6 @@ function loadFacebookSdk(): Promise<void> {
 }
 
 export function WhatsAppEmbeddedSignupButton() {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -192,7 +191,7 @@ export function WhatsAppEmbeddedSignupButton() {
         setLoading(false);
         setError("A janela da Meta nao respondeu. Libere pop-ups para este site e tente novamente.");
         loginTimeout.current = null;
-      }, 90_000);
+      }, EMBEDDED_SIGNUP_TIMEOUT_MS);
 
       window.FB.login(
         (response) => {
@@ -220,7 +219,10 @@ export function WhatsAppEmbeddedSignupButton() {
               });
               const data = await res.json();
               if (!res.ok) throw new Error(data.error || "Falha ao concluir conexao");
-              router.refresh();
+              // O cadastro acontece em uma janela separada. Um reload completo
+              // garante que a lista renderizada no servidor mostre a nova conta
+              // imediatamente, sem exigir F5 manual do usuario.
+              window.location.reload();
             } catch (err) {
               setError((err as Error).message);
             } finally {
