@@ -26,28 +26,51 @@ const FACEBOOK_SDK_TIMEOUT_MS = 15_000;
 
 let facebookSdkPromise: Promise<void> | null = null;
 
+const SDK_BLOCKED_MESSAGE =
+  "O navegador bloqueou o carregamento da Meta. Abra esta mesma pagina no Chrome ou Edge e tente novamente.";
+
 function loadFacebookSdk(): Promise<void> {
   if (window.FB?.login) return Promise.resolve();
   if (facebookSdkPromise) return facebookSdkPromise;
 
   facebookSdkPromise = new Promise((resolve, reject) => {
     let settled = false;
+    let watchdogFrame: number | null = null;
+    const startedAt = Date.now();
 
     const timeout = window.setTimeout(() => {
-      fail(new Error("O SDK da Meta demorou para responder. Desative bloqueadores e tente novamente."));
+      fail(new Error(SDK_BLOCKED_MESSAGE));
     }, FACEBOOK_SDK_TIMEOUT_MS);
+
+    // Alguns navegadores incorporados suspendem timers enquanto um script de
+    // terceiro esta pendente. O watchdog visual evita que o botao gire para sempre.
+    function watchSdkLoad() {
+      if (settled) return;
+      if (Date.now() - startedAt >= FACEBOOK_SDK_TIMEOUT_MS) {
+        fail(new Error(SDK_BLOCKED_MESSAGE));
+        return;
+      }
+      watchdogFrame = window.requestAnimationFrame(watchSdkLoad);
+    }
+
+    watchdogFrame = window.requestAnimationFrame(watchSdkLoad);
+
+    function cleanup() {
+      window.clearTimeout(timeout);
+      if (watchdogFrame !== null) window.cancelAnimationFrame(watchdogFrame);
+    }
 
     function finish() {
       if (settled) return;
       settled = true;
-      window.clearTimeout(timeout);
+      cleanup();
       resolve();
     }
 
     function fail(error: Error) {
       if (settled) return;
       settled = true;
-      window.clearTimeout(timeout);
+      cleanup();
       facebookSdkPromise = null;
       reject(error);
     }
@@ -80,7 +103,7 @@ function loadFacebookSdk(): Promise<void> {
       if (!settled) initialize();
     };
     script.onerror = () => {
-      fail(new Error("Nao foi possivel baixar o SDK da Meta. Verifique a conexao e os bloqueadores."));
+      fail(new Error(SDK_BLOCKED_MESSAGE));
     };
     document.body.appendChild(script);
   });
@@ -174,7 +197,16 @@ export function WhatsAppEmbeddedSignupButton() {
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
         Conectar WhatsApp com Facebook
       </Button>
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && (
+        <div className="max-w-md space-y-1 text-sm text-destructive">
+          <p>{error}</p>
+          {error === SDK_BLOCKED_MESSAGE && (
+            <p className="text-muted-foreground">
+              Endereco: https://crm.solairew.com.br/integrations/whatsapp
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
