@@ -20,22 +20,72 @@ declare global {
 
 const APP_ID = process.env.NEXT_PUBLIC_META_APP_ID;
 const CONFIG_ID = process.env.NEXT_PUBLIC_META_WHATSAPP_CONFIG_ID;
+const FACEBOOK_SDK_ID = "facebook-jssdk";
+const FACEBOOK_SDK_URL = "https://connect.facebook.net/pt_BR/sdk.js";
+const FACEBOOK_SDK_TIMEOUT_MS = 15_000;
+
+let facebookSdkPromise: Promise<void> | null = null;
 
 function loadFacebookSdk(): Promise<void> {
-  return new Promise((resolve) => {
-    if (window.FB) return resolve();
-    window.fbAsyncInit = () => {
-      window.FB!.init({ appId: APP_ID, autoLogAppEvents: true, xfbml: false, version: "v23.0" });
+  if (window.FB?.login) return Promise.resolve();
+  if (facebookSdkPromise) return facebookSdkPromise;
+
+  facebookSdkPromise = new Promise((resolve, reject) => {
+    let settled = false;
+
+    const timeout = window.setTimeout(() => {
+      fail(new Error("O SDK da Meta demorou para responder. Desative bloqueadores e tente novamente."));
+    }, FACEBOOK_SDK_TIMEOUT_MS);
+
+    function finish() {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
       resolve();
-    };
-    if (document.getElementById("facebook-jssdk")) return;
+    }
+
+    function fail(error: Error) {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      facebookSdkPromise = null;
+      reject(error);
+    }
+
+    function initialize() {
+      if (!window.FB?.login) {
+        fail(new Error("O navegador bloqueou o SDK da Meta. Libere scripts e pop-ups do Facebook."));
+        return;
+      }
+
+      try {
+        window.FB.init({ appId: APP_ID, autoLogAppEvents: true, xfbml: false, version: "v23.0" });
+        finish();
+      } catch {
+        fail(new Error("Nao foi possivel inicializar o SDK da Meta."));
+      }
+    }
+
+    window.fbAsyncInit = initialize;
+
+    const existingScript = document.getElementById(FACEBOOK_SDK_ID);
+    if (existingScript) existingScript.remove();
+
     const script = document.createElement("script");
-    script.id = "facebook-jssdk";
-    script.src = "https://connect.facebook.net/pt_BR/sdk.js";
+    script.id = FACEBOOK_SDK_ID;
+    script.src = FACEBOOK_SDK_URL;
     script.async = true;
     script.defer = true;
+    script.onload = () => {
+      if (!settled) initialize();
+    };
+    script.onerror = () => {
+      fail(new Error("Nao foi possivel baixar o SDK da Meta. Verifique a conexao e os bloqueadores."));
+    };
     document.body.appendChild(script);
   });
+
+  return facebookSdkPromise;
 }
 
 export function WhatsAppEmbeddedSignupButton() {
@@ -46,7 +96,13 @@ export function WhatsAppEmbeddedSignupButton() {
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
-      if (!event.origin.endsWith("facebook.com")) return;
+      let hostname: string;
+      try {
+        hostname = new URL(event.origin).hostname;
+      } catch {
+        return;
+      }
+      if (hostname !== "facebook.com" && !hostname.endsWith(".facebook.com")) return;
       try {
         const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
         if (data?.type === "WA_EMBEDDED_SIGNUP" && data?.event === "FINANCIAL_DATA_STATE_CHANGE") return;
@@ -106,9 +162,9 @@ export function WhatsAppEmbeddedSignupButton() {
           extras: { setup: {}, featureType: "", sessionInfoVersion: "3" },
         },
       );
-    } catch {
+    } catch (err) {
       setLoading(false);
-      setError("Nao foi possivel carregar o SDK da Meta.");
+      setError(err instanceof Error ? err.message : "Nao foi possivel carregar o SDK da Meta.");
     }
   }
 
