@@ -1038,9 +1038,31 @@ export async function addGroupLabel(input: { groupId: string; name: string }) {
     );
   if (error) throw new Error(error.message);
 
+  const { data: label } = await supabase
+    .from("whatsapp_group_labels")
+    .select("id, name, color")
+    .eq("id", labelId)
+    .single();
+
   revalidatePath("/chat");
   revalidatePath("/chat/groups");
   revalidatePath(`/chat/groups/${input.groupId}`);
+
+  return label as { id: string; name: string; color: string };
+}
+
+/** Todas as categorias/labels de grupo ja criadas no tenant - pra sugestao
+ * na hora de marcar um grupo (evita duplicar "Fornecedores"/"fornecedores"). */
+export async function listGroupLabels() {
+  const ctx = await requireContext();
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("whatsapp_group_labels")
+    .select("id, name, color")
+    .eq("tenant_id", ctx.tenantId)
+    .order("name");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as { id: string; name: string; color: string }[];
 }
 
 export async function removeGroupLabel(input: { groupId: string; labelId: string }) {

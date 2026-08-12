@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { RefreshCw, Search, UsersRound } from "lucide-react";
+import { RefreshCw, Search, UsersRound, Tags } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
@@ -13,16 +13,30 @@ import type { WhatsAppGroupListItem } from "@/lib/chat/types";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
+type GroupLabel = { id: string; name: string; color: string };
+
 export function GroupListLive({
   tenantId,
   initialItems,
+  allLabels = [],
 }: {
   tenantId: string;
   initialItems: WhatsAppGroupListItem[];
+  allLabels?: GroupLabel[];
 }) {
   const [items, setItems] = useState(initialItems);
   const [query, setQuery] = useState("");
+  const [selectedLabelIds, setSelectedLabelIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
+
+  function toggleLabel(labelId: string) {
+    setSelectedLabelIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(labelId)) next.delete(labelId);
+      else next.add(labelId);
+      return next;
+    });
+  }
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useCallback(async () => {
@@ -64,13 +78,17 @@ export function GroupListLive({
 
   const filtered = useMemo(() => {
     const term = query.trim().toLocaleLowerCase("pt-BR");
-    if (!term) return items;
-    return items.filter((item) =>
-      [item.subject, item.description, item.providerGroupId]
-        .filter(Boolean)
-        .some((value) => value!.toLocaleLowerCase("pt-BR").includes(term)),
-    );
-  }, [items, query]);
+    return items.filter((item) => {
+      const matchesTerm =
+        !term ||
+        [item.subject, item.description, item.providerGroupId]
+          .filter(Boolean)
+          .some((value) => value!.toLocaleLowerCase("pt-BR").includes(term));
+      const matchesLabels =
+        selectedLabelIds.size === 0 || item.labels.some((label) => selectedLabelIds.has(label.id));
+      return matchesTerm && matchesLabels;
+    });
+  }, [items, query, selectedLabelIds]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -86,7 +104,7 @@ export function GroupListLive({
         </Button>
       </div>
 
-      <div className="shrink-0 border-b border-border/40 p-4">
+      <div className="shrink-0 space-y-3 border-b border-border/40 p-4">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -96,6 +114,41 @@ export function GroupListLive({
             className="pl-9"
           />
         </div>
+        {allLabels.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Tags className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            {allLabels.map((label) => {
+              const active = selectedLabelIds.has(label.id);
+              return (
+                <button
+                  key={label.id}
+                  type="button"
+                  onClick={() => toggleLabel(label.id)}
+                  className={cn(
+                    "rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
+                    active ? "text-white" : "text-muted-foreground hover:opacity-80",
+                  )}
+                  style={
+                    active
+                      ? { backgroundColor: label.color, borderColor: label.color }
+                      : { borderColor: `${label.color}55`, color: label.color }
+                  }
+                >
+                  {label.name}
+                </button>
+              );
+            })}
+            {selectedLabelIds.size > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedLabelIds(new Set())}
+                className="text-[11px] text-muted-foreground underline-offset-2 hover:underline"
+              >
+                Limpar
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-5">

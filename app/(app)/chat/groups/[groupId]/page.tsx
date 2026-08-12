@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { listQuickMessages } from "@/app/(app)/settings/quick-messages-actions";
 import { GroupChatThread } from "./group-chat-thread";
-import { fetchGroupMessages, markGroupRead } from "../../actions";
+import { fetchGroupMessages, markGroupRead, listGroupLabels } from "../../actions";
 import {
   canAccessConversationAccount,
   getChatAccountVisibility,
@@ -24,7 +24,7 @@ export default async function GroupChatPage({ params }: { params: Promise<{ grou
   const visibility = await getChatAccountVisibility(ctx.tenantId, ctx.userId, ctx.role);
   if (!canAccessConversationAccount(group.whatsapp_account_id, visibility)) notFound();
 
-  const [messages, quickMessages, assignmentsResult] = await Promise.all([
+  const [messages, quickMessages, assignmentsResult, allLabels] = await Promise.all([
     fetchGroupMessages(groupId),
     listQuickMessages(),
     service
@@ -32,6 +32,7 @@ export default async function GroupChatPage({ params }: { params: Promise<{ grou
       .select("whatsapp_group_labels(id, name, color)")
       .eq("tenant_id", ctx.tenantId)
       .eq("group_id", groupId),
+    listGroupLabels(),
   ]);
   await markGroupRead(groupId);
   const labels = (assignmentsResult.data ?? []).flatMap((assignment) => {
@@ -46,6 +47,7 @@ export default async function GroupChatPage({ params }: { params: Promise<{ grou
       subject={group.subject}
       participantCount={group.participant_count}
       labels={labels}
+      allLabels={allLabels}
       initialMessages={messages}
       quickMessages={quickMessages}
     />

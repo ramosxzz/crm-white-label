@@ -14,7 +14,6 @@ import {
   FileText,
   Camera,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { QuickRepliesPicker } from "@/components/chat/quick-replies-picker";
+import { GroupLabelEditor } from "@/components/chat/group-label-editor";
 import { createClient } from "@/lib/supabase/client";
 import type { QuickMessage } from "@/lib/supabase/database.types";
 import { cn } from "@/lib/utils";
@@ -78,6 +78,7 @@ export function GroupChatThread({
   subject,
   participantCount,
   labels,
+  allLabels = [],
   initialMessages,
   quickMessages = [],
 }: {
@@ -86,9 +87,11 @@ export function GroupChatThread({
   subject: string;
   participantCount: number | null;
   labels: GroupThreadLabel[];
+  allLabels?: GroupThreadLabel[];
   initialMessages: GroupThreadMessage[];
   quickMessages?: QuickMessage[];
 }) {
+  const [groupLabels, setGroupLabels] = useState(labels);
   const [text, setText] = useState("");
   const [messages, setMessages] = useState(initialMessages);
   const [pending, start] = useTransition();
@@ -108,6 +111,10 @@ export function GroupChatThread({
   useEffect(() => {
     setMessages(initialMessages);
   }, [groupId, initialMessages]);
+
+  useEffect(() => {
+    setGroupLabels(labels);
+  }, [groupId, labels]);
 
   const sync = useCallback(async () => {
     try {
@@ -324,12 +331,8 @@ export function GroupChatThread({
         <div className="min-w-0 flex-1">
           <p className="truncate font-display text-base font-semibold tracking-normal">{subject}</p>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span>{participantCount ?? 0} participantes</span>
-            {labels.map((label) => (
-              <Badge key={label.id} variant="outline" className="px-2 py-0 text-[10px]" style={{ borderColor: `${label.color}55`, color: label.color }}>
-                {label.name}
-              </Badge>
-            ))}
+            <span className="shrink-0">{participantCount ?? 0} participantes</span>
+            <GroupLabelEditor groupId={groupId} labels={groupLabels} onLabelsChange={setGroupLabels} allLabels={allLabels} />
           </div>
         </div>
       </header>
