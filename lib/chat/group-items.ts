@@ -12,6 +12,7 @@ type GroupRow = {
   last_message_body?: string | null;
   last_message_direction?: string | null;
   last_message_at?: string | null;
+  unread_count?: number | null;
 };
 
 type AssignmentRow = {
@@ -120,6 +121,7 @@ export function buildWhatsAppGroupItems(
         lastAt: group.last_message_at ?? logPreview?.messageAt ?? group.last_event_at ?? group.updated_at,
         lastPreview: group.last_message_body ?? logPreview?.body ?? null,
         lastDirection: direction,
+        unreadCount: Math.max(0, group.unread_count ?? 0),
         labels: normalizeLabels(assignments, group.id),
       };
     })

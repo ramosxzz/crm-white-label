@@ -3499,6 +3499,7 @@ export type Database = {
           raw_payload: Json
           subject: string
           tenant_id: string
+          unread_count: number
           updated_at: string
           whatsapp_account_id: string | null
         }
@@ -3517,6 +3518,7 @@ export type Database = {
           raw_payload?: Json
           subject: string
           tenant_id: string
+          unread_count?: number
           updated_at?: string
           whatsapp_account_id?: string | null
         }
@@ -3535,6 +3537,7 @@ export type Database = {
           raw_payload?: Json
           subject?: string
           tenant_id?: string
+          unread_count?: number
           updated_at?: string
           whatsapp_account_id?: string | null
         }

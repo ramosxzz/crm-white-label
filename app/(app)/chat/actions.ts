@@ -949,11 +949,15 @@ export async function fetchGroupMessages(groupId: string): Promise<
 
   const { data: group } = await supabase
     .from("whatsapp_groups")
-    .select("provider_group_id")
+    .select("provider_group_id, whatsapp_account_id")
     .eq("id", groupId)
     .eq("tenant_id", ctx.tenantId)
     .maybeSingle();
   if (!group) return [];
+  const visibility = await getChatAccountVisibility(ctx.tenantId, ctx.userId, ctx.role);
+  if (!canAccessConversationAccount(group.whatsapp_account_id, visibility)) {
+    throw new Error("Sem acesso a este grupo");
+  }
 
   const { data: logs } = await supabase
     .from("whatsapp_webhook_logs")
@@ -995,11 +999,15 @@ export async function addGroupLabel(input: { groupId: string; name: string }) {
 
   const { data: group } = await supabase
     .from("whatsapp_groups")
-    .select("id")
+    .select("id, whatsapp_account_id")
     .eq("id", input.groupId)
     .eq("tenant_id", ctx.tenantId)
     .single();
   if (!group) throw new Error("Grupo nao encontrado");
+  const visibility = await getChatAccountVisibility(ctx.tenantId, ctx.userId, ctx.role);
+  if (!canAccessConversationAccount(group.whatsapp_account_id, visibility)) {
+    throw new Error("Sem acesso a este grupo");
+  }
 
   const { data: existing } = await supabase
     .from("whatsapp_group_labels")
@@ -1031,11 +1039,24 @@ export async function addGroupLabel(input: { groupId: string; name: string }) {
   if (error) throw new Error(error.message);
 
   revalidatePath("/chat");
+  revalidatePath("/chat/groups");
+  revalidatePath(`/chat/groups/${input.groupId}`);
 }
 
 export async function removeGroupLabel(input: { groupId: string; labelId: string }) {
   const ctx = await requireContext();
   const supabase = createServiceClient();
+  const { data: group } = await supabase
+    .from("whatsapp_groups")
+    .select("whatsapp_account_id")
+    .eq("id", input.groupId)
+    .eq("tenant_id", ctx.tenantId)
+    .maybeSingle();
+  if (!group) throw new Error("Grupo nao encontrado");
+  const visibility = await getChatAccountVisibility(ctx.tenantId, ctx.userId, ctx.role);
+  if (!canAccessConversationAccount(group.whatsapp_account_id, visibility)) {
+    throw new Error("Sem acesso a este grupo");
+  }
   const { error } = await supabase
     .from("whatsapp_group_label_assignments")
     .delete()
@@ -1044,6 +1065,8 @@ export async function removeGroupLabel(input: { groupId: string; labelId: string
     .eq("label_id", input.labelId);
   if (error) throw new Error(error.message);
   revalidatePath("/chat");
+  revalidatePath("/chat/groups");
+  revalidatePath(`/chat/groups/${input.groupId}`);
 }
 
 function evolutionErrorMessage(raw: unknown): string {
@@ -1119,19 +1142,24 @@ export async function sendGroupMedia(input: {
 
   const { data: group } = await supabase
     .from("whatsapp_groups")
-    .select("id, provider_group_id")
+    .select("id, provider_group_id, whatsapp_account_id")
     .eq("id", input.groupId)
     .eq("tenant_id", ctx.tenantId)
     .single();
   if (!group) throw new Error("Grupo nao encontrado");
+  const visibility = await getChatAccountVisibility(ctx.tenantId, ctx.userId, ctx.role);
+  if (!canAccessConversationAccount(group.whatsapp_account_id, visibility)) {
+    throw new Error("Sem acesso a este grupo");
+  }
+  if (!group.whatsapp_account_id) throw new Error("Grupo sem numero do WhatsApp vinculado");
 
   const { data: account } = await supabase
     .from("whatsapp_accounts")
     .select("*")
+    .eq("id", group.whatsapp_account_id)
     .eq("tenant_id", ctx.tenantId)
     .eq("provider", "evolution")
     .eq("is_active", true)
-    .limit(1)
     .single();
   if (!account) throw new Error("Conta Evolution nao configurada");
 
@@ -1174,6 +1202,7 @@ export async function sendGroupMedia(input: {
     .eq("id", group.id);
 
   revalidatePath(`/chat/groups/${input.groupId}`);
+  revalidatePath("/chat/groups");
 
   return {
     id: inserted?.id ?? externalId,
@@ -1235,14 +1264,19 @@ export async function sendGroupMessage(input: { groupId: string; body: string })
     .eq("tenant_id", ctx.tenantId)
     .single();
   if (!group) throw new Error("Grupo nao encontrado");
+  const visibility = await getChatAccountVisibility(ctx.tenantId, ctx.userId, ctx.role);
+  if (!canAccessConversationAccount(group.whatsapp_account_id, visibility)) {
+    throw new Error("Sem acesso a este grupo");
+  }
+  if (!group.whatsapp_account_id) throw new Error("Grupo sem numero do WhatsApp vinculado");
 
   const { data: account } = await supabase
     .from("whatsapp_accounts")
     .select("*")
+    .eq("id", group.whatsapp_account_id)
     .eq("tenant_id", ctx.tenantId)
     .eq("provider", "evolution")
     .eq("is_active", true)
-    .limit(1)
     .single();
   if (!account) throw new Error("Conta Evolution nao configurada");
 
@@ -1283,6 +1317,7 @@ export async function sendGroupMessage(input: { groupId: string; body: string })
 
   revalidatePath(`/chat/groups/${input.groupId}`);
   revalidatePath("/chat");
+  revalidatePath("/chat/groups");
 
   return {
     id: inserted?.id ?? externalId,
@@ -1293,6 +1328,33 @@ export async function sendGroupMessage(input: { groupId: string; body: string })
     createdAt: messageAt,
     externalId,
   };
+}
+
+export async function markGroupRead(groupId: string) {
+  const ctx = await requireContext();
+  const supabase = createServiceClient();
+  const { data: group, error: groupError } = await supabase
+    .from("whatsapp_groups")
+    .select("whatsapp_account_id, unread_count")
+    .eq("id", groupId)
+    .eq("tenant_id", ctx.tenantId)
+    .maybeSingle();
+  if (groupError) throw new Error(groupError.message);
+  if (!group) throw new Error("Grupo nao encontrado");
+
+  const visibility = await getChatAccountVisibility(ctx.tenantId, ctx.userId, ctx.role);
+  if (!canAccessConversationAccount(group.whatsapp_account_id, visibility)) {
+    throw new Error("Sem acesso a este grupo");
+  }
+  if ((group.unread_count ?? 0) === 0) return;
+
+  const { error } = await supabase
+    .from("whatsapp_groups")
+    .update({ unread_count: 0 })
+    .eq("id", groupId)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/chat/groups");
 }
 
 export type LeadTimelineEntry = {

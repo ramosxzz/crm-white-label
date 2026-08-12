@@ -61,5 +61,6 @@ export type WhatsAppGroupListItem = {
   lastAt: string | null;
   lastPreview: string | null;
   lastDirection: "inbound" | "outbound" | null;
+  unreadCount: number;
   labels: GroupLabelItem[];
 };

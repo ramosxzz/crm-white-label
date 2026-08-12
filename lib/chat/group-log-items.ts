@@ -62,6 +62,7 @@ export function buildWhatsAppGroupItemsFromLogs(logs: GroupLogRow[]): WhatsAppGr
         lastAt: text(payload.last_event_at) ?? log.created_at,
         lastPreview: null,
         lastDirection: null,
+        unreadCount: 0,
         labels: [],
       });
       continue;

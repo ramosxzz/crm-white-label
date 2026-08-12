@@ -68,7 +68,7 @@ export function parseEvolutionGroupEvents(payload: unknown): EvolutionGroupEvent
   const root = asRecord(payload);
   if (!root) return [];
 
-  const event = asString(root.event)?.toUpperCase();
+  const event = asString(root.event)?.toUpperCase().replace(/[.\-]/g, "_");
   if (!event || !GROUP_EVENTS.has(event)) return [];
 
   const data = root.data;

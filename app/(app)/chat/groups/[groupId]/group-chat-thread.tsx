@@ -28,7 +28,7 @@ import { QuickRepliesPicker } from "@/components/chat/quick-replies-picker";
 import { createClient } from "@/lib/supabase/client";
 import type { QuickMessage } from "@/lib/supabase/database.types";
 import { cn } from "@/lib/utils";
-import { sendGroupMessage, sendGroupMedia, fetchGroupMessages } from "../../actions";
+import { sendGroupMessage, sendGroupMedia, fetchGroupMessages, markGroupRead } from "../../actions";
 
 const POLL_MS = 8_000;
 
@@ -99,6 +99,7 @@ export function GroupChatThread({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<Blob[]>([]);
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   const sortedMessages = useMemo(() => uniqueMessages(messages), [messages]);
   const busy = pending || uploading;
@@ -132,6 +133,29 @@ export function GroupChatThread({
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [sync]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`whatsapp-group-thread-${tenantId}-${groupId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "whatsapp_groups", filter: `id=eq.${groupId}` },
+        (change) => {
+          void sync();
+          const next = change.new as { unread_count?: number | null };
+          if ((next.unread_count ?? 0) > 0) void markGroupRead(groupId);
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [groupId, sync, tenantId]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [sortedMessages.length]);
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -344,6 +368,7 @@ export function GroupChatThread({
                 </div>
               );
             })}
+            <div ref={bottomRef} />
           </div>
         )}
       </div>

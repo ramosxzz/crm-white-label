@@ -73,3 +73,13 @@ test("normalizes single GROUP_UPDATE payloads", async () => {
   assert.equal(groups[0].participant_count, null);
   assert.equal(groups[0].last_event_type, "GROUP_UPDATE");
 });
+
+test("accepts dotted group event names", async () => {
+  const { parseEvolutionGroupEvents } = await loadModule();
+  const groups = parseEvolutionGroupEvents({
+    event: "groups.upsert",
+    data: { id: "120363222222222222@g.us", subject: "Pos-venda" },
+  });
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].last_event_type, "GROUPS_UPSERT");
+});

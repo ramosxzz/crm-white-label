@@ -43,6 +43,11 @@ test("normalizes Evolution group text messages", async () => {
     sender_name: "Maria",
     direction: "inbound",
     body: "Oi grupo",
+    media_url: null,
+    media_type: null,
+    media_base64: null,
+    media_mime_type: null,
+    media_file_name: null,
     message_at: "2024-03-09T16:00:00.000Z",
     raw_payload: {
       key: {
@@ -56,6 +61,32 @@ test("normalizes Evolution group text messages", async () => {
       messageTimestamp: 1710000000,
     },
   });
+});
+
+test("normalizes dotted Evolution group media events", async () => {
+  const { parseEvolutionGroupMessages } = await loadModule();
+  const messages = parseEvolutionGroupMessages({
+    event: "messages.upsert",
+    data: {
+      key: { id: "img-1", remoteJid: "120363000000@g.us", fromMe: false },
+      message: {
+        imageMessage: {
+          caption: "Comprovante",
+          url: "https://example.com/image.enc",
+          mimetype: "image/jpeg",
+          base64: "YWJj",
+          fileName: "foto.jpg",
+        },
+      },
+    },
+  });
+
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].body, "Comprovante");
+  assert.equal(messages[0].media_url, "https://example.com/image.enc");
+  assert.equal(messages[0].media_type, "image/jpeg");
+  assert.equal(messages[0].media_base64, "YWJj");
+  assert.equal(messages[0].media_file_name, "foto.jpg");
 });
 
 test("ignores individual messages", async () => {
