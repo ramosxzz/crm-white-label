@@ -25,6 +25,9 @@ export function LeadsQualityCard({
   const total = data.distribution.reduce((sum, item) => sum + item.count, 0);
   const unrated = data.distribution.find((item) => item.stars === 0)?.count ?? 0;
   const rated = total - unrated;
+  const mql = data.distribution
+    .filter((item) => item.stars >= 3)
+    .reduce((sum, item) => sum + item.count, 0);
   const options = PERIOD_FILTER_OPTIONS.filter((option) =>
     ["today", "7d", "30d", "this_month", "all"].includes(option.value),
   );
@@ -78,7 +81,7 @@ export function LeadsQualityCard({
             <div className="grid grid-cols-3 gap-2 rounded-lg border border-border/60 bg-muted/20 p-3 text-center text-xs">
               <div className="min-w-0"><strong className="block text-base text-foreground">{total}</strong>Total</div>
               <div className="min-w-0"><strong className="block text-base text-foreground">{rated}</strong>Avaliados</div>
-              <div className="min-w-0"><strong className="block text-base text-foreground">{unrated}</strong><span className="block truncate">Sem avaliação</span></div>
+              <div className="min-w-0"><strong className="block text-base text-foreground">{mql}</strong><span className="block truncate">MQLs (3+ estrelas)</span></div>
             </div>
             {[...data.distribution].reverse().map(({ stars, count }) => {
               const percentage = Math.round((count / total) * 100);
