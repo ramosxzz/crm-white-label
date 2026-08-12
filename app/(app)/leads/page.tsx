@@ -104,7 +104,26 @@ export default async function LeadsPage({
     leadsQuery = leadsQuery.in("stage_id", stageFilterIds);
   }
 
-  const [{ data: leads, count: totalCount }, { data: stages }, members, { data: partners }, { data: metricsRows }] = await Promise.all([
+  async function loadAllMetricLeads() {
+    const rows: Array<{ stage_id: string | null; value_cents: number | null; quality_stars: number | null }> = [];
+    const batchSize = 1000;
+    for (let offset = 0; ; offset += batchSize) {
+      let query = supabase
+        .from("leads")
+        .select("stage_id, value_cents, quality_stars")
+        .eq("tenant_id", ctx.tenantId)
+        .range(offset, offset + batchSize - 1);
+      if (dateFilter.bounds) query = query.gte("created_at", dateFilter.bounds.startIso).lte("created_at", dateFilter.bounds.endIso);
+      if (stageFilterIds.length > 0) query = query.in("stage_id", stageFilterIds);
+      const { data, error } = await query;
+      if (error) throw new Error(error.message);
+      rows.push(...(data ?? []));
+      if (!data || data.length < batchSize) break;
+    }
+    return rows;
+  }
+
+  const [{ data: leads, count: totalCount }, { data: stages }, members, { data: partners }, metricLeadRows, { data: slaRows }] = await Promise.all([
     leadsQuery,
     supabase
       .from("pipeline_stages")
@@ -121,39 +140,44 @@ export default async function LeadsPage({
           .order("kind")
           .order("name")
       : Promise.resolve({ data: [] }),
-    supabase.rpc("leads_operational_metrics", {
+    loadAllMetricLeads(),
+    supabase.rpc("attendant_sla_metrics", {
       p_tenant_id: ctx.tenantId,
-      p_from: dateFilter.bounds?.startIso,
-      p_to: dateFilter.bounds?.endIso,
-      p_stage_ids: stageFilterIds.length > 0 ? stageFilterIds : undefined,
+      p_from: dateFilter.bounds?.startIso ?? "1970-01-01T00:00:00.000Z",
+      p_to: dateFilter.bounds?.endIso ?? new Date().toISOString(),
     }),
   ]);
 
-  const metrics = metricsRows?.[0];
-  const metricTotal = Number(metrics?.total_leads ?? totalCount ?? 0);
-  const ratedLeads = Number(metrics?.rated_leads ?? 0);
-  const qualityAverage = ratedLeads > 0 ? Number(metrics?.stars_sum ?? 0) / ratedLeads : 0;
-  const starCounts = [
-    Number(metrics?.stars_0 ?? 0),
-    Number(metrics?.stars_1 ?? 0),
-    Number(metrics?.stars_2 ?? 0),
-    Number(metrics?.stars_3 ?? 0),
-    Number(metrics?.stars_4 ?? 0),
-    Number(metrics?.stars_5 ?? 0),
-  ];
+  const metricTotal = metricLeadRows.length;
+  const starCounts = [0, 0, 0, 0, 0, 0];
+  const stageCountMap = new Map<string | null, number>();
+  let totalValueCents = 0;
+  let starsSum = 0;
+  for (const lead of metricLeadRows) {
+    const stars = Math.min(5, Math.max(0, lead.quality_stars ?? 0));
+    starCounts[stars] += 1;
+    starsSum += stars;
+    totalValueCents += lead.value_cents ?? 0;
+    stageCountMap.set(lead.stage_id, (stageCountMap.get(lead.stage_id) ?? 0) + 1);
+  }
+  const ratedLeads = metricTotal - starCounts[0];
+  const qualityAverage = ratedLeads > 0 ? starsSum / ratedLeads : 0;
   const qualityDistribution = starCounts.map((count, stars) => ({
     stars,
     count,
     percentage: metricTotal > 0 ? Math.round((count / metricTotal) * 100) : 0,
   }));
-  const rawStageCounts = Array.isArray(metrics?.stage_counts)
-    ? metrics.stage_counts as Array<{ stage_id: string | null; count: number | string }>
-    : [];
+  const mqlLeads = starCounts[3] + starCounts[4] + starCounts[5];
+  const mqlPercentage = metricTotal > 0 ? Math.round((mqlLeads / metricTotal) * 100) : 0;
   const stageDistribution = buildStageDistribution(
-    rawStageCounts.map((item) => ({ stage_id: item.stage_id, count: Number(item.count) })),
+    [...stageCountMap].map(([stage_id, count]) => ({ stage_id, count })),
     stages ?? [],
     metricTotal,
   );
+  const responseCount = (slaRows ?? []).reduce((sum, row) => sum + Number(row.responses ?? 0), 0);
+  const avgResponseSeconds = responseCount > 0
+    ? (slaRows ?? []).reduce((sum, row) => sum + Number(row.avg_response_seconds ?? 0) * Number(row.responses ?? 0), 0) / responseCount
+    : 0;
 
   const pageCount = Math.max(1, Math.ceil((totalCount ?? 0) / LEADS_PAGE_SIZE));
 
@@ -184,12 +208,14 @@ export default async function LeadsPage({
       <div className="p-8">
         <LeadsMetricsSummary
           total={metricTotal}
-          responseSeconds={Number(metrics?.avg_first_response_seconds ?? 0)}
-          respondedConversations={Number(metrics?.responded_conversations ?? 0)}
+          responseSeconds={avgResponseSeconds}
+          respondedConversations={responseCount}
           stages={stageDistribution}
           quality={qualityDistribution}
           qualityAverage={qualityAverage}
           ratedLeads={ratedLeads}
+          mqlLeads={mqlLeads}
+          mqlPercentage={mqlPercentage}
         />
         <div className="mb-4 flex flex-col gap-3 rounded-xl border border-border/70 bg-card p-4 shadow-elev-1">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -244,7 +270,7 @@ export default async function LeadsPage({
           rangeLabel={`${from + 1}–${Math.min(totalCount ?? 0, from + LEADS_PAGE_SIZE)} de ${totalCount ?? 0}`}
           totals={{
             leads: metricTotal,
-            valueCents: Number(metrics?.total_value_cents ?? 0),
+            valueCents: totalValueCents,
             ratedLeads,
             starsAverage: qualityAverage,
           }}

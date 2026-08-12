@@ -23,6 +23,8 @@ export function LeadsMetricsSummary({
   quality,
   qualityAverage,
   ratedLeads,
+  mqlLeads,
+  mqlPercentage,
 }: {
   total: number;
   responseSeconds: number;
@@ -31,6 +33,8 @@ export function LeadsMetricsSummary({
   quality: QualityMetric[];
   qualityAverage: number;
   ratedLeads: number;
+  mqlLeads: number;
+  mqlPercentage: number;
 }) {
   return (
     <div className="mb-4 space-y-4">
@@ -38,7 +42,7 @@ export function LeadsMetricsSummary({
         <MetricCard icon={<Users className="h-4 w-4" />} label="Leads do período" value={String(total)} detail="Todos os resultados filtrados" />
         <MetricCard icon={<Clock3 className="h-4 w-4" />} label="Tempo de resposta" value={formatDuration(responseSeconds)} detail={`${respondedConversations} conversa${respondedConversations === 1 ? "" : "s"} medida${respondedConversations === 1 ? "" : "s"}`} />
         <MetricCard icon={<Star className="h-4 w-4" />} label="Qualificação" value={ratedLeads ? `${qualityAverage.toFixed(1)} estrelas` : "Sem avaliações"} detail={`${ratedLeads} de ${total} leads avaliados`} />
-        <MetricCard icon={<Target className="h-4 w-4" />} label="MQL do período" value="Definição pendente" detail="Aguardando a regra comercial" />
+        <MetricCard icon={<Target className="h-4 w-4" />} label="MQL do período" value={`${mqlPercentage}%`} detail={`${mqlLeads} lead${mqlLeads === 1 ? "" : "s"} com 3 estrelas ou mais`} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">

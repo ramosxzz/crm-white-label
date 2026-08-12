@@ -35,7 +35,7 @@ O resumo apresenta:
 - quantidade e porcentagem dos leads em cada etapa atual;
 - distribuicao de qualificacao entre uma e cinco estrelas e sem avaliacao;
 - quantidade avaliada e media das estrelas;
-- cartao de MQL com estado `Definicao pendente`, sem inventar uma regra ate o processo comercial ser confirmado.
+- percentual de MQL, considerando MQL todo lead com tres, quatro ou cinco estrelas.
 
 O exemplo de leitura por etapa sera: se 30 leads entraram no periodo, cada etapa mostra quantos desses 30 permanecem nela e qual porcentagem representam.
 
@@ -54,7 +54,7 @@ O exemplo de leitura por etapa sera: se 30 leads entraram no periodo, cada etapa
 - Calculos puros e formatacao ficam em um modulo pequeno e testavel em `lib/leads`.
 - A pagina de Leads busca agregados separados da consulta paginada para impedir que os totais sejam limitados a 50 registros.
 - Consultas devem sempre aplicar `tenant_id`, intervalo de entrada e etapas selecionadas.
-- O tempo de resposta sera calculado no banco por uma funcao SQL tenant-scoped para evitar carregar o historico completo de mensagens no servidor Next.js.
+- O tempo de resposta reutiliza a funcao tenant-scoped de SLA ja instalada no banco.
 - O componente visual de resumo recebe dados prontos e nao refaz regras de negocio no cliente.
 
 ## Tratamento de casos extremos
@@ -68,12 +68,10 @@ O exemplo de leitura por etapa sera: se 30 leads entraram no periodo, cada etapa
 ## Testes e validacao
 
 - Testes unitarios cobrem distribuicao de estrelas, barras zeradas, deduplicacao do funil, tag com variacao de caixa/espacos, etapa ganha, distribuicao por etapa e totais.
-- Teste da funcao SQL documenta o intervalo e o isolamento por tenant por meio da definicao da migration.
 - Validacao final obrigatoria: testes completos, TypeScript, lint disponivel e build de producao.
 
 ## Fora do escopo
 
-- Definir o criterio de MQL.
 - Alterar a estrutura do pipeline do cliente.
 - Criar edicao de estrelas diretamente na tabela de Leads.
 - Mudar a integracao com a Api4com.

@@ -23,6 +23,8 @@ test("qualificacao separa sem avaliacao e calcula media so dos avaliados", () =>
   assert.equal(result.rated, 3);
   assert.equal(result.unrated, 2);
   assert.equal(result.average, 3);
+  assert.equal(result.mql, 1);
+  assert.equal(result.mqlPercentage, 20);
   assert.deepEqual(result.distribution.map((item) => item.count), [2, 0, 2, 0, 0, 1]);
 });
 

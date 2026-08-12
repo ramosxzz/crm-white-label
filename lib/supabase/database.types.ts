@@ -3694,29 +3694,6 @@ export type Database = {
           value_cents: number
         }[]
       }
-      leads_operational_metrics: {
-        Args: {
-          p_from?: string
-          p_stage_ids?: string[]
-          p_tenant_id: string
-          p_to?: string
-        }
-        Returns: {
-          avg_first_response_seconds: number
-          rated_leads: number
-          responded_conversations: number
-          stage_counts: Json
-          stars_0: number
-          stars_1: number
-          stars_2: number
-          stars_3: number
-          stars_4: number
-          stars_5: number
-          stars_sum: number
-          total_leads: number
-          total_value_cents: number
-        }[]
-      }
       has_tenant_role: {
         Args: { roles: Database["public"]["Enums"]["member_role"][]; t: string }
         Returns: boolean

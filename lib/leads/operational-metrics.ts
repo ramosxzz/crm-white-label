@@ -3,6 +3,8 @@ export type QualificationMetrics = {
   rated: number;
   unrated: number;
   average: number;
+  mql: number;
+  mqlPercentage: number;
   distribution: { stars: number; count: number; percentage: number }[];
 };
 
@@ -17,11 +19,14 @@ export function buildQualificationMetrics(values: Array<number | null | undefine
   const total = values.length;
   const unrated = counts[0];
   const rated = total - unrated;
+  const mql = counts[3] + counts[4] + counts[5];
   return {
     total,
     rated,
     unrated,
     average: rated > 0 ? starSum / rated : 0,
+    mql,
+    mqlPercentage: total > 0 ? Math.round((mql / total) * 100) : 0,
     distribution: counts.map((count, stars) => ({
       stars,
       count,
