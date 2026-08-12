@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, Plus, RotateCcw, Trash2, CalendarClock, UserRound } from "lucide-react";
+import { Check, Plus, RotateCcw, Trash2, CalendarClock, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,12 +40,14 @@ export function TasksView({
   activePerson: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [kind, setKind] = useState<"task" | "meeting">("task");
   const [title, setTitle] = useState("");
   const [assignedTo, setAssignedTo] = useState(currentUserId);
   const [dueAt, setDueAt] = useState("");
   const [notes, setNotes] = useState("");
   const [pending, start] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const isMeeting = kind === "meeting";
 
   const nameOf = (id: string | null) =>
     users.find((u) => u.id === id)?.name ?? "Sem responsável";
@@ -60,14 +62,15 @@ export function TasksView({
   function submit() {
     start(async () => {
       try {
-        await createTask({ title, assignedTo, notes, dueAt });
+        await createTask({ title, assignedTo, notes, dueAt, kind });
         setTitle("");
         setNotes("");
         setDueAt("");
+        setKind("task");
         setOpen(false);
-        notify({ title: "Tarefa criada", tone: "success" });
+        notify({ title: isMeeting ? "Reunião marcada" : "Tarefa criada", tone: "success" });
       } catch (e) {
-        notifyError(e, "Não foi possível criar a tarefa.");
+        notifyError(e, isMeeting ? "Não foi possível marcar a reunião." : "Não foi possível criar a tarefa.");
       }
     });
   }
@@ -153,18 +156,30 @@ export function TasksView({
       {open && (
         <Card>
           <CardContent className="space-y-4 p-5">
+            <div className="space-y-1.5">
+              <Label htmlFor="task-kind">Tipo</Label>
+              <select
+                id="task-kind"
+                value={kind}
+                onChange={(e) => setKind(e.target.value as "task" | "meeting")}
+                className="h-9 w-full max-w-xs rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="task">Tarefa</option>
+                <option value="meeting">Reunião interna / alinhamento</option>
+              </select>
+            </div>
             <div className="grid gap-4 sm:grid-cols-[1fr_14rem_12rem]">
               <div className="space-y-1.5">
-                <Label htmlFor="task-title">O que precisa ser feito</Label>
+                <Label htmlFor="task-title">{isMeeting ? "Assunto da reunião" : "O que precisa ser feito"}</Label>
                 <Input
                   id="task-title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Subir os anúncios do cliente X"
+                  placeholder={isMeeting ? "Alinhamento semanal com o time" : "Subir os anúncios do cliente X"}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="task-user">Responsável</Label>
+                <Label htmlFor="task-user">{isMeeting ? "Com quem" : "Responsável"}</Label>
                 <select
                   id="task-user"
                   value={assignedTo}
@@ -180,12 +195,13 @@ export function TasksView({
                 </select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="task-due">Prazo (opcional)</Label>
+                <Label htmlFor="task-due">{isMeeting ? "Data e hora" : "Prazo (opcional)"}</Label>
                 <Input
                   id="task-due"
                   type="datetime-local"
                   value={dueAt}
                   onChange={(e) => setDueAt(e.target.value)}
+                  required={isMeeting}
                 />
               </div>
             </div>
@@ -196,15 +212,20 @@ export function TasksView({
                 rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Contexto, links, o que considerar concluído..."
+                placeholder={isMeeting ? "Pauta, links da chamada..." : "Contexto, links, o que considerar concluído..."}
               />
             </div>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
                 Cancelar
               </Button>
-              <Button type="button" variant="brand" onClick={submit} disabled={pending || !title.trim()}>
-                Criar tarefa
+              <Button
+                type="button"
+                variant="brand"
+                onClick={submit}
+                disabled={pending || !title.trim() || (isMeeting && !dueAt)}
+              >
+                {isMeeting ? "Marcar reunião" : "Criar tarefa"}
               </Button>
             </div>
           </CardContent>
@@ -238,7 +259,8 @@ export function TasksView({
                 </button>
 
                 <div className="min-w-0 flex-1">
-                  <p className={cn("text-sm font-medium", done && "text-muted-foreground line-through")}>
+                  <p className={cn("flex items-center gap-1.5 text-sm font-medium", done && "text-muted-foreground line-through")}>
+                    {task.kind === "meeting" && <Users className="h-3.5 w-3.5 shrink-0 text-brand" />}
                     {task.title}
                   </p>
                   {task.notes && (

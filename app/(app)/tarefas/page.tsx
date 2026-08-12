@@ -26,7 +26,7 @@ export default async function TarefasPage({
 
   let query = supabase
     .from("tasks")
-    .select("id, title, notes, due_at, status, completed_at, created_at, assigned_to, created_by, lead_id")
+    .select("id, title, notes, due_at, status, completed_at, created_at, assigned_to, created_by, lead_id, kind")
     .eq("tenant_id", ctx.tenantId)
     .is("lead_id", null)
     .order("status", { ascending: true })

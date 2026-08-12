@@ -16,6 +16,7 @@ export type TaskRow = {
   assigned_to: string | null;
   created_by: string | null;
   lead_id: string | null;
+  kind: "task" | "meeting";
 };
 
 export async function createTask(input: {
@@ -23,6 +24,7 @@ export async function createTask(input: {
   assignedTo: string;
   notes?: string;
   dueAt?: string;
+  kind?: "task" | "meeting";
 }) {
   const ctx = await requireContext();
   const supabase = await createClient();
@@ -30,6 +32,8 @@ export async function createTask(input: {
   const title = input.title.trim();
   if (!title) throw new Error("Informe o que precisa ser feito.");
   if (!input.assignedTo) throw new Error("Escolha quem vai executar.");
+  const kind = input.kind === "meeting" ? "meeting" : "task";
+  if (kind === "meeting" && !input.dueAt) throw new Error("Informe a data e hora da reunião.");
 
   const dueAt = input.dueAt ? new Date(input.dueAt).toISOString() : null;
 
@@ -44,6 +48,7 @@ export async function createTask(input: {
       notes: input.notes?.trim() || null,
       due_at: dueAt,
       status: "open",
+      kind,
     })
     .select("id")
     .single();
