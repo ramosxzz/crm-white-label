@@ -28,6 +28,7 @@ import { QuickRepliesPicker } from "@/components/chat/quick-replies-picker";
 import { createClient } from "@/lib/supabase/client";
 import type { QuickMessage } from "@/lib/supabase/database.types";
 import { cn } from "@/lib/utils";
+import { buildRecordedAudio, createAudioMediaRecorder } from "@/lib/media/audio-recorder";
 import { sendGroupMessage, sendGroupMedia, fetchGroupMessages, markGroupRead } from "../../actions";
 
 const POLL_MS = 8_000;
@@ -279,18 +280,18 @@ export function GroupChatThread({
   async function startRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
+      const mr = createAudioMediaRecorder(stream);
       recordChunksRef.current = [];
       mr.ondataavailable = (ev) => {
         if (ev.data.size > 0) recordChunksRef.current.push(ev.data);
       };
       mr.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(recordChunksRef.current, { type: "audio/ogg" });
-        if (blob.size > 0) void uploadAndSend(blob, `audio-${Date.now()}.ogg`, "audio");
+        const { blob, fileName } = buildRecordedAudio(mr, recordChunksRef.current);
+        if (blob.size > 0) void uploadAndSend(blob, fileName, "audio");
       };
       mediaRecorderRef.current = mr;
-      mr.start();
+      mr.start(250);
       setRecording(true);
       setRecordSecs(0);
       recordTimerRef.current = setInterval(() => setRecordSecs((s) => s + 1), 1000);

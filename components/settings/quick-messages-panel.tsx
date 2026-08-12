@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import type { QuickMessage } from "@/lib/supabase/database.types";
 import { QUICK_MESSAGE_PRESETS } from "@/lib/quick-messages/presets";
+import { buildRecordedAudio, createAudioMediaRecorder } from "@/lib/media/audio-recorder";
 import {
   createQuickMessage,
   updateQuickMessage,
@@ -112,19 +113,20 @@ export function QuickMessagesPanel({
   async function startRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
+      const mr = createAudioMediaRecorder(stream);
       recordChunksRef.current = [];
       mr.ondataavailable = (ev) => {
         if (ev.data.size > 0) recordChunksRef.current.push(ev.data);
       };
       mr.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(recordChunksRef.current, { type: "audio/ogg" });
+        const { blob, mimeType } = buildRecordedAudio(mr, recordChunksRef.current);
         setAudioBlob(blob);
+        setAudioMime(mimeType);
         setAudioPreview(URL.createObjectURL(blob));
       };
       mediaRecorderRef.current = mr;
-      mr.start();
+      mr.start(250);
       setRecording(true);
       setRecordSecs(0);
       recordTimerRef.current = setInterval(() => setRecordSecs((s) => s + 1), 1000);

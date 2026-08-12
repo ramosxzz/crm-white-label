@@ -82,6 +82,7 @@ import { LeadTimeline } from "@/components/leads/lead-timeline";
 import { StarRating } from "@/components/leads/star-rating";
 import { SaleStockDialog, type SaleStockProduct, type SaleStockLocation } from "@/components/estoque/sale-stock-dialog";
 import { isCallAnswered } from "@/lib/integrations/call-answered";
+import { buildRecordedAudio, createAudioMediaRecorder } from "@/lib/media/audio-recorder";
 import {
   sendChatMessage,
   sendInstagramMessage,
@@ -910,21 +911,20 @@ export function ChatThread({
     try {
       recordTargetRef.current = target;
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
+      const mr = createAudioMediaRecorder(stream);
       recordChunksRef.current = [];
       mr.ondataavailable = (ev) => {
         if (ev.data.size > 0) recordChunksRef.current.push(ev.data);
       };
       mr.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(recordChunksRef.current, { type: "audio/ogg" });
+        const { blob, fileName } = buildRecordedAudio(mr, recordChunksRef.current);
         if (blob.size === 0) return;
-        const fileName = `audio-${Date.now()}.ogg`;
         if (recordTargetRef.current === "schedule") void uploadForSchedule(blob, fileName);
         else void uploadAndSend(blob, fileName, "audio");
       };
       mediaRecorderRef.current = mr;
-      mr.start();
+      mr.start(250);
       setRecording(true);
       setRecordSecs(0);
       recordTimerRef.current = setInterval(() => setRecordSecs((s) => s + 1), 1000);
