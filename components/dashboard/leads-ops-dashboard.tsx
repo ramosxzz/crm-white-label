@@ -233,7 +233,15 @@ export function LeadsOpsDashboard({
             {(() => {
               const total = data.starsDistribution.reduce((sum, s) => sum + s.count, 0);
               if (total === 0) return <EmptyChart message="Nenhum lead cadastrado ainda." compact />;
-              return [...data.starsDistribution].reverse().map(({ stars, count }) => {
+              const unrated = data.starsDistribution.find((item) => item.stars === 0)?.count ?? 0;
+              const rated = total - unrated;
+              return <>
+                <div className="grid grid-cols-3 gap-2 rounded-lg border border-border/60 bg-muted/20 p-3 text-center text-xs">
+                  <div><strong className="block text-base text-foreground">{total}</strong>Total</div>
+                  <div><strong className="block text-base text-foreground">{rated}</strong>Avaliados</div>
+                  <div><strong className="block text-base text-foreground">{unrated}</strong>Sem avaliação</div>
+                </div>
+                {[...data.starsDistribution].reverse().map(({ stars, count }) => {
                 const pct = total ? Math.round((count / total) * 100) : 0;
                 return (
                   <div key={stars} className="space-y-1.5">
@@ -260,12 +268,13 @@ export function LeadsOpsDashboard({
                     <div className="h-2 overflow-hidden rounded-full bg-muted">
                       <div
                         className={cn("h-full rounded-full transition-all", stars === 0 ? "bg-muted-foreground/40" : "bg-amber-400")}
-                        style={{ width: `${Math.max(pct, 2)}%` }}
+                        style={{ width: `${pct}%` }}
                       />
                     </div>
                   </div>
                 );
-              });
+                })}
+              </>;
             })()}
           </CardContent>
         </Card>

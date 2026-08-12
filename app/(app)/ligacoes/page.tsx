@@ -18,7 +18,7 @@ import { CallsFunnel } from "./calls-funnel";
 import { RefreshButton } from "@/components/app/refresh-button";
 import { listScheduledCallsForTenant } from "../agenda/actions";
 import { ScheduledCallsPanel } from "./scheduled-calls-panel";
-import { QUALIFIED_TAG, type CallOutcome } from "./call-outcomes";
+import { buildCallFunnelCounts } from "@/lib/leads/operational-metrics";
 
 const ANSWERED_CAUSE = "NORMAL_CLEARING";
 type CallLeadRow = {
@@ -29,6 +29,7 @@ type CallLeadRow = {
   stage_id: string | null;
   tags: string[] | null;
   quality_stars: number | null;
+  value_cents: number | null;
 };
 type NameRow = { id: string; name: string };
 
@@ -56,33 +57,27 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
 
   const supabase = await createClient();
 
-  const [allCalls, pipelinesRes, users, outcomesRes, scheduledCalls] = await Promise.all([
+  const [allCalls, pipelinesRes, users, scheduledCalls] = await Promise.all([
     fetchApi4comCalls(),
     supabase
       .from("pipelines")
-      .select("id, name, pipeline_stages(id, name, color, position, is_lost)")
+      .select("id, name, pipeline_stages(id, name, color, position, is_lost, is_won)")
       .eq("tenant_id", ctx.tenantId)
       .order("name"),
     listTenantUserOptions(ctx.tenantId),
-    supabase.from("call_attempts").select("api4com_call_id, lead_id, outcome").eq("tenant_id", ctx.tenantId),
     listScheduledCallsForTenant(),
   ]);
 
   const pipelineOptions = ((pipelinesRes.data ?? []) as {
     id: string;
     name: string;
-    pipeline_stages: { id: string; name: string; color: string | null; position: number | null; is_lost: boolean | null }[] | null;
+    pipeline_stages: { id: string; name: string; color: string | null; position: number | null; is_lost: boolean | null; is_won: boolean | null }[] | null;
   }[]).map((p) => ({
     id: p.id,
     name: p.name,
     stages: (p.pipeline_stages ?? []).slice().sort((a, b) => (a.position ?? 0) - (b.position ?? 0)),
   }));
   const allStages = pipelineOptions.flatMap((p) => p.stages);
-
-  const outcomeByCallId = new Map<string, CallOutcome>();
-  for (const row of (outcomesRes.data ?? []) as { api4com_call_id: string | null; lead_id: string | null; outcome: string }[]) {
-    if (row.api4com_call_id) outcomeByCallId.set(row.api4com_call_id, row.outcome as CallOutcome);
-  }
 
   const calls = allCalls
     .filter((c) => (c.metadata as Record<string, unknown> | null)?.tenant_id === ctx.tenantId)
@@ -128,7 +123,7 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
   }
 
   const { data: leads } = leadIds.length
-    ? await supabase.from("leads").select("id, name, phone, pipeline_id, stage_id, tags, quality_stars").in("id", leadIds).eq("tenant_id", ctx.tenantId)
+    ? await supabase.from("leads").select("id, name, phone, pipeline_id, stage_id, tags, quality_stars, value_cents").in("id", leadIds).eq("tenant_id", ctx.tenantId)
     : { data: [] as CallLeadRow[] };
   const leadRows = (leads ?? []) as CallLeadRow[];
   const leadById = new Map(leadRows.map((l) => [l.id, l]));
@@ -184,17 +179,11 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
       };
     });
 
-  // "Qualificado" e tag do lead, nao resultado de ligacao - conta leads
-  // distintos com essa tag entre os que apareceram nas ligacoes do periodo.
-  const qualifiedLeadsCount = new Set(
-    leadIds.filter((id) => (leadById.get(id)?.tags ?? []).some((t) => t.toLowerCase() === QUALIFIED_TAG)),
-  ).size;
-
-  const outcomeCounts: Record<string, number> = { feita: total, qualificado: qualifiedLeadsCount };
-  for (const outcome of outcomeByCallId.values()) {
-    if (outcome === "qualificado") continue;
-    outcomeCounts[outcome] = (outcomeCounts[outcome] ?? 0) + 1;
-  }
+  const outcomeCounts = buildCallFunnelCounts(
+    total,
+    leadRows,
+    new Set(allStages.filter((stage) => stage.is_won).map((stage) => stage.id)),
+  );
 
   return (
     <div>

@@ -18,6 +18,8 @@ import { NewLeadDialog } from "./new-lead-dialog";
 import { ImportCsvDialog } from "./import-csv-dialog";
 import { LeadsTable } from "./leads-table";
 import { StageFilterExport } from "./stage-filter-export";
+import { LeadsMetricsSummary } from "./leads-metrics-summary";
+import { buildStageDistribution } from "@/lib/leads/operational-metrics";
 
 type LeadDateFilter = "all" | "today" | "yesterday" | "7d" | "30d" | "custom";
 
@@ -90,7 +92,7 @@ export default async function LeadsPage({
   // tabela so). Pagina no servidor em vez de trazer tudo.
   let leadsQuery = supabase
     .from("leads")
-    .select("id, name, phone, email, source, value_cents, created_at, stage_id, assigned_to", { count: "exact" })
+    .select("id, name, phone, email, source, value_cents, created_at, stage_id, assigned_to, quality_stars", { count: "exact" })
     .eq("tenant_id", ctx.tenantId)
     .order("created_at", { ascending: false })
     .range(from, to);
@@ -102,7 +104,7 @@ export default async function LeadsPage({
     leadsQuery = leadsQuery.in("stage_id", stageFilterIds);
   }
 
-  const [{ data: leads, count: totalCount }, { data: stages }, members, { data: partners }] = await Promise.all([
+  const [{ data: leads, count: totalCount }, { data: stages }, members, { data: partners }, { data: metricsRows }] = await Promise.all([
     leadsQuery,
     supabase
       .from("pipeline_stages")
@@ -119,7 +121,39 @@ export default async function LeadsPage({
           .order("kind")
           .order("name")
       : Promise.resolve({ data: [] }),
+    supabase.rpc("leads_operational_metrics", {
+      p_tenant_id: ctx.tenantId,
+      p_from: dateFilter.bounds?.startIso,
+      p_to: dateFilter.bounds?.endIso,
+      p_stage_ids: stageFilterIds.length > 0 ? stageFilterIds : undefined,
+    }),
   ]);
+
+  const metrics = metricsRows?.[0];
+  const metricTotal = Number(metrics?.total_leads ?? totalCount ?? 0);
+  const ratedLeads = Number(metrics?.rated_leads ?? 0);
+  const qualityAverage = ratedLeads > 0 ? Number(metrics?.stars_sum ?? 0) / ratedLeads : 0;
+  const starCounts = [
+    Number(metrics?.stars_0 ?? 0),
+    Number(metrics?.stars_1 ?? 0),
+    Number(metrics?.stars_2 ?? 0),
+    Number(metrics?.stars_3 ?? 0),
+    Number(metrics?.stars_4 ?? 0),
+    Number(metrics?.stars_5 ?? 0),
+  ];
+  const qualityDistribution = starCounts.map((count, stars) => ({
+    stars,
+    count,
+    percentage: metricTotal > 0 ? Math.round((count / metricTotal) * 100) : 0,
+  }));
+  const rawStageCounts = Array.isArray(metrics?.stage_counts)
+    ? metrics.stage_counts as Array<{ stage_id: string | null; count: number | string }>
+    : [];
+  const stageDistribution = buildStageDistribution(
+    rawStageCounts.map((item) => ({ stage_id: item.stage_id, count: Number(item.count) })),
+    stages ?? [],
+    metricTotal,
+  );
 
   const pageCount = Math.max(1, Math.ceil((totalCount ?? 0) / LEADS_PAGE_SIZE));
 
@@ -148,6 +182,15 @@ export default async function LeadsPage({
       />
 
       <div className="p-8">
+        <LeadsMetricsSummary
+          total={metricTotal}
+          responseSeconds={Number(metrics?.avg_first_response_seconds ?? 0)}
+          respondedConversations={Number(metrics?.responded_conversations ?? 0)}
+          stages={stageDistribution}
+          quality={qualityDistribution}
+          qualityAverage={qualityAverage}
+          ratedLeads={ratedLeads}
+        />
         <div className="mb-4 flex flex-col gap-3 rounded-xl border border-border/70 bg-card p-4 shadow-elev-1">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-2">
@@ -199,6 +242,12 @@ export default async function LeadsPage({
           page={page}
           pageCount={pageCount}
           rangeLabel={`${from + 1}–${Math.min(totalCount ?? 0, from + LEADS_PAGE_SIZE)} de ${totalCount ?? 0}`}
+          totals={{
+            leads: metricTotal,
+            valueCents: Number(metrics?.total_value_cents ?? 0),
+            ratedLeads,
+            starsAverage: qualityAverage,
+          }}
         />
       </div>
     </div>

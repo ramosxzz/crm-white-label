@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Send } from "lucide-react";
+import { ChevronRight, Send, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +31,7 @@ export type LeadRow = {
   created_at: string;
   stage_id: string | null;
   assigned_to: string | null;
+  quality_stars: number | null;
 };
 
 export function LeadsTable({
@@ -43,6 +44,7 @@ export function LeadsTable({
   page,
   pageCount,
   rangeLabel,
+  totals,
 }: {
   leads: LeadRow[];
   stages: StageInfo[];
@@ -53,6 +55,7 @@ export function LeadsTable({
   page: number;
   pageCount: number;
   rangeLabel: string;
+  totals: { leads: number; valueCents: number; ratedLeads: number; starsAverage: number };
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -138,13 +141,14 @@ export function LeadsTable({
             {canAssign && <th className="px-5 py-3 font-medium">Atribuído a</th>}
             <th className="px-5 py-3 font-medium">Entrada</th>
             <th className="px-5 py-3 text-right font-medium">Valor</th>
+            <th className="px-5 py-3 font-medium">Qualificação</th>
             <th className="px-5 py-3 font-medium" />
           </tr>
         </thead>
         <tbody className="divide-y divide-border/70">
           {leads.length === 0 && (
             <tr>
-              <td colSpan={canAssign ? 10 : 8} className="px-5 py-16 text-center">
+              <td colSpan={canAssign ? 11 : 9} className="px-5 py-16 text-center">
                 <p className="font-medium">Nenhum lead encontrado</p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Ajuste o filtro de entrada, crie um lead manualmente ou importe uma planilha CSV.
@@ -196,6 +200,13 @@ export function LeadsTable({
                   {formatBRTDateShort(l.created_at)} às {formatBRTTime(l.created_at)}
                 </td>
                 <td className="px-5 py-3 text-right font-medium">{formatCurrencyBRL(l.value_cents)}</td>
+                <td className="px-5 py-3">
+                  {(l.quality_stars ?? 0) > 0 ? (
+                    <span className="inline-flex items-center gap-1 font-medium text-amber-500">
+                      <Star className="h-3.5 w-3.5 fill-current" /> {l.quality_stars}
+                    </span>
+                  ) : <span className="text-xs text-muted-foreground">Sem avaliação</span>}
+                </td>
                 <td className="px-5 py-3 text-right">
                   <Link href={`/leads/${l.id}`} className="opacity-0 transition-opacity group-hover:opacity-100">
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -205,6 +216,17 @@ export function LeadsTable({
             );
           })}
         </tbody>
+        <tfoot className="border-t-2 border-border bg-muted/40 text-sm">
+          <tr>
+            <td colSpan={canAssign ? 5 : 4} className="px-5 py-3 font-semibold">TOTAL DOS RESULTADOS</td>
+            <td className="px-5 py-3 text-muted-foreground">{totals.leads} leads</td>
+            {canAssign && <td className="px-5 py-3" />}
+            <td className="px-5 py-3" />
+            <td className="px-5 py-3 text-right font-semibold">{formatCurrencyBRL(totals.valueCents)}</td>
+            <td className="px-5 py-3 font-medium">{totals.ratedLeads} avaliados · média {totals.starsAverage.toFixed(1)}</td>
+            <td className="px-5 py-3" />
+          </tr>
+        </tfoot>
       </table>
 
       {pageCount > 1 && (
