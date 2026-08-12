@@ -24,6 +24,8 @@ rsync -az --delete \
   --exclude '.next' \
   --exclude '.open-next' \
   --exclude 'node_modules' \
+  --exclude 'output' \
+  --exclude 'tmp' \
   --exclude '.env.local' \
   --exclude '.env.production' \
   --exclude 'supabase/.temp' \
