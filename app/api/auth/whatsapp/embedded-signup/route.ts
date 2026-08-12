@@ -9,11 +9,12 @@ const GRAPH_VERSION = "v23.0";
 
 export async function POST(req: NextRequest) {
   try {
-    const { code, wabaId, phoneNumberId, businessId } = (await req.json()) as {
+    const { code, wabaId, phoneNumberId, businessId, pin } = (await req.json()) as {
       code?: string;
       wabaId?: string;
       phoneNumberId?: string;
       businessId?: string;
+      pin?: string;
     };
 
     if (!code) {
@@ -24,6 +25,9 @@ export async function POST(req: NextRequest) {
         { error: "Numero ou conta do WhatsApp Business nao identificados. Refaca o processo." },
         { status: 400 },
       );
+    }
+    if (!/^\d{6}$/.test(pin ?? "")) {
+      return NextResponse.json({ error: "Crie um PIN de 6 digitos para registrar o numero na Meta" }, { status: 400 });
     }
     if (!APP_ID || !APP_SECRET) {
       return NextResponse.json({ error: "Configuracao do Meta App ausente no servidor" }, { status: 500 });
@@ -60,13 +64,16 @@ export async function POST(req: NextRequest) {
     }).catch(() => null);
 
     // 4. Registra o numero na Cloud API (numero ja verificado por OTP durante o Embedded Signup)
-    let registered = true;
     const registerRes = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/register`, {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ messaging_product: "whatsapp" }),
+      body: JSON.stringify({ messaging_product: "whatsapp", pin }),
     });
-    if (!registerRes.ok) registered = false;
+    const registerData = await registerRes.json().catch(() => ({}));
+    if (!registerRes.ok) {
+      const message = registerData.error?.error_data?.details || registerData.error?.message || "A Meta recusou o registro";
+      return NextResponse.json({ error: `Numero verificado, mas o registro na Cloud API falhou: ${message}` }, { status: 400 });
+    }
 
     // 5. Busca dados do numero
     const phoneRes = await fetch(
@@ -85,7 +92,8 @@ export async function POST(req: NextRequest) {
       graph_version: GRAPH_VERSION,
       meta_business_id: businessId ?? null,
       webhooks_synced_at: new Date().toISOString(),
-      registered,
+      registered: true,
+      registered_at: new Date().toISOString(),
     };
 
     const { data: existing } = await supabase

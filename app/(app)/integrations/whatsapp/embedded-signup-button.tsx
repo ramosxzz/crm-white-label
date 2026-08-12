@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MessageCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 declare global {
   interface Window {
@@ -115,6 +116,7 @@ export function WhatsAppEmbeddedSignupButton() {
   const [loading, setLoading] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pin, setPin] = useState("");
   const signupData = useRef<{ wabaId?: string; phoneNumberId?: string; businessId?: string }>({});
   const loginTimeout = useRef<number | null>(null);
 
@@ -172,6 +174,10 @@ export function WhatsAppEmbeddedSignupButton() {
 
   function handleClick() {
     setError(null);
+    if (!/^\d{6}$/.test(pin)) {
+      setError("Crie um PIN de 6 digitos para proteger e registrar o numero na Meta.");
+      return;
+    }
     if (!APP_ID || !CONFIG_ID) {
       setError("Configuracao do Meta App incompleta. Contate o suporte.");
       return;
@@ -215,7 +221,7 @@ export function WhatsAppEmbeddedSignupButton() {
               const res = await fetch("/api/auth/whatsapp/embedded-signup", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ code, ...signupData.current }),
+                body: JSON.stringify({ code, pin, ...signupData.current }),
               });
               const data = await res.json();
               if (!res.ok) throw new Error(data.error || "Falha ao concluir conexao");
@@ -248,7 +254,21 @@ export function WhatsAppEmbeddedSignupButton() {
   }
 
   return (
-    <div className="flex flex-col items-center gap-2 sm:items-start">
+    <div className="flex w-full max-w-md flex-col items-center gap-2 sm:items-start">
+      <Input
+        type="password"
+        inputMode="numeric"
+        autoComplete="new-password"
+        maxLength={6}
+        value={pin}
+        onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))}
+        placeholder="Crie um PIN de 6 digitos"
+        aria-label="PIN de registro do WhatsApp"
+        disabled={loading}
+      />
+      <p className="text-xs text-muted-foreground">
+        Guarde este PIN: a Meta podera solicita-lo para alteracoes futuras no numero.
+      </p>
       <Button variant="brand" size="lg" className="shrink-0" onClick={handleClick} disabled={loading || !sdkReady}>
         {loading || !sdkReady ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
         {sdkReady ? "Conectar WhatsApp com Facebook" : "Preparando conexao com a Meta"}

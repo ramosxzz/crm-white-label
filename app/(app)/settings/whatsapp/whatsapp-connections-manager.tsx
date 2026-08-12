@@ -175,7 +175,8 @@ function ConnectionCard({
   const meta = providerMeta[account.provider];
   const credentials = (account.credentials ?? {}) as Record<string, unknown>;
   const synced = typeof credentials.webhooks_synced_at === "string";
-  const status = !account.is_active ? "disabled" : synced ? "connected" : "unstable";
+  const registrationPending = account.provider === "cloud_api" && credentials.registered === false;
+  const status = !account.is_active ? "disabled" : registrationPending ? "pending" : synced ? "connected" : "unstable";
   const assignedUser = account.assigned_to ? users.find((user) => user.id === account.assigned_to) : null;
 
   return (
@@ -187,7 +188,13 @@ function ConnectionCard({
             className="rounded-full"
           >
             {status === "connected" ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
-            {status === "connected" ? "Conectado" : status === "disabled" ? "Desativado" : "Instavel"}
+            {status === "connected"
+              ? "Conectado"
+              : status === "disabled"
+                ? "Desativado"
+                : status === "pending"
+                  ? "Registro pendente"
+                  : "Instavel"}
           </Badge>
           <a
             href={meta.href}

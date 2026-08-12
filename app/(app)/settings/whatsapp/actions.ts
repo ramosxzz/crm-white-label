@@ -327,12 +327,65 @@ export async function setWhatsAppAccountActive(input: { id: string; is_active: b
   revalidatePath("/chat");
 }
 
+export async function registerCloudApiPhone(input: { id: string; pin: string }) {
+  const ctx = await requireContext();
+  if (!canManageWhatsAppAccounts(ctx.role)) throw new Error("Sem permissao");
+  if (!/^\d{6}$/.test(input.pin)) throw new Error("Informe um PIN de 6 digitos");
+
+  const supabase = await createClient();
+  const { data: account, error: accountError } = await supabase
+    .from("whatsapp_accounts")
+    .select("*")
+    .eq("id", input.id)
+    .eq("tenant_id", ctx.tenantId)
+    .single();
+  if (accountError) throw new Error(accountError.message);
+  if (!account || account.provider !== "cloud_api") throw new Error("Conexao oficial nao encontrada");
+
+  const credentials = { ...((account.credentials ?? {}) as Record<string, unknown>) };
+  const token = String(credentials.access_token ?? "").trim();
+  const phoneNumberId = String(credentials.phone_number_id ?? "").trim();
+  const graphVersion = String(credentials.graph_version ?? "v23.0").trim();
+  if (!token || !phoneNumberId) throw new Error("Credenciais da Cloud API incompletas");
+
+  const response = await fetch(`https://graph.facebook.com/${graphVersion}/${phoneNumberId}/register`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ messaging_product: "whatsapp", pin: input.pin }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = payload.error?.error_data?.details || payload.error?.message || "A Meta recusou o registro";
+    throw new Error(`Nao foi possivel registrar o numero: ${message}`);
+  }
+
+  credentials.registered = true;
+  credentials.registered_at = new Date().toISOString();
+  const { error } = await supabase
+    .from("whatsapp_accounts")
+    .update({ credentials: toJson(credentials), is_active: true })
+    .eq("id", input.id)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/settings/whatsapp");
+  revalidatePath("/integrations/whatsapp");
+  revalidatePath("/chat");
+  return { ok: true };
+}
+
 export async function testWhatsAppConnection(input: {
   provider: WhatsAppProviderKind;
   credentials: Record<string, unknown>;
 }) {
   const ctx = await requireContext();
   if (input.provider === "cloud_api") {
+    if (input.credentials.registered === false) {
+      return {
+        ok: false,
+        message: "Numero verificado, mas ainda nao registrado para envio. Use Finalizar registro e informe o PIN de 6 digitos.",
+      };
+    }
     const { CloudApiProvider } = await import("@/lib/whatsapp/cloud-api");
     const fakeAccount = {
       provider: "cloud_api" as const,

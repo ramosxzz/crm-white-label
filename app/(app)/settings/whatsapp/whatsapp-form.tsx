@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { WhatsAppAccount, WhatsAppProviderKind } from "@/lib/supabase/database.types";
-import { saveWhatsAppAccount, testWhatsAppConnection } from "./actions";
+import { registerCloudApiPhone, saveWhatsAppAccount, testWhatsAppConnection } from "./actions";
 
 export function WhatsAppForm({
   initial,
@@ -23,12 +23,13 @@ export function WhatsAppForm({
     initial?.shared_with_all ? "all" : initial?.assigned_to ?? "none",
   );
   const [active, setActive] = useState(initial?.is_active ?? true);
-  const [creds, setCreds] = useState<Record<string, string>>(
-    (initial?.credentials as Record<string, string> | undefined) ?? {},
+  const [creds, setCreds] = useState<Record<string, unknown>>(
+    (initial?.credentials as Record<string, unknown> | undefined) ?? {},
   );
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const [testMsg, setTestMsg] = useState<string | null>(null);
+  const [registrationPin, setRegistrationPin] = useState("");
 
   const fields = providerFields(provider);
 
@@ -133,7 +134,7 @@ export function WhatsAppForm({
               <Label>{f.label}</Label>
               <Input
                 type={f.secret ? "password" : "text"}
-                value={creds[f.key] ?? ""}
+                value={String(creds[f.key] ?? "")}
                 onChange={(e) => setCreds({ ...creds, [f.key]: e.target.value })}
                 placeholder={f.placeholder}
               />
@@ -141,6 +142,48 @@ export function WhatsAppForm({
           ))}
         </div>
       </div>
+
+      {provider === "cloud_api" && initial && creds.registered === false && (
+        <div className="space-y-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
+          <div>
+            <h3 className="text-sm font-semibold text-amber-700 dark:text-amber-300">Registro pendente na Meta</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              O numero foi verificado, mas ainda nao pode enviar mensagens pela Cloud API.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              type="password"
+              inputMode="numeric"
+              autoComplete="new-password"
+              maxLength={6}
+              value={registrationPin}
+              onChange={(event) => setRegistrationPin(event.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="PIN de 6 digitos"
+              aria-label="PIN para finalizar registro na Meta"
+            />
+            <Button
+              type="button"
+              variant="brand"
+              disabled={pending || registrationPin.length !== 6}
+              onClick={() => {
+                setTestMsg(null);
+                start(async () => {
+                  try {
+                    await registerCloudApiPhone({ id: initial.id, pin: registrationPin });
+                    setTestMsg("Registro concluido. Recarregue a pagina para ver o status atualizado.");
+                    setRegistrationPin("");
+                  } catch (err) {
+                    setTestMsg(`Erro - ${formatActionError(err)}`);
+                  }
+                });
+              }}
+            >
+              Finalizar registro
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center gap-2">
         <input
