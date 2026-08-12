@@ -3706,6 +3706,20 @@ export type Database = {
         Returns: boolean
       }
       is_tenant_member: { Args: { t: string }; Returns: boolean }
+      lead_qualification_summary: {
+        Args: {
+          p_from?: string
+          p_stage_ids?: string[]
+          p_tenant_id: string
+          p_to?: string
+        }
+        Returns: {
+          lead_count: number
+          quality_stars: number
+          stage_id: string | null
+          value_cents_sum: number
+        }[]
+      }
       list_chat_conversations: {
         Args: {
           p_limit?: number

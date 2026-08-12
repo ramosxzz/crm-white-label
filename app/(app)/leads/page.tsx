@@ -104,26 +104,7 @@ export default async function LeadsPage({
     leadsQuery = leadsQuery.in("stage_id", stageFilterIds);
   }
 
-  async function loadAllMetricLeads() {
-    const rows: Array<{ stage_id: string | null; value_cents: number | null; quality_stars: number | null }> = [];
-    const batchSize = 1000;
-    for (let offset = 0; ; offset += batchSize) {
-      let query = supabase
-        .from("leads")
-        .select("stage_id, value_cents, quality_stars")
-        .eq("tenant_id", ctx.tenantId)
-        .range(offset, offset + batchSize - 1);
-      if (dateFilter.bounds) query = query.gte("created_at", dateFilter.bounds.startIso).lte("created_at", dateFilter.bounds.endIso);
-      if (stageFilterIds.length > 0) query = query.in("stage_id", stageFilterIds);
-      const { data, error } = await query;
-      if (error) throw new Error(error.message);
-      rows.push(...(data ?? []));
-      if (!data || data.length < batchSize) break;
-    }
-    return rows;
-  }
-
-  const [{ data: leads, count: totalCount }, { data: stages }, members, { data: partners }, metricLeadRows, { data: slaRows }] = await Promise.all([
+  const [{ data: leads, count: totalCount }, { data: stages }, members, { data: partners }, { data: qualificationRows }, { data: slaRows }] = await Promise.all([
     leadsQuery,
     supabase
       .from("pipeline_stages")
@@ -140,7 +121,12 @@ export default async function LeadsPage({
           .order("kind")
           .order("name")
       : Promise.resolve({ data: [] }),
-    loadAllMetricLeads(),
+    supabase.rpc("lead_qualification_summary", {
+      p_tenant_id: ctx.tenantId,
+      p_from: dateFilter.bounds?.startIso ?? undefined,
+      p_to: dateFilter.bounds?.endIso ?? undefined,
+      p_stage_ids: stageFilterIds.length > 0 ? stageFilterIds : undefined,
+    }),
     supabase.rpc("attendant_sla_metrics", {
       p_tenant_id: ctx.tenantId,
       p_from: dateFilter.bounds?.startIso ?? "1970-01-01T00:00:00.000Z",
@@ -148,17 +134,24 @@ export default async function LeadsPage({
     }),
   ]);
 
-  const metricTotal = metricLeadRows.length;
+  const qualification = (qualificationRows ?? []) as Array<{
+    stage_id: string | null;
+    quality_stars: number;
+    lead_count: number;
+    value_cents_sum: number;
+  }>;
   const starCounts = [0, 0, 0, 0, 0, 0];
   const stageCountMap = new Map<string | null, number>();
   let totalValueCents = 0;
   let starsSum = 0;
-  for (const lead of metricLeadRows) {
-    const stars = Math.min(5, Math.max(0, lead.quality_stars ?? 0));
-    starCounts[stars] += 1;
-    starsSum += stars;
-    totalValueCents += lead.value_cents ?? 0;
-    stageCountMap.set(lead.stage_id, (stageCountMap.get(lead.stage_id) ?? 0) + 1);
+  let metricTotal = 0;
+  for (const row of qualification) {
+    const stars = Math.min(5, Math.max(0, row.quality_stars ?? 0));
+    starCounts[stars] += row.lead_count;
+    starsSum += stars * row.lead_count;
+    totalValueCents += row.value_cents_sum ?? 0;
+    stageCountMap.set(row.stage_id, (stageCountMap.get(row.stage_id) ?? 0) + row.lead_count);
+    metricTotal += row.lead_count;
   }
   const ratedLeads = metricTotal - starCounts[0];
   const qualityAverage = ratedLeads > 0 ? starsSum / ratedLeads : 0;

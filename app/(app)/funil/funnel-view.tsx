@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CalendarDays, TrendingDown, TrendingUp, Plus, CircleDot } from "lucide-react";
@@ -79,6 +79,7 @@ export function FunnelView({
   customDay?: string;
 }) {
   const router = useRouter();
+  const [pipelinePending, startPipelineNav] = useTransition();
 
   function dateHref(periodo: DateFilter, dia?: string) {
     const qs = new URLSearchParams();
@@ -175,8 +176,12 @@ export function FunnelView({
             {pipelines.length > 1 && (
               <select
                 value={activePipelineId ?? ""}
-                onChange={(e) => router.push(`/funil?pipeline=${e.target.value}`)}
-                className="h-9 rounded-md border border-border bg-card px-3 text-sm font-medium outline-none transition-colors focus:border-brand"
+                onChange={(e) => {
+                  const pipelineId = e.target.value;
+                  startPipelineNav(() => router.push(`/funil?pipeline=${pipelineId}`));
+                }}
+                disabled={pipelinePending}
+                className="h-9 rounded-md border border-border bg-card px-3 text-sm font-medium outline-none transition-colors focus:border-brand disabled:opacity-60"
               >
                 {pipelines.map((p) => (
                   <option key={p.id} value={p.id}>

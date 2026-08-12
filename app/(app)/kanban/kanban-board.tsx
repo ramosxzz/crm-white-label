@@ -1,7 +1,7 @@
 "use client";
 
 import { notify } from "@/lib/ui/feedback";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -112,6 +112,10 @@ export function KanbanBoard({
   saleStockLocations?: SaleStockLocation[] | null;
 }) {
   const router = useRouter();
+  // Trocar de funil dispara router.push (o server component recarrega
+  // stages/leads do funil novo) - sem transition o select ficava parado sem
+  // feedback, parecendo travado, ate a resposta voltar.
+  const [pipelinePending, startPipelineNav] = useTransition();
   const [stages, setStages] = useState(initialStages);
   const [leads, setLeads] = useState(initialLeads);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -421,8 +425,12 @@ export function KanbanBoard({
             <select
               id="pipeline-select"
               value={activePipelineId ?? ""}
-              onChange={(event) => router.push(`/kanban?pipeline=${event.target.value}`)}
-              className="h-9 min-w-0 flex-1 rounded-md border border-border bg-card px-3 text-sm font-medium outline-none transition-colors focus:border-brand sm:min-w-64"
+              onChange={(event) => {
+                const pipelineId = event.target.value;
+                startPipelineNav(() => router.push(`/kanban?pipeline=${pipelineId}`));
+              }}
+              disabled={pipelinePending}
+              className="h-9 min-w-0 flex-1 rounded-md border border-border bg-card px-3 text-sm font-medium outline-none transition-colors focus:border-brand disabled:opacity-60 sm:min-w-64"
             >
               {pipelines.length === 0 && <option value="">Nenhum funil configurado</option>}
               {pipelines.map((pipeline) => <option key={pipeline.id} value={pipeline.id}>{pipeline.name}</option>)}

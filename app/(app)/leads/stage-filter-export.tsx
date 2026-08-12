@@ -30,6 +30,12 @@ export function StageFilterExport({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [exporting, startExport] = useTransition();
+  // Sem isso o clique parecia travar/recarregar a pagina: router.push troca
+  // os searchParams e o server component refaz a busca, mas a UI ficava
+  // parada sem feedback nenhum ate a resposta voltar. Com startTransition o
+  // React mantem os botoes clicaveis e navPending da pra mostrar que esta
+  // carregando.
+  const [navPending, startNav] = useTransition();
   const selected = new Set(selectedStageIds);
 
   function applyStages(next: Set<string>) {
@@ -37,7 +43,9 @@ export function StageFilterExport({
     qs.delete("etapa");
     for (const id of next) qs.append("etapa", id);
     qs.delete("page"); // filtro novo volta pra primeira pagina
-    router.push(qs.toString() ? `/leads?${qs}` : "/leads");
+    startNav(() => {
+      router.push(qs.toString() ? `/leads?${qs}` : "/leads");
+    });
   }
 
   function toggleStage(id: string) {
@@ -81,7 +89,7 @@ export function StageFilterExport({
   }
 
   return (
-    <div className="flex flex-col gap-3 border-t border-border/70 pt-3 lg:flex-row lg:items-center lg:justify-between">
+    <div className={cn("flex flex-col gap-3 border-t border-border/70 pt-3 transition-opacity lg:flex-row lg:items-center lg:justify-between", navPending && "opacity-60")}>
       <div className="flex flex-wrap items-center gap-2">
         <div className="mr-1 flex items-center gap-2 text-sm font-medium text-muted-foreground">
           <Layers className="h-4 w-4" />
