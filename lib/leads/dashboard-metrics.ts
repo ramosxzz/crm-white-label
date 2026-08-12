@@ -35,6 +35,10 @@ export type LeadsDashboardData = {
   weekTrend: { date: string; label: string; count: number }[];
   starsDistribution: { stars: number; count: number }[];
   starsAverage: number;
+  starsByPeriod: Partial<Record<PeriodFilter, {
+    distribution: { stars: number; count: number }[];
+    average: number;
+  }>>;
   /** Periodo ativo do cartao de funil (rosca), por data de criacao do lead. */
   funnelPeriod: PeriodFilter;
   /** Periodo ativo do cartao de estrelas, por data de criacao do lead. */
@@ -93,6 +97,19 @@ export function aggregateStars(leads: { quality_stars: number | null }[]) {
   const rated = leads.length - counts[0];
   const average = rated > 0 ? total / rated : 0;
   return { distribution, average };
+}
+
+export function aggregateStarsForBounds(
+  leads: { quality_stars: number | null; created_at: string }[],
+  bounds: { startIso: string; endIso: string } | null,
+) {
+  if (!bounds) return aggregateStars(leads);
+  const start = new Date(bounds.startIso).getTime();
+  const end = new Date(bounds.endIso).getTime();
+  return aggregateStars(leads.filter((lead) => {
+    const createdAt = new Date(lead.created_at).getTime();
+    return createdAt >= start && createdAt <= end;
+  }));
 }
 
 export function buildWeekTrend(leads: { created_at: string }[]) {

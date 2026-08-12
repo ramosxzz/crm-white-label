@@ -17,7 +17,6 @@ import {
   AlertTriangle,
   ShoppingCart,
   BadgeCheck,
-  Star,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +28,7 @@ import { formatCurrencyBRL, cn } from "@/lib/utils";
 import { LeadsByStageChart, LeadsByStageDonut, LeadsPerDayChart, LeadsTodayHourChart } from "@/app/(app)/dashboard/charts";
 import type { MetaAdsDashboardData } from "@/lib/meta/ads-insights";
 import { MetaAdsDateFilter } from "@/components/dashboard/meta-ads-date-filter";
+import { LeadsQualityCard } from "@/components/dashboard/leads-quality-card";
 
 export function LeadsOpsDashboard({
   data,
@@ -217,67 +217,11 @@ export function LeadsOpsDashboard({
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-5">
-          <CardHeader className="space-y-3">
-            <div className="space-y-1.5">
-              <CardTitle>Qualidade dos leads</CardTitle>
-              <CardDescription>
-                {data.starsAverage > 0
-                  ? `Média ${data.starsAverage.toFixed(1)} estrelas (leads avaliados)`
-                  : "Distribuição por estrelas atribuídas"}
-              </CardDescription>
-            </div>
-            <CardPeriodFilter param="estrelas" active={data.starsPeriod} baseParams={data.periodParams} />
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {(() => {
-              const total = data.starsDistribution.reduce((sum, s) => sum + s.count, 0);
-              if (total === 0) return <EmptyChart message="Nenhum lead cadastrado ainda." compact />;
-              const unrated = data.starsDistribution.find((item) => item.stars === 0)?.count ?? 0;
-              const rated = total - unrated;
-              return <>
-                <div className="grid grid-cols-3 gap-2 rounded-lg border border-border/60 bg-muted/20 p-3 text-center text-xs">
-                  <div><strong className="block text-base text-foreground">{total}</strong>Total</div>
-                  <div><strong className="block text-base text-foreground">{rated}</strong>Avaliados</div>
-                  <div><strong className="block text-base text-foreground">{unrated}</strong>Sem avaliação</div>
-                </div>
-                {[...data.starsDistribution].reverse().map(({ stars, count }) => {
-                const pct = total ? Math.round((count / total) * 100) : 0;
-                return (
-                  <div key={stars} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="flex items-center gap-1 font-medium">
-                        {stars === 0 ? (
-                          "Sem avaliação"
-                        ) : (
-                          Array.from({ length: 5 }).map((_, i) => (
-                            <Star
-                              key={i}
-                              className={cn(
-                                "h-3.5 w-3.5",
-                                i < stars ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30",
-                              )}
-                            />
-                          ))
-                        )}
-                      </span>
-                      <span className="tabular-nums text-muted-foreground">
-                        {count} · {pct}%
-                      </span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className={cn("h-full rounded-full transition-all", stars === 0 ? "bg-muted-foreground/40" : "bg-amber-400")}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-                })}
-              </>;
-            })()}
-          </CardContent>
-        </Card>
+        <LeadsQualityCard
+          initialPeriod={data.starsPeriod}
+          initialData={{ distribution: data.starsDistribution, average: data.starsAverage }}
+          dataByPeriod={data.starsByPeriod}
+        />
       </div>
 
       <Card>

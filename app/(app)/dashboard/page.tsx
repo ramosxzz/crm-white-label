@@ -11,7 +11,7 @@ import {
 import { DashboardDateFilter } from "@/components/dashboard/dashboard-date-filter";
 import {
   aggregateSources,
-  aggregateStars,
+  aggregateStarsForBounds,
   buildLeadsByHour,
   buildWeekTrend,
   type LeadsDashboardData,
@@ -22,7 +22,7 @@ import { canSeeFullDashboard, canManageCompanySettings } from "@/lib/auth/roles"
 import { listTenantUserOptions } from "@/lib/tenant/users";
 import { LeadForwardingControl } from "@/components/dashboard/lead-forwarding-control";
 import { getSellerDashboardMetrics } from "@/lib/dashboard/seller-metrics";
-import { resolvePeriodFilter } from "@/lib/date/period-filter";
+import { resolvePeriodFilter, type PeriodFilter } from "@/lib/date/period-filter";
 
 export default async function DashboardPage({
   searchParams,
@@ -171,12 +171,7 @@ export default async function DashboardPage({
       .select("meta_ad_account_id, meta_ads_access_token, meta_capi_token, lead_forward_user_id")
       .eq("id", ctx.tenantId)
       .single(),
-    (() => {
-      const q = supabase.from("leads").select("quality_stars").eq("tenant_id", ctx.tenantId);
-      return starsPeriod.bounds
-        ? q.gte("created_at", starsPeriod.bounds.startIso).lte("created_at", starsPeriod.bounds.endIso)
-        : q;
-    })(),
+    supabase.from("leads").select("quality_stars, created_at").eq("tenant_id", ctx.tenantId),
   ]);
   const products = productsResult.data ?? [];
   const activeReservations = activeReservationsResult.data ?? [];
@@ -198,7 +193,19 @@ export default async function DashboardPage({
     isLost: s.is_lost,
   }));
 
-  const { distribution: starsDistribution, average: starsAverage } = aggregateStars(allLeadsStars ?? []);
+  const { distribution: starsDistribution, average: starsAverage } = aggregateStarsForBounds(
+    allLeadsStars ?? [],
+    starsPeriod.bounds,
+  );
+  const starsByPeriod: LeadsDashboardData["starsByPeriod"] = {};
+  for (const period of ["today", "7d", "30d", "this_month", "all"] as PeriodFilter[]) {
+    const bounds = resolvePeriodFilter(period).bounds;
+    const aggregated = aggregateStarsForBounds(allLeadsStars ?? [], bounds);
+    starsByPeriod[period] = {
+      distribution: aggregated.distribution,
+      average: aggregated.average,
+    };
+  }
   const wonToday = wonTodayCount ?? 0;
   const pipelineValueTodayCents = (leadsToday ?? []).reduce((a, l) => a + (l.value_cents ?? 0), 0);
   const reservedByProduct = new Map<string, number>();
@@ -244,6 +251,7 @@ export default async function DashboardPage({
     weekTrend: buildWeekTrend(leadsWeek ?? []),
     starsDistribution,
     starsAverage,
+    starsByPeriod,
     funnelPeriod: funnelPeriod.active,
     starsPeriod: starsPeriod.active,
     periodParams: {
