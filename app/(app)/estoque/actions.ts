@@ -83,6 +83,59 @@ export async function createProduct(formData: FormData) {
   revalidatePath("/estoque");
 }
 
+const productUpdateSchema = z.object({
+  name: z.string().min(1),
+  sku: z.string().optional(),
+  description: z.string().optional(),
+  price: z.number().min(0),
+  cost: z.number().min(0),
+  min_stock: z.number().int().min(0),
+  tone: z.string().optional(),
+  length_cm: z.number().int().positive().optional(),
+  texture: z.string().optional(),
+});
+
+export async function updateProduct(id: string, formData: FormData) {
+  const ctx = await requireContext();
+  assertStockModuleEnabled(ctx);
+  const supabase = await createClient();
+
+  const parsed = productUpdateSchema.parse({
+    name: formData.get("name"),
+    sku: formData.get("sku") || undefined,
+    description: formData.get("description") || undefined,
+    price: Number(formData.get("price") ?? 0),
+    cost: Number(formData.get("cost") ?? 0),
+    min_stock: Number(formData.get("min_stock") ?? 0),
+    tone: formData.get("tone") || undefined,
+    length_cm: formData.get("length_cm") ? Number(formData.get("length_cm")) : undefined,
+    texture: formData.get("texture") || undefined,
+  });
+
+  // Quantidade nao entra aqui de proposito - o ajuste de estoque sempre passa
+  // por um stock_movement (via "Registrar movimentacao"), pra manter o
+  // historico como fonte de verdade em vez de sobrescrever o numero direto.
+  const { error } = await supabase
+    .from("products")
+    .update({
+      name: parsed.name,
+      sku: parsed.sku ?? null,
+      description: parsed.description ?? null,
+      price_cents: Math.round(parsed.price * 100),
+      cost_cents: Math.round(parsed.cost * 100),
+      min_stock: parsed.min_stock,
+      tone: parsed.tone ?? null,
+      length_cm: parsed.length_cm ?? null,
+      texture: parsed.texture ?? null,
+    })
+    .eq("id", id)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/estoque");
+  revalidatePath(`/estoque/${id}`);
+}
+
 export async function deleteProduct(id: string) {
   const ctx = await requireContext();
   assertStockModuleEnabled(ctx);

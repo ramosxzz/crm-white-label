@@ -11,6 +11,7 @@ import { TransferForm } from "./transfer-form";
 import { ReservationForm } from "./reservation-form";
 import { RecipeForm } from "./recipe-form";
 import { ProduceForm } from "./produce-form";
+import { EditProductDialog } from "./edit-product-dialog";
 import { availableStock } from "@/lib/estoque/reservations";
 import {
   consumeReservation,
@@ -66,19 +67,22 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         <Link href="/estoque"><ArrowLeft className="h-4 w-4" /> Voltar</Link>
       </Button>
 
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold">{product.name}</h1>
-        <p className="text-sm text-muted-foreground">
-          {[
-            `SKU: ${product.sku ?? "-"}`,
-            formatCurrencyBRL(product.price_cents),
-            product.tone,
-            product.length_cm ? `${product.length_cm} cm` : null,
-            product.texture,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        </p>
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">{product.name}</h1>
+          <p className="text-sm text-muted-foreground">
+            {[
+              `SKU: ${product.sku ?? "-"}`,
+              formatCurrencyBRL(product.price_cents),
+              product.tone,
+              product.length_cm ? `${product.length_cm} cm` : null,
+              product.texture,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        </div>
+        <EditProductDialog product={product} />
       </header>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -91,6 +95,9 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
               <div><p className="text-2xl font-bold">{available}</p><p className="text-xs text-muted-foreground">disponivel</p></div>
             </div>
             <p className="mt-3 text-xs text-muted-foreground">minimo: {product.min_stock}</p>
+            <Button asChild variant="outline" size="sm" className="mt-3 w-full">
+              <a href="#registrar-movimentacao">Ajustar quantidade</a>
+            </Button>
           </CardContent>
         </Card>
 
@@ -158,7 +165,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2">
+        <Card id="registrar-movimentacao" className="lg:col-span-2 scroll-mt-4">
           <CardHeader><CardTitle>Registrar movimentacao</CardTitle></CardHeader>
           <CardContent>
             <MovementForm productId={product.id} locations={locations} />
