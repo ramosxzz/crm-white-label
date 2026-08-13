@@ -71,6 +71,7 @@ export function Sidebar({
   fieldServiceEnabled = false,
   canManageFinance = false,
   isSeller = false,
+  osOnlyAccess = false,
   userName,
   userEmail,
 }: {
@@ -84,6 +85,7 @@ export function Sidebar({
   fieldServiceEnabled?: boolean;
   canManageFinance?: boolean;
   isSeller?: boolean;
+  osOnlyAccess?: boolean;
   userName: string;
   userEmail: string;
 }) {
@@ -92,20 +94,27 @@ export function Sidebar({
   // nem ve o dashboard de reunioes (mostra receita/custo/ROI do tenant
   // inteiro - a mesma pagina ja redireciona se um vendedor acessar direto).
   const sellerBlocked = new Set(["/estoque", "/automations", "/ia-w-mais", "/integrations", "/settings/users", "/funil", "/atendimento", "/reunioes", "/ligacoes"]);
-  const visibleNavItems = navItems.filter((item) => {
-    if (isSeller && sellerBlocked.has(item.href)) return false;
-    if (item.href === "/estoque") return stockEnabled;
-    if (item.href === "/pesquisa-satisfacao") return satisfactionSurveyEnabled;
-    if (item.href === "/ligacoes") return callsDashboardEnabled;
-    if (item.href === "/disparos") return broadcastEnabled;
-    if (item.href === "/os") return fieldServiceEnabled;
-    // Financeiro e so da gestao (owner/admin), alem de exigir o modulo.
-    if (item.href === "/financeiro") return fieldServiceEnabled && canManageFinance;
-    return true;
-  });
-  const visibleSecondaryItems = secondaryItems.filter(
-    (item) => !(isSeller && sellerBlocked.has(item.href)),
-  );
+  // Login restrito a Agenda/OS: so ve o que e do modulo de servico em campo,
+  // nada do resto do CRM (chat, leads, kanban...).
+  const visibleNavItems = osOnlyAccess
+    ? navItems
+        .filter((item) => item.href === "/os" || (item.href === "/financeiro" && canManageFinance))
+        // Login restrito entra direto na Agenda, nao na lista de OS.
+        .map((item) => (item.href === "/os" ? { ...item, href: "/os/agenda" } : item))
+    : navItems.filter((item) => {
+        if (isSeller && sellerBlocked.has(item.href)) return false;
+        if (item.href === "/estoque") return stockEnabled;
+        if (item.href === "/pesquisa-satisfacao") return satisfactionSurveyEnabled;
+        if (item.href === "/ligacoes") return callsDashboardEnabled;
+        if (item.href === "/disparos") return broadcastEnabled;
+        if (item.href === "/os") return fieldServiceEnabled;
+        // Financeiro e so da gestao (owner/admin), alem de exigir o modulo.
+        if (item.href === "/financeiro") return fieldServiceEnabled && canManageFinance;
+        return true;
+      });
+  const visibleSecondaryItems = osOnlyAccess
+    ? []
+    : secondaryItems.filter((item) => !(isSeller && sellerBlocked.has(item.href)));
 
   async function logout() {
     const supabase = createClient();

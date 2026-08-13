@@ -29,6 +29,7 @@ import {
   createTeamUser,
   removeTeamUser,
   setTeamUserLeadAvailability,
+  setTeamUserOsOnlyAccess,
   updateTeamUserRole,
   type TeamUser,
 } from "./actions";
@@ -55,9 +56,11 @@ function formatDate(value: string) {
 export function UsersManager({
   users,
   canManage,
+  fieldServiceEnabled = false,
 }: {
   users: TeamUser[];
   canManage: boolean;
+  fieldServiceEnabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -114,6 +117,17 @@ export function UsersManager({
     });
   }
 
+  function changeOsOnlyAccess(userId: string, osOnlyAccess: boolean) {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await setTeamUserOsOnlyAccess({ userId, osOnlyAccess });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Nao foi possivel alterar o acesso");
+      }
+    });
+  }
+
   async function removeUser(user: TeamUser) {
     const confirmed = await confirmDialog({
       title: `Remover ${user.fullName} desta empresa?`,
@@ -165,11 +179,19 @@ export function UsersManager({
       )}
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
-        <div className="grid grid-cols-[minmax(220px,1fr)_150px_170px_150px_70px] gap-3 border-b border-border bg-muted/25 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <div
+          className={cn(
+            "grid gap-3 border-b border-border bg-muted/25 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground",
+            fieldServiceEnabled
+              ? "grid-cols-[minmax(220px,1fr)_150px_170px_150px_150px_70px]"
+              : "grid-cols-[minmax(220px,1fr)_150px_170px_150px_70px]",
+          )}
+        >
           <span>Usuario</span>
           <span>Cargo</span>
           <span>Entrada</span>
           <span>Leads automaticos</span>
+          {fieldServiceEnabled && <span>Acesso</span>}
           <span className="text-right">Acoes</span>
         </div>
         <div className="divide-y divide-border">
@@ -178,7 +200,12 @@ export function UsersManager({
             return (
               <div
                 key={user.userId}
-                className="grid grid-cols-[minmax(220px,1fr)_150px_170px_150px_70px] items-center gap-3 px-4 py-3"
+                className={cn(
+                  "grid items-center gap-3 px-4 py-3",
+                  fieldServiceEnabled
+                    ? "grid-cols-[minmax(220px,1fr)_150px_170px_150px_150px_70px]"
+                    : "grid-cols-[minmax(220px,1fr)_150px_170px_150px_70px]",
+                )}
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand/15 text-sm font-semibold text-brand">
@@ -229,6 +256,23 @@ export function UsersManager({
                   </Button>
                 ) : (
                   <span className="text-xs text-muted-foreground">Nao participa</span>
+                )}
+
+                {fieldServiceEnabled && (
+                  user.role === "owner" ? (
+                    <span className="text-xs text-muted-foreground">Completo</span>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={user.osOnlyAccess ? "brand" : "outline"}
+                      disabled={!canManage || pending}
+                      onClick={() => changeOsOnlyAccess(user.userId, !user.osOnlyAccess)}
+                      title="Restringe o login a Agenda/Ordens de Serviço, sem o resto do CRM"
+                    >
+                      {user.osOnlyAccess ? "Só Agenda/OS" : "Acesso completo"}
+                    </Button>
+                  )
                 )}
 
                 <div className="flex justify-end">

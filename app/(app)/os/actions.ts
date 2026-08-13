@@ -208,6 +208,7 @@ export async function createServiceOrder(formData: FormData) {
   await logStatusChange(supabase, ctx, order.id, null, "rascunho", "OS criada");
 
   revalidatePath("/os");
+  revalidatePath("/os/agenda");
   return order.id;
 }
 
@@ -285,6 +286,7 @@ export async function updateServiceOrder(formData: FormData) {
   if (error) throw new Error(error.message);
 
   revalidatePath("/os");
+  revalidatePath("/os/agenda");
   revalidatePath(`/os/${parsed.id}`);
 }
 
@@ -294,6 +296,11 @@ const scheduleSchema = z.object({
   shift: z.enum(["manha", "tarde"]),
   technician_ids: z.array(z.string().uuid()).min(1, "Escolha ao menos um tecnico"),
   reason: z.string().trim().max(1000).optional(),
+  // Horario exato pra grade da Agenda - opcional, o roteiro/mapa seguem
+  // vivendo so de shift. Quando informado, scheduled_start_at manda no dia
+  // (service_date pode ser derivado dele pelo chamador).
+  scheduled_start_at: z.string().datetime().nullable().optional(),
+  scheduled_end_at: z.string().datetime().nullable().optional(),
 });
 
 /** Agenda a OS num turno e aloca os tecnicos que vao na residencia. */
@@ -303,6 +310,8 @@ export async function scheduleServiceOrder(input: {
   shift: "manha" | "tarde";
   technician_ids: string[];
   reason?: string;
+  scheduled_start_at?: string | null;
+  scheduled_end_at?: string | null;
 }) {
   const ctx = await requireManagerContext();
   const parsed = scheduleSchema.parse(input);
@@ -310,7 +319,7 @@ export async function scheduleServiceOrder(input: {
 
   const { data: current, error: readError } = await supabase
     .from("service_orders")
-    .select("id, status, service_date, shift")
+    .select("id, status, service_date, shift, scheduled_start_at, scheduled_end_at")
     .eq("id", parsed.id)
     .eq("tenant_id", ctx.tenantId)
     .single();
@@ -319,7 +328,9 @@ export async function scheduleServiceOrder(input: {
   const from = current.status as ServiceOrderStatus;
   const scheduleChanged =
     Boolean(current.service_date) &&
-    (current.service_date !== parsed.service_date || current.shift !== parsed.shift);
+    (current.service_date !== parsed.service_date ||
+      current.shift !== parsed.shift ||
+      (current.scheduled_start_at ?? null) !== (parsed.scheduled_start_at ?? null));
   if (scheduleChanged && !parsed.reason) {
     throw new Error("Informe o motivo da remarcação");
   }
@@ -346,6 +357,8 @@ export async function scheduleServiceOrder(input: {
     .update({
       service_date: parsed.service_date,
       shift: parsed.shift,
+      scheduled_start_at: parsed.scheduled_start_at ?? null,
+      scheduled_end_at: parsed.scheduled_end_at ?? null,
       status: "agendada",
       route_position: ((lastInShift?.route_position as number | null) ?? 0) + 1,
       updated_at: new Date().toISOString(),
@@ -391,8 +404,84 @@ export async function scheduleServiceOrder(input: {
   }
 
   revalidatePath("/os");
+  revalidatePath("/os/agenda");
   revalidatePath("/os/roteiro");
+  revalidatePath("/os/agenda");
   revalidatePath(`/os/${parsed.id}`);
+}
+
+/** Confirma com o cliente que a visita vai acontecer - so muda a cor do
+ * card na Agenda, nao e transicao de status (o sistema antigo do ACT ja
+ * tinha exatamente esse campo: "Contato" + "Data/Hora" da confirmacao). */
+export async function confirmServiceOrder(input: { id: string; contact_name?: string }) {
+  const ctx = await requireManagerContext();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("service_orders")
+    .update({
+      confirmed_at: new Date().toISOString(),
+      confirmed_by: ctx.userId,
+      confirmed_contact_name: input.contact_name?.trim() || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.id)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/os/agenda");
+  revalidatePath("/os");
+  revalidatePath("/os/agenda");
+  revalidatePath(`/os/${input.id}`);
+}
+
+export async function unconfirmServiceOrder(input: { id: string }) {
+  const ctx = await requireManagerContext();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("service_orders")
+    .update({
+      confirmed_at: null,
+      confirmed_by: null,
+      confirmed_contact_name: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.id)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/os/agenda");
+  revalidatePath("/os");
+  revalidatePath("/os/agenda");
+  revalidatePath(`/os/${input.id}`);
+}
+
+/** Marca/desmarca uma pendencia visivel na Agenda (card fica vermelho), sem
+ * mexer no status - "problema" e um alerta visual, nao um estado da OS. */
+export async function setServiceOrderPendingIssue(input: {
+  id: string;
+  has_pending_issue: boolean;
+  note?: string;
+}) {
+  const ctx = await requireManagerContext();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("service_orders")
+    .update({
+      has_pending_issue: input.has_pending_issue,
+      pending_issue_note: input.has_pending_issue ? input.note?.trim() || null : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.id)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/os/agenda");
+  revalidatePath("/os");
+  revalidatePath("/os/agenda");
+  revalidatePath(`/os/${input.id}`);
 }
 
 async function setServiceOrderTechniciansInternal(
@@ -563,6 +652,7 @@ export async function transitionServiceOrder(input: {
     if (billError) throw new Error(billError.message);
 
     revalidatePath("/os");
+    revalidatePath("/os/agenda");
     revalidatePath("/os/roteiro");
     revalidatePath("/financeiro");
     revalidatePath(`/os/${parsed.id}`);
@@ -578,11 +668,18 @@ export async function transitionServiceOrder(input: {
     patch.reviewed_at = new Date().toISOString();
     patch.reviewed_by = ctx.userId;
   }
-  // Remarcacao devolve a OS pra fila: perde data, turno e posicao na rota.
+  // Remarcacao devolve a OS pra fila: perde data, turno, horario e
+  // confirmacao anterior - a agenda nova vai ler isso pra listar a OS na
+  // coluna "Remarcar".
   if (parsed.to === "remarcada") {
     patch.service_date = null;
     patch.shift = null;
     patch.route_position = null;
+    patch.scheduled_start_at = null;
+    patch.scheduled_end_at = null;
+    patch.confirmed_at = null;
+    patch.confirmed_by = null;
+    patch.confirmed_contact_name = null;
   }
 
   const { error } = await supabase
@@ -609,7 +706,9 @@ export async function transitionServiceOrder(input: {
   await logStatusChange(supabase, ctx, parsed.id, from, parsed.to, parsed.reason);
 
   revalidatePath("/os");
+  revalidatePath("/os/agenda");
   revalidatePath("/os/roteiro");
+  revalidatePath("/os/agenda");
   revalidatePath(`/os/${parsed.id}`);
 }
 
@@ -636,6 +735,7 @@ export async function cancelServiceOrderClosure(input: {
   if (error) throw new Error(error.message);
 
   revalidatePath("/os");
+  revalidatePath("/os/agenda");
   revalidatePath("/os/roteiro");
   revalidatePath(`/os/${parsed.id}`);
 }
@@ -674,6 +774,7 @@ export async function convertServiceOrderQuote(input: {
   if (!data) throw new Error("A nova OS não foi criada");
 
   revalidatePath("/os");
+  revalidatePath("/os/agenda");
   revalidatePath(`/os/${data}`);
   return data as string;
 }
@@ -691,6 +792,7 @@ export async function cancelServiceOrderQuote(input: { quote_id: string }) {
   if (error) throw new Error(error.message);
 
   revalidatePath("/os");
+  revalidatePath("/os/agenda");
 }
 
 const settlementSchema = z.object({
@@ -852,6 +954,7 @@ export async function reviewFinancialAdjustment(input: {
 
   revalidatePath("/financeiro");
   revalidatePath("/os");
+  revalidatePath("/os/agenda");
 }
 
 const itemSchema = z.object({

@@ -10,7 +10,14 @@ function noStore(response: NextResponse) {
 }
 
 export async function updateSession(request: NextRequest) {
-  let response = noStore(NextResponse.next({ request }));
+  // Repassa o pathname atual pro Server Component via header - e o unico
+  // jeito de um layout server-side saber a rota sem virar client component.
+  // Usado pelo guard de "login so-agenda" (ver app/(app)/layout.tsx).
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", request.nextUrl.pathname);
+  const forwardedRequest = { headers: requestHeaders };
+
+  let response = noStore(NextResponse.next({ request: forwardedRequest }));
   const url = request.nextUrl.clone();
   const isLoginRoute = url.pathname.startsWith("/login");
   const isSignupRoute = url.pathname.startsWith("/signup");
@@ -56,7 +63,7 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value),
           );
-          response = noStore(NextResponse.next({ request }));
+          response = noStore(NextResponse.next({ request: forwardedRequest }));
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options),
           );

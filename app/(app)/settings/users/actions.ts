@@ -15,6 +15,7 @@ export type TeamUser = {
   createdAt: string;
   isCurrentUser: boolean;
   receivesAutomaticLeads: boolean;
+  osOnlyAccess: boolean;
 };
 
 const editableRoles: MemberRole[] = ["admin", "gerente", "atendente", "vendedor", "tecnico"];
@@ -52,13 +53,18 @@ export async function listTeamUsers(): Promise<TeamUser[]> {
 
   const { data: members, error } = await db
     .from("tenant_members")
-    .select("user_id, role, created_at")
+    .select("user_id, role, created_at, os_only_access")
     .eq("tenant_id", ctx.tenantId)
     .order("created_at", { ascending: true });
 
   if (error) throw new Error(error.message);
 
-  const memberRows = (members ?? []) as Array<{ user_id: string; role: MemberRole; created_at: string }>;
+  const memberRows = (members ?? []) as Array<{
+    user_id: string;
+    role: MemberRole;
+    created_at: string;
+    os_only_access: boolean | null;
+  }>;
   const ids = memberRows.map((member) => member.user_id).filter(Boolean);
   if (ids.length === 0) return [];
 
@@ -97,7 +103,40 @@ export async function listTeamUsers(): Promise<TeamUser[]> {
     createdAt: member.created_at,
     isCurrentUser: member.user_id === ctx.userId,
     receivesAutomaticLeads: availabilityMap.get(member.user_id) ?? false,
+    osOnlyAccess: Boolean(member.os_only_access),
   }));
+}
+
+/** Login restrito a Agenda/OS - ver o modulo de servico em campo e mais
+ * nada do CRM. So faz sentido com o modulo ligado, e nunca pro proprio
+ * dono da conta. */
+export async function setTeamUserOsOnlyAccess(input: { userId: string; osOnlyAccess: boolean }) {
+  const ctx = await requireContext();
+  assertRole(ctx.role, canManageUsers);
+  if (!ctx.tenant.field_service_enabled) {
+    throw new Error("Modulo de servico em campo desativado para esta empresa");
+  }
+  const supabase = createServiceClient();
+  const db = supabase as any;
+
+  const { data: member } = await db
+    .from("tenant_members")
+    .select("role")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("user_id", input.userId)
+    .maybeSingle();
+  if ((member as { role?: MemberRole } | null)?.role === "owner") {
+    throw new Error("Nao e possivel restringir o proprietario");
+  }
+
+  const { error } = await db
+    .from("tenant_members")
+    .update({ os_only_access: input.osOnlyAccess })
+    .eq("tenant_id", ctx.tenantId)
+    .eq("user_id", input.userId);
+  if (error) throw new Error(toErrorMessage(error, "Nao foi possivel atualizar o acesso"));
+
+  revalidatePath("/settings/users");
 }
 
 export async function createTeamUser(input: {

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarDays, ChevronRight, Handshake, Map as MapIcon, MapPin } from "lucide-react";
+import { CalendarClock, CalendarDays, ChevronRight, Handshake, Map as MapIcon, MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import {
@@ -122,6 +122,12 @@ export default async function ServiceOrdersPage({
         description={`${rows.length} ${rows.length === 1 ? "OS" : "OS"} nesse filtro`}
         actions={
           <div className="flex items-center gap-2">
+            <Link
+              href="/os/agenda"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
+            >
+              <CalendarClock className="h-4 w-4" /> Agenda
+            </Link>
             <Link
               href="/os/roteiro"
               className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"

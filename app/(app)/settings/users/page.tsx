@@ -11,7 +11,11 @@ export default async function UsersSettingsPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <UsersManager users={users} canManage={canManageUsers(ctx.role)} />
+      <UsersManager
+        users={users}
+        canManage={canManageUsers(ctx.role)}
+        fieldServiceEnabled={ctx.tenant.field_service_enabled}
+      />
     </div>
   );
 }

@@ -9,6 +9,9 @@ export interface CurrentContext {
   tenantId: string;
   tenant: Tenant;
   role: MemberRole;
+  /** Login restrito a Agenda/OS - ve so o modulo de servico em campo, nada
+   * mais do CRM. Independente do role (ver migration os_only_access). */
+  osOnlyAccess: boolean;
 }
 
 const TENANT_COOKIE = "avante_tenant_id";
@@ -28,7 +31,7 @@ export const getCurrentContext = cache(async (): Promise<CurrentContext | null> 
 
   const { data: memberships } = await supabase
     .from("tenant_members")
-    .select("tenant_id, role, tenants(*)")
+    .select("tenant_id, role, os_only_access, tenants(*)")
     .eq("user_id", userId);
 
   if (!memberships || memberships.length === 0) return null;
@@ -43,6 +46,7 @@ export const getCurrentContext = cache(async (): Promise<CurrentContext | null> 
     tenantId: chosen.tenant_id,
     tenant,
     role: chosen.role as MemberRole,
+    osOnlyAccess: Boolean((chosen as unknown as { os_only_access: boolean | null }).os_only_access),
   };
 });
 

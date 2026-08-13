@@ -2738,12 +2738,16 @@ export type Database = {
           closure_type: string | null
           code_seq: number
           completed_at: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          confirmed_contact_name: string | null
           consultant_id: string | null
           created_at: string
           created_by: string | null
           deadline: string | null
           expected_receipt_cents: number | null
           geocoded_at: string | null
+          has_pending_issue: boolean
           id: string
           lat: number | null
           lead_id: string
@@ -2758,10 +2762,13 @@ export type Database = {
           partner_store_id: string | null
           partner_store_split_percent: number | null
           payment_method: string | null
+          pending_issue_note: string | null
           received_cents: number
           reviewed_at: string | null
           reviewed_by: string | null
           route_position: number | null
+          scheduled_end_at: string | null
+          scheduled_start_at: string | null
           service_date: string | null
           service_type: string
           shift: string | null
@@ -2788,12 +2795,16 @@ export type Database = {
           closure_type?: string | null
           code_seq: number
           completed_at?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          confirmed_contact_name?: string | null
           consultant_id?: string | null
           created_at?: string
           created_by?: string | null
           deadline?: string | null
           expected_receipt_cents?: number | null
           geocoded_at?: string | null
+          has_pending_issue?: boolean
           id?: string
           lat?: number | null
           lead_id: string
@@ -2808,10 +2819,13 @@ export type Database = {
           partner_store_id?: string | null
           partner_store_split_percent?: number | null
           payment_method?: string | null
+          pending_issue_note?: string | null
           received_cents?: number
           reviewed_at?: string | null
           reviewed_by?: string | null
           route_position?: number | null
+          scheduled_end_at?: string | null
+          scheduled_start_at?: string | null
           service_date?: string | null
           service_type?: string
           shift?: string | null
@@ -2838,12 +2852,16 @@ export type Database = {
           closure_type?: string | null
           code_seq?: number
           completed_at?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          confirmed_contact_name?: string | null
           consultant_id?: string | null
           created_at?: string
           created_by?: string | null
           deadline?: string | null
           expected_receipt_cents?: number | null
           geocoded_at?: string | null
+          has_pending_issue?: boolean
           id?: string
           lat?: number | null
           lead_id?: string
@@ -2858,10 +2876,13 @@ export type Database = {
           partner_store_id?: string | null
           partner_store_split_percent?: number | null
           payment_method?: string | null
+          pending_issue_note?: string | null
           received_cents?: number
           reviewed_at?: string | null
           reviewed_by?: string | null
           route_position?: number | null
+          scheduled_end_at?: string | null
+          scheduled_start_at?: string | null
           service_date?: string | null
           service_type?: string
           shift?: string | null
@@ -3245,18 +3266,21 @@ export type Database = {
       tenant_members: {
         Row: {
           created_at: string
+          os_only_access: boolean
           role: Database["public"]["Enums"]["member_role"]
           tenant_id: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          os_only_access?: boolean
           role?: Database["public"]["Enums"]["member_role"]
           tenant_id: string
           user_id: string
         }
         Update: {
           created_at?: string
+          os_only_access?: boolean
           role?: Database["public"]["Enums"]["member_role"]
           tenant_id?: string
           user_id?: string

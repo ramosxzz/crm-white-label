@@ -51,6 +51,7 @@ export function MobileBottomNav({
   fieldServiceEnabled = false,
   canManageFinance = false,
   isSeller = false,
+  osOnlyAccess = false,
 }: {
   stockEnabled?: boolean;
   satisfactionSurveyEnabled?: boolean;
@@ -59,9 +60,56 @@ export function MobileBottomNav({
   fieldServiceEnabled?: boolean;
   canManageFinance?: boolean;
   isSeller?: boolean;
+  osOnlyAccess?: boolean;
 }) {
   const pathname = usePathname();
   const { open: moreOpen, setOpen: setMoreOpen } = useMobileMenu();
+
+  // Login restrito a Agenda/OS: barra inferior mostra so isso, nada do
+  // resto do CRM.
+  if (osOnlyAccess) {
+    const items: MoreItem[] = [
+      { href: "/os/agenda", label: "Agenda", icon: CalendarDays },
+      { href: "/os", label: "Lista de OS", icon: Wrench },
+      ...(canManageFinance ? [{ href: "/financeiro", label: "Financeiro", icon: Wallet }] : []),
+    ];
+    return (
+      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border/70 bg-card/95 px-1 pb-[max(env(safe-area-inset-bottom),0.35rem)] pt-1.5 shadow-[0_-12px_30px_hsl(0_0%_0%/0.22)] backdrop-blur-xl md:hidden">
+        <div className="grid" style={{ gridTemplateColumns: `repeat(${items.length + 1}, minmax(0, 1fr))` }}>
+          {items.map((item) => {
+            const Icon = item.icon;
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                prefetch
+                className={cn(
+                  "mx-0.5 flex min-h-12 flex-col items-center justify-center rounded-lg px-1 text-[10px] font-semibold transition-colors",
+                  active ? "bg-brand/15 text-brand" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                )}
+              >
+                <Icon className="mb-0.5 h-5 w-5" />
+                <span className="max-w-full truncate">{item.label}</span>
+              </Link>
+            );
+          })}
+          <button
+            type="button"
+            onClick={async () => {
+              const supabase = createClient();
+              await supabase.auth.signOut();
+              window.location.href = "/login";
+            }}
+            className="mx-0.5 flex min-h-12 flex-col items-center justify-center rounded-lg px-1 text-[10px] font-semibold text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+          >
+            <LogOut className="mb-0.5 h-5 w-5" />
+            <span className="max-w-full truncate">Sair</span>
+          </button>
+        </div>
+      </nav>
+    );
+  }
 
   const operationItems: MoreItem[] = [
     ...(!isSeller ? [{ href: "/funil", label: "Funil", icon: Filter }] : []),

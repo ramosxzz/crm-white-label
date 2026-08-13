@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarClock, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { canViewServiceRoutes } from "@/lib/auth/roles";
@@ -164,6 +164,12 @@ export default async function ServiceOrderMapPage({
               aria-label="Próximo dia"
             >
               <ChevronRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href={`/os/agenda?day=${day}`}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
+            >
+              <CalendarClock className="h-4 w-4" /> Agenda
             </Link>
             <Link
               href={`/os/roteiro?day=${day}`}

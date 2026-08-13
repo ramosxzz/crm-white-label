@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { Sidebar } from "@/components/app/sidebar";
 import { Topbar } from "@/components/app/topbar";
 import { MobileBottomNav } from "@/components/app/mobile-bottom-nav";
@@ -33,6 +34,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // do menu - qualquer rota nova ja nasce fechada pra ele.
   if (ctx.role === "tecnico") redirect("/campo");
 
+  // Login restrito a Agenda/OS (ex.: quem so faz conferencia de OS no ACT):
+  // bloqueia qualquer rota fora de /os aqui na raiz, pelo mesmo motivo do
+  // tecnico acima - novo menu/rota ja nasce fechado pra ela por padrao.
+  if (ctx.osOnlyAccess) {
+    const pathname = (await headers()).get("x-pathname") ?? "";
+    if (!pathname.startsWith("/os")) redirect("/os/agenda");
+  }
+
   const supabase = await createClient();
   const { data: profile } = await supabase
     .from("profiles")
@@ -57,6 +66,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             fieldServiceEnabled={ctx.tenant.field_service_enabled}
             canManageFinance={canReviewServiceOrder(ctx.role)}
             isSeller={ctx.role === "vendedor"}
+            osOnlyAccess={ctx.osOnlyAccess}
             userName={profile?.full_name ?? "Usuario"}
             userEmail={ctx.userEmail}
           />
@@ -72,6 +82,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             fieldServiceEnabled={ctx.tenant.field_service_enabled}
             canManageFinance={canReviewServiceOrder(ctx.role)}
             isSeller={ctx.role === "vendedor"}
+            osOnlyAccess={ctx.osOnlyAccess}
           />
         </div>
       </MobileMenuProvider>

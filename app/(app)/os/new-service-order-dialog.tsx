@@ -20,13 +20,20 @@ import { notifyError } from "@/lib/ui/feedback";
 import { ServiceOrderAddressFields } from "@/components/field-service/service-order-address-fields";
 import type { FieldServiceUser } from "@/lib/field-service/users";
 import type { FieldServicePartner } from "@/lib/supabase/database.types";
-import { createServiceOrder } from "./actions";
+import { deriveShiftFromTime } from "@/lib/field-service/agenda";
+import { createServiceOrder, scheduleServiceOrder } from "./actions";
 
 type LeadOption = { id: string; name: string; phone: string | null };
 
 /**
  * Criacao de OS. Dois modos: com `leads` mostra o select (tela /os) e com
  * `lead` o cliente ja vem travado (botao dentro do chat do WhatsApp).
+ *
+ * Modo agenda: `agendaPreset` chega da Agenda (clique direito numa coluna de
+ * tecnico) - o dialogo abre sem trigger proprio (controlado por `open`), com
+ * o tecnico e o dia ja escolhidos, e pede so o horario pra ja agendar a OS
+ * assim que ela e criada, sem precisar abrir a pagina da OS de novo so pra
+ * isso.
  */
 export function NewServiceOrderDialog({
   leads,
@@ -34,16 +41,26 @@ export function NewServiceOrderDialog({
   consultants,
   partners = [],
   trigger,
+  open: controlledOpen,
+  onOpenChange,
+  agendaPreset,
 }: {
   leads?: LeadOption[];
   lead?: LeadOption;
   consultants: FieldServiceUser[];
   partners?: FieldServicePartner[];
   trigger?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  agendaPreset?: { technicianId: string; technicianName: string; date: string; dateLabel: string };
 }) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = onOpenChange ?? setUncontrolledOpen;
   const [pending, start] = useTransition();
   const router = useRouter();
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("10:00");
 
   const stores = partners.filter((p) => p.kind === "loja" && p.is_active);
   const sellers = partners.filter((p) => p.kind === "vendedor" && p.is_active);
@@ -68,6 +85,18 @@ export function NewServiceOrderDialog({
     start(async () => {
       try {
         const id = await createServiceOrder(fd);
+        if (agendaPreset) {
+          const startAt = new Date(`${agendaPreset.date}T${startTime}:00-03:00`).toISOString();
+          const endAt = new Date(`${agendaPreset.date}T${endTime}:00-03:00`).toISOString();
+          await scheduleServiceOrder({
+            id,
+            service_date: agendaPreset.date,
+            shift: deriveShiftFromTime(startAt),
+            technician_ids: [agendaPreset.technicianId],
+            scheduled_start_at: startAt,
+            scheduled_end_at: endAt,
+          });
+        }
         setOpen(false);
         router.push(`/os/${id}`);
       } catch (error) {
@@ -78,18 +107,50 @@ export function NewServiceOrderDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger ?? (
-          <Button variant="brand">
-            <Plus className="h-4 w-4" /> Nova OS
-          </Button>
-        )}
-      </DialogTrigger>
+      {!agendaPreset && (
+        <DialogTrigger asChild>
+          {trigger ?? (
+            <Button variant="brand">
+              <Plus className="h-4 w-4" /> Nova OS
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nova ordem de serviço</DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-3">
+          {agendaPreset && (
+            <div className="space-y-2 rounded-lg border border-brand/30 bg-brand/5 p-3">
+              <p className="text-sm">
+                Agendando com <strong>{agendaPreset.technicianName}</strong> em{" "}
+                <strong>{agendaPreset.dateLabel}</strong>
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="agenda_start_time">Início</Label>
+                  <Input
+                    id="agenda_start_time"
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="agenda_end_time">Fim</Label>
+                  <Input
+                    id="agenda_end_time"
+                    type="time"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+          )}
           {lead ? (
             <div className="space-y-1.5">
               <Label>Cliente</Label>

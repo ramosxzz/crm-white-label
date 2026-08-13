@@ -37,6 +37,12 @@ export type ServiceOrderQuickView = {
   signedAt: string | null;
   items: QuickViewItem[];
   totalCents: number;
+  scheduledStartAt: string | null;
+  scheduledEndAt: string | null;
+  confirmedAt: string | null;
+  confirmedContactName: string | null;
+  hasPendingIssue: boolean;
+  pendingIssueNote: string | null;
 };
 
 function joinAddress(order: Record<string, unknown>) {
@@ -140,5 +146,11 @@ export async function getServiceOrderQuickView(orderId: string): Promise<Service
       approved: item.approved,
     })),
     totalCents: row.total_cents ?? 0,
+    scheduledStartAt: row.scheduled_start_at ?? null,
+    scheduledEndAt: row.scheduled_end_at ?? null,
+    confirmedAt: row.confirmed_at ?? null,
+    confirmedContactName: row.confirmed_contact_name ?? null,
+    hasPendingIssue: Boolean(row.has_pending_issue),
+    pendingIssueNote: row.pending_issue_note ?? null,
   };
 }
