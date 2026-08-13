@@ -39,6 +39,6 @@ echo "Reconstruindo container na VPS..."
 ssh "${VPS_USER}@${VPS_HOST}" "set -e; cd '${REMOTE_DIR}'; test -f .env.production; set -a; . ./.env.production; set +a; docker compose -f '${REMOTE_COMPOSE}' up -d --build app"
 
 echo "Verificando saude do CRM..."
-ssh "${VPS_USER}@${VPS_HOST}" "set -e; curl -fsS http://127.0.0.1:3000/api/health >/dev/null"
+ssh "${VPS_USER}@${VPS_HOST}" "set -e; curl -fsS --retry 10 --retry-delay 3 --retry-connrefused --retry-all-errors http://127.0.0.1:3000/api/health >/dev/null"
 
 echo "Deploy VPS concluido."
