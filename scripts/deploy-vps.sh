@@ -17,6 +17,9 @@ npm run build
 echo "Criando backup rapido do codigo atual na VPS..."
 ssh "${VPS_USER}@${VPS_HOST}" "set -e; mkdir -p /opt/solaire-crm/backups; if [ -d '${REMOTE_DIR}' ]; then tar -C '${REMOTE_DIR}' --exclude='.next' --exclude='node_modules' -czf /opt/solaire-crm/backups/app-src-\$(date +%Y%m%d-%H%M%S).tar.gz .; fi"
 
+echo "Preparando diretorios de destino na VPS..."
+ssh "${VPS_USER}@${VPS_HOST}" "set -e; mkdir -p '${REMOTE_DIR}/public/videos'"
+
 echo "Sincronizando arquivos para ${VPS_HOST}:${REMOTE_DIR}..."
 rsync -az --delete \
   --exclude '.git' \
