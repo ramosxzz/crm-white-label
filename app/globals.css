@@ -253,6 +253,39 @@
 ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
 ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.5); border: 2px solid transparent; background-clip: padding-box; }
 
+/* Menu lateral: o scrollbar nativo claro chamava mais atencao que a
+   navegacao. Mantem o indicador fino, sem trilho visivel, e usa a cor do
+   tenant so como acabamento. As duas familias cobrem Firefox e Chromium. */
+.sidebar-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--brand) / 0.24) transparent;
+}
+
+.sidebar-scrollbar:hover {
+  scrollbar-color: hsl(var(--brand) / 0.55) transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: hsl(var(--brand) / 0.24);
+  background-clip: padding-box;
+}
+
+.sidebar-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: hsl(var(--brand) / 0.55);
+  background-clip: padding-box;
+}
+
 /* --- Balao do mapa das OS (MapLibre) ---------------------------------------
    O MapLibre desenha a propria moldura em .maplibregl-popup-content: fundo
    branco, sombra e cantos proprios. Ela aparecia POR BAIXO do card do app,

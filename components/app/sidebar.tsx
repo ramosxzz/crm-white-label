@@ -162,7 +162,7 @@ export function Sidebar({
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-3 py-4">
+      <nav className="sidebar-scrollbar flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-3 py-4">
         <div className="h-0 overflow-hidden px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground opacity-0 transition-all duration-150 group-hover/sidebar:mb-1.5 group-hover/sidebar:h-4 group-hover/sidebar:opacity-100">
           Operacao
         </div>
