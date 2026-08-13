@@ -372,8 +372,17 @@ export function AgendaGrid({
               {hourLabels.map((h) => (
                 <div
                   key={h}
-                  className="absolute right-1 -translate-y-1/2 text-[10px] text-muted-foreground"
-                  style={{ top: (h - AGENDA_START_HOUR) * 60 * AGENDA_PX_PER_MINUTE }}
+                  className={cn(
+                    "absolute right-1 text-[10px] leading-none text-muted-foreground",
+                    h !== AGENDA_START_HOUR && h !== AGENDA_END_HOUR && "-translate-y-1/2",
+                  )}
+                  style={{
+                    top: h === AGENDA_START_HOUR
+                      ? 4
+                      : h === AGENDA_END_HOUR
+                        ? agendaGridHeightPx() - 14
+                        : (h - AGENDA_START_HOUR) * 60 * AGENDA_PX_PER_MINUTE,
+                  }}
                 >
                   {String(h).padStart(2, "0")}h
                 </div>
