@@ -121,7 +121,6 @@ export function KanbanBoard({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [draftFilters, setDraftFilters] = useState<KanbanFilters>(DEFAULT_KANBAN_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<KanbanFilters>(DEFAULT_KANBAN_FILTERS);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -201,21 +200,20 @@ export function KanbanBoard({
   ).length;
 
   function openFilters() {
-    setDraftFilters(appliedFilters);
     setFiltersOpen(true);
   }
 
-  function applyFilters() {
-    setAppliedFilters(draftFilters);
-    if (tenantId) setSharedStageFilter(tenantId, draftFilters.stageId);
-    setFiltersOpen(false);
+  function updateFilters(patch: Partial<KanbanFilters>) {
+    setAppliedFilters((f) => {
+      const next = { ...f, ...patch };
+      if (tenantId && "stageId" in patch) setSharedStageFilter(tenantId, next.stageId);
+      return next;
+    });
   }
 
   function clearFilters() {
-    setDraftFilters(DEFAULT_KANBAN_FILTERS);
     setAppliedFilters(DEFAULT_KANBAN_FILTERS);
     if (tenantId) setSharedStageFilter(tenantId, null);
-    setFiltersOpen(false);
   }
 
   function leadMatchesFilters(lead: Lead) {
@@ -584,8 +582,8 @@ export function KanbanBoard({
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Etapa</label>
               <select
-                value={draftFilters.stageId}
-                onChange={(e) => setDraftFilters((f) => ({ ...f, stageId: e.target.value }))}
+                value={appliedFilters.stageId}
+                onChange={(e) => updateFilters({ stageId: e.target.value })}
                 className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
               >
                 <option value="todos">Todas</option>
@@ -598,8 +596,8 @@ export function KanbanBoard({
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Tags</label>
               <select
-                value={draftFilters.tag}
-                onChange={(e) => setDraftFilters((f) => ({ ...f, tag: e.target.value }))}
+                value={appliedFilters.tag}
+                onChange={(e) => updateFilters({ tag: e.target.value })}
                 className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
               >
                 <option value="todos">Todas</option>
@@ -612,8 +610,8 @@ export function KanbanBoard({
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Qualidade mín.</label>
               <select
-                value={draftFilters.minStars}
-                onChange={(e) => setDraftFilters((f) => ({ ...f, minStars: Number(e.target.value) }))}
+                value={appliedFilters.minStars}
+                onChange={(e) => updateFilters({ minStars: Number(e.target.value) })}
                 className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
               >
                 <option value={0}>Qualquer</option>
@@ -626,8 +624,8 @@ export function KanbanBoard({
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Lead chegou</label>
               <select
-                value={draftFilters.arrived}
-                onChange={(e) => setDraftFilters((f) => ({ ...f, arrived: e.target.value as ArrivedFilter }))}
+                value={appliedFilters.arrived}
+                onChange={(e) => updateFilters({ arrived: e.target.value as ArrivedFilter })}
                 className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
               >
                 <option value="todos">Qualquer data</option>
@@ -635,11 +633,11 @@ export function KanbanBoard({
                 <option value="ontem">Ontem</option>
                 <option value="personalizado">Data personalizada</option>
               </select>
-              {draftFilters.arrived === "personalizado" && (
+              {appliedFilters.arrived === "personalizado" && (
                 <input
                   type="date"
-                  value={draftFilters.arrivedDate}
-                  onChange={(e) => setDraftFilters((f) => ({ ...f, arrivedDate: e.target.value }))}
+                  value={appliedFilters.arrivedDate}
+                  onChange={(e) => updateFilters({ arrivedDate: e.target.value })}
                   className="mt-2 h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
                 />
               )}
@@ -656,12 +654,12 @@ export function KanbanBoard({
             </button>
             <button
               type="button"
-              onClick={applyFilters}
+              onClick={() => setFiltersOpen(false)}
               className={cn(
                 "h-9 flex-1 rounded-md bg-brand text-sm font-medium text-brand-foreground hover:opacity-90",
               )}
             >
-              Aplicar
+              Fechar
             </button>
           </div>
         </div>

@@ -159,7 +159,6 @@ export function ConversationList({
   }, [pathname]);
 
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [draftFilters, setDraftFilters] = useState<AdvancedFilters>(DEFAULT_ADVANCED_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<AdvancedFilters>(DEFAULT_ADVANCED_FILTERS);
   // Preferencia lida direto no localStorage por conversation-list-live.tsx a
   // cada som tocado; nao havia nenhum controle na tela pra escrever essa
@@ -282,21 +281,20 @@ export function ConversationList({
   }, [displayedItems, query, statusFilter, appliedFilters]);
 
   function openFilters() {
-    setDraftFilters(appliedFilters);
     setFiltersOpen(true);
   }
 
-  function applyFilters() {
-    setAppliedFilters(draftFilters);
-    if (tenantId) setSharedStageFilter(tenantId, draftFilters.stageId);
-    setFiltersOpen(false);
+  function updateFilters(patch: Partial<AdvancedFilters>) {
+    setAppliedFilters((f) => {
+      const next = { ...f, ...patch };
+      if (tenantId && "stageId" in patch) setSharedStageFilter(tenantId, next.stageId);
+      return next;
+    });
   }
 
   function clearFilters() {
-    setDraftFilters(DEFAULT_ADVANCED_FILTERS);
     setAppliedFilters(DEFAULT_ADVANCED_FILTERS);
     if (tenantId) setSharedStageFilter(tenantId, null);
-    setFiltersOpen(false);
   }
 
   return (
@@ -596,8 +594,8 @@ export function ConversationList({
             <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
               <FilterField label="Atendente / número">
                 <Select
-                  value={draftFilters.instanceId}
-                  onValueChange={(v) => setDraftFilters((f) => ({ ...f, instanceId: v }))}
+                  value={appliedFilters.instanceId}
+                  onValueChange={(v) => updateFilters({ instanceId: v })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -614,7 +612,7 @@ export function ConversationList({
               </FilterField>
 
               <FilterField label="Tags">
-                <Select value={draftFilters.tag} onValueChange={(v) => setDraftFilters((f) => ({ ...f, tag: v }))}>
+                <Select value={appliedFilters.tag} onValueChange={(v) => updateFilters({ tag: v })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -631,8 +629,8 @@ export function ConversationList({
 
               <FilterField label="Negocio na etapa">
                 <Select
-                  value={draftFilters.stageId}
-                  onValueChange={(v) => setDraftFilters((f) => ({ ...f, stageId: v }))}
+                  value={appliedFilters.stageId}
+                  onValueChange={(v) => updateFilters({ stageId: v })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -650,8 +648,8 @@ export function ConversationList({
 
               <FilterField label="Qualidade mínima">
                 <Select
-                  value={String(draftFilters.minStars)}
-                  onValueChange={(v) => setDraftFilters((f) => ({ ...f, minStars: Number(v) }))}
+                  value={String(appliedFilters.minStars)}
+                  onValueChange={(v) => updateFilters({ minStars: Number(v) })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -669,8 +667,8 @@ export function ConversationList({
 
               <FilterField label="Janela em atendimento">
                 <Select
-                  value={draftFilters.attendanceWindow}
-                  onValueChange={(v) => setDraftFilters((f) => ({ ...f, attendanceWindow: v as AttendanceWindowFilter }))}
+                  value={appliedFilters.attendanceWindow}
+                  onValueChange={(v) => updateFilters({ attendanceWindow: v as AttendanceWindowFilter })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -690,14 +688,14 @@ export function ConversationList({
                     min={0}
                     placeholder="0"
                     className="w-20"
-                    value={draftFilters.stuckValue || ""}
+                    value={appliedFilters.stuckValue || ""}
                     onChange={(e) =>
-                      setDraftFilters((f) => ({ ...f, stuckValue: Math.max(0, Number(e.target.value) || 0) }))
+                      updateFilters({ stuckValue: Math.max(0, Number(e.target.value) || 0) })
                     }
                   />
                   <Select
-                    value={draftFilters.stuckUnit}
-                    onValueChange={(v) => setDraftFilters((f) => ({ ...f, stuckUnit: v as StuckUnit }))}
+                    value={appliedFilters.stuckUnit}
+                    onValueChange={(v) => updateFilters({ stuckUnit: v as StuckUnit })}
                   >
                     <SelectTrigger className="flex-1">
                       <SelectValue />
@@ -713,8 +711,8 @@ export function ConversationList({
 
               <FilterField label="Data da ultima mensagem">
                 <Select
-                  value={draftFilters.lastMessagePeriod}
-                  onValueChange={(v) => setDraftFilters((f) => ({ ...f, lastMessagePeriod: v as LastMessagePeriodFilter }))}
+                  value={appliedFilters.lastMessagePeriod}
+                  onValueChange={(v) => updateFilters({ lastMessagePeriod: v as LastMessagePeriodFilter })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -730,8 +728,8 @@ export function ConversationList({
 
               <FilterField label="Lead chegou">
                 <Select
-                  value={draftFilters.arrived}
-                  onValueChange={(v) => setDraftFilters((f) => ({ ...f, arrived: v as ArrivedFilter }))}
+                  value={appliedFilters.arrived}
+                  onValueChange={(v) => updateFilters({ arrived: v as ArrivedFilter })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -743,20 +741,20 @@ export function ConversationList({
                     <SelectItem value="personalizado">Data personalizada</SelectItem>
                   </SelectContent>
                 </Select>
-                {draftFilters.arrived === "personalizado" && (
+                {appliedFilters.arrived === "personalizado" && (
                   <Input
                     type="date"
                     className="mt-2"
-                    value={draftFilters.arrivedDate}
-                    onChange={(e) => setDraftFilters((f) => ({ ...f, arrivedDate: e.target.value }))}
+                    value={appliedFilters.arrivedDate}
+                    onChange={(e) => updateFilters({ arrivedDate: e.target.value })}
                   />
                 )}
               </FilterField>
 
               <FilterField label="Ordem">
                 <Select
-                  value={draftFilters.order}
-                  onValueChange={(v) => setDraftFilters((f) => ({ ...f, order: v as OrderFilter }))}
+                  value={appliedFilters.order}
+                  onValueChange={(v) => updateFilters({ order: v as OrderFilter })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -773,8 +771,8 @@ export function ConversationList({
               <Button variant="outline" className="flex-1" onClick={clearFilters}>
                 Limpar filtros
               </Button>
-              <Button className="flex-1" onClick={applyFilters}>
-                Aplicar filtros
+              <Button className="flex-1" onClick={() => setFiltersOpen(false)}>
+                Fechar
               </Button>
             </div>
           </div>
