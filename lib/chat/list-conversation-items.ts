@@ -116,6 +116,7 @@ type ChatConversationRow = {
   lead_tags: string[] | null;
   lead_stage_id: string | null;
   lead_quality_stars: number | null;
+  lead_created_at: string | null;
 };
 
 type ChatConversationRpcClient = {
@@ -186,6 +187,7 @@ export async function listConversationItemsForTenant(
         tags: row.lead_tags,
         stage_id: row.lead_stage_id,
         quality_stars: row.lead_quality_stars,
+        created_at: row.lead_created_at,
       },
     }),
   );

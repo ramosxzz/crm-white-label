@@ -206,7 +206,7 @@ export class EvolutionProvider implements WhatsAppProvider {
           url: webhookUrl,
           webhookByEvents: false,
           base64: true,
-          events: ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "PRESENCE_UPDATE", "GROUPS_UPSERT", "GROUP_PARTICIPANTS_UPDATE", "CONNECTION_UPDATE"],
+          events: ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "PRESENCE_UPDATE", "CONNECTION_UPDATE"],
         },
       }),
     });

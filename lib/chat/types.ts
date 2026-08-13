@@ -45,22 +45,3 @@ export type ConversationListItem = {
   presence?: "composing" | "recording" | null;
 };
 
-export type GroupLabelItem = {
-  id: string;
-  name: string;
-  color: string;
-};
-
-export type WhatsAppGroupListItem = {
-  id: string;
-  providerGroupId: string;
-  subject: string;
-  description: string | null;
-  participantCount: number | null;
-  lastEventType: string | null;
-  lastAt: string | null;
-  lastPreview: string | null;
-  lastDirection: "inbound" | "outbound" | null;
-  unreadCount: number;
-  labels: GroupLabelItem[];
-};

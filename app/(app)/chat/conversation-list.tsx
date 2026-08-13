@@ -40,6 +40,7 @@ type AttendanceWindowFilter = "todos" | "dentro" | "expirada";
 type LastMessagePeriodFilter = "todos" | "hoje" | "7dias" | "30dias";
 type OrderFilter = "recentes" | "antigas";
 type ArrivedFilter = "todos" | "hoje" | "ontem" | "personalizado";
+type StuckUnit = "minutos" | "horas" | "dias";
 
 type AdvancedFilters = {
   instanceId: string;
@@ -51,6 +52,8 @@ type AdvancedFilters = {
   arrived: ArrivedFilter;
   arrivedDate: string;
   minStars: number;
+  stuckValue: number;
+  stuckUnit: StuckUnit;
 };
 
 const DEFAULT_ADVANCED_FILTERS: AdvancedFilters = {
@@ -63,7 +66,23 @@ const DEFAULT_ADVANCED_FILTERS: AdvancedFilters = {
   arrived: "todos",
   arrivedDate: "",
   minStars: 0,
+  stuckValue: 0,
+  stuckUnit: "horas",
 };
+
+const STUCK_UNIT_MS: Record<StuckUnit, number> = {
+  minutos: 60 * 1000,
+  horas: 60 * 60 * 1000,
+  dias: 24 * 60 * 60 * 1000,
+};
+
+function matchesStuckFilter(lastAt: string | null, value: number, unit: StuckUnit): boolean {
+  if (value <= 0) return true;
+  // Sem mensagem alguma tambem conta como "parado" - lead nunca teve resposta.
+  if (!lastAt) return true;
+  const elapsedMs = Date.now() - new Date(lastAt).getTime();
+  return elapsedMs >= value * STUCK_UNIT_MS[unit];
+}
 
 function isSameDay(a: Date, b: Date): boolean {
   return a.toDateString() === b.toDateString();
@@ -249,6 +268,7 @@ export function ConversationList({
       if (!isWithinPeriod(c.lastAt, appliedFilters.lastMessagePeriod)) return false;
       if (!matchesArrivedFilter(c.leadCreatedAt, appliedFilters.arrived, appliedFilters.arrivedDate)) return false;
       if (appliedFilters.minStars > 0 && c.qualityStars < appliedFilters.minStars) return false;
+      if (!matchesStuckFilter(c.lastAt, appliedFilters.stuckValue, appliedFilters.stuckUnit)) return false;
       return matchesConversationSearch(c, query);
     });
 
@@ -661,6 +681,34 @@ export function ConversationList({
                     <SelectItem value="expirada">Expirada</SelectItem>
                   </SelectContent>
                 </Select>
+              </FilterField>
+
+              <FilterField label="Parado ha (sem nova mensagem)">
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    className="w-20"
+                    value={draftFilters.stuckValue || ""}
+                    onChange={(e) =>
+                      setDraftFilters((f) => ({ ...f, stuckValue: Math.max(0, Number(e.target.value) || 0) }))
+                    }
+                  />
+                  <Select
+                    value={draftFilters.stuckUnit}
+                    onValueChange={(v) => setDraftFilters((f) => ({ ...f, stuckUnit: v as StuckUnit }))}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="minutos">Minutos</SelectItem>
+                      <SelectItem value="horas">Horas</SelectItem>
+                      <SelectItem value="dias">Dias</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </FilterField>
 
               <FilterField label="Data da ultima mensagem">

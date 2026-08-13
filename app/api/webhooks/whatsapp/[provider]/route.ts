@@ -32,7 +32,6 @@ import { getAiAgentReply } from "@/lib/ai/agent";
 import { fireAutomationTrigger } from "@/lib/automations/trigger";
 import { dispatchWebhookEvent } from "@/lib/api/dispatch-webhook";
 import { nextConversationUnreadCount } from "@/lib/chat/unread-count";
-import { persistEvolutionGroups } from "@/lib/whatsapp/persist-evolution-groups";
 
 import type { Message, WhatsAppAccount, WhatsAppProviderKind } from "@/lib/supabase/database.types";
 
@@ -298,15 +297,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
         }
       }
       return NextResponse.json({ ok: true, parsed: 0 });
-    }
-
-    const groupSync = await persistEvolutionGroups(supabase, account, payload);
-    if (groupSync.handled) {
-      return NextResponse.json({
-        ok: true,
-        parsed: groupSync.messages,
-        groups: groupSync.groups,
-      });
     }
   }
 

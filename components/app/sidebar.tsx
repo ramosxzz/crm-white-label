@@ -26,7 +26,6 @@ import {
   Timer,
   Wallet,
   Wrench,
-  UsersRound,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -43,7 +42,6 @@ const navItems = [
   { href: "/tarefas", label: "Tarefas", icon: ListChecks },
   { href: "/reunioes", label: "Reuniões", icon: CalendarCheck },
   { href: "/chat", label: "Conversas", icon: MessageCircle },
-  { href: "/chat/groups", label: "Grupos", icon: UsersRound },
   { href: "/mensagens-rapidas", label: "Mensagens rápidas", icon: MessageSquareText },
   { href: "/estoque", label: "Estoque", icon: Boxes },
   { href: "/automations", label: "Automacoes", icon: Zap },
@@ -185,9 +183,7 @@ function NavLink({
   const Icon = item.icon;
   const active = item.exact
     ? pathname === item.href
-    : item.href === "/chat"
-      ? pathname === "/chat" || (pathname.startsWith("/chat/") && !pathname.startsWith("/chat/groups"))
-      : pathname === item.href || pathname.startsWith(item.href + "/");
+    : pathname === item.href || pathname.startsWith(item.href + "/");
   return (
     <Link
       href={item.href}

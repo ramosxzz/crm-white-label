@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { fetchConversationItems } from "@/lib/chat/client";
 import type { ConversationListItem } from "@/lib/chat/types";
@@ -33,7 +32,6 @@ export function ConversationListLive({
   instances: { id: string; label: string }[];
   stages: { id: string; name: string }[];
 }) {
-  const pathname = usePathname();
   const [items, setItems] = useState(initialItems);
   const [query, setQuery] = useState("");
   const [searchItems, setSearchItems] = useState<ConversationListItem[] | null>(null);
@@ -360,8 +358,6 @@ export function ConversationListLive({
       void supabase.removeChannel(channel);
     };
   }, [tenantId, scheduleContactsRefresh, playNotificationSound, setPresence]);
-
-  if (pathname.startsWith("/chat/groups")) return null;
 
   return (
     <ConversationList

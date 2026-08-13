@@ -1,4 +1,4 @@
-import type { ChatMessage, ConversationListItem, WhatsAppGroupListItem } from "./types";
+import type { ChatMessage, ConversationListItem } from "./types";
 
 const noStoreFetchOptions: RequestInit = {
   cache: "no-store",
@@ -39,12 +39,4 @@ export async function fetchConversationItems(
   const payload = (await res.json()) as { conversations?: ConversationListItem[]; error?: string };
   if (!res.ok) throw new Error(payload.error ?? "Falha ao carregar conversas");
   return payload.conversations ?? [];
-}
-
-export async function fetchWhatsAppGroupItems(tenantId: string): Promise<WhatsAppGroupListItem[]> {
-  void tenantId;
-  const res = await fetch(withFreshParam("/api/chat/groups"), noStoreFetchOptions);
-  const data = (await res.json()) as { groups?: WhatsAppGroupListItem[]; error?: string };
-  if (!res.ok) throw new Error(data.error ?? "Falha ao carregar grupos");
-  return data.groups ?? [];
 }
