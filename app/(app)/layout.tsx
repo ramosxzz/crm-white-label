@@ -65,6 +65,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             broadcastEnabled={ctx.tenant.broadcast_enabled}
             fieldServiceEnabled={ctx.tenant.field_service_enabled}
             canManageFinance={canReviewServiceOrder(ctx.role)}
+            canManageFieldService={canReviewServiceOrder(ctx.role)}
             isSeller={ctx.role === "vendedor"}
             osOnlyAccess={ctx.osOnlyAccess}
             userName={profile?.full_name ?? "Usuario"}

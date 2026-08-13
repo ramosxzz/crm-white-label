@@ -295,15 +295,16 @@
 }
 
 /*
- * Chat: uma barra de rolagem so.
+ * Telas operacionais: uma barra de rolagem so.
  *
  * O <main> do layout rola (overflow-auto) porque a maioria das paginas e uma
- * pagina longa. O chat nao e: ele ocupa a altura da tela e quem rola por dentro
- * sao a lista de conversas e a thread. Com o main rolando junto, a tela ficava
+ * pagina longa. Chat e agenda de OS nao sao: ocupam a altura da tela e seus
+ * paineis rolam internamente. Com o main rolando junto, a tela ficava
  * com duas barras - mexer numa nao mexia na outra, e a thread "fugia" ao rolar
  * a pagina. Aqui o main para de rolar so nessa tela; o padding dele continua
  * reservando o espaco da barra inferior fixa do celular.
  */
-main:has([data-chat-shell]) {
+main:has([data-chat-shell]),
+main:has([data-agenda-shell]) {
   overflow: hidden;
 }

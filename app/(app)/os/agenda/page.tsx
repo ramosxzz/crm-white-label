@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { CalendarDays, ChevronLeft, ChevronRight, Handshake, List, Map as MapIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { canManageServiceOrders, canViewServiceRoutes } from "@/lib/auth/roles";
@@ -120,11 +120,12 @@ export default async function AgendaPage({
   }));
 
   return (
-    <div>
+    <div data-agenda-shell className="flex h-full min-h-0 flex-col overflow-hidden">
       <ServiceOrdersLive tenantId={ctx.tenantId} />
       <PageHeader
         eyebrow="Serviço em campo"
         title="Agenda"
+        className="shrink-0 px-4 py-3 sm:px-6 sm:py-4"
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Link
@@ -148,32 +149,6 @@ export default async function AgendaPage({
               <ChevronRight className="h-4 w-4" />
             </Link>
             <AgendaDayPicker day={day} />
-            <Link
-              href="/os"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
-            >
-              <List className="h-4 w-4" /> Lista de OS
-            </Link>
-            <Link
-              href="/os/roteiro"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
-            >
-              <CalendarDays className="h-4 w-4" /> Roteiro
-            </Link>
-            <Link
-              href="/os/mapa"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
-            >
-              <MapIcon className="h-4 w-4" /> Mapa
-            </Link>
-            {canManage && (
-              <Link
-                href="/os/parceiros"
-                className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
-              >
-                <Handshake className="h-4 w-4" /> Parceiros
-              </Link>
-            )}
           </div>
         }
       />

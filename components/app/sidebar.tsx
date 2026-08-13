@@ -26,6 +26,10 @@ import {
   Timer,
   Wallet,
   Wrench,
+  List,
+  Route,
+  Map as MapIcon,
+  Handshake,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -70,6 +74,7 @@ export function Sidebar({
   broadcastEnabled = false,
   fieldServiceEnabled = false,
   canManageFinance = false,
+  canManageFieldService = false,
   isSeller = false,
   osOnlyAccess = false,
   userName,
@@ -84,6 +89,7 @@ export function Sidebar({
   broadcastEnabled?: boolean;
   fieldServiceEnabled?: boolean;
   canManageFinance?: boolean;
+  canManageFieldService?: boolean;
   isSeller?: boolean;
   osOnlyAccess?: boolean;
   userName: string;
@@ -96,11 +102,22 @@ export function Sidebar({
   const sellerBlocked = new Set(["/estoque", "/automations", "/ia-w-mais", "/integrations", "/settings/users", "/funil", "/atendimento", "/reunioes", "/ligacoes"]);
   // Login restrito a Agenda/OS: so ve o que e do modulo de servico em campo,
   // nada do resto do CRM (chat, leads, kanban...).
+  const fieldServiceItems = [
+    { href: "/os/agenda", label: "Agenda de OS", icon: CalendarDays, exact: true },
+    { href: "/os", label: "Lista de OS", icon: List, exact: true },
+    { href: "/os/roteiro", label: "Roteiro", icon: Route, exact: true },
+    { href: "/os/mapa", label: "Mapa", icon: MapIcon, exact: true },
+    ...(canManageFieldService
+      ? [{ href: "/os/parceiros", label: "Parceiros", icon: Handshake, exact: true }]
+      : []),
+  ];
   const visibleNavItems = osOnlyAccess
-    ? navItems
-        .filter((item) => item.href === "/os" || (item.href === "/financeiro" && canManageFinance))
-        // Login restrito entra direto na Agenda, nao na lista de OS.
-        .map((item) => (item.href === "/os" ? { ...item, href: "/os/agenda" } : item))
+    ? [
+        ...fieldServiceItems,
+        ...(canManageFinance
+          ? [{ href: "/financeiro", label: "Financeiro", icon: Wallet }]
+          : []),
+      ]
     : navItems.filter((item) => {
         if (isSeller && sellerBlocked.has(item.href)) return false;
         if (item.href === "/estoque") return stockEnabled;
@@ -111,7 +128,11 @@ export function Sidebar({
         // Financeiro e so da gestao (owner/admin), alem de exigir o modulo.
         if (item.href === "/financeiro") return fieldServiceEnabled && canManageFinance;
         return true;
-      });
+      }).flatMap((item) =>
+        item.href === "/os"
+          ? fieldServiceItems
+          : [item],
+      );
   const visibleSecondaryItems = osOnlyAccess
     ? []
     : secondaryItems.filter((item) => !(isSeller && sellerBlocked.has(item.href)));

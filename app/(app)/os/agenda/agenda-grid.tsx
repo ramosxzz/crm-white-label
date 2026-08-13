@@ -336,7 +336,7 @@ export function AgendaGrid({
   const hourLabels = Array.from({ length: AGENDA_END_HOUR - AGENDA_START_HOUR + 1 }, (_, i) => AGENDA_START_HOUR + i);
 
   return (
-    <div className="space-y-4 p-8">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-3 sm:px-6">
       <input
         type="search"
         placeholder="Buscar cliente por nome ou telefone..."
@@ -353,18 +353,18 @@ export function AgendaGrid({
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border/70 bg-card shadow-elev-1">
+        <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-border/70 bg-card shadow-elev-1">
           <div
-            className="grid"
+            className="grid min-w-full"
             style={{ gridTemplateColumns: `56px repeat(${technicians.length}, minmax(190px, 1fr)) 190px` }}
           >
-            <div className="border-b border-r border-border/60" />
+            <div className="sticky top-0 z-20 border-b border-r border-border/60 bg-card" />
             {technicians.map((t) => (
-              <div key={t.id} className="truncate border-b border-r border-border/60 px-2 py-2 text-center text-sm font-semibold">
+              <div key={t.id} className="sticky top-0 z-20 truncate border-b border-r border-border/60 bg-card px-2 py-2 text-center text-sm font-semibold">
                 {t.name}
               </div>
             ))}
-            <div className="border-b border-border/60 px-2 py-2 text-center text-sm font-semibold text-warning">
+            <div className="sticky top-0 z-20 border-b border-border/60 bg-card px-2 py-2 text-center text-sm font-semibold text-warning">
               Remarcar ({remarcarPool.length})
             </div>
 
@@ -394,7 +394,7 @@ export function AgendaGrid({
               />
             ))}
 
-            <div className="space-y-1.5 overflow-y-auto border-l border-border/60 p-1.5" style={{ maxHeight: agendaGridHeightPx() }}>
+            <div className="space-y-1.5 border-l border-border/60 p-1.5">
               {remarcarPool.length === 0 ? (
                 <p className="p-3 text-center text-[11px] text-muted-foreground">Nada aguardando remarcação.</p>
               ) : (
