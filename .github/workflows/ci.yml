@@ -80,7 +80,7 @@ jobs:
           # forma transitoria, derrubando o deploy inteiro. Tenta de novo antes
           # de falhar.
           for i in 1 2 3; do
-            rsync -az --filter=':- .gitignore' --exclude '.git' --exclude '.env*' --exclude 'supabase/.temp' \
+            rsync -az --delete --filter=':- .gitignore' --exclude '.git' --exclude '.env*' --exclude 'supabase/.temp' \
               -e "ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 -o ServerAliveInterval=15" \
               ./ "${{ secrets.VPS_SSH_USER }}@${{ secrets.VPS_HOST }}:/opt/solaire-crm/app-src/" && exit 0
             echo "rsync falhou (tentativa $i), tentando de novo em 20s..."
