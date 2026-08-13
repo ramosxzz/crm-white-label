@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarClock, CalendarDays, ChevronRight, Handshake, Map as MapIcon, MapPin } from "lucide-react";
+import { ChevronRight, MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import {
   canAccessServiceOrders,
   canManageServiceOrders,
-  canViewServiceRoutes,
 } from "@/lib/auth/roles";
 import { formatCurrencyBRL } from "@/lib/utils";
 import { PageHeader } from "@/components/app/page-header";
@@ -122,34 +121,6 @@ export default async function ServiceOrdersPage({
         description={`${rows.length} ${rows.length === 1 ? "OS" : "OS"} nesse filtro`}
         actions={
           <div className="flex items-center gap-2">
-            <Link
-              href="/os/agenda"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
-            >
-              <CalendarClock className="h-4 w-4" /> Agenda
-            </Link>
-            <Link
-              href="/os/roteiro"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
-            >
-              <CalendarDays className="h-4 w-4" /> Roteiro
-            </Link>
-            {canViewServiceRoutes(ctx.role) && (
-              <Link
-                href="/os/mapa"
-                className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
-              >
-                <MapIcon className="h-4 w-4" /> Mapa
-              </Link>
-            )}
-            {canManage && (
-              <Link
-                href="/os/parceiros"
-                className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
-              >
-                <Handshake className="h-4 w-4" /> Parceiros
-              </Link>
-            )}
             {canManage && (
               <NewServiceOrderDialog
                 leads={(leads ?? []) as Array<{ id: string; name: string; phone: string | null }>}
