@@ -147,7 +147,7 @@ function NotificationItem({ n, onClick }: { n: Notification; onClick: () => void
           {n.description && (
             <span className="block truncate text-xs text-muted-foreground">{n.description}</span>
           )}
-          <span className="block text-[10px] text-muted-foreground">
+          <span className="block text-[10px] text-muted-foreground" suppressHydrationWarning>
             {formatDistanceToNow(new Date(n.created_at), { locale: ptBR, addSuffix: true })}
           </span>
         </span>

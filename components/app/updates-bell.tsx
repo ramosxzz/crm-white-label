@@ -58,7 +58,7 @@ export function UpdatesBell({
                 <li key={u.id} className="px-4 py-3">
                   <p className="text-sm font-semibold">{u.title}</p>
                   {u.body && <p className="mt-0.5 whitespace-pre-wrap text-xs text-muted-foreground">{u.body}</p>}
-                  <p className="mt-1.5 text-[10px] text-muted-foreground">
+                  <p className="mt-1.5 text-[10px] text-muted-foreground" suppressHydrationWarning>
                     {formatDistanceToNow(new Date(u.created_at), { locale: ptBR, addSuffix: true })}
                   </p>
                 </li>

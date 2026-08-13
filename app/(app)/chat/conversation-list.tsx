@@ -548,6 +548,7 @@ export function ConversationList({
                           "shrink-0 text-[11px]",
                           c.unread > 0 ? "font-medium text-brand" : "text-muted-foreground",
                         )}
+                        suppressHydrationWarning
                       >
                         {formatDistanceToNow(new Date(c.lastAt), { locale: ptBR, addSuffix: false })}
                       </span>
