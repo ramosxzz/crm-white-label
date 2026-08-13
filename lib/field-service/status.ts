@@ -63,6 +63,16 @@ export const SERVICE_ORDER_SHIFT_LABEL = {
   tarde: "Tarde",
 } as const;
 
+export const SALE_CHANNEL_LABEL: Record<string, string> = {
+  instagram: "Instagram",
+  anuncio: "Anúncio",
+  marketing: "Marketing",
+  ja_e_cliente: "Já é cliente",
+  indicacao: "Indicação",
+  loja_parceira: "Loja parceira",
+  outro: "Outro",
+};
+
 /** Numero visivel da OS (code_seq e sequencial por tenant). */
 export function formatServiceOrderCode(codeSeq: number) {
   return `OS-${String(codeSeq).padStart(4, "0")}`;

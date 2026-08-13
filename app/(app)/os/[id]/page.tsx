@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { MapPin, Phone, Plug, User } from "lucide-react";
+import { MapPin, Phone, Plug, Printer, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import {
@@ -16,12 +16,13 @@ import { Badge } from "@/components/ui/badge";
 import { formatCurrencyBRL } from "@/lib/utils";
 import { SERVICE_REPORT_CHECKLIST } from "@/lib/field-service/checklist";
 import {
+  SALE_CHANNEL_LABEL,
   SERVICE_ORDER_SHIFT_LABEL,
   SERVICE_ORDER_STATUS_LABEL,
   formatServiceOrderCode,
   isServiceOrderLocked,
 } from "@/lib/field-service/status";
-import { listTechnicians } from "@/lib/field-service/users";
+import { listTechnicians, listConsultants } from "@/lib/field-service/users";
 import type {
   ServiceOrderItem,
   ServiceOrderQuote,
@@ -30,6 +31,7 @@ import type {
   PaymentMethodRate,
   FinancialAdjustmentRequest,
   ServiceCatalogItem,
+  CommissionParty,
 } from "@/lib/supabase/database.types";
 import { ServiceOrderStatusBadge } from "../status-badge";
 import { ItemsPanel } from "./items-panel";
@@ -38,6 +40,9 @@ import { StatusActions } from "./status-actions";
 import { ServiceOrdersLive } from "../service-orders-live";
 import { QuotesPanel } from "./quotes-panel";
 import { SettlementPanel } from "./settlement-panel";
+import { FollowupsPanel, type FollowupRow } from "./followups-panel";
+import { CommissionsPanel, type CommissionRow } from "./commissions-panel";
+import { CreateReapplicationButton } from "./create-reapplication-button";
 
 function formatAddress(order: any) {
   const street = [order.address_street, order.address_number].filter(Boolean).join(", ");
@@ -92,6 +97,7 @@ export default async function ServiceOrderDetailPage({
     { data: checklist },
     { data: quotes },
     { data: relatedOrders },
+    { data: followups },
   ] = await Promise.all([
     supabase
       .from("service_order_items")
@@ -146,6 +152,11 @@ export default async function ServiceOrderDetailPage({
       .neq("id", id)
       .order("created_at", { ascending: false })
       .limit(20),
+    supabase
+      .from("service_order_followups")
+      .select("*")
+      .eq("service_order_id", id)
+      .order("contact_date", { ascending: true }),
   ]);
 
   const canManage = canManageServiceOrders(ctx.role);
@@ -155,11 +166,49 @@ export default async function ServiceOrderDetailPage({
   const isTech = isTechnicianRole(ctx.role);
   const canPriceItems = canManage || ctx.role === "vendedor";
   const technicians = canManage ? await listTechnicians(ctx.tenantId) : [];
+  const consultants = canManage ? await listConsultants(ctx.tenantId) : [];
+
+  // Comissao so existe apos faturar, e a leitura e restrita (mesmo corte de
+  // /financeiro) - buscar so quando faz sentido evita mostrar "R$0,00"
+  // enganoso pra quem nao tem permissao de ver comissao de verdade.
+  const { data: commissionsData } =
+    canReview && order.status === "faturada"
+      ? await supabase
+          .from("commissions")
+          .select("*")
+          .eq("tenant_id", ctx.tenantId)
+          .eq("service_order_id", id)
+      : { data: [] };
+
+  const pendingCommissionRequestIds = new Set(
+    (adjustmentRequests ?? [])
+      .filter((r: any) => r.adjustment_kind === "comissao" && r.status === "pendente")
+      .map((r: any) => r.commission_id as string),
+  );
+  const commissions: CommissionRow[] = ((commissionsData ?? []) as any[]).map((c) => ({
+    id: c.id,
+    partyKind: c.party_kind as CommissionParty,
+    partnerName: c.partner_name ?? null,
+    amountCents: c.amount_cents,
+    status: c.status,
+    hasPendingRequest: pendingCommissionRequestIds.has(c.id),
+  }));
+
+  const followupRows: FollowupRow[] = ((followups ?? []) as any[]).map((f) => ({
+    id: f.id,
+    category: f.category,
+    responsibleId: f.responsible_id,
+    contactDate: f.contact_date,
+    description: f.description,
+    status: f.status,
+  }));
 
   const assignedIds = (assigned ?? []).map((row: any) => row.user_id as string);
   const technicianNames = technicians
     .filter((tech) => assignedIds.includes(tech.id))
     .map((tech) => tech.name);
+  const consultantName = consultants.find((c) => c.id === order.consultant_id)?.name ?? null;
+  const consultantExtraName = consultants.find((c) => c.id === order.consultant_extra_id)?.name ?? null;
 
   const status = order.status as ServiceOrderStatus;
   const locked = isServiceOrderLocked(status);
@@ -177,6 +226,18 @@ export default async function ServiceOrderDetailPage({
           <div className="flex items-center gap-3">
             <ServiceOrderStatusBadge status={status} />
             {order.service_type === "assistencia" && <Badge variant="info">Sem cobrança</Badge>}
+            {order.origin_kind === "reaplicacao" && <Badge variant="brand">Reaplicação</Badge>}
+            <Link
+              href={`/os/${order.id}/print`}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border/70 text-muted-foreground transition-colors hover:bg-muted/50"
+              aria-label="Imprimir / PDF"
+              title="Imprimir / PDF"
+            >
+              <Printer className="h-4 w-4" />
+            </Link>
+            {canManage && ["concluida", "conferida", "faturada"].includes(status) && (
+              <CreateReapplicationButton originServiceOrderId={order.id} />
+            )}
             <StatusActions
               serviceOrderId={order.id}
               status={status}
@@ -257,6 +318,30 @@ export default async function ServiceOrderDetailPage({
                   <dd className="mt-1 text-sm">{order.partner_store}</dd>
                 </div>
               )}
+              {order.partner_extra_name && (
+                <div>
+                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">Parceiro extra</dt>
+                  <dd className="mt-1 text-sm">
+                    {order.partner_extra_name}
+                    {order.partner_extra_percent != null ? ` · ${String(order.partner_extra_percent).replace(".", ",")}%` : ""}
+                  </dd>
+                </div>
+              )}
+              {order.sale_channel && (
+                <div>
+                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">Origem do cliente</dt>
+                  <dd className="mt-1 text-sm">{SALE_CHANNEL_LABEL[order.sale_channel] ?? order.sale_channel}</dd>
+                </div>
+              )}
+              {(consultantName || consultantExtraName) && (
+                <div>
+                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">Consultor(a)</dt>
+                  <dd className="mt-1 text-sm">
+                    {consultantName ?? "—"}
+                    {consultantExtraName ? ` + ${consultantExtraName}` : ""}
+                  </dd>
+                </div>
+              )}
               <div>
                 <dt className="text-xs uppercase tracking-wider text-muted-foreground">Total</dt>
                 <dd className="mt-1 text-sm font-semibold">{formatCurrencyBRL(order.total_cents)}</dd>
@@ -335,6 +420,17 @@ export default async function ServiceOrderDetailPage({
               rates={(paymentRates ?? []) as PaymentMethodRate[]}
               requests={(adjustmentRequests ?? []) as FinancialAdjustmentRequest[]}
               isOwner={ctx.role === "owner"}
+            />
+          )}
+
+          <CommissionsPanel serviceOrderId={order.id} commissions={commissions} canAdjust={canReview} />
+
+          {canManage && (
+            <FollowupsPanel
+              serviceOrderId={order.id}
+              followups={followupRows}
+              consultants={consultants}
+              canManage={canManage}
             />
           )}
 

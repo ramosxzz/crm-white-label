@@ -2479,6 +2479,63 @@ export type Database = {
           },
         ]
       }
+      service_order_followups: {
+        Row: {
+          category: string
+          contact_date: string
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          notes: string | null
+          responsible_id: string | null
+          service_order_id: string
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          category: string
+          contact_date: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          notes?: string | null
+          responsible_id?: string | null
+          service_order_id: string
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          category?: string
+          contact_date?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          notes?: string | null
+          responsible_id?: string | null
+          service_order_id?: string
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_order_followups_service_order_id_fkey"
+            columns: ["service_order_id"]
+            isOneToOne: false
+            referencedRelation: "service_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_order_followups_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_order_items: {
         Row: {
           amount_cents: number
@@ -2741,6 +2798,7 @@ export type Database = {
           confirmed_at: string | null
           confirmed_by: string | null
           confirmed_contact_name: string | null
+          consultant_extra_id: string | null
           consultant_id: string | null
           created_at: string
           created_by: string | null
@@ -2754,8 +2812,11 @@ export type Database = {
           lng: number | null
           notes: string | null
           observations: string | null
+          origin_kind: string | null
           origin_service_order_id: string | null
           partner_commission_percent: number | null
+          partner_extra_name: string | null
+          partner_extra_percent: number | null
           partner_seller_id: string | null
           partner_seller_name: string | null
           partner_store: string | null
@@ -2767,6 +2828,7 @@ export type Database = {
           reviewed_at: string | null
           reviewed_by: string | null
           route_position: number | null
+          sale_channel: string | null
           scheduled_end_at: string | null
           scheduled_start_at: string | null
           service_date: string | null
@@ -2798,6 +2860,7 @@ export type Database = {
           confirmed_at?: string | null
           confirmed_by?: string | null
           confirmed_contact_name?: string | null
+          consultant_extra_id?: string | null
           consultant_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -2811,8 +2874,11 @@ export type Database = {
           lng?: number | null
           notes?: string | null
           observations?: string | null
+          origin_kind?: string | null
           origin_service_order_id?: string | null
           partner_commission_percent?: number | null
+          partner_extra_name?: string | null
+          partner_extra_percent?: number | null
           partner_seller_id?: string | null
           partner_seller_name?: string | null
           partner_store?: string | null
@@ -2824,6 +2890,7 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           route_position?: number | null
+          sale_channel?: string | null
           scheduled_end_at?: string | null
           scheduled_start_at?: string | null
           service_date?: string | null
@@ -2855,6 +2922,7 @@ export type Database = {
           confirmed_at?: string | null
           confirmed_by?: string | null
           confirmed_contact_name?: string | null
+          consultant_extra_id?: string | null
           consultant_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -2868,8 +2936,11 @@ export type Database = {
           lng?: number | null
           notes?: string | null
           observations?: string | null
+          origin_kind?: string | null
           origin_service_order_id?: string | null
           partner_commission_percent?: number | null
+          partner_extra_name?: string | null
+          partner_extra_percent?: number | null
           partner_seller_id?: string | null
           partner_seller_name?: string | null
           partner_store?: string | null
@@ -2881,6 +2952,7 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           route_position?: number | null
+          sale_channel?: string | null
           scheduled_end_at?: string | null
           scheduled_start_at?: string | null
           service_date?: string | null

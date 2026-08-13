@@ -21,6 +21,7 @@ import { ServiceOrderAddressFields } from "@/components/field-service/service-or
 import type { FieldServiceUser } from "@/lib/field-service/users";
 import type { FieldServicePartner } from "@/lib/supabase/database.types";
 import { deriveShiftFromTime } from "@/lib/field-service/agenda";
+import { SALE_CHANNEL_LABEL } from "@/lib/field-service/status";
 import { createServiceOrder, scheduleServiceOrder } from "./actions";
 
 type LeadOption = { id: string; name: string; phone: string | null };
@@ -210,6 +211,39 @@ export function NewServiceOrderDialog({
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="consultant_extra_id">Consultora extra</Label>
+              <select
+                id="consultant_extra_id"
+                name="consultant_extra_id"
+                className="h-10 w-full rounded-md border border-border/70 bg-background px-3 text-sm"
+              >
+                <option value="">Nenhuma</option>
+                {consultants.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="sale_channel">Origem do cliente</Label>
+              <select
+                id="sale_channel"
+                name="sale_channel"
+                className="h-10 w-full rounded-md border border-border/70 bg-background px-3 text-sm"
+              >
+                <option value="">Não informada</option>
+                {Object.entries(SALE_CHANNEL_LABEL).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           <ServiceOrderAddressFields />
 
           <div className="space-y-1.5">
@@ -322,6 +356,25 @@ export function NewServiceOrderDialog({
                 Vale só para esta OS. Deixando em branco, o faturamento usa o percentual
                 cadastrado em Financeiro.
               </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 border-t border-border/50 pt-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="partner_extra_name">Parceiro extra (opcional)</Label>
+                <Input id="partner_extra_name" name="partner_extra_name" placeholder="Um segundo indicador, se houver" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="partner_extra_percent">Comissão do parceiro extra (%)</Label>
+                <Input
+                  id="partner_extra_percent"
+                  name="partner_extra_percent"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.5"
+                  inputMode="decimal"
+                />
+              </div>
             </div>
           </fieldset>
 

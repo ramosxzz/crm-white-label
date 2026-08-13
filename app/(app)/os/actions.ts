@@ -70,19 +70,33 @@ const partnerIdField = z
   .optional()
   .transform((v) => (v === "" || v === undefined ? null : v));
 
+const SALE_CHANNELS = [
+  "instagram",
+  "anuncio",
+  "marketing",
+  "ja_e_cliente",
+  "indicacao",
+  "loja_parceira",
+  "outro",
+] as const;
+
 const createSchema = z.object({
   lead_id: z.string().uuid(),
   consultant_id: z.string().uuid().optional(),
+  consultant_extra_id: z.string().uuid().optional(),
   voltage: z.enum(["110v", "220v"]).optional(),
   deadline: z.string().optional(),
   notes: z.string().trim().optional(),
   observations: z.string().trim().optional(),
+  sale_channel: z.enum(SALE_CHANNELS).optional(),
   partner_store: z.string().trim().optional(),
   partner_seller_name: z.string().trim().optional(),
   partner_commission_percent: percentField,
   partner_store_id: partnerIdField,
   partner_seller_id: partnerIdField,
   partner_store_split_percent: percentField,
+  partner_extra_name: z.string().trim().optional(),
+  partner_extra_percent: percentField,
   ...addressSchema,
 });
 
@@ -162,16 +176,20 @@ export async function createServiceOrder(formData: FormData) {
   const parsed = createSchema.parse({
     lead_id: formData.get("lead_id"),
     consultant_id: readForm(formData, "consultant_id"),
+    consultant_extra_id: readForm(formData, "consultant_extra_id"),
     voltage: readForm(formData, "voltage"),
     deadline: readForm(formData, "deadline"),
     notes: readForm(formData, "notes"),
     observations: readForm(formData, "observations"),
+    sale_channel: readForm(formData, "sale_channel"),
     partner_store: readForm(formData, "partner_store"),
     partner_seller_name: readForm(formData, "partner_seller_name"),
     partner_commission_percent: readForm(formData, "partner_commission_percent") ?? "",
     partner_store_id: readForm(formData, "partner_store_id") ?? "",
     partner_seller_id: readForm(formData, "partner_seller_id") ?? "",
     partner_store_split_percent: readForm(formData, "partner_store_split_percent") ?? "",
+    partner_extra_name: readForm(formData, "partner_extra_name"),
+    partner_extra_percent: readForm(formData, "partner_extra_percent") ?? "",
     address_street: readForm(formData, "address_street"),
     address_number: readForm(formData, "address_number"),
     address_complement: readForm(formData, "address_complement"),
@@ -184,18 +202,22 @@ export async function createServiceOrder(formData: FormData) {
   const order = await insertWithSequentialCode(supabase, ctx.tenantId, {
     lead_id: parsed.lead_id,
     consultant_id: parsed.consultant_id ?? null,
+    consultant_extra_id: parsed.consultant_extra_id ?? null,
     created_by: ctx.userId,
     status: "rascunho",
     voltage: parsed.voltage ?? null,
     deadline: parsed.deadline ?? null,
     notes: emptyToNull(parsed.notes),
     observations: emptyToNull(parsed.observations),
+    sale_channel: parsed.sale_channel ?? null,
     partner_store: emptyToNull(parsed.partner_store),
     partner_seller_name: emptyToNull(parsed.partner_seller_name),
     partner_commission_percent: parsed.partner_commission_percent,
     partner_store_id: parsed.partner_store_id,
     partner_seller_id: parsed.partner_seller_id,
     partner_store_split_percent: parsed.partner_store_split_percent,
+    partner_extra_name: emptyToNull(parsed.partner_extra_name),
+    partner_extra_percent: parsed.partner_extra_percent,
     address_street: emptyToNull(parsed.address_street),
     address_number: emptyToNull(parsed.address_number),
     address_complement: emptyToNull(parsed.address_complement),
@@ -215,16 +237,20 @@ export async function createServiceOrder(formData: FormData) {
 const updateSchema = z.object({
   id: z.string().uuid(),
   consultant_id: z.string().uuid().nullable().optional(),
+  consultant_extra_id: z.string().uuid().nullable().optional(),
   voltage: z.enum(["110v", "220v"]).nullable().optional(),
   deadline: z.string().nullable().optional(),
   notes: z.string().trim().nullable().optional(),
   observations: z.string().trim().nullable().optional(),
+  sale_channel: z.enum(SALE_CHANNELS).nullable().optional(),
   partner_store: z.string().trim().nullable().optional(),
   partner_seller_name: z.string().trim().nullable().optional(),
   partner_commission_percent: percentField,
   partner_store_id: partnerIdField,
   partner_seller_id: partnerIdField,
   partner_store_split_percent: percentField,
+  partner_extra_name: z.string().trim().nullable().optional(),
+  partner_extra_percent: percentField,
   ...addressSchema,
 });
 
@@ -235,16 +261,20 @@ export async function updateServiceOrder(formData: FormData) {
   const parsed = updateSchema.parse({
     id: formData.get("id"),
     consultant_id: readForm(formData, "consultant_id") ?? null,
+    consultant_extra_id: readForm(formData, "consultant_extra_id") ?? null,
     voltage: readForm(formData, "voltage") ?? null,
     deadline: readForm(formData, "deadline") ?? null,
     notes: readForm(formData, "notes") ?? null,
     observations: readForm(formData, "observations") ?? null,
+    sale_channel: readForm(formData, "sale_channel") ?? null,
     partner_store: readForm(formData, "partner_store") ?? null,
     partner_seller_name: readForm(formData, "partner_seller_name") ?? null,
     partner_commission_percent: readForm(formData, "partner_commission_percent") ?? "",
     partner_store_id: readForm(formData, "partner_store_id") ?? "",
     partner_seller_id: readForm(formData, "partner_seller_id") ?? "",
     partner_store_split_percent: readForm(formData, "partner_store_split_percent") ?? "",
+    partner_extra_name: readForm(formData, "partner_extra_name") ?? null,
+    partner_extra_percent: readForm(formData, "partner_extra_percent") ?? "",
     address_street: readForm(formData, "address_street"),
     address_number: readForm(formData, "address_number"),
     address_complement: readForm(formData, "address_complement"),
@@ -258,16 +288,20 @@ export async function updateServiceOrder(formData: FormData) {
     .from("service_orders")
     .update({
       consultant_id: parsed.consultant_id,
+      consultant_extra_id: parsed.consultant_extra_id,
       voltage: parsed.voltage,
       deadline: parsed.deadline,
       notes: emptyToNull(parsed.notes),
       observations: emptyToNull(parsed.observations),
+      sale_channel: parsed.sale_channel,
       partner_store: emptyToNull(parsed.partner_store),
       partner_seller_name: emptyToNull(parsed.partner_seller_name),
       partner_commission_percent: parsed.partner_commission_percent,
       partner_store_id: parsed.partner_store_id,
       partner_seller_id: parsed.partner_seller_id,
       partner_store_split_percent: parsed.partner_store_split_percent,
+      partner_extra_name: emptyToNull(parsed.partner_extra_name),
+      partner_extra_percent: parsed.partner_extra_percent,
       address_street: emptyToNull(parsed.address_street),
       address_number: emptyToNull(parsed.address_number),
       address_complement: emptyToNull(parsed.address_complement),
@@ -1142,4 +1176,190 @@ export async function reorderShiftRoute(input: { ordered_ids: string[] }) {
   }
 
   revalidatePath("/os/roteiro");
+}
+
+/**
+ * Reaplicacao: quando um servico (normalmente impermeabilizacao) precisa de
+ * retorno. Nao e tratada como venda nova nem reaproveita a OS antiga - nasce
+ * uma OS propria, em rascunho, com o mesmo cliente/endereco/parceiro da
+ * origem, referenciando-a via origin_service_order_id + origin_kind, do
+ * mesmo jeito que ja existe pra orcamento convertido (so muda o motivo).
+ * Copia os itens originais como ponto de partida (o ADM ajusta o que for
+ * preciso), sem copiar valores de upsell nem o financeiro ja fechado.
+ */
+export async function createReapplicationServiceOrder(input: { originServiceOrderId: string }) {
+  const ctx = await requireManagerContext();
+  const supabase = await createClient();
+
+  const { data: origin, error: originError } = await supabase
+    .from("service_orders")
+    .select("*")
+    .eq("id", input.originServiceOrderId)
+    .eq("tenant_id", ctx.tenantId)
+    .single();
+  if (originError) throw new Error(originError.message);
+
+  const { data: originItems } = await supabase
+    .from("service_order_items")
+    .select("description, quantity, unit_price_cents, amount_cents, kind, catalog_item_id, table_price_cents")
+    .eq("service_order_id", input.originServiceOrderId)
+    .eq("tenant_id", ctx.tenantId)
+    .eq("kind", "original");
+
+  const order = await insertWithSequentialCode(supabase, ctx.tenantId, {
+    lead_id: origin.lead_id,
+    consultant_id: origin.consultant_id,
+    consultant_extra_id: origin.consultant_extra_id,
+    created_by: ctx.userId,
+    status: "rascunho",
+    voltage: origin.voltage,
+    sale_channel: origin.sale_channel,
+    partner_store: origin.partner_store,
+    partner_seller_name: origin.partner_seller_name,
+    partner_commission_percent: origin.partner_commission_percent,
+    partner_store_id: origin.partner_store_id,
+    partner_seller_id: origin.partner_seller_id,
+    partner_store_split_percent: origin.partner_store_split_percent,
+    partner_extra_name: origin.partner_extra_name,
+    partner_extra_percent: origin.partner_extra_percent,
+    address_street: origin.address_street,
+    address_number: origin.address_number,
+    address_complement: origin.address_complement,
+    address_district: origin.address_district,
+    address_city: origin.address_city,
+    address_state: origin.address_state,
+    address_cep: origin.address_cep,
+    origin_service_order_id: origin.id,
+    origin_kind: "reaplicacao",
+    observations: `Reaplicação referente a OS-${String(origin.code_seq).padStart(4, "0")}.`,
+  });
+
+  if (originItems && originItems.length > 0) {
+    const { error: itemsError } = await supabase.from("service_order_items").insert(
+      originItems.map((item) => ({
+        tenant_id: ctx.tenantId,
+        service_order_id: order.id,
+        description: item.description,
+        quantity: item.quantity,
+        unit_price_cents: item.unit_price_cents,
+        amount_cents: item.amount_cents,
+        kind: "original" as const,
+        catalog_item_id: item.catalog_item_id,
+        table_price_cents: item.table_price_cents,
+        approved: true,
+      })),
+    );
+    if (itemsError) throw new Error(itemsError.message);
+  }
+
+  await logStatusChange(
+    supabase,
+    ctx,
+    order.id,
+    null,
+    "rascunho",
+    `Reaplicação criada a partir de OS-${String(origin.code_seq).padStart(4, "0")}`,
+  );
+
+  revalidatePath("/os");
+  revalidatePath("/os/agenda");
+  revalidatePath(`/os/${input.originServiceOrderId}`);
+  return order.id;
+}
+
+const followupSchema = z.object({
+  service_order_id: z.string().uuid(),
+  category: z.string().trim().min(1, "Informe a categoria"),
+  responsible_id: z.string().uuid().nullable().optional(),
+  contact_date: z.string().min(1, "Informe a data"),
+  description: z.string().trim().optional(),
+  notes: z.string().trim().optional(),
+});
+
+/** Proximo contato comercial gerado a partir de uma OS - ex: "fez lavagem,
+ * oferecer impermeabilizacao daqui 30 dias". Fica ligado a OS de origem,
+ * nao alimenta nenhum outro modulo por enquanto (so listagem/consulta). */
+export async function createServiceOrderFollowup(input: {
+  service_order_id: string;
+  category: string;
+  responsible_id?: string | null;
+  contact_date: string;
+  description?: string;
+  notes?: string;
+}) {
+  const ctx = await requireManagerContext();
+  const parsed = followupSchema.parse(input);
+  const supabase = await createClient();
+
+  const { error } = await supabase.from("service_order_followups").insert({
+    tenant_id: ctx.tenantId,
+    service_order_id: parsed.service_order_id,
+    category: parsed.category,
+    responsible_id: parsed.responsible_id || null,
+    contact_date: parsed.contact_date,
+    description: emptyToNull(parsed.description),
+    notes: emptyToNull(parsed.notes),
+    created_by: ctx.userId,
+  });
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/os/${parsed.service_order_id}`);
+}
+
+export async function setServiceOrderFollowupStatus(input: {
+  id: string;
+  service_order_id: string;
+  status: "pendente" | "feito" | "cancelado";
+}) {
+  const ctx = await requireManagerContext();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("service_order_followups")
+    .update({ status: input.status })
+    .eq("id", input.id)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/os/${input.service_order_id}`);
+}
+
+/** Pede ajuste manual do valor de uma comissao ja calculada (ex: acordo
+ * verbal diferente do percentual padrao). O banco ja sabia tratar
+ * adjustment_kind='comissao' (approve_financial_adjustment) desde a fase de
+ * resumo de comissao - so faltava um jeito de pedir isso pela tela. So o
+ * dono aprova, igual todo ajuste pos-faturamento. */
+export async function requestCommissionAdjustment(input: {
+  commission_id: string;
+  service_order_id: string;
+  new_amount_cents: number;
+  reason: string;
+}) {
+  const ctx = await requireFieldServiceContext();
+  if (!canReviewServiceOrder(ctx.role)) {
+    throw new Error("Só a gestão pode pedir ajuste de comissão");
+  }
+  const parsed = z
+    .object({
+      commission_id: z.string().uuid(),
+      service_order_id: z.string().uuid(),
+      new_amount_cents: z.number().int().min(0),
+      reason: z.string().trim().min(1, "Informe o motivo"),
+    })
+    .parse(input);
+  const supabase = await createClient();
+
+  const { error } = await supabase.from("financial_adjustment_requests").insert({
+    tenant_id: ctx.tenantId,
+    service_order_id: parsed.service_order_id,
+    commission_id: parsed.commission_id,
+    adjustment_kind: "comissao",
+    payload: { amount_cents: parsed.new_amount_cents },
+    reason: parsed.reason,
+    requested_by: ctx.userId,
+  });
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/os/${parsed.service_order_id}`);
+  revalidatePath("/financeiro");
 }

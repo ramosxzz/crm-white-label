@@ -6,7 +6,7 @@ import { requireContext } from "@/lib/tenant";
 import { canManageServiceOrders, canViewServiceRoutes } from "@/lib/auth/roles";
 import { PageHeader } from "@/components/app/page-header";
 import { listTechnicians, listConsultants } from "@/lib/field-service/users";
-import { brtDay, humanDay, offsetDay } from "@/lib/field-service/agenda";
+import { brtDay, offsetDay } from "@/lib/field-service/agenda";
 import type { FieldServicePartner } from "@/lib/supabase/database.types";
 import { ServiceOrdersLive } from "../service-orders-live";
 import { AgendaGrid, type AgendaOrder } from "./agenda-grid";
@@ -125,7 +125,6 @@ export default async function AgendaPage({
       <PageHeader
         eyebrow="Serviço em campo"
         title="Agenda"
-        description={humanDay(day)}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Link
