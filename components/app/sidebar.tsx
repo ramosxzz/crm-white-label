@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -31,6 +32,8 @@ import {
   Map as MapIcon,
   Handshake,
   Tags,
+  ChevronDown,
+  LayoutGrid,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -113,28 +116,26 @@ export function Sidebar({
       ? [{ href: "/os/parceiros", label: "Parceiros", icon: Handshake, exact: true }]
       : []),
   ];
-  const visibleNavItems = osOnlyAccess
-    ? [
-        ...fieldServiceItems,
-        ...(canManageFinance
-          ? [{ href: "/financeiro", label: "Financeiro", icon: Wallet }]
-          : []),
-      ]
+  const visibleOperationItems = osOnlyAccess
+    ? []
     : navItems.filter((item) => {
         if (isSeller && sellerBlocked.has(item.href)) return false;
         if (item.href === "/estoque") return stockEnabled;
         if (item.href === "/pesquisa-satisfacao") return satisfactionSurveyEnabled;
         if (item.href === "/ligacoes") return callsDashboardEnabled;
         if (item.href === "/disparos") return broadcastEnabled;
-        if (item.href === "/os") return fieldServiceEnabled;
-        // Financeiro e so da gestao (owner/admin), alem de exigir o modulo.
-        if (item.href === "/financeiro") return fieldServiceEnabled && canManageFinance;
+        // O modulo de campo possui uma categoria propria logo abaixo.
+        if (item.href === "/os" || item.href === "/financeiro") return false;
         return true;
-      }).flatMap((item) =>
-        item.href === "/os"
-          ? fieldServiceItems
-          : [item],
-      );
+      });
+  const visibleFieldServiceItems = (osOnlyAccess || fieldServiceEnabled)
+    ? [
+        ...fieldServiceItems,
+        ...(canManageFinance
+          ? [{ href: "/financeiro", label: "Financeiro", icon: Wallet }]
+          : []),
+      ]
+    : [];
   const visibleSecondaryItems = osOnlyAccess
     ? []
     : secondaryItems.filter((item) => !(isSeller && sellerBlocked.has(item.href)));
@@ -165,18 +166,32 @@ export function Sidebar({
       </div>
 
       <nav className="sidebar-scrollbar flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-3 py-4">
-        <div className="h-0 overflow-hidden px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground opacity-0 transition-all duration-150 group-hover/sidebar:mb-1.5 group-hover/sidebar:h-4 group-hover/sidebar:opacity-100">
-          Operacao
-        </div>
-        {visibleNavItems.map((item) => (
-          <NavLink key={item.href} item={item} pathname={pathname} />
-        ))}
-        <div className="h-0 overflow-hidden px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground opacity-0 transition-all duration-150 group-hover/sidebar:mb-1.5 group-hover/sidebar:mt-6 group-hover/sidebar:h-4 group-hover/sidebar:opacity-100">
-          Sistema
-        </div>
-        {visibleSecondaryItems.map((item) => (
-          <NavLink key={item.href} item={item} pathname={pathname} />
-        ))}
+        {visibleOperationItems.length > 0 && (
+          <NavGroup
+            label="Operação"
+            icon={LayoutGrid}
+            items={visibleOperationItems}
+            pathname={pathname}
+            defaultOpen
+          />
+        )}
+        {visibleFieldServiceItems.length > 0 && (
+          <NavGroup
+            label="Ordens de serviço"
+            icon={Wrench}
+            items={visibleFieldServiceItems}
+            pathname={pathname}
+            defaultOpen={osOnlyAccess}
+          />
+        )}
+        {visibleSecondaryItems.length > 0 && (
+          <NavGroup
+            label="Sistema"
+            icon={Settings}
+            items={visibleSecondaryItems}
+            pathname={pathname}
+          />
+        )}
       </nav>
 
       <div className="shrink-0 border-t border-border/40 p-3">
@@ -205,23 +220,99 @@ export function Sidebar({
   );
 }
 
+type SidebarItem = {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  exact?: boolean;
+};
+
+function itemIsActive(item: SidebarItem, pathname: string) {
+  return item.exact
+    ? pathname === item.href
+    : pathname === item.href || pathname.startsWith(item.href + "/");
+}
+
+function NavGroup({
+  label,
+  icon: Icon,
+  items,
+  pathname,
+  defaultOpen = false,
+}: {
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  items: SidebarItem[];
+  pathname: string;
+  defaultOpen?: boolean;
+}) {
+  const groupActive = items.some((item) => itemIsActive(item, pathname));
+  const [open, setOpen] = useState(defaultOpen || groupActive);
+
+  useEffect(() => {
+    if (groupActive) setOpen(true);
+  }, [groupActive]);
+
+  return (
+    <div className="space-y-1">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className={cn(
+          "group flex h-10 w-full items-center justify-center gap-3 rounded-xl px-3 text-sm font-semibold text-muted-foreground transition-colors duration-150 hover:bg-brand/10 hover:text-foreground group-hover/sidebar:justify-start",
+          groupActive && "text-foreground",
+        )}
+        aria-expanded={open}
+        title={label}
+      >
+        <Icon className={cn("h-5 w-5 shrink-0 transition-colors", groupActive && "text-brand")} />
+        <span className="max-w-0 flex-1 overflow-hidden truncate whitespace-nowrap text-left opacity-0 transition-all duration-150 group-hover/sidebar:max-w-[9rem] group-hover/sidebar:opacity-100">
+          {label}
+        </span>
+        <ChevronDown
+          className={cn(
+            "h-4 w-0 shrink-0 opacity-0 transition-[width,opacity,transform] duration-200 group-hover/sidebar:w-4 group-hover/sidebar:opacity-100",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+
+      <div
+        className={cn(
+          "grid transition-[grid-template-rows,opacity] duration-200 ease-out",
+          open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+        )}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="space-y-1">
+            {items.map((item) => (
+              <NavLink key={item.href} item={item} pathname={pathname} nested />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NavLink({
   item,
   pathname,
+  nested = false,
 }: {
-  item: { href: string; label: string; icon: React.ComponentType<{ className?: string }>; exact?: boolean };
+  item: SidebarItem;
   pathname: string;
+  nested?: boolean;
 }) {
   const Icon = item.icon;
-  const active = item.exact
-    ? pathname === item.href
-    : pathname === item.href || pathname.startsWith(item.href + "/");
+  const active = itemIsActive(item, pathname);
   return (
     <Link
       href={item.href}
       prefetch
       className={cn(
-        "group relative flex h-11 items-center justify-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors duration-150 group-hover/sidebar:justify-start",
+        "group relative flex h-11 items-center justify-center gap-3 rounded-xl px-3 text-sm font-semibold transition-[padding,color,background-color] duration-150 group-hover/sidebar:justify-start",
+        nested && "group-hover/sidebar:pl-5",
         active
           ? "bg-brand-muted text-foreground dark:bg-brand/10"
           : "text-muted-foreground hover:bg-brand/10 hover:text-foreground dark:hover:bg-brand/15",
