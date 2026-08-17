@@ -648,25 +648,45 @@ export async function listTagsWithLeadCount(): Promise<
   const ctx = await requireContext();
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("leads")
-    .select("id, tags")
-    .eq("tenant_id", ctx.tenantId)
-    .not("tags", "eq", "{}");
+  const [{ data: leads, error: leadsError }, { data: catalog, error: catalogError }] = await Promise.all([
+    supabase
+      .from("leads")
+      .select("id, tags")
+      .eq("tenant_id", ctx.tenantId)
+      .not("tags", "eq", "{}"),
+    supabase
+      .from("lead_tag_catalog")
+      .select("name")
+      .eq("tenant_id", ctx.tenantId)
+      .order("name"),
+  ]);
 
-  if (error) throw new Error(error.message);
+  if (leadsError) throw new Error(leadsError.message);
+  if (catalogError) throw new Error(catalogError.message);
 
-  const tagMap = new Map<string, string[]>();
-  for (const lead of data ?? []) {
+  // O catalogo precisa aparecer mesmo antes de a primeira tag ser aplicada.
+  // Antes, a sidebar era montada apenas a partir de leads ja marcados; em um
+  // tenant novo ela recebia [] e se escondia, embora houvesse tags cadastradas.
+  const tagMap = new Map<string, { name: string; leadIds: string[] }>();
+  for (const row of catalog ?? []) {
+    const name = row.name.trim();
+    if (!name || name.startsWith("__")) continue;
+    tagMap.set(name.toLocaleLowerCase("pt-BR"), { name, leadIds: [] });
+  }
+
+  for (const lead of leads ?? []) {
     for (const tag of lead.tags ?? []) {
       if (tag.startsWith("__")) continue;
-      const existing = tagMap.get(tag);
-      if (existing) existing.push(lead.id);
-      else tagMap.set(tag, [lead.id]);
+      const name = tag.trim();
+      if (!name) continue;
+      const key = name.toLocaleLowerCase("pt-BR");
+      const existing = tagMap.get(key) ?? { name, leadIds: [] };
+      existing.leadIds.push(lead.id);
+      tagMap.set(key, existing);
     }
   }
 
-  return [...tagMap.entries()]
-    .map(([tag, ids]) => ({ tag, count: ids.length, leadIds: ids }))
-    .sort((a, b) => b.count - a.count);
+  return [...tagMap.values()]
+    .map(({ name, leadIds }) => ({ tag: name, count: leadIds.length, leadIds }))
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, "pt-BR"));
 }

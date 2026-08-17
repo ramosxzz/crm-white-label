@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { ArrowRight, Eye, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -21,7 +20,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number) {
 }
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -54,8 +52,12 @@ export default function LoginPage() {
       return;
     }
     setRedirecting(true);
-    router.replace("/dashboard");
-    router.refresh();
+    // Navegacao completa de volta pela rota de login: o middleware ja conhece
+    // o tenant e decide entre /dashboard e /os/agenda. O router.replace direto
+    // para /dashboard fazia contas "So Agenda/OS" renderizarem uma rota
+    // proibida e sofrerem um segundo redirect no layout, deixando a tela preta
+    // ate um reload manual.
+    window.location.replace("/login?authenticated=1");
   }
 
   return (
