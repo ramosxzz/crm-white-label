@@ -957,6 +957,7 @@ export type Database = {
           id: string
           last_message_at: string | null
           lead_id: string
+          pinned_at: string | null
           status: Database["public"]["Enums"]["conversation_status"]
           tenant_id: string
           unread_count: number
@@ -968,6 +969,7 @@ export type Database = {
           id?: string
           last_message_at?: string | null
           lead_id: string
+          pinned_at?: string | null
           status?: Database["public"]["Enums"]["conversation_status"]
           tenant_id: string
           unread_count?: number
@@ -979,6 +981,7 @@ export type Database = {
           id?: string
           last_message_at?: string | null
           lead_id?: string
+          pinned_at?: string | null
           status?: Database["public"]["Enums"]["conversation_status"]
           tenant_id?: string
           unread_count?: number
@@ -3893,6 +3896,7 @@ export type Database = {
           lead_stage_id: string
           lead_tags: string[]
           lead_whatsapp_lid: string
+          pinned_at: string
           status: string
           unread_count: number
           whatsapp_account_id: string

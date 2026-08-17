@@ -48,7 +48,7 @@ export async function getChatThreadData(leadId: string) {
       .single(),
     service
       .from("conversations")
-      .select("id, status, channel, whatsapp_account_id")
+      .select("id, status, channel, whatsapp_account_id, pinned_at")
       .eq("tenant_id", ctx.tenantId)
       .eq("lead_id", leadId)
       .order("last_message_at", { ascending: false, nullsFirst: false })
@@ -126,7 +126,7 @@ export async function getChatThreadData(leadId: string) {
   } | null;
   if (!lead) notFound();
 
-  const convo = convoRes.data as { id: string; status: string | null; channel: string | null; whatsapp_account_id: string | null } | null;
+  const convo = convoRes.data as { id: string; status: string | null; channel: string | null; whatsapp_account_id: string | null; pinned_at: string | null } | null;
 
   const visibility = await getChatAccountVisibility(ctx.tenantId, ctx.userId, ctx.role);
   if (
@@ -267,6 +267,7 @@ export async function getChatThreadData(leadId: string) {
     leadPhone: lead.phone ?? "",
     leadAvatarUrl: getCachedWhatsAppProfilePicture(lead.custom_fields),
     conversationId: convo?.id ?? null,
+    initialPinned: Boolean(convo?.pinned_at),
     conversationAccountId: (convo as { whatsapp_account_id?: string | null } | null)?.whatsapp_account_id ?? null,
     conversationProviderKind,
     channel: (convo?.channel === "instagram" ? "instagram" : "whatsapp") as "whatsapp" | "instagram",

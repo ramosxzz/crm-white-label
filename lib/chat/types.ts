@@ -34,6 +34,7 @@ export type ConversationListItem = {
   unread: number;
   lastPreview: string | null;
   lastDirection: string | null;
+  pinnedAt: string | null;
   status: ConversationStatus;
   whatsappAccountId: string | null;
   tags: string[];
@@ -44,4 +45,3 @@ export type ConversationListItem = {
   /** "digitando"/"gravando audio" ao vivo - null quando ninguem esta no ato. */
   presence?: "composing" | "recording" | null;
 };
-

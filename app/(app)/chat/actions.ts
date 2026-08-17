@@ -1027,6 +1027,33 @@ export async function setConversationStatusByLead(input: { leadId: string; statu
   revalidatePath("/chat");
 }
 
+/** Fixa ou desafixa uma conversa no topo da lista do tenant. */
+export async function setConversationPinned(input: { conversationId: string; pinned: boolean }) {
+  const ctx = await requireContext();
+  const service = createServiceClient();
+  const { data: conversation, error: conversationError } = await service
+    .from("conversations")
+    .select("id, whatsapp_account_id")
+    .eq("id", input.conversationId)
+    .eq("tenant_id", ctx.tenantId)
+    .maybeSingle();
+  if (conversationError) throw new Error(conversationError.message);
+  if (!conversation) throw new Error("Conversa nao encontrada");
+
+  const visibility = await getChatAccountVisibility(ctx.tenantId, ctx.userId, ctx.role);
+  if (!canAccessConversationAccount(conversation.whatsapp_account_id, visibility)) {
+    throw new Error("Sem acesso a esta conversa");
+  }
+
+  const { error } = await service
+    .from("conversations")
+    .update({ pinned_at: input.pinned ? new Date().toISOString() : null })
+    .eq("id", input.conversationId)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/chat");
+}
+
 export type LeadTimelineEntry = {
   id: string;
   kind: string;

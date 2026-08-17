@@ -14,6 +14,7 @@ export type ConversationLeadRow = {
   channel?: string | null;
   whatsapp_account_id?: string | null;
   last_message_at: string | null;
+  pinned_at?: string | null;
   unread_count: number | null;
   status?: ConversationStatus | null;
   leads: {
@@ -56,12 +57,21 @@ export function filterConversationRows(
       byPhone.set(phone, row);
       continue;
     }
+    if (Boolean(row.pinned_at) !== Boolean(prev.pinned_at)) {
+      if (row.pinned_at) byPhone.set(phone, row);
+      continue;
+    }
     const prevAt = prev.last_message_at ? Date.parse(prev.last_message_at) : 0;
     const rowAt = row.last_message_at ? Date.parse(row.last_message_at) : 0;
     if (rowAt >= prevAt) byPhone.set(phone, row);
   }
 
   return [...byPhone.values(), ...otherChannels].sort((a, b) => {
+    if (Boolean(a.pinned_at) !== Boolean(b.pinned_at)) return a.pinned_at ? -1 : 1;
+    if (a.pinned_at && b.pinned_at) {
+      const pinOrder = Date.parse(b.pinned_at) - Date.parse(a.pinned_at);
+      if (pinOrder !== 0) return pinOrder;
+    }
     const aAt = a.last_message_at ? Date.parse(a.last_message_at) : 0;
     const bAt = b.last_message_at ? Date.parse(b.last_message_at) : 0;
     return bAt - aAt;

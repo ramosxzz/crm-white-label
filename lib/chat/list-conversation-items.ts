@@ -117,6 +117,7 @@ type ChatConversationRow = {
   lead_stage_id: string | null;
   lead_quality_stars: number | null;
   lead_created_at: string | null;
+  pinned_at: string | null;
 };
 
 type ChatConversationRpcClient = {
@@ -176,6 +177,7 @@ export async function listConversationItemsForTenant(
       lead_id: row.lead_id,
       channel: row.channel,
       last_message_at: row.last_message_at,
+      pinned_at: row.pinned_at,
       unread_count: row.unread_count,
       status: row.status as ConversationLeadRow["status"],
       whatsapp_account_id: row.whatsapp_account_id,
@@ -240,7 +242,7 @@ async function listFilteredConversationItemsForTenant(
 
   let query = supabase
     .from("conversations")
-    .select("id, lead_id, channel, whatsapp_account_id, last_message_at, unread_count, status, leads!inner(name, phone, whatsapp_lid, custom_fields, tags, stage_id, created_at, quality_stars)")
+    .select("id, lead_id, channel, whatsapp_account_id, last_message_at, pinned_at, unread_count, status, leads!inner(name, phone, whatsapp_lid, custom_fields, tags, stage_id, created_at, quality_stars)")
     .eq("tenant_id", tenantId)
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(cappedLimit);

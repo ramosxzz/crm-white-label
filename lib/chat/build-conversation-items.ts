@@ -37,6 +37,7 @@ export function buildConversationItems(
       unread: c.unread_count ?? 0,
       lastPreview: preview?.body ?? null,
       lastDirection: preview?.direction ?? null,
+      pinnedAt: c.pinned_at ?? null,
       status: c.status ?? "nao_iniciada",
       whatsappAccountId: c.whatsapp_account_id ?? null,
       tags: c.leads?.tags ?? [],

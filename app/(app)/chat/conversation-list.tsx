@@ -15,6 +15,7 @@ import {
   Volume2,
   VolumeX,
   Loader2,
+  Pin,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -272,6 +273,11 @@ export function ConversationList({
     });
 
     result.sort((a, b) => {
+      if (Boolean(a.pinnedAt) !== Boolean(b.pinnedAt)) return a.pinnedAt ? -1 : 1;
+      if (a.pinnedAt && b.pinnedAt) {
+        const pinOrder = Date.parse(b.pinnedAt) - Date.parse(a.pinnedAt);
+        if (pinOrder !== 0) return pinOrder;
+      }
       const aAt = a.lastAt ? Date.parse(a.lastAt) : 0;
       const bAt = b.lastAt ? Date.parse(b.lastAt) : 0;
       return appliedFilters.order === "recentes" ? bAt - aAt : aAt - bAt;
@@ -537,7 +543,10 @@ export function ConversationList({
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
                   <p className={cn("truncate text-sm", c.unread > 0 ? "font-semibold" : "font-medium")}>
-                    {c.leadName}
+                    <span className="inline-flex max-w-full items-center gap-1.5">
+                      {c.pinnedAt && <Pin className="h-3.5 w-3.5 shrink-0 fill-current text-brand" aria-label="Conversa fixada" />}
+                      <span className="truncate">{c.leadName}</span>
+                    </span>
                   </p>
                   <div className="flex shrink-0 items-center gap-2">
                     {opening && <Loader2 className="h-3.5 w-3.5 animate-spin text-brand" aria-label="Abrindo conversa" />}

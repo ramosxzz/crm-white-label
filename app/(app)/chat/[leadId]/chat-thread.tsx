@@ -36,6 +36,7 @@ import {
   MoreHorizontal,
   ArrowLeft,
   Wrench,
+  Pin,
 } from "lucide-react";
 import { EmojiPickerButton } from "@/components/chat/emoji-picker-button";
 import { updateLead } from "@/app/(app)/leads/actions";
@@ -90,6 +91,7 @@ import {
   sendChatMedia,
   markConversationRead,
   setConversationStatusByLead,
+  setConversationPinned,
   setLeadAutomations,
   scheduleChatMessage,
   listScheduledMessages,
@@ -325,6 +327,7 @@ export function ChatThread({
   conversationProviderKind = null,
   currentUserId,
   initialStatus = "nao_iniciada",
+  initialPinned = false,
   initialAutomationsEnabled = true,
   initialMessages,
   initialScheduledMessages = [],
@@ -352,6 +355,7 @@ export function ChatThread({
   conversationProviderKind?: WhatsAppProviderKind | null;
   currentUserId?: string;
   initialStatus?: ConversationStatus;
+  initialPinned?: boolean;
   initialAutomationsEnabled?: boolean;
   initialMessages: ChatMessage[];
   initialScheduledMessages?: ScheduledMessage[];
@@ -412,6 +416,8 @@ export function ChatThread({
   );
 
   const [conversationId, setConversationId] = useState(initialConversationId);
+  const [pinned, setPinned] = useState(initialPinned);
+  const [pinning, setPinning] = useState(false);
   const [status, setStatus] = useState<ConversationStatus>(initialStatus);
   const [automationsOn, setAutomationsOn] = useState(initialAutomationsEnabled);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
@@ -548,6 +554,7 @@ export function ChatThread({
 
     setConversationId(initialConversationId);
     setStatus(initialStatus);
+    setPinned(initialPinned);
     setAutomationsOn(initialAutomationsEnabled);
     setMessages(initialMessages);
     setLeadDetails(initialLeadDetails);
@@ -566,6 +573,7 @@ export function ChatThread({
     draftStorageKey,
     initialConversationId,
     initialStatus,
+    initialPinned,
     initialAutomationsEnabled,
     initialMessages,
     initialLeadDetails,
@@ -592,6 +600,23 @@ export function ChatThread({
     },
     [leadId],
   );
+
+  const togglePinned = useCallback(() => {
+    if (!conversationId || pinning) return;
+    const next = !pinned;
+    setPinned(next);
+    setPinning(true);
+    void setConversationPinned({ conversationId, pinned: next })
+      .then(() => notify({
+        title: next ? "Conversa fixada no topo" : "Conversa desafixada",
+        tone: "success",
+      }))
+      .catch((error) => {
+        setPinned(!next);
+        notifyError(error);
+      })
+      .finally(() => setPinning(false));
+  }, [conversationId, pinned, pinning]);
 
   useEffect(() => {
     if (!shouldStickToBottomRef.current) return;
@@ -1279,6 +1304,21 @@ export function ChatThread({
               void setLeadQualityStars({ leadId, stars: next }).catch((err) => notifyError(err));
             }}
           />
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className={cn(
+              "h-9 w-9 shrink-0 rounded-lg",
+              pinned && "border-brand/50 bg-brand/12 text-brand hover:bg-brand/20",
+            )}
+            onClick={togglePinned}
+            disabled={!conversationId || pinning}
+            title={pinned ? "Desafixar conversa" : "Fixar conversa no topo"}
+            aria-pressed={pinned}
+          >
+            {pinning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pin className={cn("h-4 w-4", pinned && "fill-current")} />}
+          </Button>
           <Button
             type="button"
             variant="outline"
