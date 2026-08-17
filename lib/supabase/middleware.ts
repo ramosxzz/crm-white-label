@@ -10,14 +10,12 @@ function noStore(response: NextResponse) {
 }
 
 export async function updateSession(request: NextRequest) {
-  // Repassa o pathname atual pro Server Component via header - e o unico
-  // jeito de um layout server-side saber a rota sem virar client component.
-  // Usado pelo guard de "login so-agenda" (ver app/(app)/layout.tsx).
+  // Repassa o pathname atual pro Server Component via header
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pathname", request.nextUrl.pathname);
   const forwardedRequest = { headers: requestHeaders };
 
-  let response = noStore(NextResponse.next({ request: forwardedRequest }));
+  let response = NextResponse.next({ request: forwardedRequest });
   const url = request.nextUrl.clone();
   const isLoginRoute = url.pathname.startsWith("/login");
   const isSignupRoute = url.pathname.startsWith("/signup");
@@ -30,9 +28,6 @@ export async function updateSession(request: NextRequest) {
     url.pathname.startsWith("/api/health") ||
     url.pathname.startsWith("/api/webhooks") ||
     url.pathname.startsWith("/api/intake") ||
-    // API publica v1: autenticada por chave de API propria (Authorization:
-    // Bearer), nao por sessao/cookie - sem isso, toda chamada externa sem
-    // cookie de login era redirecionada pra /login antes de chegar na rota.
     url.pathname.startsWith("/api/v1") ||
     url.pathname.startsWith("/api-docs") ||
     url.pathname.startsWith("/api/automations/process") ||
@@ -63,7 +58,7 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value),
           );
-          response = noStore(NextResponse.next({ request: forwardedRequest }));
+          response = NextResponse.next({ request: forwardedRequest });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options),
           );
@@ -72,10 +67,6 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // getClaims() verifica o JWT localmente via JWKS (projeto usa chave
-  // assimetrica) em vez de bater no servidor de Auth a cada navegacao como
-  // getUser() fazia - middleware roda em toda requisicao, entao isso tirava
-  // um round-trip de rede de cada clique do sistema inteiro.
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims ?? null;
 
@@ -85,7 +76,19 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user && isAuthRoute) {
-    url.pathname = "/dashboard";
+    // Login restrito a Agenda/OS: manda direto pra /os/agenda em vez de
+    // /dashboard -> layout.tsx redirect. Esse salto duplo (dashboard
+    // renderizando ate o layout perceber e redirecionar de novo, dentro de
+    // Server Component ja carregando a Agenda inteira) e o que causava tela
+    // preta no primeiro login dessas contas.
+    const cookieTenant = request.cookies.get("avante_tenant_id")?.value;
+    const { data: memberships } = await supabase
+      .from("tenant_members")
+      .select("tenant_id, os_only_access")
+      .eq("user_id", user.sub);
+    const chosen =
+      memberships?.find((m) => m.tenant_id === cookieTenant) ?? memberships?.[0];
+    url.pathname = chosen?.os_only_access ? "/os/agenda" : "/dashboard";
     return noStore(NextResponse.redirect(url));
   }
 
