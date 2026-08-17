@@ -16,6 +16,52 @@ import {
   getChatAccountVisibility,
 } from "@/lib/chat/list-conversation-items";
 import { normalizePhone } from "@/lib/utils";
+import { recordAccountHealthHeartbeat } from "@/lib/whatsapp/health-checker";
+
+type ChatSendActionResult =
+  | { ok: true; conversationId: string; message: ChatMessage }
+  | { ok: false; error: string };
+
+function publicSendError(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+  if (/conexão.*fechada|connection closed|not connected|disconnected/i.test(message)) {
+    return "A conexão deste número do WhatsApp está fechada. Reconecte a conta e tente novamente.";
+  }
+  if (/timeout|timed out|aborted/i.test(message)) {
+    return "O WhatsApp demorou demais para responder. Verifique a conexão da conta e tente novamente.";
+  }
+  if (/sem acesso|não possui acesso/i.test(message)) return "Você não possui acesso a este número do WhatsApp.";
+  if (/lead sem telefone/i.test(message)) return "Este lead não possui um telefone válido.";
+  if (/configure uma conta|nenhuma conta/i.test(message)) return "Nenhuma conta do WhatsApp disponível para este usuário.";
+  if (message && !/internal server error/i.test(message)) return message;
+  return "Não foi possível enviar pelo WhatsApp agora. Verifique a conexão do número e tente novamente.";
+}
+
+async function resolveAccessibleAccountId(
+  ctx: Awaited<ReturnType<typeof requireContext>>,
+  requestedAccountId?: string,
+): Promise<string | undefined> {
+  const visibility = await getChatAccountVisibility(ctx.tenantId, ctx.userId, ctx.role);
+  if (!visibility) return requestedAccountId;
+
+  const service = createServiceClient();
+  const { data: accounts } = await service
+    .from("whatsapp_accounts")
+    .select("id, assigned_to, created_at, health_status")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("is_active", true)
+    .order("created_at", { ascending: true });
+  const accessible = (accounts ?? []).filter((account) =>
+    account.health_status !== "offline" && canAccessConversationAccount(account.id, visibility),
+  );
+  if (requestedAccountId) {
+    if (!accessible.some((account) => account.id === requestedAccountId)) {
+      throw new Error("Sem acesso a esta conta do WhatsApp");
+    }
+    return requestedAccountId;
+  }
+  return accessible.find((account) => account.assigned_to === ctx.userId)?.id ?? accessible[0]?.id;
+}
 
 export async function sendChatMessage(input: {
   leadId: string;
@@ -23,25 +69,41 @@ export async function sendChatMessage(input: {
   accountId?: string;
   replyToMessageId?: string | null;
   quickMessageId?: string;
-}): Promise<{ conversationId: string; message: ChatMessage }> {
+}): Promise<ChatSendActionResult> {
   const ctx = await requireContext();
   const supabase = await createClient();
+  let accountId: string | undefined;
 
   try {
+    accountId = await resolveAccessibleAccountId(ctx, input.accountId);
     const result = await sendChatMessageCore(supabase, {
       tenantId: ctx.tenantId,
       userId: ctx.userId,
       leadId: input.leadId,
       body: input.body,
-      accountId: input.accountId,
+      accountId,
       replyToMessageId: input.replyToMessageId,
       quickMessageId: input.quickMessageId,
     });
+    if (accountId) {
+      void recordAccountHealthHeartbeat(createServiceClient(), accountId, "healthy");
+    }
     revalidatePath("/chat");
-    return result;
+    return { ok: true, ...result };
   } catch (e) {
-    revalidatePath(`/chat/${input.leadId}`);
-    throw e;
+    if (accountId) {
+      const message = e instanceof Error ? e.message : String(e);
+      const status = /connection closed|conexão.*fechada|not connected|disconnected/i.test(message)
+        ? "offline"
+        : "warning";
+      void recordAccountHealthHeartbeat(createServiceClient(), accountId, status, publicSendError(e));
+    }
+    console.error("[chat] Falha ao enviar mensagem", {
+      tenantId: ctx.tenantId,
+      leadId: input.leadId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return { ok: false, error: publicSendError(e) };
   }
 }
 
@@ -211,17 +273,38 @@ export async function sendChatMedia(input: {
   caption?: string;
   accountId?: string;
   quickMessageId?: string;
-}): Promise<{ conversationId: string; message: ChatMessage }> {
+}): Promise<ChatSendActionResult> {
   const ctx = await requireContext();
   const supabase = await createClient();
+  let accountId: string | undefined;
 
   try {
-    const result = await sendChatMediaCore(supabase, { tenantId: ctx.tenantId, userId: ctx.userId, ...input });
+    accountId = await resolveAccessibleAccountId(ctx, input.accountId);
+    const result = await sendChatMediaCore(supabase, {
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      ...input,
+      accountId,
+    });
+    if (accountId) {
+      void recordAccountHealthHeartbeat(createServiceClient(), accountId, "healthy");
+    }
     revalidatePath("/chat");
-    return result;
+    return { ok: true, ...result };
   } catch (e) {
-    revalidatePath(`/chat/${input.leadId}`);
-    throw e;
+    if (accountId) {
+      const message = e instanceof Error ? e.message : String(e);
+      const status = /connection closed|conexão.*fechada|not connected|disconnected/i.test(message)
+        ? "offline"
+        : "warning";
+      void recordAccountHealthHeartbeat(createServiceClient(), accountId, status, publicSendError(e));
+    }
+    console.error("[chat] Falha ao enviar mídia", {
+      tenantId: ctx.tenantId,
+      leadId: input.leadId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return { ok: false, error: publicSendError(e) };
   }
 }
 
@@ -789,6 +872,20 @@ export async function updateChatLeadTags(input: { leadId: string; tags: string[]
   return { tags };
 }
 
+export async function listLeadTagCatalog() {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("lead_tag_catalog")
+    .select("name")
+    .eq("tenant_id", ctx.tenantId)
+    .order("normalized_name", { ascending: true })
+    .limit(500);
+
+  if (error) throw new Error("Não foi possível carregar as tags cadastradas.");
+  return (data ?? []).map((tag) => tag.name);
+}
+
 export async function updateChatLeadNotes(input: { leadId: string; notes: string }) {
   const ctx = await requireContext();
   const supabase = await createClient();
@@ -858,6 +955,7 @@ export async function openLeadByPhone(rawPhone: string): Promise<{ leadId: strin
       source: "manual",
       stage_id: stages?.[0]?.id,
       pipeline_id: (pipeline as { id?: string } | null)?.id,
+      assigned_to: ctx.role === "vendedor" ? ctx.userId : null,
     })
     .select("id")
     .single();

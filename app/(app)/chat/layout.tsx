@@ -16,25 +16,37 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
 
   const visibility = await getChatAccountVisibility(ctx.tenantId, ctx.userId, ctx.role);
 
-  const [items, callCounts, instancesResult, stagesResult] = await Promise.all([
-    listConversationItemsForTenant(ctx.tenantId, 300, {}, ctx.tenant.name, visibility),
-    fetchLeadCallCountsForTenant(ctx.tenantId, { includeApi4com: ctx.tenant.calls_dashboard_enabled }),
-    supabase
-      .from("whatsapp_accounts")
-      .select("id, display_name, phone_number")
-      .eq("tenant_id", ctx.tenantId)
-      .order("created_at"),
-    supabase
-      .from("pipeline_stages")
-      .select("id, name, pipelines!inner(tenant_id)")
-      .eq("pipelines.tenant_id", ctx.tenantId)
-      .order("position"),
-  ]);
-  const allInstances = (instancesResult.data ?? []) as unknown as InstanceRow[];
+  let items: Awaited<ReturnType<typeof listConversationItemsForTenant>> = [];
+  let callCounts: Awaited<ReturnType<typeof fetchLeadCallCountsForTenant>> = {};
+  let allInstances: InstanceRow[] = [];
+  let stages: StageRow[] = [];
+
+  try {
+    const [itemsRes, callCountsRes, instancesResult, stagesResult] = await Promise.all([
+      listConversationItemsForTenant(ctx.tenantId, 300, {}, ctx.tenant.name, visibility),
+      fetchLeadCallCountsForTenant(ctx.tenantId, { includeApi4com: ctx.tenant.calls_dashboard_enabled }),
+      supabase
+        .from("whatsapp_accounts")
+        .select("id, display_name, phone_number")
+        .eq("tenant_id", ctx.tenantId)
+        .order("created_at"),
+      supabase
+        .from("pipeline_stages")
+        .select("id, name, pipelines!inner(tenant_id)")
+        .eq("pipelines.tenant_id", ctx.tenantId)
+        .order("position"),
+    ]);
+    items = itemsRes;
+    callCounts = callCountsRes;
+    allInstances = (instancesResult.data ?? []) as unknown as InstanceRow[];
+    stages = (stagesResult.data ?? []) as unknown as StageRow[];
+  } catch {
+    console.error("[chat/layout] failed to load sidebar data — rendering empty list");
+  }
+
   const instances = allInstances.filter((instance) =>
     canAccessConversationAccount(instance.id, visibility),
   );
-  const stages = (stagesResult.data ?? []) as unknown as StageRow[];
 
   return (
     // h-full em vez de recalcular a altura da tela: o <main> ja tem altura
