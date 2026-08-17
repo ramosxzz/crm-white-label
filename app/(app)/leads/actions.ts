@@ -690,3 +690,32 @@ export async function listTagsWithLeadCount(): Promise<
     .map(({ name, leadIds }) => ({ tag: name, count: leadIds.length, leadIds }))
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, "pt-BR"));
 }
+
+export type CreateLeadTagResult =
+  | { ok: true; tag: string }
+  | { ok: false; error: string };
+
+/** Cadastra uma tag no catalogo sem precisar aplica-la imediatamente a um lead. */
+export async function createLeadTag(name: string): Promise<CreateLeadTagResult> {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+  const tag = String(name ?? "").trim();
+
+  if (!tag) return { ok: false, error: "Informe o nome da tag." };
+  if (tag.length > 40) return { ok: false, error: "A tag pode ter no máximo 40 caracteres." };
+  if (tag.startsWith("__")) return { ok: false, error: "Esse nome é reservado pelo sistema." };
+
+  const { error } = await supabase.from("lead_tag_catalog").insert({
+    tenant_id: ctx.tenantId,
+    name: tag,
+    created_by: ctx.userId,
+  });
+
+  if (error?.code === "23505") return { ok: false, error: "Essa tag já está cadastrada." };
+  if (error) return { ok: false, error: "Não foi possível cadastrar a tag." };
+
+  revalidatePath("/tags");
+  revalidatePath("/leads");
+  revalidatePath("/chat");
+  return { ok: true, tag };
+}

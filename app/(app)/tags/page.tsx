@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { listTagsWithLeadCount } from "../leads/actions";
+import { CreateTagForm } from "./create-tag-form";
 
 export default async function TagsPage() {
   const ctx = await requireContext();
@@ -39,6 +40,8 @@ export default async function TagsPage() {
       />
 
       <div className="space-y-5 p-4 sm:p-6 lg:p-8">
+        <CreateTagForm />
+
         <div className="grid gap-3 sm:grid-cols-2">
           <Card>
             <CardContent className="flex items-center gap-3 p-4">
@@ -69,7 +72,7 @@ export default async function TagsPage() {
             <Tag className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
             <p className="font-medium">Nenhuma tag cadastrada</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Abra um lead e use o campo Tags para criar a primeira.
+              Cadastre a primeira tag no campo acima.
             </p>
           </div>
         ) : (

@@ -31,7 +31,7 @@ export function TagsSidebar({ tags }: { tags: TagWithCount[] }) {
 
   return (
     <aside className={cn(
-      "hidden w-64 shrink-0 border-r border-border/70 bg-card lg:block",
+      "hidden w-64 shrink-0 self-start border-b border-r border-border/70 bg-card lg:block",
       pending && "opacity-60",
     )}>
       <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
