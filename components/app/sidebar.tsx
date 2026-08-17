@@ -30,6 +30,7 @@ import {
   Route,
   Map as MapIcon,
   Handshake,
+  Tags,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -41,6 +42,7 @@ const navItems = [
   { href: "/funil", label: "Funil", icon: Filter },
   { href: "/atendimento", label: "Atendimento", icon: Timer },
   { href: "/leads", label: "Leads", icon: Users },
+  { href: "/tags", label: "Tags", icon: Tags },
   { href: "/kanban", label: "Kanban", icon: KanbanSquare },
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/tarefas", label: "Tarefas", icon: ListChecks },

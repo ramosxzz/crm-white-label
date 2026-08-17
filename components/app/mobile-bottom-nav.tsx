@@ -28,6 +28,7 @@ import {
   Wallet,
   Wrench,
   X,
+  Tags,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -114,6 +115,7 @@ export function MobileBottomNav({
   const operationItems: MoreItem[] = [
     ...(!isSeller ? [{ href: "/funil", label: "Funil", icon: Filter }] : []),
     ...(!isSeller ? [{ href: "/atendimento", label: "Atendimento", icon: Timer }] : []),
+    { href: "/tags", label: "Tags", icon: Tags },
     { href: "/tarefas", label: "Tarefas", icon: ListChecks },
     // Mostra receita/custo/ROI do tenant inteiro - mesmo corte do sidebar.
     ...(!isSeller ? [{ href: "/reunioes", label: "Reuniões", icon: CalendarCheck }] : []),
