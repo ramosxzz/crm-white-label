@@ -20,6 +20,8 @@ import { LeadsTable } from "./leads-table";
 import { StageFilterExport } from "./stage-filter-export";
 import { LeadsMetricsSummary } from "./leads-metrics-summary";
 import { buildStageDistribution } from "@/lib/leads/operational-metrics";
+import { listTagsWithLeadCount } from "./actions";
+import { TagsSidebar } from "./tags-sidebar";
 
 type LeadDateFilter = "all" | "today" | "yesterday" | "7d" | "30d" | "custom";
 
@@ -71,7 +73,7 @@ const LEADS_PAGE_SIZE = 50;
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ entrada?: string; dia?: string; page?: string; etapa?: string | string[] }>;
+  searchParams?: Promise<{ entrada?: string; dia?: string; page?: string; etapa?: string | string[]; tag?: string }>;
 }) {
   const ctx = await requireContext();
   const supabase = await createClient();
@@ -81,6 +83,7 @@ export default async function LeadsPage({
   const stageFilterIds = params?.etapa
     ? (Array.isArray(params.etapa) ? params.etapa : [params.etapa]).filter(Boolean)
     : [];
+  const tagFilter = params?.tag?.trim() || null;
   const page = Math.max(1, Number(params?.page) || 1);
   const from = (page - 1) * LEADS_PAGE_SIZE;
   const to = from + LEADS_PAGE_SIZE - 1;
@@ -103,8 +106,11 @@ export default async function LeadsPage({
   if (stageFilterIds.length > 0) {
     leadsQuery = leadsQuery.in("stage_id", stageFilterIds);
   }
+  if (tagFilter) {
+    leadsQuery = leadsQuery.contains("tags", [tagFilter]);
+  }
 
-  const [{ data: leads, count: totalCount }, { data: stages }, members, { data: partners }, { data: qualificationRows }, { data: slaRows }] = await Promise.all([
+  const [{ data: leads, count: totalCount }, { data: stages }, members, { data: partners }, { data: qualificationRows }, { data: slaRows }, tags] = await Promise.all([
     leadsQuery,
     supabase
       .from("pipeline_stages")
@@ -132,6 +138,7 @@ export default async function LeadsPage({
       p_from: dateFilter.bounds?.startIso ?? "1970-01-01T00:00:00.000Z",
       p_to: dateFilter.bounds?.endIso ?? new Date().toISOString(),
     }),
+    listTagsWithLeadCount(),
   ]);
 
   const qualification = (qualificationRows ?? []) as Array<{
@@ -179,17 +186,20 @@ export default async function LeadsPage({
     if (params?.entrada) qs.set("entrada", params.entrada);
     if (params?.dia) qs.set("dia", params.dia);
     for (const id of stageFilterIds) qs.append("etapa", id);
+    if (tagFilter) qs.set("tag", tagFilter);
     if (target > 1) qs.set("page", String(target));
     const query = qs.toString();
     return query ? `/leads?${query}` : "/leads";
   }
 
   return (
-    <div>
+    <div className="flex min-h-full">
+      <TagsSidebar tags={tags} />
+      <div className="min-w-0 flex-1">
       <PageHeader
         eyebrow="Operacao"
         title="Leads"
-        description={`${dateFilter.label} · ${totalCount ?? 0} resultado${(totalCount ?? 0) === 1 ? "" : "s"}`}
+        description={`${dateFilter.label}${tagFilter ? ` · tag "${tagFilter}"` : ""} · ${totalCount ?? 0} resultado${(totalCount ?? 0) === 1 ? "" : "s"}`}
         actions={
           <>
             <ImportCsvDialog canAssign={canAssignLeads} members={members} />
@@ -268,6 +278,7 @@ export default async function LeadsPage({
             starsAverage: qualityAverage,
           }}
         />
+      </div>
       </div>
     </div>
   );

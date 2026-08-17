@@ -15,6 +15,7 @@ import { dispatchWebhookEvent } from "@/lib/api/dispatch-webhook";
 import { listTenantUserOptions } from "@/lib/tenant/users";
 import { suggestCsvMapping, type CsvFieldMapping } from "@/lib/ai/csv-mapping";
 import { isDuplicateLeadPhoneError, prepareSpreadsheetLeads } from "@/lib/leads/spreadsheet-import";
+import { logAuditEvent } from "@/lib/audit/audit-logger";
 
 const leadSchema = z.object({
   name: z.string().min(1, "Nome obrigatorio"),
@@ -54,11 +55,15 @@ export async function setLeadForwarding(userId: string | null) {
   return { ok: true };
 }
 
-export async function createLead(formData: FormData) {
+export type CreateLeadResult =
+  | { ok: true; leadId: string }
+  | { ok: false; error: string };
+
+export async function createLead(formData: FormData): Promise<CreateLeadResult> {
   const ctx = await requireContext();
   const supabase = await createClient();
 
-  const parsed = leadSchema.parse({
+  const parsedResult = leadSchema.safeParse({
     name: formData.get("name"),
     phone: formData.get("phone") || undefined,
     email: formData.get("email") || undefined,
@@ -70,6 +75,10 @@ export async function createLead(formData: FormData) {
       : 0,
     referred_by_partner_id: formData.get("referred_by_partner_id") || undefined,
   });
+  if (!parsedResult.success) {
+    return { ok: false, error: parsedResult.error.issues[0]?.message ?? "Revise os dados do lead." };
+  }
+  const parsed = parsedResult.data;
 
   let stageId = parsed.stage_id;
   if (!stageId) {
@@ -82,6 +91,9 @@ export async function createLead(formData: FormData) {
     const stages = (pipeline as { pipeline_stages?: { id: string; position: number }[] } | null)
       ?.pipeline_stages?.sort((a, b) => a.position - b.position);
     stageId = stages?.[0]?.id;
+  }
+  if (!stageId) {
+    return { ok: false, error: "Nenhuma etapa do funil está configurada para receber este lead." };
   }
 
   const { data: pipelineRow } = await supabase
@@ -111,7 +123,13 @@ export async function createLead(formData: FormData) {
     .select("id")
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isDuplicateLeadPhoneError(error)) {
+      return { ok: false, error: "Já existe um lead cadastrado com este telefone." };
+    }
+    console.error("[leads] Falha ao criar lead", { tenantId: ctx.tenantId, code: error.code });
+    return { ok: false, error: "Não foi possível criar o lead agora. Tente novamente." };
+  }
   if (createdLead) {
     if (parsed.value_cents && parsed.value_cents > 0) {
       await supabase.from("lead_value_items").insert({
@@ -168,6 +186,7 @@ export async function createLead(formData: FormData) {
 
   revalidatePath("/leads");
   revalidatePath("/kanban");
+  return { ok: true, leadId: createdLead!.id };
 }
 
 export async function updateLead(id: string, patch: Partial<{
@@ -473,6 +492,16 @@ export async function deleteLead(id: string) {
     .eq("id", id)
     .eq("tenant_id", ctx.tenantId);
   if (error) throw new Error(error.message);
+
+  void logAuditEvent(supabase, {
+    tenantId: ctx.tenantId,
+    actorId: ctx.userId,
+    action: "lead.delete",
+    resourceType: "lead",
+    resourceId: id,
+    metadata: { deleted_lead_id: id },
+  });
+
   revalidatePath("/leads");
   revalidatePath("/kanban");
   revalidatePath("/chat");
@@ -590,6 +619,20 @@ export async function importLeadsCSV(
       }
     }
   }
+
+  void logAuditEvent(supabase, {
+    tenantId: ctx.tenantId,
+    actorId: ctx.userId,
+    action: "lead.import_csv",
+    resourceType: "lead",
+    metadata: {
+      imported_count: createdLeads?.length ?? 0,
+      skipped_duplicates: skippedDuplicates,
+      invalid_phones: prepared.invalidPhones,
+      assigned_to: assignedTo || null,
+    },
+  });
+
   revalidatePath("/leads");
   revalidatePath("/kanban");
   return {
@@ -597,4 +640,33 @@ export async function importLeadsCSV(
     skippedDuplicates,
     invalidPhones: prepared.invalidPhones,
   };
+}
+
+export async function listTagsWithLeadCount(): Promise<
+  Array<{ tag: string; count: number; leadIds: string[] }>
+> {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("leads")
+    .select("id, tags")
+    .eq("tenant_id", ctx.tenantId)
+    .not("tags", "eq", "{}");
+
+  if (error) throw new Error(error.message);
+
+  const tagMap = new Map<string, string[]>();
+  for (const lead of data ?? []) {
+    for (const tag of lead.tags ?? []) {
+      if (tag.startsWith("__")) continue;
+      const existing = tagMap.get(tag);
+      if (existing) existing.push(lead.id);
+      else tagMap.set(tag, [lead.id]);
+    }
+  }
+
+  return [...tagMap.entries()]
+    .map(([tag, ids]) => ({ tag, count: ids.length, leadIds: ids }))
+    .sort((a, b) => b.count - a.count);
 }
