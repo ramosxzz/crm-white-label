@@ -95,6 +95,7 @@ export function KanbanBoard({
   activePipelineId,
   initialStages,
   initialLeads,
+  tagCatalog = [],
   callCounts = {},
   callsEnabled = false,
   tenantId,
@@ -105,6 +106,7 @@ export function KanbanBoard({
   activePipelineId: string | null;
   initialStages: Stage[];
   initialLeads: Lead[];
+  tagCatalog?: string[];
   callCounts?: Record<string, number>;
   callsEnabled?: boolean;
   tenantId?: string;
@@ -190,10 +192,10 @@ export function KanbanBoard({
   }
 
   const availableTags = useMemo(() => {
-    const set = new Set<string>();
+    const set = new Set<string>(tagCatalog);
     for (const l of leads) for (const tag of l.tags ?? []) set.add(tag);
     return [...set].sort();
-  }, [leads]);
+  }, [leads, tagCatalog]);
 
   const activeFilterCount = Object.entries(appliedFilters).filter(
     ([key, value]) => value !== DEFAULT_KANBAN_FILTERS[key as keyof KanbanFilters],
@@ -538,6 +540,7 @@ export function KanbanBoard({
                 callCounts={callCounts}
                 callsEnabled={callsEnabled}
                 onOpenChat={onOpenChat}
+                tagCatalog={availableTags}
               />
             );
           })}
@@ -545,7 +548,7 @@ export function KanbanBoard({
       </div>
 
       <DragOverlay>
-        {activeLead && <LeadCard lead={activeLead} dragging />}
+        {activeLead && <LeadCard lead={activeLead} dragging tagCatalog={availableTags} />}
       </DragOverlay>
     </DndContext>
 
@@ -702,6 +705,7 @@ const Column = memo(function Column({
   callCounts,
   callsEnabled,
   onOpenChat,
+  tagCatalog,
 }: {
   stage: Stage;
   leads: Lead[];
@@ -714,6 +718,7 @@ const Column = memo(function Column({
   callCounts: Record<string, number>;
   callsEnabled?: boolean;
   onOpenChat: (lead: { id: string; name: string }) => void;
+  tagCatalog: string[];
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const color = stage.color ?? "#94a3b8";
@@ -777,6 +782,7 @@ const Column = memo(function Column({
               callCount={callCounts[l.id] ?? 0}
               callsEnabled={callsEnabled}
               onOpenChat={onOpenChat}
+              tagCatalog={tagCatalog}
             />
           ))}
           {leads.length === 0 && (
@@ -809,6 +815,7 @@ const LeadCard = memo(function LeadCard({
   callCount = 0,
   callsEnabled = false,
   onOpenChat,
+  tagCatalog = [],
 }: {
   lead: Lead;
   dragging?: boolean;
@@ -819,6 +826,7 @@ const LeadCard = memo(function LeadCard({
   callCount?: number;
   callsEnabled?: boolean;
   onOpenChat?: (lead: { id: string; name: string }) => void;
+  tagCatalog?: string[];
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
@@ -827,6 +835,7 @@ const LeadCard = memo(function LeadCard({
   const [stars, setStars] = useState(lead.quality_stars ?? 0);
   const [tags, setTags] = useState<string[]>(lead.tags ?? []);
   const [tagOpen, setTagOpen] = useState(false);
+  const [creatingTag, setCreatingTag] = useState(false);
   const [tagDraft, setTagDraft] = useState("");
   const style = {
     transform: CSS.Translate.toString(transform),
@@ -844,22 +853,29 @@ const LeadCard = memo(function LeadCard({
     void setLeadQualityStars({ leadId: lead.id, stars: next }).catch(() => null);
   }
 
-  function addTag() {
-    const value = tagDraft.trim();
+  function addTagValue(rawValue: string) {
+    const value = rawValue.trim();
     if (!value) {
       setTagOpen(false);
+      setCreatingTag(false);
       return;
     }
     if (tags.some((t) => t.toLowerCase() === value.toLowerCase())) {
       setTagDraft("");
       setTagOpen(false);
+      setCreatingTag(false);
       return;
     }
     const next = [...tags, value];
     setTags(next);
     setTagDraft("");
     setTagOpen(false);
+    setCreatingTag(false);
     void updateChatLeadTags({ leadId: lead.id, tags: next }).catch(() => null);
+  }
+
+  function addTag() {
+    addTagValue(tagDraft);
   }
 
   function removeTag(tag: string) {
@@ -939,7 +955,7 @@ const LeadCard = memo(function LeadCard({
             </button>
           </Badge>
         ))}
-        {tagOpen ? (
+        {tagOpen && creatingTag ? (
           <Input
             autoFocus
             value={tagDraft}
@@ -958,11 +974,37 @@ const LeadCard = memo(function LeadCard({
             placeholder="Nova tag"
             className="h-6 w-20 px-1.5 text-[10px]"
           />
+        ) : tagOpen ? (
+          <select
+            autoFocus
+            defaultValue=""
+            onChange={(event) => {
+              if (event.target.value === "__new__") {
+                setCreatingTag(true);
+                return;
+              }
+              addTagValue(event.target.value);
+            }}
+            onBlur={(event) => {
+              if (!event.currentTarget.value) setTagOpen(false);
+            }}
+            className="h-7 max-w-36 rounded-md border border-input bg-background px-1.5 text-[10px]"
+            aria-label="Selecionar tag cadastrada"
+          >
+            <option value="">Escolher tag...</option>
+            {tagCatalog
+              .filter((tag) => !tags.some((current) => current.toLowerCase() === tag.toLowerCase()))
+              .map((tag) => (
+                <option key={tag} value={tag}>{tag}</option>
+              ))}
+            <option value="__new__">+ Criar nova tag</option>
+          </select>
         ) : (
           <button
             type="button"
             onClick={() => {
               setTagOpen(true);
+              setCreatingTag(false);
               setTagDraft("");
             }}
             className="rounded-full border border-dashed border-border/70 p-0.5 text-muted-foreground hover:border-brand hover:text-brand"

@@ -6,20 +6,37 @@ import type { ChatMessage } from "@/lib/chat/types";
 import { fireAutomationTrigger } from "@/lib/automations/trigger";
 
 export function providerErrorMessage(result: { status: string; raw?: unknown }): string {
-  if (result.raw && typeof result.raw === "object") {
-    const r = result.raw as Record<string, unknown>;
-    if (typeof r.error === "string") return r.error;
-    if (r.error && typeof r.error === "object") {
-      const error = r.error as Record<string, unknown>;
-      const errorData = error.error_data;
-      if (errorData && typeof errorData === "object") {
-        const details = (errorData as Record<string, unknown>).details;
-        if (typeof details === "string") return details;
-      }
-      if (typeof error.message === "string") return error.message;
+  const messages: string[] = [];
+  function collect(value: unknown, depth = 0) {
+    if (depth > 6 || value == null) return;
+    if (typeof value === "string" && value.trim()) {
+      messages.push(value.trim());
+      return;
     }
-    if (typeof r.message === "string") return r.message;
+    if (Array.isArray(value)) {
+      value.forEach((item) => collect(item, depth + 1));
+      return;
+    }
+    if (typeof value === "object") {
+      const row = value as Record<string, unknown>;
+      ["details", "message", "error_description", "error", "response", "output", "payload"].forEach((key) =>
+        collect(row[key], depth + 1),
+      );
+    }
   }
+  collect(result.raw);
+  const connectionError = messages.find((message) => /connection closed|not connected|disconnected/i.test(message));
+  if (connectionError) {
+    return "A conexão deste número do WhatsApp está fechada. Reconecte a conta e tente novamente.";
+  }
+  const preconditionError = messages.find((message) => /precondition required/i.test(message));
+  if (preconditionError) {
+    return "Este número do WhatsApp não está pronto para enviar. Reconecte a conta e tente novamente.";
+  }
+  const specific = messages.find(
+    (message) => !/^(internal server error|bad request|error|failed)$/i.test(message),
+  );
+  if (specific) return specific;
   return "Falha ao enviar mensagem pelo WhatsApp";
 }
 
@@ -67,26 +84,37 @@ export async function sendChatMessageCore(
     void supabase.from("leads").update({ phone: to }).eq("id", lead.id).eq("tenant_id", input.tenantId);
   }
 
+  let conversationId: string | undefined;
+  const { data: conv } = await supabase
+    .from("conversations")
+    .select("id, whatsapp_account_id")
+    .eq("tenant_id", input.tenantId)
+    .eq("lead_id", lead.id)
+    .eq("channel", "whatsapp")
+    .maybeSingle();
+
+  const preferredAccountId = input.accountId ?? conv?.whatsapp_account_id ?? undefined;
   let accountQuery = supabase
     .from("whatsapp_accounts")
     .select("*")
     .eq("tenant_id", input.tenantId)
-    .eq("is_active", true);
-  if (input.accountId) {
-    accountQuery = accountQuery.eq("id", input.accountId);
-  }
-
-  let conversationId: string | undefined;
-  const [{ data: account }, { data: conv }] = await Promise.all([
-    accountQuery.limit(1).single(),
-    supabase
-      .from("conversations")
-      .select("id")
+    .eq("is_active", true)
+    .neq("health_status", "offline");
+  if (preferredAccountId) accountQuery = accountQuery.eq("id", preferredAccountId);
+  let { data: account } = await accountQuery.order("created_at", { ascending: true }).limit(1).maybeSingle();
+  if (!account && !preferredAccountId && input.userId) {
+    const result = await supabase
+      .from("whatsapp_accounts")
+      .select("*")
       .eq("tenant_id", input.tenantId)
-      .eq("lead_id", lead.id)
-      .eq("channel", "whatsapp")
-      .maybeSingle(),
-  ]);
+      .eq("is_active", true)
+      .neq("health_status", "offline")
+      .eq("assigned_to", input.userId)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    account = result.data;
+  }
 
   if (conv?.id) {
     conversationId = conv.id;
@@ -199,6 +227,7 @@ export async function sendChatMessageCore(
         last_message_at: new Date().toISOString(),
         unread_count: 0,
         status: "em_atendimento",
+        whatsapp_account_id: account.id,
       })
       .eq("id", conversationId);
 

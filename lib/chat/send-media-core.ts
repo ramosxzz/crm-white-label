@@ -41,24 +41,37 @@ export async function sendChatMediaCore(
 
   const to = normalizeWhatsAppPhone(lead.phone) ?? lead.phone.replace(/\D/g, "");
 
-  let mediaAccountQuery = supabase
-    .from("whatsapp_accounts")
-    .select("*")
-    .eq("tenant_id", input.tenantId)
-    .eq("is_active", true);
-  if (input.accountId) {
-    mediaAccountQuery = mediaAccountQuery.eq("id", input.accountId);
-  }
-  const { data: account } = await mediaAccountQuery.limit(1).single();
-
   let conversationId: string | undefined;
   const { data: conv } = await supabase
     .from("conversations")
-    .select("id")
+    .select("id, whatsapp_account_id")
     .eq("tenant_id", input.tenantId)
     .eq("lead_id", lead.id)
     .eq("channel", "whatsapp")
     .maybeSingle();
+
+  const preferredAccountId = input.accountId ?? conv?.whatsapp_account_id ?? undefined;
+  let mediaAccountQuery = supabase
+    .from("whatsapp_accounts")
+    .select("*")
+    .eq("tenant_id", input.tenantId)
+    .eq("is_active", true)
+    .neq("health_status", "offline");
+  if (preferredAccountId) mediaAccountQuery = mediaAccountQuery.eq("id", preferredAccountId);
+  let { data: account } = await mediaAccountQuery.order("created_at", { ascending: true }).limit(1).maybeSingle();
+  if (!account && !preferredAccountId && input.userId) {
+    const result = await supabase
+      .from("whatsapp_accounts")
+      .select("*")
+      .eq("tenant_id", input.tenantId)
+      .eq("is_active", true)
+      .neq("health_status", "offline")
+      .eq("assigned_to", input.userId)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    account = result.data;
+  }
 
   if (conv?.id) {
     conversationId = conv.id;
@@ -142,6 +155,7 @@ export async function sendChatMediaCore(
         last_message_at: new Date().toISOString(),
         unread_count: 0,
         status: "em_atendimento",
+        whatsapp_account_id: account.id,
       })
       .eq("id", conversationId);
 

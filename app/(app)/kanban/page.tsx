@@ -37,11 +37,17 @@ export default async function KanbanPage({ searchParams }: { searchParams?: Prom
     : [{ data: [] }, { data: [] }];
 
   const leadIds = (leads ?? []).map((lead) => lead.id);
-  const [callCounts, saleStock] = await Promise.all([
+  const [callCounts, saleStock, { data: tagCatalog }] = await Promise.all([
     leadIds.length > 0
       ? fetchLeadCallCountsForTenant(ctx.tenantId, { includeApi4com: ctx.tenant.calls_dashboard_enabled, leadIds })
       : Promise.resolve({}),
     getSaleStockContext(),
+    supabase
+      .from("lead_tag_catalog")
+      .select("name")
+      .eq("tenant_id", ctx.tenantId)
+      .order("normalized_name", { ascending: true })
+      .limit(500),
   ]);
 
   return (
@@ -54,6 +60,7 @@ export default async function KanbanPage({ searchParams }: { searchParams?: Prom
           activePipelineId={activePipeline?.id ?? null}
           initialStages={stages ?? []}
           initialLeads={leads ?? []}
+          tagCatalog={(tagCatalog ?? []).map((tag) => tag.name)}
           callCounts={callCounts}
           callsEnabled={ctx.tenant.calls_dashboard_enabled}
           tenantId={ctx.tenantId}

@@ -70,7 +70,7 @@ export async function getChatThreadData(leadId: string) {
       .order("name"),
     service
       .from("whatsapp_accounts")
-      .select("id, phone_number, display_name, provider, assigned_to")
+      .select("id, phone_number, display_name, provider, assigned_to, health_status, last_error_message")
       .eq("tenant_id", ctx.tenantId)
       .eq("is_active", true)
       .order("created_at"),
@@ -285,7 +285,7 @@ export async function getChatThreadData(leadId: string) {
     professionals: professionalsRes.data ?? [],
     users,
     services: (servicesRes.data ?? []) as { id: string; name: string; duration_minutes: number }[],
-    whatsappAccounts: ((whatsappAccountsRes.data ?? []) as { id: string; phone_number: string; display_name: string | null; provider: string; assigned_to: string | null }[]).filter(
+    whatsappAccounts: ((whatsappAccountsRes.data ?? []) as { id: string; phone_number: string; display_name: string | null; provider: string; assigned_to: string | null; health_status: "healthy" | "warning" | "offline"; last_error_message: string | null }[]).filter(
       (account) => canAccessConversationAccount(account.id, visibility),
     ),
     recentCalls,

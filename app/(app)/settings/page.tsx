@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MessageSquareText, ArrowRight, UserCog } from "lucide-react";
+import { MessageSquareText, ArrowRight, UserCog, ShieldCheck } from "lucide-react";
 import { requireContext } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { canManageCompanySettings, canManageUsers } from "@/lib/auth/roles";
@@ -115,6 +115,25 @@ export default async function SettingsPage() {
                 <p className="font-medium">Usuarios</p>
                 <p className="text-sm text-muted-foreground">
                   Crie atendentes e controle quem aparece nas mensagens do chat.
+                </p>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-brand" />
+            </CardContent>
+          </Card>
+        </Link>
+      )}
+
+      {canUsers && (
+        <Link href="/settings/auditoria" prefetch>
+          <Card className="group transition-colors hover:border-brand/40">
+            <CardContent className="flex items-center gap-4 p-5">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium">Trilha de Auditoria</p>
+                <p className="text-sm text-muted-foreground">
+                  Acompanhe logs de exportação, exclusão e alterações críticas da empresa.
                 </p>
               </div>
               <ArrowRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-brand" />

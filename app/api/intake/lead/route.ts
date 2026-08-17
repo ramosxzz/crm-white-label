@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { checkRateLimit, getClientIp, rateLimitExceededResponse, applyRateLimitHeaders } from "@/lib/api/rate-limit";
+import { getIdempotentResponse, saveIdempotentResponse } from "@/lib/api/idempotency";
 
 export const dynamic = "force-dynamic";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, x-api-key",
+  "Access-Control-Allow-Headers": "Content-Type, x-api-key, Idempotency-Key",
 };
 
 export async function OPTIONS() {
@@ -14,9 +16,21 @@ export async function OPTIONS() {
 }
 
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req);
   const apiKey = req.headers.get("x-api-key") || new URL(req.url).searchParams.get("key");
+
+  // Rate limit por IP e chave (limite de 60 requisições por minuto)
+  const rateLimitKey = `intake:${apiKey || "anonymous"}:${ip}`;
+  const rateLimitResult = checkRateLimit(rateLimitKey, { limit: 60, windowMs: 60_000 });
+
+  if (!rateLimitResult.success) {
+    return rateLimitExceededResponse(rateLimitResult, cors);
+  }
+
   if (!apiKey) {
-    return NextResponse.json({ error: "Missing x-api-key" }, { status: 401, headers: cors });
+    const res = NextResponse.json({ error: "Missing x-api-key" }, { status: 401, headers: cors });
+    applyRateLimitHeaders(res.headers, rateLimitResult);
+    return res;
   }
 
   const supabase = createServiceClient();
@@ -27,7 +41,9 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
 
   if (keyErr || !keyRow || !keyRow.is_active) {
-    return NextResponse.json({ error: "Invalid or inactive key" }, { status: 401, headers: cors });
+    const res = NextResponse.json({ error: "Invalid or inactive key" }, { status: 401, headers: cors });
+    applyRateLimitHeaders(res.headers, rateLimitResult);
+    return res;
   }
 
   let body: Record<string, unknown> = {};
@@ -42,8 +58,41 @@ export async function POST(req: NextRequest) {
     body = {};
   }
 
+  // Idempotency Check
+  const idempotencyKey = req.headers.get("idempotency-key") || req.headers.get("Idempotency-Key");
+  if (idempotencyKey) {
+    const { cached, conflict } = await getIdempotentResponse(supabase, {
+      key: idempotencyKey,
+      tenantId: keyRow.tenant_id,
+      endpoint: "/api/intake/lead",
+      payload: body,
+    });
+
+    if (conflict) {
+      const res = NextResponse.json(
+        { error: "Idempotency key conflict", message: "Esta chave de idempotencia ja foi usada com parâmetros diferentes." },
+        { status: 422, headers: cors }
+      );
+      applyRateLimitHeaders(res.headers, rateLimitResult);
+      return res;
+    }
+
+    if (cached) {
+      const res = NextResponse.json(cached.responseBody, {
+        status: cached.responseStatus,
+        headers: { ...cors, "X-Cache": "HIT-IDEMPOTENT" },
+      });
+      applyRateLimitHeaders(res.headers, rateLimitResult);
+      return res;
+    }
+  }
+
   const name = String(body.name || body.fullName || body.full_name || "").trim();
-  if (!name) return NextResponse.json({ error: "Missing 'name'" }, { status: 400, headers: cors });
+  if (!name) {
+    const res = NextResponse.json({ error: "Missing 'name'" }, { status: 400, headers: cors });
+    applyRateLimitHeaders(res.headers, rateLimitResult);
+    return res;
+  }
 
   const email = body.email ? String(body.email) : null;
   const phone = body.phone ? String(body.phone) : null;
@@ -92,8 +141,25 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (leadErr) {
-    return NextResponse.json({ error: leadErr.message }, { status: 500, headers: cors });
+    const res = NextResponse.json({ error: leadErr.message }, { status: 500, headers: cors });
+    applyRateLimitHeaders(res.headers, rateLimitResult);
+    return res;
   }
 
-  return NextResponse.json({ ok: true, lead_id: lead.id }, { status: 201, headers: cors });
+  const responseBody = { ok: true, lead_id: lead.id };
+
+  if (idempotencyKey) {
+    await saveIdempotentResponse(supabase, {
+      key: idempotencyKey,
+      tenantId: keyRow.tenant_id,
+      endpoint: "/api/intake/lead",
+      payload: body,
+      status: 201,
+      body: responseBody,
+    });
+  }
+
+  const res = NextResponse.json(responseBody, { status: 201, headers: cors });
+  applyRateLimitHeaders(res.headers, rateLimitResult);
+  return res;
 }

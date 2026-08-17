@@ -79,6 +79,7 @@ import { displayLeadName, displayLeadSubtitle } from "@/lib/leads/display";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LeadDeleteButton } from "@/components/leads/lead-delete-button";
 import { LeadTimeline } from "@/components/leads/lead-timeline";
+import { LeadTagPicker } from "@/components/leads/lead-tag-picker";
 import { StarRating } from "@/components/leads/star-rating";
 import { SaleStockDialog, type SaleStockProduct, type SaleStockLocation } from "@/components/estoque/sale-stock-dialog";
 import { isCallAnswered } from "@/lib/integrations/call-answered";
@@ -96,6 +97,7 @@ import {
   updateChatLeadBusiness,
   updateChatLeadNotes,
   updateChatLeadTags,
+  listLeadTagCatalog,
   editChatMessage,
   deleteChatMessage,
 } from "../actions";
@@ -357,7 +359,7 @@ export function ChatThread({
   professionals?: { id: string; name: string }[];
   users?: { id: string; name: string }[];
   services?: { id: string; name: string; duration_minutes: number }[];
-  whatsappAccounts?: { id: string; phone_number: string; display_name: string | null; provider: string; assigned_to?: string | null }[];
+  whatsappAccounts?: WhatsAppAccountOption[];
   recentCalls?: LeadCallAttempt[];
   pipelineOptions?: PipelineOption[];
   leadDetails?: LeadDetails;
@@ -403,10 +405,10 @@ export function ChatThread({
   // resposta sair do mesmo numero quando o tenant tem varios. Cai na primeira
   // conta so quando a conversa ainda nao tem numero vinculado.
   const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>(
-    (conversationAccountId && whatsappAccounts.some((a) => a.id === conversationAccountId)
+    (conversationAccountId && whatsappAccounts.some((a) => a.id === conversationAccountId && a.health_status !== "offline")
       ? conversationAccountId
-      : (currentUserId ? whatsappAccounts.find((a) => a.assigned_to === currentUserId)?.id : undefined) ??
-        whatsappAccounts[0]?.id) ?? undefined,
+      : (currentUserId ? whatsappAccounts.find((a) => a.assigned_to === currentUserId && a.health_status !== "offline")?.id : undefined) ??
+        whatsappAccounts.find((a) => a.health_status !== "offline")?.id) ?? undefined,
   );
 
   const [conversationId, setConversationId] = useState(initialConversationId);
@@ -742,19 +744,24 @@ export function ChatThread({
 
     start(async () => {
       try {
-        const result = isInstagram
-          ? await sendInstagramMessage({ leadId, body })
-          : await sendChatMessage({
+        let sentResult: { conversationId: string; message: ChatMessage };
+        if (isInstagram) {
+          sentResult = await sendInstagramMessage({ leadId, body });
+        } else {
+          const result = await sendChatMessage({
               leadId,
               body,
               accountId: selectedAccountId,
               replyToMessageId: replyMessageId,
               quickMessageId: quickMessageId ?? undefined,
             });
-        if (!conversationId) setConversationId(result.conversationId);
+          if (!result.ok) throw new Error(result.error);
+          sentResult = result;
+        }
+        if (!conversationId) setConversationId(sentResult.conversationId);
         setMessages((prev) => {
           const withoutOpt = prev.filter((m) => m.id !== optimistic.id);
-          return mergeMessages(withoutOpt, [result.message]);
+          return mergeMessages(withoutOpt, [sentResult.message]);
         });
       } catch (err) {
         // Marca como falhou em vez de sumir com a bolha - senao a pessoa
@@ -815,6 +822,7 @@ export function ChatThread({
           mimeType: file.type || undefined,
           accountId: selectedAccountId,
         });
+        if (!result.ok) throw new Error(result.error);
         if (!conversationId) setConversationId(result.conversationId);
         setMessages((prev) => {
           const withoutOpt = prev.filter((m) => m.id !== optimisticId);
@@ -880,6 +888,7 @@ export function ChatThread({
     setStatus("em_atendimento");
     try {
       const result = await sendChatMedia({ leadId, mediaUrl: url, mediaKind: kind, caption, accountId: selectedAccountId, quickMessageId });
+      if (!result.ok) throw new Error(result.error);
       if (!conversationId) setConversationId(result.conversationId);
       setMessages((prev) => mergeMessages(prev.filter((m) => m.id !== optimisticId), [result.message]));
     } catch (err) {
@@ -2487,7 +2496,7 @@ function LeadSidePanel({
   const confirmedNotesRef = useRef<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [tags, setTags] = useState<string[]>(details?.tags ?? []);
-  const [tagInput, setTagInput] = useState("");
+  const [tagOptions, setTagOptions] = useState<string[]>(details?.tags ?? []);
   const [tagsSaving, setTagsSaving] = useState(false);
   const [businessSaving, setBusinessSaving] = useState(false);
   const [businessDirty, setBusinessDirty] = useState(false);
@@ -2556,34 +2565,34 @@ function LeadSidePanel({
     setTags(details?.tags ?? []);
   }, [details?.tags]);
 
+  useEffect(() => {
+    let active = true;
+    void listLeadTagCatalog()
+      .then((catalog) => {
+        if (active) setTagOptions(catalog);
+      })
+      .catch((error) => notifyError(error));
+    return () => {
+      active = false;
+    };
+  }, []);
+
   function persistTags(next: string[]) {
     const prev = tags;
     setTags(next);
     setTagsSaving(true);
     void updateChatLeadTags({ leadId, tags: next })
       .then((res) => {
-        if (res?.tags) setTags(res.tags);
+        if (res?.tags) {
+          setTags(res.tags);
+          setTagOptions((current) => Array.from(new Set([...current, ...res.tags])));
+        }
       })
       .catch((err) => {
         setTags(prev);
         notifyError(err);
       })
       .finally(() => setTagsSaving(false));
-  }
-
-  function addTag() {
-    const t = tagInput.trim();
-    if (!t) return;
-    if (tags.some((x) => x.toLowerCase() === t.toLowerCase())) {
-      setTagInput("");
-      return;
-    }
-    persistTags([...tags, t]);
-    setTagInput("");
-  }
-
-  function removeTag(tag: string) {
-    persistTags(tags.filter((x) => x !== tag));
   }
 
   useEffect(() => {
@@ -2714,47 +2723,7 @@ function LeadSidePanel({
       </PanelSection>
 
       <PanelSection title="Tags">
-        <div className="flex flex-wrap gap-1.5">
-          {tags.length ? (
-            tags.map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex items-center gap-1 rounded-md bg-brand/10 py-1 pl-2 pr-1 text-[11px] font-medium text-brand"
-              >
-                {tag}
-                <button
-                  type="button"
-                  onClick={() => removeTag(tag)}
-                  disabled={tagsSaving}
-                  className="grid h-4 w-4 place-items-center rounded-sm text-brand/70 transition hover:bg-brand/20 hover:text-brand disabled:opacity-50"
-                  aria-label={`Remover tag ${tag}`}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            ))
-          ) : (
-            <span className="text-xs text-muted-foreground">Nenhuma tag ainda.</span>
-          )}
-        </div>
-        <div className="mt-2 flex gap-2">
-          <Input
-            value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addTag();
-              }
-            }}
-            placeholder="Nova tag"
-            className="h-8 bg-background/70 text-sm"
-            disabled={tagsSaving}
-          />
-          <Button type="button" size="sm" variant="outline" onClick={addTag} disabled={tagsSaving || !tagInput.trim()}>
-            {tagsSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-          </Button>
-        </div>
+        <LeadTagPicker value={tags} options={tagOptions} onChange={persistTags} disabled={tagsSaving} />
       </PanelSection>
 
       <PanelSection title="Notas">
@@ -3044,20 +3013,31 @@ function InfoRow({ label, value, muted = false }: { label: string; value: string
   );
 }
 
+type WhatsAppAccountOption = {
+  id: string;
+  phone_number: string;
+  display_name: string | null;
+  provider: string;
+  assigned_to?: string | null;
+  health_status?: "healthy" | "warning" | "offline";
+  last_error_message?: string | null;
+};
+
 function AccountSelector({
   accounts,
   selectedId,
   onChange,
   className,
 }: {
-  accounts: { id: string; phone_number: string; display_name: string | null; provider: string; assigned_to?: string | null }[];
+  accounts: WhatsAppAccountOption[];
   selectedId: string | undefined;
   onChange: (id: string) => void;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const current = accounts.find((a) => a.id === selectedId) ?? accounts[0];
+  const current = accounts.find((a) => a.id === selectedId && a.health_status !== "offline") ??
+    accounts.find((a) => a.health_status !== "offline") ?? accounts[0];
 
   useEffect(() => {
     if (!open) return;
@@ -3098,11 +3078,13 @@ function AccountSelector({
           </div>
           {accounts.map((a) => {
             const active = a.id === (selectedId ?? accounts[0]?.id);
+            const offline = a.health_status === "offline";
             const providerLabel = a.provider === "cloud_api" ? "API Oficial" : a.provider === "evolution" ? "Evolution" : "Z-API";
             return (
               <button
                 key={a.id}
                 type="button"
+                disabled={offline}
                 onClick={() => {
                   onChange(a.id);
                   setOpen(false);
@@ -3110,16 +3092,21 @@ function AccountSelector({
                 className={cn(
                   "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted/60",
                   active && "bg-muted/40",
+                  offline && "cursor-not-allowed opacity-50 hover:bg-transparent",
                 )}
               >
                 <Phone className="h-4 w-4 shrink-0 text-emerald-500" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{a.display_name || formatPhone(a.phone_number)}</p>
                   <p className="truncate text-[11px] text-muted-foreground">
-                    {formatPhone(a.phone_number)} · {providerLabel}
+                    {formatPhone(a.phone_number)} · {providerLabel}{offline ? " · Desconectado" : ""}
                   </p>
                 </div>
-                {active && <Check className="h-4 w-4 shrink-0 text-brand" />}
+                {offline ? (
+                  <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-500">Offline</span>
+                ) : active ? (
+                  <Check className="h-4 w-4 shrink-0 text-brand" />
+                ) : null}
               </button>
             );
           })}

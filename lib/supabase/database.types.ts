@@ -1480,6 +1480,44 @@ export type Database = {
           },
         ]
       }
+      lead_tag_catalog: {
+        Row: {
+          color: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          normalized_name: string
+          tenant_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          normalized_name?: string
+          tenant_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          normalized_name?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_tag_catalog_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_value_items: {
         Row: {
           amount_cents: number
@@ -3457,11 +3495,16 @@ export type Database = {
       whatsapp_accounts: {
         Row: {
           assigned_to: string | null
+          consecutive_health_failures: number
           created_at: string
           credentials: Json
           display_name: string | null
+          health_status: "healthy" | "warning" | "offline"
           id: string
           is_active: boolean
+          last_error_message: string | null
+          last_health_check_at: string | null
+          last_heartbeat_at: string | null
           phone_number: string
           provider: Database["public"]["Enums"]["whatsapp_provider"]
           shared_with_all: boolean
@@ -3470,11 +3513,16 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          consecutive_health_failures?: number
           created_at?: string
           credentials?: Json
           display_name?: string | null
+          health_status?: "healthy" | "warning" | "offline"
           id?: string
           is_active?: boolean
+          last_error_message?: string | null
+          last_health_check_at?: string | null
+          last_heartbeat_at?: string | null
           phone_number: string
           provider: Database["public"]["Enums"]["whatsapp_provider"]
           shared_with_all?: boolean
@@ -3483,11 +3531,16 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          consecutive_health_failures?: number
           created_at?: string
           credentials?: Json
           display_name?: string | null
+          health_status?: "healthy" | "warning" | "offline"
           id?: string
           is_active?: boolean
+          last_error_message?: string | null
+          last_health_check_at?: string | null
+          last_heartbeat_at?: string | null
           phone_number?: string
           provider?: Database["public"]["Enums"]["whatsapp_provider"]
           shared_with_all?: boolean

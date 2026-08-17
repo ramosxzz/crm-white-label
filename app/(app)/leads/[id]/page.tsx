@@ -20,7 +20,6 @@ import { requireContext } from "@/lib/tenant";
 import { listTenantUserOptions } from "@/lib/tenant/users";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { formatPhoneBR, initials } from "@/lib/utils";
 import { LeadStageSelect } from "./lead-stage-select";
@@ -33,6 +32,7 @@ import { TaskPanel } from "./task-panel";
 import { NotesPanel } from "./notes-panel";
 import { ValuePanel } from "./value-panel";
 import { formatBRTFullDate, formatBRTFullDateTime } from "@/lib/date/brt";
+import { LeadTagsPanel } from "./lead-tags-panel";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -48,7 +48,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
   if (!lead) notFound();
 
-  const [{ data: stages }, { data: files }, { data: activities }, { data: technicalDefinitions }, { data: tasks }, { data: professionals }, { data: services }, { data: valueItems }, users] = await Promise.all([
+  const [{ data: stages }, { data: files }, { data: activities }, { data: technicalDefinitions }, { data: tasks }, { data: professionals }, { data: services }, { data: valueItems }, { data: tagCatalog }, users] = await Promise.all([
     supabase
       .from("pipeline_stages")
       .select("id, name, color")
@@ -95,6 +95,12 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       .eq("lead_id", lead.id)
       .eq("tenant_id", ctx.tenantId)
       .order("created_at", { ascending: true }),
+    supabase
+      .from("lead_tag_catalog")
+      .select("name")
+      .eq("tenant_id", ctx.tenantId)
+      .order("normalized_name", { ascending: true })
+      .limit(500),
     listTenantUserOptions(ctx.tenantId),
   ]);
 
@@ -180,11 +186,11 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               <Info label="Origem">{lead.source ?? "-"}</Info>
               <Info label="Atualizado">{formatBRTFullDateTime(lead.updated_at)}</Info>
               <Info label="Tags" full>
-                <div className="flex flex-wrap gap-1.5">
-                  {lead.tags?.length
-                    ? lead.tags.map((t) => <Badge key={t} variant="secondary">{t}</Badge>)
-                    : <span className="text-muted-foreground">Sem tags</span>}
-                </div>
+                <LeadTagsPanel
+                  leadId={lead.id}
+                  initialTags={lead.tags ?? []}
+                  catalog={(tagCatalog ?? []).map((tag) => tag.name)}
+                />
               </Info>
               <Info label="Observacoes" full>
                 <p className="whitespace-pre-wrap text-muted-foreground">{lead.notes ?? "Sem observacoes."}</p>

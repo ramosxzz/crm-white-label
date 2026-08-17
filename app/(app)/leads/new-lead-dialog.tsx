@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createLead } from "./actions";
+import { notify, notifyError } from "@/lib/ui/feedback";
 
 export function NewLeadDialog({
   stages,
@@ -28,9 +29,19 @@ export function NewLeadDialog({
     if (stageId) fd.set("stage_id", stageId);
     if (partnerId) fd.set("referred_by_partner_id", partnerId);
     start(async () => {
-      await createLead(fd);
-      setOpen(false);
-      setPartnerId("");
+      try {
+        const result = await createLead(fd);
+        if (!result.ok) {
+          notifyError(result.error);
+          return;
+        }
+        notify({ title: "Lead criado com sucesso." });
+        setOpen(false);
+        setPartnerId("");
+      } catch (error) {
+        console.error("[leads] Erro inesperado ao criar lead", error);
+        notifyError("Não foi possível criar o lead agora. Tente novamente.");
+      }
     });
   }
 

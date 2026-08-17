@@ -89,6 +89,7 @@ export function MiniChatPanel({
     setBody("");
     try {
       const result = await sendChatMessage({ leadId, body: value });
+      if (!result.ok) throw new Error(result.error);
       setConversationId(result.conversationId);
       setMessages((prev) => [...prev, result.message as Message]);
     } catch (err) {

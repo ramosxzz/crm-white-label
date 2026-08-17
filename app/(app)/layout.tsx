@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
+import { Suspense } from "react";
 import { Sidebar } from "@/components/app/sidebar";
 import { Topbar } from "@/components/app/topbar";
 import { MobileBottomNav } from "@/components/app/mobile-bottom-nav";
@@ -10,6 +11,8 @@ import { TenantPageTitle } from "@/components/app/tenant-page-title";
 import { getCurrentContext } from "@/lib/tenant";
 import { canReviewServiceOrder } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
+import { WhatsAppHealthBannerAsync } from "@/components/app/whatsapp-health-banner-async";
+import { TopNavigationProgress } from "@/components/ui/top-navigation-progress";
 
 export async function generateMetadata(): Promise<Metadata> {
   const ctx = await getCurrentContext();
@@ -51,6 +54,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <>
+      <Suspense fallback={null}>
+        <TopNavigationProgress />
+      </Suspense>
       <TenantTheme brandColor={ctx.userEmail === "demo@solairew.com" ? "#2563EB" : ctx.tenant.brand_color} />
       <TenantPageTitle tenantName={ctx.tenant.name} />
       <MobileMenuProvider>
@@ -73,6 +79,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <Topbar lastSeenUpdateAt={profile?.last_seen_update_at ?? null} />
+            <Suspense fallback={null}>
+              <WhatsAppHealthBannerAsync tenantId={ctx.tenantId} />
+            </Suspense>
             <main className="flex-1 overflow-auto pb-[calc(4.75rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
           </div>
           <MobileBottomNav

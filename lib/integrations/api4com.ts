@@ -66,30 +66,43 @@ export async function fetchApi4comCalls(): Promise<Api4comCall[]> {
   let totalPageCount = 1;
   let hadFailure = false;
 
-  do {
-    const res = await fetch(`${API4COM_BASE_URL}/calls?page=${page}`, {
-      headers: { Authorization: token },
-      cache: "no-store",
+  try {
+    do {
+      const res = await fetch(`${API4COM_BASE_URL}/calls?page=${page}`, {
+        headers: { Authorization: token },
+        cache: "no-store",
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!res.ok) {
+        hadFailure = true;
+        break;
+      }
+
+      const payload = (await res.json().catch(() => null)) as {
+        data?: Api4comCall[];
+        meta?: { totalPageCount?: number };
+      } | null;
+
+      calls.push(...(payload?.data ?? []));
+      totalPageCount = payload?.meta?.totalPageCount ?? 1;
+      page++;
+    } while (page <= totalPageCount && page <= 10);
+  } catch (error) {
+    hadFailure = true;
+    console.warn("[api4com] Consulta indisponível; mantendo dados em cache", {
+      error: error instanceof Error ? error.name : "unknown",
     });
-    if (!res.ok) {
-      hadFailure = true;
-      break;
-    }
-
-    const payload = (await res.json().catch(() => null)) as {
-      data?: Api4comCall[];
-      meta?: { totalPageCount?: number };
-    } | null;
-
-    calls.push(...(payload?.data ?? []));
-    totalPageCount = payload?.meta?.totalPageCount ?? 1;
-    page++;
-  } while (page <= totalPageCount && page <= 10);
+  }
 
   // Falha parcial (ex: pagina 2 caiu): mantem o cache anterior em vez de
   // publicar uma lista truncada que faria o contador oscilar pra baixo.
   if (hadFailure && callsCache) {
     return callsCache.data;
+  }
+
+  if (hadFailure) {
+    callsCache = { data: [], expiresAt: Date.now() + CALLS_CACHE_TTL_MS };
+    return [];
   }
 
   callsCache = { data: calls, expiresAt: Date.now() + CALLS_CACHE_TTL_MS };
