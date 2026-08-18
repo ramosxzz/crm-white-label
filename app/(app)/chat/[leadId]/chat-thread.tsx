@@ -2534,6 +2534,12 @@ function LeadSidePanel({
   const [notes, setNotes] = useState(details?.notes ?? "");
   const [notesDirty, setNotesDirty] = useState(false);
   const confirmedNotesRef = useRef<string | null>(null);
+  const notesRef = useRef(notes);
+  const notesDirtyRef = useRef(notesDirty);
+  useEffect(() => {
+    notesRef.current = notes;
+    notesDirtyRef.current = notesDirty;
+  }, [notes, notesDirty]);
   const [saving, setSaving] = useState(false);
   const [tags, setTags] = useState<string[]>(details?.tags ?? []);
   const [tagOptions, setTagOptions] = useState<string[]>(details?.tags ?? []);
@@ -2591,6 +2597,16 @@ function LeadSidePanel({
     setSourceSelect(deriveSourceSelect(details?.source ?? ""));
     setSourceCustomText(deriveSourceSelect(details?.source ?? "") === "Outro" ? (details?.source ?? "") : "");
     setCreativeDraft(details?.creativeName ?? "");
+    // Trocar de lead sem clicar "Salvar notas" descartava o texto digitado
+    // (o reset acima roda pro novo lead antes do usuario salvar o antigo).
+    // O cleanup fecha sobre o leadId anterior; salva a nota pendente antes
+    // de o painel virar pro proximo lead.
+    const previousLeadId = leadId;
+    return () => {
+      if (notesDirtyRef.current) {
+        void updateChatLeadNotes({ leadId: previousLeadId, notes: notesRef.current }).catch(() => {});
+      }
+    };
   }, [leadId]);
 
   useEffect(() => {
