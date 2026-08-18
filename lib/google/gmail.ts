@@ -139,6 +139,13 @@ export async function listInboxThreads(accessToken: string, maxResults = 25): Pr
     .sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
 }
 
+export interface GmailAttachment {
+  attachmentId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+}
+
 export interface GmailFullMessage {
   id: string;
   from: string;
@@ -146,6 +153,7 @@ export interface GmailFullMessage {
   subject: string;
   date: string;
   bodyHtml: string;
+  attachments: GmailAttachment[];
 }
 
 function decodeBase64Url(data: string): string {
@@ -162,7 +170,8 @@ function escapeHtml(text: string): string {
 
 type GmailPart = {
   mimeType?: string;
-  body?: { data?: string; attachmentId?: string };
+  filename?: string;
+  body?: { data?: string; attachmentId?: string; size?: number };
   headers?: { name: string; value: string }[];
   parts?: GmailPart[];
 };
@@ -189,7 +198,24 @@ function collectInlineImageParts(payload: GmailPart): { contentId: string; attac
   return found;
 }
 
-async function fetchAttachmentDataUri(
+/** Acha anexos "de verdade" (com nome de arquivo, nao imagem inline referenciada por cid:). */
+function collectAttachments(payload: GmailPart): GmailAttachment[] {
+  const found: GmailAttachment[] = [];
+  if (payload.filename && payload.body?.attachmentId) {
+    found.push({
+      attachmentId: payload.body.attachmentId,
+      filename: payload.filename,
+      mimeType: payload.mimeType ?? "application/octet-stream",
+      size: payload.body.size ?? 0,
+    });
+  }
+  for (const part of payload.parts ?? []) {
+    found.push(...collectAttachments(part));
+  }
+  return found;
+}
+
+export async function fetchAttachmentDataUri(
   accessToken: string,
   messageId: string,
   attachmentId: string,
@@ -250,9 +276,19 @@ export async function getGmailThread(accessToken: string, threadId: string): Pro
         subject: headerValue(headers, "Subject"),
         date: headerValue(headers, "Date"),
         bodyHtml: await buildMessageHtml(accessToken, msg.id, msg.payload),
+        attachments: collectAttachments(msg.payload),
       };
     }),
   );
+}
+
+/** Remove a label UNREAD da thread (marca como lida) - o mesmo que abrir no Gmail. */
+export async function markThreadRead(accessToken: string, threadId: string): Promise<void> {
+  await fetch(`${GMAIL_API}/threads/${threadId}/modify`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ removeLabelIds: ["UNREAD"] }),
+  });
 }
 
 function encodeBase64Url(str: string): string {

@@ -7,6 +7,8 @@ import {
   listInboxThreads,
   getGmailThread,
   sendGmailReply,
+  markThreadRead,
+  fetchAttachmentDataUri,
   type InboxThreadSummary,
   type GmailFullMessage,
 } from "@/lib/google/gmail";
@@ -41,10 +43,28 @@ export async function getThreadAction(
   if (!token.ok) return token;
   try {
     const messages = await getGmailThread(token.accessToken, threadId);
+    void markThreadRead(token.accessToken, threadId).catch(() => {});
     return { ok: true, messages };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
+}
+
+export async function downloadAttachmentAction(input: {
+  messageId: string;
+  attachmentId: string;
+  mimeType: string;
+}): Promise<{ ok: true; dataUri: string } | ActionError> {
+  const token = await accessTokenOrError();
+  if (!token.ok) return token;
+  const dataUri = await fetchAttachmentDataUri(
+    token.accessToken,
+    input.messageId,
+    input.attachmentId,
+    input.mimeType,
+  );
+  if (!dataUri) return { ok: false, error: "Falha ao baixar anexo." };
+  return { ok: true, dataUri };
 }
 
 export async function sendReplyAction(input: {

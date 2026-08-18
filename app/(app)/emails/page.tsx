@@ -16,7 +16,7 @@ export default async function EmailsPage() {
 
   return (
     <div>
-      <PageHeader eyebrow="Comunicacao" title="Emails" description="Caixa de entrada conectada ao Gmail." />
+      <PageHeader title="Emails" className="px-8 py-4" />
 
       {!account ? (
         <div className="p-8">

@@ -1,17 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, RefreshCw, Send, Mail } from "lucide-react";
+import { Loader2, RefreshCw, Send, Mail, Paperclip, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { notify, notifyError } from "@/lib/ui/feedback";
-import { listInboxAction, getThreadAction, sendReplyAction } from "./actions";
-import type { InboxThreadSummary, GmailFullMessage } from "@/lib/google/gmail";
+import { listInboxAction, getThreadAction, sendReplyAction, downloadAttachmentAction } from "./actions";
+import type { InboxThreadSummary, GmailFullMessage, GmailAttachment } from "@/lib/google/gmail";
 
 function extractEmailAddress(from: string): string {
   const match = from.match(/<([^>]+)>/);
   return match ? match[1] : from;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 const EMAIL_FRAME_STYLES = `
@@ -19,8 +25,8 @@ const EMAIL_FRAME_STYLES = `
   html, body { margin: 0; padding: 0; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-    font-size: 14px;
-    line-height: 1.5;
+    font-size: 14.5px;
+    line-height: 1.55;
     color: #1f2937;
     word-wrap: break-word;
     overflow-wrap: break-word;
@@ -54,6 +60,44 @@ function EmailBodyFrame({ html }: { html: string }) {
       onLoad={resize}
       style={{ width: "100%", height, border: "none", display: "block" }}
     />
+  );
+}
+
+function AttachmentChip({ messageId, attachment }: { messageId: string; attachment: GmailAttachment }) {
+  const [downloading, setDownloading] = useState(false);
+
+  function download() {
+    setDownloading(true);
+    void downloadAttachmentAction({
+      messageId,
+      attachmentId: attachment.attachmentId,
+      mimeType: attachment.mimeType,
+    })
+      .then((result) => {
+        if (!result.ok) {
+          notifyError(new Error(result.error));
+          return;
+        }
+        const link = document.createElement("a");
+        link.href = result.dataUri;
+        link.download = attachment.filename;
+        link.click();
+      })
+      .catch((err) => notifyError(err))
+      .finally(() => setDownloading(false));
+  }
+
+  return (
+    <button
+      onClick={download}
+      disabled={downloading}
+      className="flex items-center gap-2 rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-xs transition-colors hover:bg-muted/60 disabled:opacity-60"
+    >
+      {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />}
+      <span className="max-w-[10rem] truncate font-medium">{attachment.filename}</span>
+      <span className="text-muted-foreground">{formatBytes(attachment.size)}</span>
+      <Download className="h-3 w-3 text-muted-foreground" />
+    </button>
   );
 }
 
@@ -93,6 +137,9 @@ export function EmailsInbox({ accountEmail }: { accountEmail: string }) {
     setMessages(null);
     setReplyBody("");
     setLoadingThread(true);
+    // Marca como lida na hora na lista (a chamada de verdade pro Gmail acontece
+    // no servidor junto com a busca da thread) - senao fica em negrito ate recarregar.
+    setThreads((current) => current?.map((t) => (t.threadId === threadId ? { ...t, unread: false } : t)) ?? current);
     void getThreadAction(threadId)
       .then((result) => {
         if (!result.ok) {
@@ -133,9 +180,11 @@ export function EmailsInbox({ accountEmail }: { accountEmail: string }) {
       .finally(() => setSending(false));
   }
 
+  const selectedSubject = messages?.[messages.length - 1]?.subject;
+
   return (
-    <div className="flex h-[calc(100vh-9rem)] border-t border-border/70">
-      <aside className="flex w-80 shrink-0 flex-col border-r border-border/70">
+    <div className="flex h-[calc(100vh-7rem)] border-t border-border/70">
+      <aside className="flex w-72 shrink-0 flex-col border-r border-border/70">
         <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
           <div className="min-w-0">
             <p className="text-xs text-muted-foreground">Conectado</p>
@@ -189,21 +238,33 @@ export function EmailsInbox({ accountEmail }: { accountEmail: string }) {
           </div>
         ) : (
           <>
-            <div className="flex-1 overflow-y-auto p-6">
+            {selectedSubject && (
+              <div className="border-b border-border/70 px-8 py-4">
+                <h1 className="font-display text-xl font-semibold">{selectedSubject}</h1>
+              </div>
+            )}
+            <div className="flex-1 overflow-y-auto px-8 py-6">
               {loadingThread && (
                 <div className="flex items-center justify-center p-8 text-muted-foreground">
                   <Loader2 className="h-5 w-5 animate-spin" />
                 </div>
               )}
-              {messages?.map((msg) => (
-                <div key={msg.id} className="mb-4 rounded-lg border border-border/70 p-4">
-                  <div className="mb-2 flex items-center justify-between gap-2">
+              {messages?.map((msg, i) => (
+                <div key={msg.id} className={cn("pb-6", i > 0 && "mt-6 border-t border-border/50 pt-6")}>
+                  <div className="mb-3 flex items-center justify-between gap-2">
                     <span className="text-sm font-medium">{msg.from}</span>
                     <span className="shrink-0 text-xs text-muted-foreground">
                       {msg.date ? new Date(msg.date).toLocaleString("pt-BR") : ""}
                     </span>
                   </div>
                   <EmailBodyFrame html={msg.bodyHtml} />
+                  {msg.attachments.length > 0 && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {msg.attachments.map((att) => (
+                        <AttachmentChip key={att.attachmentId} messageId={msg.id} attachment={att} />
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
