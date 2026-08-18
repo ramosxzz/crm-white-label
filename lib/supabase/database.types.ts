@@ -3588,6 +3588,8 @@ export type Database = {
           meta_capi_token: string | null
           meta_pixel_id: string | null
           name: string
+          payment_due_at: string | null
+          payment_overdue: boolean
           phone: string | null
           quick_messages_seeded_at: string | null
           satisfaction_survey_enabled: boolean
@@ -3616,6 +3618,8 @@ export type Database = {
           meta_capi_token?: string | null
           meta_pixel_id?: string | null
           name: string
+          payment_due_at?: string | null
+          payment_overdue?: boolean
           phone?: string | null
           quick_messages_seeded_at?: string | null
           satisfaction_survey_enabled?: boolean
@@ -3644,6 +3648,8 @@ export type Database = {
           meta_capi_token?: string | null
           meta_pixel_id?: string | null
           name?: string
+          payment_due_at?: string | null
+          payment_overdue?: boolean
           phone?: string | null
           quick_messages_seeded_at?: string | null
           satisfaction_survey_enabled?: boolean
@@ -4188,7 +4194,6 @@ export const Constants = {
     },
   },
 } as const
-
 // Aliases de conveniencia. Nomes e formato identicos ao arquivo anterior, pra
 // nenhum import existente quebrar - so a origem do tipo mudou: agora vem do
 // schema real (Database) em vez de interface escrita a mao, sujeita a divergir.

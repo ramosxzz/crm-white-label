@@ -12,6 +12,7 @@ import { getCurrentContext } from "@/lib/tenant";
 import { canReviewServiceOrder } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { WhatsAppHealthBannerAsync } from "@/components/app/whatsapp-health-banner-async";
+import { PaymentOverdueBanner } from "@/components/app/payment-overdue-banner";
 import { TopNavigationProgress } from "@/components/ui/top-navigation-progress";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -79,6 +80,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <Topbar lastSeenUpdateAt={profile?.last_seen_update_at ?? null} />
+            {ctx.tenant.payment_overdue && <PaymentOverdueBanner dueAt={ctx.tenant.payment_due_at} />}
             <Suspense fallback={null}>
               <WhatsAppHealthBannerAsync tenantId={ctx.tenantId} />
             </Suspense>
