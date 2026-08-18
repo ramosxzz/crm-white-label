@@ -89,3 +89,131 @@ export async function listLeadEmails(accessToken: string, leadEmail: string): Pr
     .filter((d): d is GmailMessageSummary => d !== null)
     .sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
 }
+
+export interface InboxThreadSummary {
+  threadId: string;
+  from: string;
+  subject: string;
+  snippet: string;
+  date: string;
+  unread: boolean;
+}
+
+/** Lista as threads mais recentes da caixa de entrada (qualquer remetente). */
+export async function listInboxThreads(accessToken: string, maxResults = 25): Promise<InboxThreadSummary[]> {
+  const res = await fetch(
+    `${GMAIL_API}/threads?maxResults=${maxResults}&labelIds=INBOX`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!res.ok) throw new Error(`Falha ao listar caixa de entrada: ${await res.text()}`);
+  const { threads } = (await res.json()) as { threads?: { id: string; snippet: string }[] };
+  if (!threads || threads.length === 0) return [];
+
+  const details = await Promise.all(
+    threads.map(async (t) => {
+      const detailRes = await fetch(
+        `${GMAIL_API}/threads/${t.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      if (!detailRes.ok) return null;
+      const data = await detailRes.json();
+      const lastMsg = data.messages?.[data.messages.length - 1];
+      if (!lastMsg) return null;
+      const headers = (lastMsg.payload?.headers ?? []) as { name: string; value: string }[];
+      const unread = (data.messages as { labelIds?: string[] }[]).some((m) =>
+        (m.labelIds ?? []).includes("UNREAD"),
+      );
+      return {
+        threadId: data.id as string,
+        from: headerValue(headers, "From"),
+        subject: headerValue(headers, "Subject"),
+        snippet: (t.snippet as string) ?? "",
+        date: headerValue(headers, "Date"),
+        unread,
+      };
+    }),
+  );
+
+  return details
+    .filter((d): d is InboxThreadSummary => d !== null)
+    .sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
+}
+
+export interface GmailFullMessage {
+  id: string;
+  from: string;
+  to: string;
+  subject: string;
+  date: string;
+  bodyText: string;
+}
+
+function decodeBase64Url(data: string): string {
+  return Buffer.from(data.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf-8");
+}
+
+function extractPlainTextBody(payload: any): string {
+  if (payload.mimeType === "text/plain" && payload.body?.data) {
+    return decodeBase64Url(payload.body.data);
+  }
+  if (payload.parts) {
+    for (const part of payload.parts) {
+      const text = extractPlainTextBody(part);
+      if (text) return text;
+    }
+  }
+  if (payload.mimeType === "text/html" && payload.body?.data) {
+    return decodeBase64Url(payload.body.data).replace(/<[^>]+>/g, " ");
+  }
+  return "";
+}
+
+/** Busca todas as mensagens de uma thread, com corpo em texto plano. */
+export async function getGmailThread(accessToken: string, threadId: string): Promise<GmailFullMessage[]> {
+  const res = await fetch(`${GMAIL_API}/threads/${threadId}?format=full`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error(`Falha ao abrir thread: ${await res.text()}`);
+  const data = await res.json();
+  const messages = (data.messages ?? []) as any[];
+
+  return messages.map((msg) => {
+    const headers = (msg.payload?.headers ?? []) as { name: string; value: string }[];
+    return {
+      id: msg.id as string,
+      from: headerValue(headers, "From"),
+      to: headerValue(headers, "To"),
+      subject: headerValue(headers, "Subject"),
+      date: headerValue(headers, "Date"),
+      bodyText: extractPlainTextBody(msg.payload).trim(),
+    };
+  });
+}
+
+function encodeBase64Url(str: string): string {
+  return Buffer.from(str, "utf-8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** Responde uma thread existente (mesmo threadId, cabecalhos In-Reply-To/References corretos). */
+export async function sendGmailReply(
+  accessToken: string,
+  params: { threadId: string; to: string; subject: string; inReplyTo: string; body: string },
+): Promise<void> {
+  const subject = params.subject.toLowerCase().startsWith("re:") ? params.subject : `Re: ${params.subject}`;
+  const raw = [
+    `To: ${params.to}`,
+    `Subject: ${subject}`,
+    `In-Reply-To: ${params.inReplyTo}`,
+    `References: ${params.inReplyTo}`,
+    "Content-Type: text/plain; charset=utf-8",
+    "",
+    params.body,
+  ].join("\r\n");
+
+  const res = await fetch(`${GMAIL_API}/messages/send`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ raw: encodeBase64Url(raw), threadId: params.threadId }),
+  });
+  if (!res.ok) throw new Error(`Falha ao enviar resposta: ${await res.text()}`);
+}
