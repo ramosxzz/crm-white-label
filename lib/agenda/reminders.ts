@@ -56,6 +56,19 @@ export async function processAppointmentReminders(supabase: SupabaseClient): Pro
     const win = WINDOWS.find((w) => remainingMin <= w.max && remainingMin > w.min && !already.includes(w.key));
     if (!win) continue;
 
+    // Reivindica a janela ANTES de enviar (nao depois): se o cron sobrepoe
+    // (execucao anterior ainda rodando quando a proxima dispara), duas
+    // invocacoes liam reminders_sent vazio ao mesmo tempo e mandavam a
+    // mesma confirmacao 2x. O filtro "not contains" so deixa 1 delas
+    // ganhar a corrida - a outra recebe 0 linhas e pula o envio.
+    const { data: claimed } = await supabase
+      .from("appointments")
+      .update({ reminders_sent: [...already, win.key] })
+      .eq("id", appt.id)
+      .not("reminders_sent", "cs", `{${win.key}}`)
+      .select("id");
+    if (!claimed || claimed.length === 0) continue;
+
     const phone = appt.leads?.phone ?? "";
     const to = normalizeWhatsAppPhone(phone) ?? phone.replace(/\D/g, "");
     if (!to) continue;
@@ -129,12 +142,6 @@ export async function processAppointmentReminders(supabase: SupabaseClient): Pro
           .update({ last_message_at: new Date().toISOString(), status: "em_atendimento" })
           .eq("id", convId);
       }
-
-      // Marca a janela como enviada (mesmo se falhar, evita spam em loop)
-      await supabase
-        .from("appointments")
-        .update({ reminders_sent: [...already, win.key] })
-        .eq("id", appt.id);
 
       if (ok) sent++;
     } catch {
