@@ -110,9 +110,9 @@ export default async function IntegrationsPage() {
                 <CardContent className="flex h-full flex-col p-6">
                   <div className="mb-4 flex items-center justify-between">
                     <div
-                      className={`inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${it.gradient} text-white shadow-md`}
+                      className={`inline-flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${it.gradient} text-white shadow-md`}
                     >
-                      <Icon className="h-6 w-6" />
+                      <Icon className="h-5 w-5" />
                     </div>
                     {it.status ? (
                       <Badge variant="success">
