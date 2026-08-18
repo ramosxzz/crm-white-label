@@ -26,7 +26,7 @@ export function ServiceCatalogPanel({ items }: { items: ServiceCatalogItem[] }) 
   const [prices, setPrices] = useState(() =>
     Object.fromEntries(items.map((item) => [item.id, (item.price_cents / 100).toFixed(2)])),
   );
-  const [active, setActive] = useState(() =>
+  const [active, setActive] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(items.map((item) => [item.id, item.is_active])),
   );
   const [form, setForm] = useState({

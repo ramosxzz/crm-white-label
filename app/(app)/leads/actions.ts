@@ -16,6 +16,7 @@ import { listTenantUserOptions } from "@/lib/tenant/users";
 import { suggestCsvMapping, type CsvFieldMapping } from "@/lib/ai/csv-mapping";
 import { isDuplicateLeadPhoneError, prepareSpreadsheetLeads } from "@/lib/leads/spreadsheet-import";
 import { logAuditEvent } from "@/lib/audit/audit-logger";
+import { getValidAccessToken, listLeadEmails, type GmailMessageSummary } from "@/lib/google/gmail";
 
 const leadSchema = z.object({
   name: z.string().min(1, "Nome obrigatorio"),
@@ -718,4 +719,29 @@ export async function createLeadTag(name: string): Promise<CreateLeadTagResult> 
   revalidatePath("/leads");
   revalidatePath("/chat");
   return { ok: true, tag };
+}
+
+export async function listLeadGmailMessages(
+  leadId: string,
+): Promise<{ ok: true; messages: GmailMessageSummary[] } | { ok: false; error: string }> {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+
+  const { data: lead } = await supabase
+    .from("leads")
+    .select("email")
+    .eq("id", leadId)
+    .eq("tenant_id", ctx.tenantId)
+    .maybeSingle();
+  if (!lead?.email) return { ok: false, error: "Lead sem email cadastrado." };
+
+  const account = await getValidAccessToken(supabase, ctx.tenantId);
+  if (!account) return { ok: false, error: "Nenhuma conta do Gmail conectada." };
+
+  try {
+    const messages = await listLeadEmails(account.accessToken, lead.email);
+    return { ok: true, messages };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
 }

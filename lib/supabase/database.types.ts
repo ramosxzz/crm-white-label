@@ -1,8 +1,3 @@
-// Tipos gerados a partir do schema real do banco (project bwmjtcgfypkqbcthslwr).
-// Para atualizar: peca pra regenerar via ferramenta de tipos do Supabase e
-// reaplicar os aliases hand-written abaixo do Database (nao editar os dois
-// blocos gerados por baixo - eles sao substituidos inteiros na proxima geracao).
-
 export type Json =
   | string
   | number
@@ -1308,6 +1303,94 @@ export type Database = {
           },
         ]
       }
+      google_accounts: {
+        Row: {
+          access_token: string
+          connected_by: string | null
+          created_at: string
+          google_email: string
+          id: string
+          refresh_token: string
+          scope: string
+          tenant_id: string
+          token_expiry: string
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          connected_by?: string | null
+          created_at?: string
+          google_email: string
+          id?: string
+          refresh_token: string
+          scope: string
+          tenant_id: string
+          token_expiry: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          connected_by?: string | null
+          created_at?: string
+          google_email?: string
+          id?: string
+          refresh_token?: string
+          scope?: string
+          tenant_id?: string
+          token_expiry?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_accounts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      idempotency_records: {
+        Row: {
+          created_at: string
+          endpoint: string
+          expires_at: string
+          key: string
+          request_hash: string
+          response_body: Json
+          response_status: number
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          endpoint: string
+          expires_at?: string
+          key: string
+          request_hash: string
+          response_body: Json
+          response_status: number
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          endpoint?: string
+          expires_at?: string
+          key?: string
+          request_hash?: string
+          response_body?: Json
+          response_status?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "idempotency_records_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       instagram_accounts: {
         Row: {
           created_at: string
@@ -1490,7 +1573,7 @@ export type Database = {
           created_by: string | null
           id: string
           name: string
-          normalized_name: string
+          normalized_name: string | null
           tenant_id: string
         }
         Insert: {
@@ -1499,7 +1582,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           name: string
-          normalized_name?: string
+          normalized_name?: string | null
           tenant_id: string
         }
         Update: {
@@ -1508,7 +1591,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           name?: string
-          normalized_name?: string
+          normalized_name?: string | null
           tenant_id?: string
         }
         Relationships: [
@@ -1811,6 +1894,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      meta_data_deletion_requests: {
+        Row: {
+          completed_at: string | null
+          confirmation_code: string
+          external_user_id_hash: string
+          id: string
+          requested_at: string
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          confirmation_code: string
+          external_user_id_hash: string
+          id?: string
+          requested_at?: string
+          status?: string
+        }
+        Update: {
+          completed_at?: string | null
+          confirmation_code?: string
+          external_user_id_hash?: string
+          id?: string
+          requested_at?: string
+          status?: string
+        }
+        Relationships: []
       }
       notifications: {
         Row: {
@@ -3376,6 +3486,56 @@ export type Database = {
           },
         ]
       }
+      tenant_audit_logs: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_id: string | null
+          actor_name: string | null
+          created_at: string
+          id: string
+          ip_address: string | null
+          metadata: Json
+          resource_id: string | null
+          resource_type: string
+          tenant_id: string
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_id?: string | null
+          actor_name?: string | null
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json
+          resource_id?: string | null
+          resource_type: string
+          tenant_id: string
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_id?: string | null
+          actor_name?: string | null
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json
+          resource_id?: string | null
+          resource_type?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_audit_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_members: {
         Row: {
           created_at: string
@@ -3502,7 +3662,7 @@ export type Database = {
           created_at: string
           credentials: Json
           display_name: string | null
-          health_status: "healthy" | "warning" | "offline"
+          health_status: string
           id: string
           is_active: boolean
           last_error_message: string | null
@@ -3520,7 +3680,7 @@ export type Database = {
           created_at?: string
           credentials?: Json
           display_name?: string | null
-          health_status?: "healthy" | "warning" | "offline"
+          health_status?: string
           id?: string
           is_active?: boolean
           last_error_message?: string | null
@@ -3538,7 +3698,7 @@ export type Database = {
           created_at?: string
           credentials?: Json
           display_name?: string | null
-          health_status?: "healthy" | "warning" | "offline"
+          health_status?: string
           id?: string
           is_active?: boolean
           last_error_message?: string | null
@@ -3556,156 +3716,6 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_group_label_assignments: {
-        Row: {
-          created_at: string
-          group_id: string
-          label_id: string
-          tenant_id: string
-        }
-        Insert: {
-          created_at?: string
-          group_id: string
-          label_id: string
-          tenant_id: string
-        }
-        Update: {
-          created_at?: string
-          group_id?: string
-          label_id?: string
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_group_label_assignments_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_groups"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_group_label_assignments_label_id_fkey"
-            columns: ["label_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_group_labels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_group_label_assignments_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_group_labels: {
-        Row: {
-          color: string
-          created_at: string
-          id: string
-          name: string
-          tenant_id: string
-        }
-        Insert: {
-          color?: string
-          created_at?: string
-          id?: string
-          name: string
-          tenant_id: string
-        }
-        Update: {
-          color?: string
-          created_at?: string
-          id?: string
-          name?: string
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_group_labels_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_groups: {
-        Row: {
-          created_at: string
-          description: string | null
-          id: string
-          last_event_at: string | null
-          last_event_type: string | null
-          last_message_at: string | null
-          last_message_body: string | null
-          last_message_direction: string | null
-          owner_jid: string | null
-          participant_count: number | null
-          provider_group_id: string
-          raw_payload: Json
-          subject: string
-          tenant_id: string
-          unread_count: number
-          updated_at: string
-          whatsapp_account_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          last_event_at?: string | null
-          last_event_type?: string | null
-          last_message_at?: string | null
-          last_message_body?: string | null
-          last_message_direction?: string | null
-          owner_jid?: string | null
-          participant_count?: number | null
-          provider_group_id: string
-          raw_payload?: Json
-          subject: string
-          tenant_id: string
-          unread_count?: number
-          updated_at?: string
-          whatsapp_account_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          last_event_at?: string | null
-          last_event_type?: string | null
-          last_message_at?: string | null
-          last_message_body?: string | null
-          last_message_direction?: string | null
-          owner_jid?: string | null
-          participant_count?: number | null
-          provider_group_id?: string
-          raw_payload?: Json
-          subject?: string
-          tenant_id?: string
-          unread_count?: number
-          updated_at?: string
-          whatsapp_account_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_groups_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_groups_whatsapp_account_id_fkey"
-            columns: ["whatsapp_account_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_accounts"
             referencedColumns: ["id"]
           },
         ]
@@ -3757,6 +3767,63 @@ export type Database = {
           },
           {
             foreignKeyName: "whatsapp_webhook_logs_whatsapp_account_id_fkey"
+            columns: ["whatsapp_account_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_webhook_queue: {
+        Row: {
+          created_at: string
+          id: string
+          last_error: string | null
+          max_retries: number
+          payload: Json
+          processed_at: string | null
+          provider: string
+          retry_count: number
+          status: string
+          tenant_id: string | null
+          whatsapp_account_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          max_retries?: number
+          payload: Json
+          processed_at?: string | null
+          provider: string
+          retry_count?: number
+          status?: string
+          tenant_id?: string | null
+          whatsapp_account_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          max_retries?: number
+          payload?: Json
+          processed_at?: string | null
+          provider?: string
+          retry_count?: number
+          status?: string
+          tenant_id?: string | null
+          whatsapp_account_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_webhook_queue_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_webhook_queue_whatsapp_account_id_fkey"
             columns: ["whatsapp_account_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_accounts"
@@ -3871,7 +3938,7 @@ export type Database = {
         Returns: {
           lead_count: number
           quality_stars: number
-          stage_id: string | null
+          stage_id: string
           value_cents_sum: number
         }[]
       }
@@ -3888,6 +3955,7 @@ export type Database = {
           last_body: string
           last_direction: string
           last_message_at: string
+          lead_created_at: string
           lead_custom_fields: Json
           lead_id: string
           lead_name: string
@@ -4121,7 +4189,6 @@ export const Constants = {
   },
 } as const
 
-// ---------------------------------------------------------------------------
 // Aliases de conveniencia. Nomes e formato identicos ao arquivo anterior, pra
 // nenhum import existente quebrar - so a origem do tipo mudou: agora vem do
 // schema real (Database) em vez de interface escrita a mao, sujeita a divergir.
@@ -4244,9 +4311,6 @@ export type PipelineStage = Database["public"]["Tables"]["pipeline_stages"]["Row
 export type Lead = Database["public"]["Tables"]["leads"]["Row"];
 export type LeadActivity = Database["public"]["Tables"]["lead_activities"]["Row"];
 export type WhatsAppAccount = Database["public"]["Tables"]["whatsapp_accounts"]["Row"];
-export type WhatsAppGroup = Database["public"]["Tables"]["whatsapp_groups"]["Row"];
-export type WhatsAppGroupLabel = Database["public"]["Tables"]["whatsapp_group_labels"]["Row"];
-export type WhatsAppGroupLabelAssignment = Database["public"]["Tables"]["whatsapp_group_label_assignments"]["Row"];
 export type ConversationStatus = Database["public"]["Enums"]["conversation_status"];
 export type Conversation = Database["public"]["Tables"]["conversations"]["Row"];
 export type Message = Database["public"]["Tables"]["messages"]["Row"];

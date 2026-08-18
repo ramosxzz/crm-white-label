@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Circle,
   KeyRound,
+  Mail,
 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -21,17 +22,19 @@ export default async function IntegrationsPage() {
   if (!canManageIntegrations(ctx.role)) redirect("/dashboard");
   const supabase = await createClient();
 
-  const [{ data: wppAccounts }, { data: tenant }, { data: igAccount }, { data: apiKeys }] = await Promise.all([
+  const [{ data: wppAccounts }, { data: tenant }, { data: igAccount }, { data: apiKeys }, { data: googleAccount }] = await Promise.all([
     supabase.from("whatsapp_accounts").select("id, is_active").eq("tenant_id", ctx.tenantId).eq("is_active", true).limit(1),
     supabase.from("tenants").select("meta_pixel_id").eq("id", ctx.tenantId).single(),
     supabase.from("instagram_accounts").select("id, is_active").eq("tenant_id", ctx.tenantId).maybeSingle(),
     supabase.from("api_keys").select("id").eq("tenant_id", ctx.tenantId).eq("is_active", true).limit(1),
+    supabase.from("google_accounts").select("id").eq("tenant_id", ctx.tenantId).maybeSingle(),
   ]);
 
   const wppOn = (wppAccounts?.length ?? 0) > 0;
   const metaOn = !!tenant?.meta_pixel_id;
   const igOn = !!igAccount?.is_active;
   const apiOn = (apiKeys?.length ?? 0) > 0;
+  const gmailOn = !!googleAccount;
 
   const items = [
     {
@@ -66,6 +69,17 @@ export default async function IntegrationsPage() {
       status: metaOn,
       gradient: "from-blue-500 to-indigo-600",
       tags: ["Pixel", "Conversions API", "ROAS"],
+    },
+    {
+      key: "gmail",
+      title: "Gmail",
+      description:
+        "Veja os emails trocados com cada lead direto na ficha dele, sem sair do CRM.",
+      icon: Mail,
+      href: "/integrations/gmail",
+      status: gmailOn,
+      gradient: "from-red-500 to-orange-400",
+      tags: ["Leitura", "Leads"],
     },
     {
       key: "api",

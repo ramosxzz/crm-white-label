@@ -33,6 +33,7 @@ import { NotesPanel } from "./notes-panel";
 import { ValuePanel } from "./value-panel";
 import { formatBRTFullDate, formatBRTFullDateTime } from "@/lib/date/brt";
 import { LeadTagsPanel } from "./lead-tags-panel";
+import { LeadEmailsPanel } from "./lead-emails-panel";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -48,7 +49,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
   if (!lead) notFound();
 
-  const [{ data: stages }, { data: files }, { data: activities }, { data: technicalDefinitions }, { data: tasks }, { data: professionals }, { data: services }, { data: valueItems }, { data: tagCatalog }, users] = await Promise.all([
+  const [{ data: stages }, { data: files }, { data: activities }, { data: technicalDefinitions }, { data: tasks }, { data: professionals }, { data: services }, { data: valueItems }, { data: tagCatalog }, users, { data: googleAccount }] = await Promise.all([
     supabase
       .from("pipeline_stages")
       .select("id, name, color")
@@ -102,6 +103,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       .order("normalized_name", { ascending: true })
       .limit(500),
     listTenantUserOptions(ctx.tenantId),
+    supabase.from("google_accounts").select("id").eq("tenant_id", ctx.tenantId).maybeSingle(),
   ]);
 
   const authorIds = Array.from(
@@ -197,6 +199,17 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               </Info>
             </CardContent>
           </Card>
+
+          {lead.email && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Emails</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <LeadEmailsPanel leadId={lead.id} googleConnected={!!googleAccount} />
+              </CardContent>
+            </Card>
+          )}
 
           <TechnicalProfilePanel
             leadId={lead.id}
