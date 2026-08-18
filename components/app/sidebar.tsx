@@ -41,30 +41,31 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
-const navItems = [
+const operationItems = [
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { href: "/funil", label: "Funil", icon: Filter },
-  { href: "/atendimento", label: "Atendimento", icon: Timer },
   { href: "/leads", label: "Leads", icon: Users },
+  { href: "/atendimento", label: "Atendimento", icon: Timer },
   { href: "/tags", label: "Tags", icon: Tags },
   { href: "/kanban", label: "Kanban", icon: KanbanSquare },
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/tarefas", label: "Tarefas", icon: ListChecks },
   { href: "/reunioes", label: "Reuniões", icon: CalendarCheck },
+  { href: "/estoque", label: "Estoque", icon: Boxes },
+];
+
+const communicationItems = [
   { href: "/chat", label: "Conversas", icon: MessageCircle },
   { href: "/emails", label: "Emails", icon: Mail },
   { href: "/mensagens-rapidas", label: "Mensagens rápidas", icon: MessageSquareText },
-  { href: "/estoque", label: "Estoque", icon: Boxes },
-  { href: "/automations", label: "Automacoes", icon: Zap },
-  { href: "/ia-w-mais", label: "IA W+", icon: Bot },
-  { href: "/pesquisa-satisfacao", label: "Pesquisa de Satisfação", icon: Heart },
   { href: "/ligacoes", label: "Ligações", icon: PhoneCall },
+  { href: "/pesquisa-satisfacao", label: "Pesquisa de Satisfação", icon: Heart },
   { href: "/disparos", label: "Disparos", icon: Megaphone },
-  { href: "/os", label: "Ordens de serviço", icon: Wrench },
-  { href: "/financeiro", label: "Financeiro", icon: Wallet },
 ];
 
 const secondaryItems = [
+  { href: "/automations", label: "Automacoes", icon: Zap },
+  { href: "/ia-w-mais", label: "IA W+", icon: Bot },
   { href: "/pipelines", label: "Funis", icon: GitBranch },
   { href: "/integrations", label: "Integracoes", icon: Plug },
   { href: "/settings/users", label: "Usuarios", icon: UserCog },
@@ -120,14 +121,18 @@ export function Sidebar({
   ];
   const visibleOperationItems = osOnlyAccess
     ? []
-    : navItems.filter((item) => {
+    : operationItems.filter((item) => {
         if (isSeller && sellerBlocked.has(item.href)) return false;
         if (item.href === "/estoque") return stockEnabled;
+        return true;
+      });
+  const visibleCommunicationItems = osOnlyAccess
+    ? []
+    : communicationItems.filter((item) => {
+        if (isSeller && sellerBlocked.has(item.href)) return false;
         if (item.href === "/pesquisa-satisfacao") return satisfactionSurveyEnabled;
         if (item.href === "/ligacoes") return callsDashboardEnabled;
         if (item.href === "/disparos") return broadcastEnabled;
-        // O modulo de campo possui uma categoria propria logo abaixo.
-        if (item.href === "/os" || item.href === "/financeiro") return false;
         return true;
       });
   const visibleFieldServiceItems = (osOnlyAccess || fieldServiceEnabled)
@@ -175,6 +180,14 @@ export function Sidebar({
             items={visibleOperationItems}
             pathname={pathname}
             defaultOpen
+          />
+        )}
+        {visibleCommunicationItems.length > 0 && (
+          <NavGroup
+            label="Comunicação"
+            icon={MessageCircle}
+            items={visibleCommunicationItems}
+            pathname={pathname}
           />
         )}
         {visibleFieldServiceItems.length > 0 && (
