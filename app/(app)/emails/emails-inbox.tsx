@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, RefreshCw, Send, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +12,49 @@ import type { InboxThreadSummary, GmailFullMessage } from "@/lib/google/gmail";
 function extractEmailAddress(from: string): string {
   const match = from.match(/<([^>]+)>/);
   return match ? match[1] : from;
+}
+
+const EMAIL_FRAME_STYLES = `
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #1f2937;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+  @media (prefers-color-scheme: dark) { body { color: #e5e7eb; } }
+  img { max-width: 100%; height: auto; }
+  a { color: #2563eb; }
+  table { max-width: 100%; }
+  blockquote { margin: 0.5em 0; padding-left: 0.75em; border-left: 2px solid #d1d5db; color: #6b7280; }
+  pre { white-space: pre-wrap; }
+`;
+
+/** Renderiza o HTML do email num iframe sandboxed - email de terceiro pode
+ * trazer script/estilo hostil, nunca injeta direto na pagina (dangerouslySetInnerHTML). */
+function EmailBodyFrame({ html }: { html: string }) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [height, setHeight] = useState(80);
+
+  function resize() {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc?.body) return;
+    setHeight(doc.body.scrollHeight + 16);
+  }
+
+  return (
+    <iframe
+      ref={iframeRef}
+      title="Conteudo do email"
+      sandbox="allow-same-origin allow-popups"
+      srcDoc={`<!doctype html><html><head><meta charset="utf-8"><style>${EMAIL_FRAME_STYLES}</style><base target="_blank"></head><body>${html}</body></html>`}
+      onLoad={resize}
+      style={{ width: "100%", height, border: "none", display: "block" }}
+    />
+  );
 }
 
 export function EmailsInbox({ accountEmail }: { accountEmail: string }) {
@@ -160,7 +203,7 @@ export function EmailsInbox({ accountEmail }: { accountEmail: string }) {
                       {msg.date ? new Date(msg.date).toLocaleString("pt-BR") : ""}
                     </span>
                   </div>
-                  <p className="whitespace-pre-wrap text-sm text-foreground">{msg.bodyText || "(sem conteudo)"}</p>
+                  <EmailBodyFrame html={msg.bodyHtml} />
                 </div>
               ))}
             </div>

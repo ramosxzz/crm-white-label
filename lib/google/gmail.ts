@@ -145,49 +145,114 @@ export interface GmailFullMessage {
   to: string;
   subject: string;
   date: string;
-  bodyText: string;
+  bodyHtml: string;
 }
 
 function decodeBase64Url(data: string): string {
   return Buffer.from(data.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf-8");
 }
 
-function extractPlainTextBody(payload: any): string {
-  if (payload.mimeType === "text/plain" && payload.body?.data) {
-    return decodeBase64Url(payload.body.data);
-  }
-  if (payload.parts) {
-    for (const part of payload.parts) {
-      const text = extractPlainTextBody(part);
-      if (text) return text;
-    }
-  }
-  if (payload.mimeType === "text/html" && payload.body?.data) {
-    return decodeBase64Url(payload.body.data).replace(/<[^>]+>/g, " ");
-  }
-  return "";
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
-/** Busca todas as mensagens de uma thread, com corpo em texto plano. */
+type GmailPart = {
+  mimeType?: string;
+  body?: { data?: string; attachmentId?: string };
+  headers?: { name: string; value: string }[];
+  parts?: GmailPart[];
+};
+
+function findPartByMimeType(payload: GmailPart, mimeType: string): GmailPart | null {
+  if (payload.mimeType === mimeType && payload.body?.data) return payload;
+  for (const part of payload.parts ?? []) {
+    const found = findPartByMimeType(part, mimeType);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** Acha partes inline (imagens referenciadas no HTML via cid:) em qualquer nivel da arvore. */
+function collectInlineImageParts(payload: GmailPart): { contentId: string; attachmentId: string; mimeType: string }[] {
+  const found: { contentId: string; attachmentId: string; mimeType: string }[] = [];
+  const contentId = headerValue(payload.headers ?? [], "Content-ID").replace(/^<|>$/g, "");
+  if (contentId && payload.body?.attachmentId && payload.mimeType?.startsWith("image/")) {
+    found.push({ contentId, attachmentId: payload.body.attachmentId, mimeType: payload.mimeType });
+  }
+  for (const part of payload.parts ?? []) {
+    found.push(...collectInlineImageParts(part));
+  }
+  return found;
+}
+
+async function fetchAttachmentDataUri(
+  accessToken: string,
+  messageId: string,
+  attachmentId: string,
+  mimeType: string,
+): Promise<string | null> {
+  const res = await fetch(`${GMAIL_API}/messages/${messageId}/attachments/${attachmentId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return null;
+  const { data } = (await res.json()) as { data?: string };
+  if (!data) return null;
+  const standardBase64 = data.replace(/-/g, "+").replace(/_/g, "/");
+  return `data:${mimeType};base64,${standardBase64}`;
+}
+
+/** Monta o corpo em HTML da mensagem, com imagens inline (cid:) resolvidas pra data URI. */
+async function buildMessageHtml(accessToken: string, messageId: string, payload: GmailPart): Promise<string> {
+  const htmlPart = findPartByMimeType(payload, "text/html");
+  if (htmlPart?.body?.data) {
+    let html = decodeBase64Url(htmlPart.body.data);
+    const inlineImages = collectInlineImageParts(payload);
+    if (inlineImages.length > 0) {
+      const resolved = await Promise.all(
+        inlineImages.map(async (img) => ({
+          contentId: img.contentId,
+          dataUri: await fetchAttachmentDataUri(accessToken, messageId, img.attachmentId, img.mimeType),
+        })),
+      );
+      for (const img of resolved) {
+        if (!img.dataUri) continue;
+        html = html.split(`cid:${img.contentId}`).join(img.dataUri);
+      }
+    }
+    return html;
+  }
+
+  const plainPart = findPartByMimeType(payload, "text/plain");
+  const plainText = plainPart?.body?.data ? decodeBase64Url(plainPart.body.data) : "";
+  return `<pre style="font-family:inherit;white-space:pre-wrap;margin:0">${escapeHtml(plainText.trim())}</pre>`;
+}
+
+/** Busca todas as mensagens de uma thread, com corpo em HTML (imagens inline resolvidas). */
 export async function getGmailThread(accessToken: string, threadId: string): Promise<GmailFullMessage[]> {
   const res = await fetch(`${GMAIL_API}/threads/${threadId}?format=full`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!res.ok) throw new Error(`Falha ao abrir thread: ${await res.text()}`);
   const data = await res.json();
-  const messages = (data.messages ?? []) as any[];
+  const messages = (data.messages ?? []) as { id: string; payload: GmailPart }[];
 
-  return messages.map((msg) => {
-    const headers = (msg.payload?.headers ?? []) as { name: string; value: string }[];
-    return {
-      id: msg.id as string,
-      from: headerValue(headers, "From"),
-      to: headerValue(headers, "To"),
-      subject: headerValue(headers, "Subject"),
-      date: headerValue(headers, "Date"),
-      bodyText: extractPlainTextBody(msg.payload).trim(),
-    };
-  });
+  return Promise.all(
+    messages.map(async (msg) => {
+      const headers = msg.payload?.headers ?? [];
+      return {
+        id: msg.id,
+        from: headerValue(headers, "From"),
+        to: headerValue(headers, "To"),
+        subject: headerValue(headers, "Subject"),
+        date: headerValue(headers, "Date"),
+        bodyHtml: await buildMessageHtml(accessToken, msg.id, msg.payload),
+      };
+    }),
+  );
 }
 
 function encodeBase64Url(str: string): string {
