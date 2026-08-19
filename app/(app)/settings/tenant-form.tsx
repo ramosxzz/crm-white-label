@@ -2,8 +2,9 @@
 
 import { notify, notifyError, confirmDialog } from "@/lib/ui/feedback";
 import { useState, useTransition } from "react";
-import { Boxes, Loader2, Upload, Trash2, Sparkles, Palette, PhoneCall, Megaphone, Wrench } from "lucide-react";
+import { Boxes, Loader2, Upload, Trash2, Sparkles, Palette, PhoneCall, Megaphone, Wrench, Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -88,8 +89,10 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
   const [stockEnabled, setStockEnabled] = useState(tenant.stock_enabled);
   const [stockDeductOnWon, setStockDeductOnWon] = useState(tenant.stock_deduct_on_won);
   const [callsEnabled, setCallsEnabled] = useState(tenant.calls_dashboard_enabled);
-  const [broadcastEnabled, setBroadcastEnabled] = useState(tenant.broadcast_enabled);
-  const [fieldServiceEnabled, setFieldServiceEnabled] = useState(tenant.field_service_enabled);
+  // Modulos pagos (disparo, ERP W+): so exibidos, nunca editaveis por aqui -
+  // ativa/desativa direto no banco, senao qualquer admin liga sozinho.
+  const broadcastEnabled = tenant.broadcast_enabled;
+  const fieldServiceEnabled = tenant.field_service_enabled;
   const [fieldServiceBase, setFieldServiceBase] = useState(tenant.field_service_base_address ?? "");
   const [pending, start] = useTransition();
   const [uploading, setUploading] = useState(false);
@@ -113,8 +116,6 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
           stock_enabled: stockEnabled,
           stock_deduct_on_won: stockDeductOnWon,
           calls_dashboard_enabled: callsEnabled,
-          broadcast_enabled: broadcastEnabled,
-          field_service_enabled: fieldServiceEnabled,
           field_service_base_address: fieldServiceBase,
         });
         setMsg("Salvo com sucesso — o tema do CRM foi atualizado.");
@@ -401,7 +402,7 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
               <Megaphone className="h-4 w-4" />
             </span>
             <div>
-              <Label htmlFor="broadcast-enabled" className="text-sm font-semibold">
+              <Label className="text-sm font-semibold">
                 Modulo de disparo
               </Label>
               <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
@@ -410,13 +411,18 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
               </p>
             </div>
           </div>
-          <FeatureToggle
-            id="broadcast-enabled"
-            checked={broadcastEnabled}
-            onChange={setBroadcastEnabled}
-            disabled={!canEdit}
-          />
+          <div className="flex items-center gap-2 shrink-0">
+            <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", broadcastEnabled ? "bg-brand/15 text-brand" : "bg-muted text-muted-foreground")}>
+              {broadcastEnabled ? "Ativo" : "Nao contratado"}
+            </span>
+            <span title="Modulo pago - fale com o suporte pra contratar" className="text-muted-foreground">
+              <Lock className="h-3.5 w-3.5" />
+            </span>
+          </div>
         </div>
+        <p className="mt-3 text-[11px] text-muted-foreground">
+          Modulo pago. Fale com o suporte pra contratar ou alterar.
+        </p>
       </div>
 
       <div className="rounded-xl border border-border/70 bg-card p-4">
@@ -426,7 +432,7 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
               <Wrench className="h-4 w-4" />
             </span>
             <div>
-              <Label htmlFor="field-service-enabled" className="text-sm font-semibold">
+              <Label className="text-sm font-semibold">
                 ERP W+
               </Label>
               <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
@@ -436,13 +442,18 @@ export function TenantForm({ tenant, role }: { tenant: Tenant; role: MemberRole 
               </p>
             </div>
           </div>
-          <FeatureToggle
-            id="field-service-enabled"
-            checked={fieldServiceEnabled}
-            onChange={setFieldServiceEnabled}
-            disabled={!canEdit}
-          />
+          <div className="flex items-center gap-2 shrink-0">
+            <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", fieldServiceEnabled ? "bg-brand/15 text-brand" : "bg-muted text-muted-foreground")}>
+              {fieldServiceEnabled ? "Ativo" : "Nao contratado"}
+            </span>
+            <span title="Modulo pago - fale com o suporte pra contratar" className="text-muted-foreground">
+              <Lock className="h-3.5 w-3.5" />
+            </span>
+          </div>
         </div>
+        <p className="mt-3 text-[11px] text-muted-foreground">
+          Modulo pago. Fale com o suporte pra contratar ou alterar.
+        </p>
 
         {fieldServiceEnabled && (
           <div className="mt-4 space-y-1.5 border-t border-border/50 pt-4">

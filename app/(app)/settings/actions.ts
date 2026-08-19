@@ -14,8 +14,6 @@ export async function updateTenantInfo(input: {
   stock_enabled?: boolean;
   stock_deduct_on_won?: boolean;
   calls_dashboard_enabled?: boolean;
-  broadcast_enabled?: boolean;
-  field_service_enabled?: boolean;
   field_service_base_address?: string;
 }) {
   const ctx = await requireContext();
@@ -26,6 +24,9 @@ export async function updateTenantInfo(input: {
   const baseAddress = input.field_service_base_address?.trim() || null;
   const baseChanged = baseAddress !== (ctx.tenant.field_service_base_address ?? null);
 
+  // broadcast_enabled e field_service_enabled (ERP W+) sao modulos pagos -
+  // de proposito NAO aparecem aqui. So o Ramos ativa via SQL direto, senao
+  // qualquer admin de tenant liga sozinho um modulo que ninguem contratou.
   const { error } = await supabase
     .from("tenants")
     .update({
@@ -38,8 +39,6 @@ export async function updateTenantInfo(input: {
       stock_enabled: input.stock_enabled ?? true,
       stock_deduct_on_won: input.stock_deduct_on_won ?? false,
       calls_dashboard_enabled: input.calls_dashboard_enabled ?? false,
-      broadcast_enabled: input.broadcast_enabled ?? false,
-      field_service_enabled: input.field_service_enabled ?? false,
       field_service_base_address: baseAddress,
       ...(baseChanged ? { field_service_base_lat: null, field_service_base_lng: null } : {}),
     })
