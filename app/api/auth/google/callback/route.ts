@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { exchangeGoogleCode, fetchGoogleUserEmail } from "@/lib/google/oauth";
+import { encryptSecret } from "@/lib/crypto/secret-box";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!;
 
@@ -40,8 +41,8 @@ export async function GET(req: NextRequest) {
         tenant_id: ctx.tenantId,
         connected_by: ctx.userId,
         google_email: googleEmail,
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
+        access_token: encryptSecret(tokens.access_token),
+        refresh_token: encryptSecret(tokens.refresh_token),
         token_expiry: tokenExpiry,
         scope: tokens.scope,
         updated_at: new Date().toISOString(),

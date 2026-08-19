@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { refreshGoogleToken } from "./oauth";
+import { encryptSecret, decryptSecret } from "@/lib/crypto/secret-box";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 
@@ -26,14 +27,18 @@ export async function getValidAccessToken(
   const row = account as GoogleAccountRow;
   const expiresInMs = new Date(row.token_expiry).getTime() - Date.now();
   if (expiresInMs > 60_000) {
-    return { accessToken: row.access_token, googleEmail: row.google_email };
+    return { accessToken: decryptSecret(row.access_token), googleEmail: row.google_email };
   }
 
-  const refreshed = await refreshGoogleToken(row.refresh_token);
+  const refreshed = await refreshGoogleToken(decryptSecret(row.refresh_token));
   const tokenExpiry = new Date(Date.now() + refreshed.expires_in * 1000).toISOString();
   await supabase
     .from("google_accounts")
-    .update({ access_token: refreshed.access_token, token_expiry: tokenExpiry, updated_at: new Date().toISOString() })
+    .update({
+      access_token: encryptSecret(refreshed.access_token),
+      token_expiry: tokenExpiry,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", row.id);
 
   return { accessToken: refreshed.access_token, googleEmail: row.google_email };

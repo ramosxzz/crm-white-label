@@ -45,6 +45,14 @@ jobs:
 
       - run: npm test
 
+      # Falha o build so em vulnerabilidade critica (ja temos 3 "high" hoje,
+      # herdadas do proprio Next.js/sharp, que so fecham com upgrade major -
+      # travar nisso agora so trava todo deploy sem ninguem poder mergear).
+      - name: Audit de dependencias (critico bloqueia, alto so avisa)
+        run: |
+          npm audit --audit-level=critical
+          npm audit --audit-level=high || echo "::warning::npm audit encontrou vulnerabilidades 'high' - ver 'npm audit' localmente."
+
   deploy:
     needs: build-and-test
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')

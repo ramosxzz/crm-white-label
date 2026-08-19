@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { mapSignupError } from "@/lib/auth/signup-errors";
 import { LoginShowcase } from "@/components/auth/login-showcase";
+import { TurnstileWidget } from "@/components/auth/turnstile-widget";
+import { checkLoginRateLimit } from "./actions";
 
 function withTimeout<T>(promise: Promise<T>, ms: number) {
   return Promise.race([
@@ -25,6 +27,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   function fillDemoCredentials() {
     setEmail("demo@solairew.com");
     setPassword("12345678");
@@ -35,6 +38,19 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    const rateLimit = await checkLoginRateLimit(email, turnstileToken);
+    if (!rateLimit.allowed) {
+      setLoading(false);
+      if (rateLimit.captchaFailed) {
+        setError("Verificação de segurança falhou. Recarregue a página e tente de novo.");
+      } else {
+        const minutes = Math.ceil(rateLimit.retryAfter / 60);
+        setError(`Muitas tentativas. Aguarde ${minutes} minuto${minutes === 1 ? "" : "s"} antes de tentar de novo.`);
+      }
+      return;
+    }
+
     const supabase = createClient();
     try {
       const { error } = await withTimeout(
@@ -99,6 +115,7 @@ export default function LoginPage() {
             {error}
           </div>
         )}
+        <TurnstileWidget onVerify={setTurnstileToken} />
         <Button type="submit" size="lg" className="w-full bg-white text-[#05070c] hover:bg-cyan-50" disabled={loading || redirecting}>
           {loading || redirecting ? (
             <>
