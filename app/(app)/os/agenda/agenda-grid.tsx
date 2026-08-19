@@ -248,7 +248,7 @@ function TechnicianColumn({
       {Array.from({ length: AGENDA_END_HOUR - AGENDA_START_HOUR }).map((_, i) => (
         <div
           key={i}
-          className="absolute inset-x-0 border-t border-border/30"
+          className="absolute inset-x-0 border-t border-slate-300 dark:border-border/30"
           style={{ top: i * 60 * AGENDA_PX_PER_MINUTE }}
         />
       ))}
