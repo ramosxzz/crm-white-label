@@ -71,14 +71,18 @@ export function agendaCardTone(order: {
   return "amarelo";
 }
 
+// Paleta pastel (fundo solido claro + texto escuro, nao so opacidade baixa
+// sobre fundo escuro): esta agenda e usada por uma administradora que pediu
+// cores mais suaves e de facil leitura, nao o tom vibrante/baixo-contraste
+// de antes.
 export const AGENDA_TONE_CLASSES: Record<AgendaCardTone, { border: string; bg: string; text: string }> = {
-  amarelo: { border: "border-amber-400/60", bg: "bg-amber-400/10", text: "text-amber-700 dark:text-amber-300" },
-  azul: { border: "border-blue-400/60", bg: "bg-blue-400/10", text: "text-blue-700 dark:text-blue-300" },
-  roxo: { border: "border-violet-400/60", bg: "bg-violet-400/10", text: "text-violet-700 dark:text-violet-300" },
-  verde: { border: "border-emerald-400/60", bg: "bg-emerald-400/10", text: "text-emerald-700 dark:text-emerald-300" },
-  laranja: { border: "border-orange-400/60", bg: "bg-orange-400/10", text: "text-orange-700 dark:text-orange-300" },
-  vermelho: { border: "border-red-500/70", bg: "bg-red-500/10", text: "text-red-700 dark:text-red-300" },
-  cinza: { border: "border-border", bg: "bg-muted/40", text: "text-muted-foreground" },
+  amarelo: { border: "border-amber-300", bg: "bg-amber-100", text: "text-amber-800" },
+  azul: { border: "border-blue-300", bg: "bg-blue-100", text: "text-blue-800" },
+  roxo: { border: "border-violet-300", bg: "bg-violet-100", text: "text-violet-800" },
+  verde: { border: "border-emerald-300", bg: "bg-emerald-100", text: "text-emerald-800" },
+  laranja: { border: "border-orange-300", bg: "bg-orange-100", text: "text-orange-800" },
+  vermelho: { border: "border-rose-300", bg: "bg-rose-100", text: "text-rose-800" },
+  cinza: { border: "border-slate-300", bg: "bg-slate-100", text: "text-slate-600" },
 };
 
 export const AGENDA_TONE_LABEL: Record<AgendaCardTone, string> = {

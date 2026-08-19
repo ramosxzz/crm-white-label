@@ -13,6 +13,7 @@ import { canReviewServiceOrder } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { WhatsAppHealthBannerAsync } from "@/components/app/whatsapp-health-banner-async";
 import { PaymentOverdueBanner } from "@/components/app/payment-overdue-banner";
+import { ForceLightTheme } from "@/components/app/force-light-theme";
 import { TopNavigationProgress } from "@/components/ui/top-navigation-progress";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -60,6 +61,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </Suspense>
       <TenantTheme brandColor={ctx.userEmail === "demo@solairew.com" ? "#2563EB" : ctx.tenant.brand_color} />
       <TenantPageTitle tenantName={ctx.tenant.name} />
+      {ctx.osOnlyAccess && <ForceLightTheme />}
       <MobileMenuProvider>
         <div className="flex h-[100dvh] overflow-hidden">
           <Sidebar
