@@ -3570,6 +3570,8 @@ export type Database = {
       }
       tenants: {
         Row: {
+          asaas_customer_id: string | null
+          asaas_subscription_id: string | null
           brand_color: string | null
           broadcast_enabled: boolean
           calls_dashboard_enabled: boolean
@@ -3596,10 +3598,13 @@ export type Database = {
           slug: string
           stock_deduct_on_won: boolean
           stock_enabled: boolean
+          subscription_price_cents: number | null
           tagline: string | null
           website: string | null
         }
         Insert: {
+          asaas_customer_id?: string | null
+          asaas_subscription_id?: string | null
           brand_color?: string | null
           broadcast_enabled?: boolean
           calls_dashboard_enabled?: boolean
@@ -3626,10 +3631,13 @@ export type Database = {
           slug: string
           stock_deduct_on_won?: boolean
           stock_enabled?: boolean
+          subscription_price_cents?: number | null
           tagline?: string | null
           website?: string | null
         }
         Update: {
+          asaas_customer_id?: string | null
+          asaas_subscription_id?: string | null
           brand_color?: string | null
           broadcast_enabled?: boolean
           calls_dashboard_enabled?: boolean
@@ -3656,6 +3664,7 @@ export type Database = {
           slug?: string
           stock_deduct_on_won?: boolean
           stock_enabled?: boolean
+          subscription_price_cents?: number | null
           tagline?: string | null
           website?: string | null
         }
