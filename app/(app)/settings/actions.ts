@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireContext } from "@/lib/tenant";
+import { requireContext, invalidateContextCache } from "@/lib/tenant";
 
 export async function updateTenantInfo(input: {
   name: string;
@@ -44,6 +44,10 @@ export async function updateTenantInfo(input: {
     })
     .eq("id", ctx.tenantId);
   if (error) throw new Error(error.message);
+  // getCurrentContext cacheia o tenant (cor da marca, etc) por 20s em memoria
+  // - sem isso, salvar aqui nao aparecia em lugar nenhum ate o cache expirar
+  // sozinho, parecendo que a troca de cor nao funciona.
+  invalidateContextCache(ctx.userId);
   revalidatePath("/", "layout");
   revalidatePath("/dashboard");
   revalidatePath("/estoque");
@@ -68,6 +72,7 @@ export async function persistTenantLogoUrl(publicUrl: string, brandColor?: strin
   if (brandColor?.trim()) patch.brand_color = brandColor.trim();
   const { error } = await supabase.from("tenants").update(patch).eq("id", ctx.tenantId);
   if (error) throw new Error(error.message);
+  invalidateContextCache(ctx.userId);
   revalidatePath("/", "layout");
 }
 
@@ -75,6 +80,7 @@ export async function removeTenantLogo() {
   const ctx = await requireContext();
   const supabase = await createClient();
   await supabase.from("tenants").update({ logo_url: null }).eq("id", ctx.tenantId);
+  invalidateContextCache(ctx.userId);
   revalidatePath("/", "layout");
 }
 
