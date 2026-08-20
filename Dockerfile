@@ -34,7 +34,11 @@ ENV HOSTNAME=0.0.0.0
 # saia 3h adiantada pra quem esta no Brasil - bug real reportado pelo
 # Rio Grande do Sul em agendamentos de mensagem/ligacao.
 ENV TZ=America/Sao_Paulo
-RUN apk add --no-cache tzdata
+# ffmpeg: converte audio gravado no navegador (webm/opus) pra ogg/opus antes
+# de mandar como nota de voz - sem isso o WhatsApp mostra duracao errada ou
+# nem toca o audio (Baileys/Evolution exige Opus dentro de container OGG de
+# verdade pra PTT, webm tem cabecalho de duracao diferente).
+RUN apk add --no-cache tzdata ffmpeg
 
 RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs

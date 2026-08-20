@@ -6,6 +6,7 @@ import type { WhatsAppAccount, Database } from "@/lib/supabase/database.types";
 import type { ChatMessage } from "@/lib/chat/types";
 import { fireAutomationTrigger } from "@/lib/automations/trigger";
 import { providerErrorMessage } from "@/lib/chat/send-message-core";
+import { convertToOggOpus } from "@/lib/media/transcode-audio";
 
 export type SendChatMediaInput = {
   tenantId: string;
@@ -21,15 +22,67 @@ export type SendChatMediaInput = {
 };
 
 /**
+ * Audio gravado no navegador chega como webm/opus (Chrome nao grava em ogg
+ * nativo). O WhatsApp (Baileys/Evolution) so acerta a duracao e o player de
+ * nota de voz quando o audio e Opus dentro de um container OGG de verdade -
+ * webm tem outro layout de metadata e o WhatsApp mostra duracao errada
+ * (ex: audio de 10s aparece como 2:00) ou nem toca. Reconverte aqui antes
+ * de mandar, e ja fica um .ogg valido salvo pra proxima vez que abrir.
+ */
+async function ensureOggAudio(
+  supabase: SupabaseClient<Database>,
+  input: { tenantId: string; leadId: string; mediaUrl: string; mimeType?: string },
+): Promise<{ mediaUrl: string; mimeType: string }> {
+  const mime = (input.mimeType ?? "").toLowerCase();
+  const alreadyOgg = mime.includes("ogg") || input.mediaUrl.toLowerCase().endsWith(".ogg");
+  if (alreadyOgg) return { mediaUrl: input.mediaUrl, mimeType: input.mimeType ?? "audio/ogg; codecs=opus" };
+
+  try {
+    const res = await fetch(input.mediaUrl);
+    if (!res.ok) throw new Error(`Falha ao baixar audio original (${res.status})`);
+    const original = Buffer.from(await res.arrayBuffer());
+    const converted = await convertToOggOpus(original);
+
+    const path = `${input.tenantId}/${input.leadId}/${crypto.randomUUID()}-audio.ogg`;
+    const { error: upErr } = await supabase.storage.from("chat-media").upload(path, converted, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: "audio/ogg; codecs=opus",
+    });
+    if (upErr) throw new Error(upErr.message);
+    const { data: pub } = supabase.storage.from("chat-media").getPublicUrl(path);
+    return { mediaUrl: pub.publicUrl, mimeType: "audio/ogg; codecs=opus" };
+  } catch (err) {
+    // Sem ffmpeg/conversao no ar por algum motivo: manda o original mesmo
+    // (webm), melhor arriscar duracao errada do que nao mandar nada.
+    console.error("[chat] falha ao converter audio pra ogg, mandando original", err);
+    return { mediaUrl: input.mediaUrl, mimeType: input.mimeType ?? "audio/webm" };
+  }
+}
+
+/**
  * Nucleo do envio de midia WhatsApp, sem depender de sessao de usuario -
  * usado pela Server Action do chat (app/(app)/chat/actions.ts) e pelo
  * dispatcher de disparo em massa (lib/disparos/dispatcher.ts).
  */
 export async function sendChatMediaCore(
   supabase: SupabaseClient<Database>,
-  input: SendChatMediaInput,
+  rawInput: SendChatMediaInput,
 ): Promise<{ conversationId: string; message: ChatMessage }> {
-  if (!input.mediaUrl) throw new Error("Mídia ausente");
+  if (!rawInput.mediaUrl) throw new Error("Mídia ausente");
+
+  const input =
+    rawInput.mediaKind === "audio"
+      ? {
+          ...rawInput,
+          ...(await ensureOggAudio(supabase, {
+            tenantId: rawInput.tenantId,
+            leadId: rawInput.leadId,
+            mediaUrl: rawInput.mediaUrl,
+            mimeType: rawInput.mimeType,
+          })),
+        }
+      : rawInput;
 
   const { data: lead } = await supabase
     .from("leads")
