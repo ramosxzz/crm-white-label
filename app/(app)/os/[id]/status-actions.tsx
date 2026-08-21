@@ -7,14 +7,12 @@ import {
   SERVICE_ORDER_STATUS_LABEL,
   nextServiceOrderStatuses,
 } from "@/lib/field-service/status";
-import { COMMISSION_PARTY_LABEL } from "@/lib/field-service/commissions";
-import { formatCurrencyBRL } from "@/lib/utils";
-import type { ServiceOrderStatus } from "@/lib/supabase/database.types";
+import type { ServiceCatalogItem, ServiceOrderItem, ServiceOrderStatus } from "@/lib/supabase/database.types";
 import {
   cancelServiceOrderClosure,
-  previewServiceOrderCommissions,
   transitionServiceOrder,
 } from "../actions";
+import { FaturamentoModal } from "./faturamento-modal";
 
 // O que cada papel pode disparar. A action valida de novo no servidor - isso
 // aqui e so pra nao mostrar botao que vai dar erro.
@@ -24,6 +22,8 @@ const ALLOWED_BY_ROLE: Record<string, ServiceOrderStatus[]> = {
   technician: ["em_execucao", "concluida"],
 };
 
+type Checklist = { answers: unknown; observations: string | null } | null;
+
 export function StatusActions({
   serviceOrderId,
   status,
@@ -31,6 +31,16 @@ export function StatusActions({
   canReview,
   canReopen,
   isTechnician,
+  leadName,
+  leadPhone,
+  leadEmail,
+  checklist,
+  items,
+  catalogItems,
+  travelFeeCents,
+  canEditItems,
+  canApproveDiscount,
+  canDeleteItems,
 }: {
   serviceOrderId: string;
   status: ServiceOrderStatus;
@@ -38,6 +48,16 @@ export function StatusActions({
   canReview: boolean;
   canReopen: boolean;
   isTechnician: boolean;
+  leadName: string;
+  leadPhone: string | null;
+  leadEmail: string | null;
+  checklist: Checklist;
+  items: ServiceOrderItem[];
+  catalogItems: ServiceCatalogItem[];
+  travelFeeCents: number;
+  canEditItems: boolean;
+  canApproveDiscount: boolean;
+  canDeleteItems: boolean;
 }) {
   const [pending, start] = useTransition();
 
@@ -94,35 +114,6 @@ export function StatusActions({
       if (!confirmed) return;
     }
 
-    if (to === "faturada") {
-      // Mostra pra quem vai o dinheiro ANTES de gerar - faturar sem essa
-      // tela foi como uma comissao saiu sem ninguem esperar.
-      let lines: Awaited<ReturnType<typeof previewServiceOrderCommissions>> = [];
-      try {
-        lines = await previewServiceOrderCommissions(serviceOrderId);
-      } catch (error) {
-        notifyError(error, "Não foi possível calcular as comissões");
-        return;
-      }
-
-      const description =
-        lines.length === 0
-          ? "Nenhuma comissão será gerada nesta OS."
-          : lines
-              .map(
-                (l) =>
-                  `${COMMISSION_PARTY_LABEL[l.partyKind]}${l.partnerName ? ` (${l.partnerName})` : ""}: ${formatCurrencyBRL(l.amountCents)}`,
-              )
-              .join("\n");
-
-      const confirmed = await confirmDialog({
-        title: "Faturar esta OS?",
-        description,
-        confirmLabel: "Faturar",
-      });
-      if (!confirmed) return;
-    }
-
     start(async () => {
       try {
         await transitionServiceOrder({ id: serviceOrderId, to, reason });
@@ -157,18 +148,36 @@ export function StatusActions({
 
   return (
     <div className="flex flex-wrap gap-2">
-      {options.map((next) => (
-        <Button
-          key={next}
-          type="button"
-          size="sm"
-          variant={next === "cancelada" ? "outline" : "brand"}
-          disabled={pending}
-          onClick={() => move(next)}
-        >
-          {SERVICE_ORDER_STATUS_LABEL[next]}
-        </Button>
-      ))}
+      {options.map((next) =>
+        next === "faturada" ? (
+          <FaturamentoModal
+            key={next}
+            serviceOrderId={serviceOrderId}
+            leadName={leadName}
+            leadPhone={leadPhone}
+            leadEmail={leadEmail}
+            checklist={checklist}
+            items={items}
+            catalogItems={catalogItems}
+            travelFeeCents={travelFeeCents}
+            canEditItems={canEditItems}
+            canApprove={canReview}
+            canApproveDiscount={canApproveDiscount}
+            canDelete={canDeleteItems}
+          />
+        ) : (
+          <Button
+            key={next}
+            type="button"
+            size="sm"
+            variant={next === "cancelada" ? "outline" : "brand"}
+            disabled={pending}
+            onClick={() => move(next)}
+          >
+            {SERVICE_ORDER_STATUS_LABEL[next]}
+          </Button>
+        ),
+      )}
       {canCancelClosure && (
         <Button
           type="button"

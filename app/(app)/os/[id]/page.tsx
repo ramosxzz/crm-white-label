@@ -159,6 +159,30 @@ export default async function ServiceOrderDetailPage({
       .order("contact_date", { ascending: true }),
   ]);
 
+  // Reaplicacao: cliente voltando depois de meses. Mostra resumo + laudo do
+  // pedido anterior aqui mesmo, sem precisar clicar pra ir na OS antiga.
+  const { data: originOrder } = order.origin_service_order_id
+    ? await supabase
+        .from("service_orders")
+        .select("id, code_seq, service_date, total_cents")
+        .eq("id", order.origin_service_order_id)
+        .maybeSingle()
+    : { data: null };
+  const [{ data: originItems }, { data: originChecklist }] = order.origin_service_order_id
+    ? await Promise.all([
+        supabase
+          .from("service_order_items")
+          .select("description, quantity, amount_cents")
+          .eq("service_order_id", order.origin_service_order_id)
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("service_order_checklists")
+          .select("answers, observations")
+          .eq("service_order_id", order.origin_service_order_id)
+          .maybeSingle(),
+      ])
+    : [{ data: null }, { data: null }];
+
   const canManage = canManageServiceOrders(ctx.role);
   const canReview = canReviewServiceOrder(ctx.role);
   const canReopen = canReopenServiceOrder(ctx.role);
@@ -245,6 +269,16 @@ export default async function ServiceOrderDetailPage({
               canReview={canReview}
               canReopen={canReopen}
               isTechnician={isTech}
+              leadName={order.leads?.name ?? "Lead removido"}
+              leadPhone={order.leads?.phone ?? null}
+              leadEmail={order.leads?.email ?? null}
+              checklist={checklist as { answers: unknown; observations: string | null } | null}
+              items={(items ?? []) as ServiceOrderItem[]}
+              catalogItems={(catalogItems ?? []) as ServiceCatalogItem[]}
+              travelFeeCents={order.travel_fee_cents ?? 0}
+              canEditItems={!locked && canPriceItems}
+              canApproveDiscount={canApproveDiscount}
+              canDeleteItems={canManage && !locked}
             />
           </div>
         }
@@ -461,13 +495,56 @@ export default async function ServiceOrderDetailPage({
           {(order.origin_service_order_id || (relatedOrders ?? []).length > 0) && (
             <section className="rounded-xl border border-border/70 bg-card p-5 shadow-elev-1">
               <h2 className="mb-3 text-sm font-semibold">Histórico do cliente</h2>
-              {order.origin_service_order_id && (
-                <Link
-                  href={`/os/${order.origin_service_order_id}`}
-                  className="mb-2 block rounded-md bg-brand/5 px-3 py-2 text-xs font-semibold text-brand"
-                >
-                  Ver OS que originou este orçamento
-                </Link>
+              {originOrder && (
+                <div className="mb-3 rounded-lg border border-brand/30 bg-brand/5 p-3">
+                  <p className="text-xs font-semibold text-brand">
+                    Cliente retornando — resumo do último pedido ({formatServiceOrderCode(originOrder.code_seq)}
+                    {originOrder.service_date ? `, ${formatDate(originOrder.service_date)}` : ""})
+                  </p>
+                  {(originItems ?? []).length > 0 && (
+                    <ul className="mt-2 space-y-1 text-xs">
+                      {(originItems ?? []).map((it: any, i: number) => (
+                        <li key={i} className="flex items-center justify-between gap-2">
+                          <span className="truncate">{it.quantity}× {it.description}</span>
+                          <span className="shrink-0 tabular-nums">{formatCurrencyBRL(it.amount_cents)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="mt-2 text-xs font-semibold">
+                    Total do pedido anterior: {formatCurrencyBRL(originOrder.total_cents)}
+                  </p>
+
+                  {originChecklist && (
+                    <details className="mt-3">
+                      <summary className="cursor-pointer text-xs font-semibold text-brand">
+                        Ver checklist completa do pedido anterior
+                      </summary>
+                      <dl className="mt-2 space-y-1.5 rounded-md bg-background/60 p-2">
+                        {SERVICE_REPORT_CHECKLIST.map((item) => (
+                          <div key={item.key} className="flex items-start justify-between gap-3 text-xs">
+                            <dt className="text-muted-foreground">{item.label}</dt>
+                            <dd className="shrink-0 font-semibold">
+                              {(originChecklist.answers as Record<string, boolean>)[item.key] ? "Sim" : "Não"}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                      {originChecklist.observations && (
+                        <p className="mt-2 whitespace-pre-wrap rounded-md bg-background/60 p-2 text-xs">
+                          {originChecklist.observations}
+                        </p>
+                      )}
+                    </details>
+                  )}
+
+                  <Link
+                    href={`/os/${order.origin_service_order_id}`}
+                    className="mt-3 inline-block text-xs font-semibold text-brand underline"
+                  >
+                    Abrir OS original
+                  </Link>
+                </div>
               )}
               <ul className="space-y-2">
                 {(relatedOrders ?? []).map((related: any) => (
