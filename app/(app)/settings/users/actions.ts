@@ -18,7 +18,7 @@ export type TeamUser = {
   osOnlyAccess: boolean;
 };
 
-const editableRoles: MemberRole[] = ["admin", "gerente", "atendente", "vendedor", "tecnico"];
+const editableRoles: MemberRole[] = ["admin", "gerente", "atendente", "vendedor", "tecnico", "prospeccao"];
 const roundRobinRoles: MemberRole[] = ["atendente", "vendedor"];
 
 function normalizeRole(role: string): MemberRole {

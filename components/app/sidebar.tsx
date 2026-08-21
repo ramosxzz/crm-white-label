@@ -139,9 +139,9 @@ export function Sidebar({
         return true;
       });
   const folderItems = [
-    { href: "/leads?pasta=primeiro_contato", label: "Primeiro contato", icon: FolderKanban },
-    { href: "/leads?pasta=reaplicacao", label: "Reaplicação", icon: FolderKanban },
-    { href: "/leads?pasta=mkt", label: "MKT", icon: FolderKanban },
+    { href: "/pastas?folder=primeiro_contato", label: "Primeiro contato", icon: FolderKanban },
+    { href: "/pastas?folder=reaplicacao", label: "Reaplicação", icon: FolderKanban },
+    { href: "/pastas?folder=mkt", label: "MKT", icon: FolderKanban },
   ];
   const visibleFolderItems = !osOnlyAccess && leadFoldersEnabled ? folderItems : [];
   const visibleFieldServiceItems = (osOnlyAccess || fieldServiceEnabled)
