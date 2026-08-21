@@ -53,7 +53,12 @@ export function buildChatAccountVisibility(
     .map((account) => account.id);
   const sharedIds = accounts.filter(isShared).map((account) => account.id);
 
-  const mustUseOwnNumbers = role === "vendedor" || ownedIds.length > 0;
+  // Prospeccao (Jeruza) trata igual vendedor: sem numero proprio vinculado,
+  // fica sem conversa nenhuma ate alguem atribuir um numero a ela - nao pode
+  // cair na caixa "sem dono/compartilhada" da equipe, que e o operacional de
+  // atendimento de verdade (foi isso que vazou 117 conversas pra ela sem
+  // nenhum WhatsApp conectado ainda).
+  const mustUseOwnNumbers = role === "vendedor" || role === "prospeccao" || ownedIds.length > 0;
   const allowedIds = new Set(
     mustUseOwnNumbers
       ? [...ownedIds, ...sharedIds]

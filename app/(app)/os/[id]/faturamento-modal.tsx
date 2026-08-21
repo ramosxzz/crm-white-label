@@ -102,7 +102,7 @@ export function FaturamentoModal({
           Faturar
         </Button>
       </DialogTrigger>
-      <DialogContent className="grid max-h-[88vh] w-[95vw] max-w-3xl grid-rows-[auto_1fr_auto] overflow-hidden">
+      <DialogContent className="grid max-h-[92vh] w-[97vw] max-w-6xl grid-rows-[auto_1fr_auto] overflow-hidden">
         <DialogHeader>
           <DialogTitle>Faturar OS</DialogTitle>
         </DialogHeader>
@@ -146,18 +146,16 @@ export function FaturamentoModal({
               Peças / serviço — adicione mais se faltou algo, recalcula sozinho
             </p>
             <div className="overflow-x-auto rounded-lg border border-border/70">
-              <div className="min-w-[640px]">
-                <ItemsPanel
-                  serviceOrderId={serviceOrderId}
-                  items={items}
-                  canEdit={canEditItems}
-                  canApprove={canApprove}
-                  canApproveDiscount={canApproveDiscount}
-                  canDelete={canDelete}
-                  travelFeeCents={travelFeeCents}
-                  catalogItems={catalogItems}
-                />
-              </div>
+              <ItemsPanel
+                serviceOrderId={serviceOrderId}
+                items={items}
+                canEdit={canEditItems}
+                canApprove={canApprove}
+                canApproveDiscount={canApproveDiscount}
+                canDelete={canDelete}
+                travelFeeCents={travelFeeCents}
+                catalogItems={catalogItems}
+              />
             </div>
           </section>
 

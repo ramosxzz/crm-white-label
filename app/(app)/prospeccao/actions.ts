@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 
 async function requireProspectionContext() {
@@ -16,7 +16,7 @@ export type SellerOption = { id: string; name: string };
 
 export async function listSellers(): Promise<SellerOption[]> {
   const ctx = await requireProspectionContext();
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data: members } = await supabase
     .from("tenant_members")
@@ -24,14 +24,20 @@ export async function listSellers(): Promise<SellerOption[]> {
     .eq("tenant_id", ctx.tenantId)
     .eq("role", "vendedor");
 
-  const ids = [...new Set((members ?? []).map((m) => m.user_id))];
+  const ids = [...new Set(((members ?? []) as Array<{ user_id: string }>).map((m) => m.user_id))];
   if (ids.length === 0) return [];
 
+  // Service client de proposito: a RLS de `profiles` so deixa cada um ler o
+  // proprio perfil, entao com o client normal TODA vendedora vinha sem nome
+  // e o select virava uma lista de "Vendedora" repetida, impossivel de usar.
   const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", ids);
+  const nameById = new Map(
+    ((profiles ?? []) as Array<{ id: string; full_name: string | null }>).map((p) => [p.id, p.full_name]),
+  );
   return ids
     .map((id) => ({
       id,
-      name: (profiles ?? []).find((p) => p.id === id)?.full_name?.trim() || "Vendedora",
+      name: nameById.get(id)?.trim() || "Sem nome",
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }

@@ -33,7 +33,6 @@ import {
   List,
   Route,
   Map as MapIcon,
-  Handshake,
   Tags,
   ChevronDown,
   LayoutGrid,
@@ -121,9 +120,9 @@ export function Sidebar({
     { href: "/os", label: "Lista de OS", icon: List, exact: true },
     { href: "/os/roteiro", label: "Roteiro", icon: Route, exact: true },
     { href: "/os/mapa", label: "Mapa", icon: MapIcon, exact: true },
-    ...(canManageFieldService
-      ? [{ href: "/os/parceiros", label: "Parceiros", icon: Handshake, exact: true }]
-      : []),
+    // Cadastro de parceiro e da prospeccao (Jeruza), nao do escritorio - o
+    // atalho sai do menu de OS e vive na tela dela. A rota continua de pe
+    // pra quem tiver o link, so nao e mais caminho normal do admin.
   ];
   const visibleOperationItems = osOnlyAccess || isProspeccao
     ? []
