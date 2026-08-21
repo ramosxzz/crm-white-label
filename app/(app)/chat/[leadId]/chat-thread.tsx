@@ -369,7 +369,12 @@ export function ChatThread({
   leadDetails?: LeadDetails;
   callsEnabled?: boolean;
   /** null quando o tenant nao tem o ERP W+ ou o usuario nao pode abrir OS. */
-  fieldService?: { consultants: FieldServiceUser[]; partners: FieldServicePartner[] } | null;
+  fieldService?: {
+    consultants: FieldServiceUser[];
+    partners: FieldServicePartner[];
+    lockedConsultant?: { id: string; name: string } | null;
+    leadReferral?: { partnerId: string | null; source: string | null } | null;
+  } | null;
   saleStockProducts?: SaleStockProduct[] | null;
   saleStockLocations?: SaleStockLocation[] | null;
 }) {
