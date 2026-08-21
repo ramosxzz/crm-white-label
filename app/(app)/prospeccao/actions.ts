@@ -50,14 +50,16 @@ const createAndRouteSchema = z.object({
   email: z.string().email().optional().or(z.literal("")),
   source: z.string().optional(),
   referredByPartnerId: z.string().uuid().optional(),
-  sellerId: z.string().uuid("Escolha pra quem enviar"),
+  // Sem vendedora = fluxo normal: cai na pasta sem dono, e a gerente
+  // (Michele) distribui de la. So preenche em emergencia, mandando direto.
+  sellerId: z.string().uuid().optional(),
   folder: leadFolderSchema,
 });
 
 export type CreateAndRouteResult = { ok: true; leadId: string } | { ok: false; error: string };
 
-/** Cadastra o lead ja rotea pra pasta da vendedora escolhida - uma etapa so,
- * como a Jeruza pediu (cadastra e ja manda). */
+/** Cadastra o lead e joga na pasta. O caminho normal e sem dono - a pasta e
+ * a fila que a gerente distribui. Vendedora especifica so em emergencia. */
 export async function createAndRouteLead(formData: FormData): Promise<CreateAndRouteResult> {
   const ctx = await requireProspectionContext();
   const supabase = await createClient();
@@ -68,7 +70,7 @@ export async function createAndRouteLead(formData: FormData): Promise<CreateAndR
     email: formData.get("email") || undefined,
     source: formData.get("source") || undefined,
     referredByPartnerId: formData.get("referredByPartnerId") || undefined,
-    sellerId: formData.get("sellerId"),
+    sellerId: formData.get("sellerId") || undefined,
     folder: formData.get("folder"),
   });
   if (!parsed.success) {
@@ -98,7 +100,7 @@ export async function createAndRouteLead(formData: FormData): Promise<CreateAndR
       referred_by_partner_id: input.referredByPartnerId ?? null,
       stage_id: stageId,
       pipeline_id: (pipeline as { id?: string } | null)?.id,
-      assigned_to: input.sellerId,
+      assigned_to: input.sellerId ?? null,
       lead_folder: input.folder,
     })
     .select("id")

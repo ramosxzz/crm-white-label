@@ -33,7 +33,8 @@ export function ProspeccaoForm({
   const [partnerQuery, setPartnerQuery] = useState("");
   const [selectedPartnerId, setSelectedPartnerId] = useState<string>("");
   const [folder, setFolder] = useState<string>("primeiro_contato");
-  const [sellerId, setSellerId] = useState<string>(sellers[0]?.id ?? "");
+  const [sellerId, setSellerId] = useState<string>("");
+  const [urgent, setUrgent] = useState(false);
   const [showNewPartner, setShowNewPartner] = useState(false);
   const [partnerKind, setPartnerKind] = useState<"loja" | "vendedor">("loja");
   const [storeId, setStoreId] = useState<string>("");
@@ -53,12 +54,14 @@ export function ProspeccaoForm({
 
   function submitLead(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!sellerId) {
-      notify({ title: "Escolha pra quem enviar o lead", tone: "error" });
+    if (urgent && !sellerId) {
+      notify({ title: "Escolha a vendedora que vai atender agora", tone: "error" });
       return;
     }
     const fd = new FormData(e.currentTarget);
-    fd.set("sellerId", sellerId);
+    // Sem urgencia nao manda vendedora: o lead cai na pasta sem dono e a
+    // gerente distribui de la (fluxo normal).
+    if (urgent && sellerId) fd.set("sellerId", sellerId);
     fd.set("folder", folder);
     if (selectedPartnerId) fd.set("referredByPartnerId", selectedPartnerId);
 
@@ -66,9 +69,14 @@ export function ProspeccaoForm({
       try {
         const result = await createAndRouteLead(fd);
         if (!result.ok) throw new Error(result.error);
-        notify({ title: "Lead enviado", tone: "success" });
+        notify({
+          title: urgent ? "Lead enviado direto pra vendedora" : "Lead enviado pra pasta",
+          tone: "success",
+        });
         (e.target as HTMLFormElement).reset();
         setSelectedPartnerId("");
+        setUrgent(false);
+        setSellerId("");
       } catch (err) {
         notifyError(err);
       }
@@ -151,28 +159,50 @@ export function ProspeccaoForm({
             </Select>
           </div>
 
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>Enviar para (vendedora) *</Label>
-            <Select value={sellerId} onValueChange={setSellerId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Escolha a vendedora" />
-              </SelectTrigger>
-              <SelectContent>
-                {sellers.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Cliente em emergência? Escolha aqui direto a vendedora que vai atender agora.
-            </p>
+          <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3 sm:col-span-2">
+            <label className="flex cursor-pointer items-start gap-2.5">
+              <input
+                type="checkbox"
+                checked={urgent}
+                onChange={(e) => {
+                  setUrgent(e.target.checked);
+                  if (!e.target.checked) setSellerId("");
+                }}
+                disabled={pending}
+                className="mt-0.5 h-4 w-4 cursor-pointer accent-[hsl(var(--brand))]"
+              />
+              <span>
+                <span className="text-sm font-medium">Emergência — mandar direto pra uma vendedora</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  Normalmente o lead vai só pra pasta e a gerente distribui. Marque só se o cliente
+                  precisa ser atendido agora.
+                </span>
+              </span>
+            </label>
+
+            {urgent && (
+              <div className="space-y-1.5 pt-1">
+                <Label>Vendedora que vai atender *</Label>
+                <Select value={sellerId} onValueChange={setSellerId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Escolha a vendedora" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sellers.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           <div className="sm:col-span-2">
             <Button type="submit" variant="brand" disabled={pending} className="w-full sm:w-auto">
-              <Send className="h-4 w-4" /> Cadastrar e enviar
+              <Send className="h-4 w-4" />
+              {urgent ? "Cadastrar e enviar pra vendedora" : "Cadastrar e enviar pra pasta"}
             </Button>
           </div>
         </form>
