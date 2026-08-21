@@ -7,6 +7,7 @@ import { ProspeccaoForm } from "./prospeccao-form";
 export default async function ProspeccaoPage() {
   const ctx = await requireContext();
   if (!ctx.tenant.lead_folders_enabled) redirect("/dashboard");
+  if (!["prospeccao", "owner", "admin"].includes(ctx.role)) redirect("/dashboard");
 
   const supabase = await createClient();
   const [sellers, partners, { data: recentLeads }] = await Promise.all([

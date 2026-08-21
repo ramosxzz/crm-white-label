@@ -573,7 +573,11 @@ const transitionSchema = z.object({
 export type CommissionPreviewLine = {
   partyKind: CommissionParty;
   userId: string | null;
+  partnerId: string | null;
   partnerName: string | null;
+  partnerStore: string | null;
+  baseCents: number;
+  percent: number;
   amountCents: number;
 };
 
@@ -605,7 +609,11 @@ export async function previewServiceOrderCommissions(
   const rows = (data ?? []) as Array<{
     out_party_kind: CommissionParty;
     out_user_id: string | null;
+    out_partner_id: string | null;
     out_partner_name: string | null;
+    out_partner_store: string | null;
+    out_base_cents: number;
+    out_percent: number;
     out_amount_cents: number;
   }>;
 
@@ -621,9 +629,48 @@ export async function previewServiceOrderCommissions(
   return rows.map((r) => ({
     partyKind: r.out_party_kind,
     userId: r.out_user_id,
+    partnerId: r.out_partner_id,
     partnerName: r.out_user_id ? (nameById.get(r.out_user_id) ?? null) : r.out_partner_name,
+    partnerStore: r.out_partner_store,
+    baseCents: r.out_base_cents,
+    percent: Number(r.out_percent),
     amountCents: r.out_amount_cents,
   }));
+}
+
+/** Faturamento com comissao ajustada manualmente pelo admin no modal - cada
+ * linha do preview pode ter o valor alterado antes de confirmar. */
+export async function billServiceOrderWithOverrides(input: {
+  serviceOrderId: string;
+  lines: CommissionPreviewLine[];
+}) {
+  const ctx = await requireFieldServiceContext();
+  if (!canReviewServiceOrder(ctx.role)) throw new Error("Só a gestão pode faturar a OS");
+  const supabase = await createClient();
+
+  const overrides = input.lines.map((l) => ({
+    party_kind: l.partyKind,
+    user_id: l.userId,
+    partner_id: l.partnerId,
+    partner_name: l.partnerName,
+    partner_store: l.partnerStore,
+    base_cents: l.baseCents,
+    percent: l.percent,
+    amount_cents: l.amountCents,
+  }));
+
+  const { error } = await supabase.rpc("bill_service_order", {
+    p_service_order_id: input.serviceOrderId,
+    p_user_id: ctx.userId,
+    p_overrides: overrides,
+  });
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/os/${input.serviceOrderId}`);
+  revalidatePath("/os");
+  revalidatePath("/os/agenda");
+  revalidatePath("/os/roteiro");
+  revalidatePath("/financeiro");
 }
 
 export async function transitionServiceOrder(input: {

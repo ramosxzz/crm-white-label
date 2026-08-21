@@ -36,6 +36,8 @@ export function ProspeccaoForm({
   const [sellerId, setSellerId] = useState<string>(sellers[0]?.id ?? "");
   const [showNewPartner, setShowNewPartner] = useState(false);
   const [partnerKind, setPartnerKind] = useState<"loja" | "vendedor">("loja");
+  const [storeId, setStoreId] = useState<string>("");
+  const stores = partners.filter((p) => p.kind === "loja");
 
   function runPartnerSearch(query: string) {
     setPartnerQuery(query);
@@ -77,6 +79,7 @@ export function ProspeccaoForm({
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     fd.set("kind", partnerKind);
+    if (partnerKind === "vendedor" && storeId) fd.set("storeId", storeId);
     start(async () => {
       try {
         const result = await createPartner(fd);
@@ -85,6 +88,7 @@ export function ProspeccaoForm({
         setPartners((prev) => [result.partner, ...prev]);
         setSelectedPartnerId(result.partner.id);
         setShowNewPartner(false);
+        setStoreId("");
         (e.target as HTMLFormElement).reset();
       } catch (err) {
         notifyError(err);
@@ -192,7 +196,7 @@ export function ProspeccaoForm({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="loja">Loja parceira</SelectItem>
-                  <SelectItem value="vendedor">Vendedor externo</SelectItem>
+                  <SelectItem value="vendedor">Vendedor de uma loja</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -204,6 +208,27 @@ export function ProspeccaoForm({
               <Label htmlFor="partner-phone">Telefone</Label>
               <Input id="partner-phone" name="phone" disabled={pending} />
             </div>
+            {partnerKind === "vendedor" && (
+              <div className="space-y-1.5 sm:col-span-3">
+                <Label>Loja a que pertence</Label>
+                <Select value={storeId || "none"} onValueChange={(v) => setStoreId(v === "none" ? "" : v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Nenhuma (vendedor avulso)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhuma (vendedor avulso)</SelectItem>
+                    {stores.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {stores.length === 0 && (
+                  <p className="text-xs text-muted-foreground">Cadastre a loja primeiro pra poder vincular o vendedor a ela.</p>
+                )}
+              </div>
+            )}
             <div className="sm:col-span-3">
               <Button type="submit" size="sm" disabled={pending}>
                 Salvar parceiro

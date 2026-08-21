@@ -3876,10 +3876,19 @@ export type Database = {
           user_id: string
         }[]
       }
-      bill_service_order: {
-        Args: { p_service_order_id: string; p_user_id: string }
-        Returns: undefined
-      }
+      bill_service_order:
+        | {
+            Args: { p_service_order_id: string; p_user_id: string }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_overrides?: Json
+              p_service_order_id: string
+              p_user_id: string
+            }
+            Returns: undefined
+          }
       can_view_service_order: { Args: { p_order_id: string }; Returns: boolean }
       cancel_service_order_closure: {
         Args: {

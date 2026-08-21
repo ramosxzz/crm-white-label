@@ -127,10 +127,13 @@ const createPartnerSchema = z.object({
   kind: z.enum(["loja", "vendedor"]),
   name: z.string().min(1, "Nome obrigatorio"),
   phone: z.string().optional(),
+  storeId: z.string().uuid().optional(),
 });
 
 export type CreatePartnerResult = { ok: true; partner: PartnerRow } | { ok: false; error: string };
 
+/** Vendedor de loja parceira: fica vinculado a loja (store_id), nao e um
+ * "vendedor externo" solto - a Jeruza cadastra a loja e quem vende por ela. */
 export async function createPartner(formData: FormData): Promise<CreatePartnerResult> {
   const ctx = await requireProspectionContext();
   const supabase = await createClient();
@@ -139,6 +142,7 @@ export async function createPartner(formData: FormData): Promise<CreatePartnerRe
     kind: formData.get("kind"),
     name: formData.get("name"),
     phone: formData.get("phone") || undefined,
+    storeId: formData.get("storeId") || undefined,
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Revise os dados." };
 
@@ -149,6 +153,7 @@ export async function createPartner(formData: FormData): Promise<CreatePartnerRe
       kind: parsed.data.kind,
       name: parsed.data.name,
       phone: parsed.data.phone || null,
+      store_id: parsed.data.kind === "vendedor" ? (parsed.data.storeId ?? null) : null,
     })
     .select("id, kind, name, phone")
     .single();

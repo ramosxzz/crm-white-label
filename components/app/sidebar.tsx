@@ -11,6 +11,7 @@ import {
   MessageSquareText,
   Mail,
   FolderKanban,
+  UserPlus,
   BarChart3,
   Boxes,
   Settings,
@@ -86,6 +87,7 @@ export function Sidebar({
   canManageFinance = false,
   canManageFieldService = false,
   isSeller = false,
+  isProspeccao = false,
   osOnlyAccess = false,
   userName,
   userEmail,
@@ -102,6 +104,7 @@ export function Sidebar({
   canManageFinance?: boolean;
   canManageFieldService?: boolean;
   isSeller?: boolean;
+  isProspeccao?: boolean;
   osOnlyAccess?: boolean;
   userName: string;
   userEmail: string;
@@ -122,29 +125,33 @@ export function Sidebar({
       ? [{ href: "/os/parceiros", label: "Parceiros", icon: Handshake, exact: true }]
       : []),
   ];
-  const visibleOperationItems = osOnlyAccess
+  const visibleOperationItems = osOnlyAccess || isProspeccao
     ? []
     : operationItems.filter((item) => {
         if (isSeller && sellerBlocked.has(item.href)) return false;
         if (item.href === "/estoque") return stockEnabled;
         return true;
       });
+  // Prospeccao (Jeruza): atende WhatsApp igual as vendedoras, mas nada mais
+  // de Comunicacao (disparo em massa, etc) - so Conversas.
   const visibleCommunicationItems = osOnlyAccess
     ? []
-    : communicationItems.filter((item) => {
-        if (isSeller && sellerBlocked.has(item.href)) return false;
-        if (item.href === "/pesquisa-satisfacao") return satisfactionSurveyEnabled;
-        if (item.href === "/ligacoes") return callsDashboardEnabled;
-        if (item.href === "/disparos") return broadcastEnabled;
-        return true;
-      });
+    : isProspeccao
+      ? communicationItems.filter((item) => item.href === "/chat")
+      : communicationItems.filter((item) => {
+          if (isSeller && sellerBlocked.has(item.href)) return false;
+          if (item.href === "/pesquisa-satisfacao") return satisfactionSurveyEnabled;
+          if (item.href === "/ligacoes") return callsDashboardEnabled;
+          if (item.href === "/disparos") return broadcastEnabled;
+          return true;
+        });
   const folderItems = [
     { href: "/pastas?folder=primeiro_contato", label: "Primeiro contato", icon: FolderKanban },
     { href: "/pastas?folder=reaplicacao", label: "Reaplicação", icon: FolderKanban },
     { href: "/pastas?folder=mkt", label: "MKT", icon: FolderKanban },
   ];
-  const visibleFolderItems = !osOnlyAccess && leadFoldersEnabled ? folderItems : [];
-  const visibleFieldServiceItems = (osOnlyAccess || fieldServiceEnabled)
+  const visibleFolderItems = !osOnlyAccess && !isProspeccao && leadFoldersEnabled ? folderItems : [];
+  const visibleFieldServiceItems = !isProspeccao && (osOnlyAccess || fieldServiceEnabled)
     ? [
         ...fieldServiceItems,
         ...(canManageFinance
@@ -152,9 +159,12 @@ export function Sidebar({
           : []),
       ]
     : [];
-  const visibleSecondaryItems = osOnlyAccess
+  const visibleSecondaryItems = osOnlyAccess || isProspeccao
     ? []
     : secondaryItems.filter((item) => !(isSeller && sellerBlocked.has(item.href)));
+  const visibleProspeccaoItems = isProspeccao
+    ? [{ href: "/prospeccao", label: "Prospecção", icon: UserPlus }]
+    : [];
 
   async function logout() {
     const supabase = createClient();
@@ -182,6 +192,15 @@ export function Sidebar({
       </div>
 
       <nav className="sidebar-scrollbar flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-3 py-4">
+        {visibleProspeccaoItems.length > 0 && (
+          <NavGroup
+            label="Prospecção"
+            icon={UserPlus}
+            items={visibleProspeccaoItems}
+            pathname={pathname}
+            defaultOpen
+          />
+        )}
         {visibleOperationItems.length > 0 && (
           <NavGroup
             label="Operação"

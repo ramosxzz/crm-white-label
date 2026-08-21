@@ -39,9 +39,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // do menu - qualquer rota nova ja nasce fechada pra ele.
   if (ctx.role === "tecnico") redirect("/campo");
 
-  // Prospeccao (Jeruza): so cadastra lead/parceiro e roteia pra pasta de
-  // vendedora, mesma logica do tecnico acima - nao ve o resto do CRM.
-  if (ctx.role === "prospeccao") redirect("/prospeccao");
+  // Prospeccao (Jeruza): cadastra lead/parceiro e roteia pra pasta de
+  // vendedora, mas tambem atende pelo WhatsApp igual as outras vendedoras -
+  // por isso so barra fora de /prospeccao, /chat e /settings/whatsapp (nao
+  // some pro shell inteiro do CRM como o tecnico/os-only acima).
+  if (ctx.role === "prospeccao") {
+    const pathname = (await headers()).get("x-pathname") ?? "";
+    const allowed =
+      pathname.startsWith("/prospeccao") ||
+      pathname.startsWith("/chat") ||
+      pathname.startsWith("/settings/whatsapp");
+    if (!allowed) redirect("/prospeccao");
+  }
 
   // Login restrito a Agenda/OS (ex.: quem so faz conferencia de OS no ACT):
   // bloqueia qualquer rota fora de /os aqui na raiz, pelo mesmo motivo do
@@ -81,6 +90,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             canManageFinance={canReviewServiceOrder(ctx.role)}
             canManageFieldService={canReviewServiceOrder(ctx.role)}
             isSeller={ctx.role === "vendedor"}
+            isProspeccao={ctx.role === "prospeccao"}
             osOnlyAccess={ctx.osOnlyAccess}
             userName={profile?.full_name ?? "Usuario"}
             userEmail={ctx.userEmail}
