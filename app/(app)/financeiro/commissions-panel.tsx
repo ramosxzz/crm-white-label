@@ -13,6 +13,7 @@ import type { CommissionParty, CommissionStatus } from "@/lib/supabase/database.
 import {
   requestCommissionAdjustment,
   setCommissionStatus,
+  setSellerCommissionOverride,
   updateCommissionRules,
 } from "./actions";
 import { reviewFinancialAdjustment } from "../os/actions";
@@ -35,13 +36,17 @@ const STATUS_VARIANT: Record<CommissionStatus, "outline" | "info" | "success"> =
   paga: "success",
 };
 
+export type SellerCommission = { id: string; name: string; override: number | null };
+
 export function CommissionsPanel({
   commissions,
   rules,
+  sellers,
   isOwner,
 }: {
   commissions: CommissionRow[];
   rules: Record<CommissionParty, number>;
+  sellers: SellerCommission[];
   isOwner: boolean;
 }) {
   const [pending, start] = useTransition();
@@ -101,6 +106,28 @@ export function CommissionsPanel({
         notify({ title: approve ? "Ajuste liberado" : "Ajuste recusado", tone: "success" });
       } catch (error) {
         notifyError(error, "Não foi possível revisar o ajuste");
+      }
+    });
+  }
+
+  function saveSellerOverride(sellerId: string, sellerName: string, currentValue: number | null) {
+    const raw = window.prompt(
+      `Percentual de comissão só de ${sellerName} (deixe vazio pra usar o padrão):`,
+      currentValue != null ? String(currentValue) : "",
+    );
+    if (raw == null) return;
+    const trimmed = raw.trim();
+    const percent = trimmed === "" ? null : Number(trimmed.replace(",", "."));
+    if (percent !== null && (!Number.isFinite(percent) || percent < 0 || percent > 100)) {
+      notify({ title: "Informe um percentual entre 0 e 100", tone: "error" });
+      return;
+    }
+    start(async () => {
+      try {
+        await setSellerCommissionOverride({ userId: sellerId, percent });
+        notify({ title: "Comissão da vendedora atualizada", tone: "success" });
+      } catch (error) {
+        notifyError(error, "Não foi possível salvar a comissão");
       }
     });
   }
@@ -239,7 +266,7 @@ export function CommissionsPanel({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="vendedora_interna">Vendedora interna (sobre o total)</Label>
+            <Label htmlFor="vendedora_interna">Vendedora interna · padrão (sobre o total)</Label>
             <Input
               id="vendedora_interna"
               name="vendedora_interna"
@@ -269,6 +296,38 @@ export function CommissionsPanel({
           </div>
         </form>
       </section>
+
+      {sellers.length > 0 && (
+        <section className="rounded-xl border border-border/70 bg-card p-5 shadow-elev-1">
+          <h2 className="mb-1 inline-flex items-center gap-2 text-sm font-semibold">
+            <Percent className="h-4 w-4 text-brand" /> Comissão por vendedora
+          </h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Sobrescreve o percentual padrão só pra essa pessoa. Sem override, vale o padrão acima.
+          </p>
+          <ul className="divide-y divide-border/70">
+            {sellers.map((seller) => (
+              <li key={seller.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <span className="truncate font-medium">{seller.name}</span>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className={seller.override != null ? "font-semibold text-brand" : "text-muted-foreground"}>
+                    {seller.override != null ? `${seller.override}%` : `${rules.vendedora_interna}% (padrão)`}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={pending}
+                    onClick={() => saveSellerOverride(seller.id, seller.name, seller.override)}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

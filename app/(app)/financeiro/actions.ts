@@ -337,17 +337,41 @@ export async function updateCommissionRules(formData: FormData) {
   ];
 
   for (const row of rows) {
+    const { error } = await supabase.rpc("set_commission_rule", {
+      p_tenant_id: ctx.tenantId,
+      p_party_kind: row.party_kind,
+      p_user_id: null,
+      p_percent: row.percent,
+    });
+    if (error) throw new Error(error.message);
+  }
+
+  revalidatePath("/financeiro");
+}
+
+/** Override pessoal de comissao pra uma vendedora especifica - sobrescreve o
+ * percentual padrao so pra ela. percent null remove o override (volta a usar
+ * o padrao do tenant). */
+export async function setSellerCommissionOverride(input: { userId: string; percent: number | null }) {
+  const ctx = await requireFinanceContext();
+  const supabase = await createClient();
+
+  if (input.percent === null) {
     const { error } = await supabase
       .from("commission_rules")
-      .upsert(
-        {
-          tenant_id: ctx.tenantId,
-          party_kind: row.party_kind,
-          percent: row.percent,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "tenant_id,party_kind" },
-      );
+      .delete()
+      .eq("tenant_id", ctx.tenantId)
+      .eq("party_kind", "vendedora_interna")
+      .eq("user_id", input.userId);
+    if (error) throw new Error(error.message);
+  } else {
+    if (input.percent < 0 || input.percent > 100) throw new Error("Percentual invalido");
+    const { error } = await supabase.rpc("set_commission_rule", {
+      p_tenant_id: ctx.tenantId,
+      p_party_kind: "vendedora_interna",
+      p_user_id: input.userId,
+      p_percent: input.percent,
+    });
     if (error) throw new Error(error.message);
   }
 

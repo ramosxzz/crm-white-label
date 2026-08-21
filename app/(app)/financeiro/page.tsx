@@ -93,7 +93,7 @@ export default async function FinanceiroPage({
         .gte("created_at", `${start}T00:00:00-03:00`)
         .lt("created_at", `${end}T00:00:00-03:00`)
         .order("created_at", { ascending: false }),
-      supabase.from("commission_rules").select("party_kind, percent").eq("tenant_id", ctx.tenantId),
+      supabase.from("commission_rules").select("party_kind, percent, user_id").eq("tenant_id", ctx.tenantId),
       supabase
         .from("payment_method_rates")
         .select("*")
@@ -161,9 +161,23 @@ export default async function FinanceiroPage({
     loja_parceira: 0,
     vendedor_externo: 0,
   };
-  for (const rule of (rules ?? []) as Array<{ party_kind: CommissionParty; percent: number }>) {
-    ruleMap[rule.party_kind] = Number(rule.percent);
+  const sellerOverrides = new Map<string, number>();
+  for (const rule of (rules ?? []) as Array<{ party_kind: CommissionParty; percent: number; user_id: string | null }>) {
+    if (rule.user_id) {
+      if (rule.party_kind === "vendedora_interna") sellerOverrides.set(rule.user_id, Number(rule.percent));
+    } else {
+      ruleMap[rule.party_kind] = Number(rule.percent);
+    }
   }
+
+  const { data: sellerMembers } = await supabase
+    .from("tenant_members")
+    .select("user_id")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("role", "vendedor");
+  const sellers = ((sellerMembers ?? []) as Array<{ user_id: string }>)
+    .map((m) => ({ id: m.user_id, name: nameById.get(m.user_id) ?? "Vendedora", override: sellerOverrides.get(m.user_id) ?? null }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const cards = [
     { label: "Recebido no mês", value: received, tone: "text-success" },
@@ -232,7 +246,7 @@ export default async function FinanceiroPage({
           <EntriesPanel kind="pagar" entries={toPay} today={today} />
         </div>
 
-        <CommissionsPanel commissions={commissionRows} rules={ruleMap} isOwner={ctx.role === "owner"} />
+        <CommissionsPanel commissions={commissionRows} rules={ruleMap} sellers={sellers} isOwner={ctx.role === "owner"} />
 
         <PaymentRatesPanel rates={(paymentRates ?? []) as PaymentMethodRate[]} />
         <ServiceCatalogPanel items={(catalogItems ?? []) as ServiceCatalogItem[]} />
