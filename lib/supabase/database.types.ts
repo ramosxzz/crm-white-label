@@ -1661,6 +1661,7 @@ export type Database = {
           email: string | null
           id: string
           instagram_sender_id: string | null
+          lead_folder: string | null
           lost_pain: string | null
           lost_reason: string | null
           name: string
@@ -1687,6 +1688,7 @@ export type Database = {
           email?: string | null
           id?: string
           instagram_sender_id?: string | null
+          lead_folder?: string | null
           lost_pain?: string | null
           lost_reason?: string | null
           name: string
@@ -1713,6 +1715,7 @@ export type Database = {
           email?: string | null
           id?: string
           instagram_sender_id?: string | null
+          lead_folder?: string | null
           lost_pain?: string | null
           lost_reason?: string | null
           name?: string
@@ -3586,6 +3589,7 @@ export type Database = {
           field_service_enabled: boolean
           id: string
           lead_assignment_enabled: boolean
+          lead_folders_enabled: boolean
           lead_forward_user_id: string | null
           logo_url: string | null
           meta_ad_account_id: string | null
@@ -3619,6 +3623,7 @@ export type Database = {
           field_service_enabled?: boolean
           id?: string
           lead_assignment_enabled?: boolean
+          lead_folders_enabled?: boolean
           lead_forward_user_id?: string | null
           logo_url?: string | null
           meta_ad_account_id?: string | null
@@ -3652,6 +3657,7 @@ export type Database = {
           field_service_enabled?: boolean
           id?: string
           lead_assignment_enabled?: boolean
+          lead_folders_enabled?: boolean
           lead_forward_user_id?: string | null
           logo_url?: string | null
           meta_ad_account_id?: string | null
@@ -4052,6 +4058,7 @@ export type Database = {
         | "gerente"
         | "atendente"
         | "tecnico"
+        | "prospeccao"
       message_direction: "inbound" | "outbound"
       message_status: "pending" | "sent" | "delivered" | "read" | "failed"
       stock_movement_kind: "in" | "out" | "adjust"
@@ -4207,6 +4214,7 @@ export const Constants = {
         "gerente",
         "atendente",
         "tecnico",
+        "prospeccao",
       ],
       message_direction: ["inbound", "outbound"],
       message_status: ["pending", "sent", "delivered", "read", "failed"],

@@ -73,7 +73,7 @@ const LEADS_PAGE_SIZE = 50;
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ entrada?: string; dia?: string; page?: string; etapa?: string | string[]; tag?: string }>;
+  searchParams?: Promise<{ entrada?: string; dia?: string; page?: string; etapa?: string | string[]; tag?: string; pasta?: string }>;
 }) {
   const ctx = await requireContext();
   const supabase = await createClient();
@@ -84,6 +84,7 @@ export default async function LeadsPage({
     ? (Array.isArray(params.etapa) ? params.etapa : [params.etapa]).filter(Boolean)
     : [];
   const tagFilter = params?.tag?.trim() || null;
+  const folderFilter = params?.pasta?.trim() || null;
   const page = Math.max(1, Number(params?.page) || 1);
   const from = (page - 1) * LEADS_PAGE_SIZE;
   const to = from + LEADS_PAGE_SIZE - 1;
@@ -108,6 +109,9 @@ export default async function LeadsPage({
   }
   if (tagFilter) {
     leadsQuery = leadsQuery.contains("tags", [tagFilter]);
+  }
+  if (folderFilter) {
+    leadsQuery = leadsQuery.eq("lead_folder", folderFilter);
   }
 
   const [{ data: leads, count: totalCount }, { data: stages }, members, { data: partners }, { data: qualificationRows }, { data: slaRows }, tags] = await Promise.all([
@@ -187,6 +191,7 @@ export default async function LeadsPage({
     if (params?.dia) qs.set("dia", params.dia);
     for (const id of stageFilterIds) qs.append("etapa", id);
     if (tagFilter) qs.set("tag", tagFilter);
+    if (folderFilter) qs.set("pasta", folderFilter);
     if (target > 1) qs.set("page", String(target));
     const query = qs.toString();
     return query ? `/leads?${query}` : "/leads";

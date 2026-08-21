@@ -39,6 +39,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // do menu - qualquer rota nova ja nasce fechada pra ele.
   if (ctx.role === "tecnico") redirect("/campo");
 
+  // Prospeccao (Jeruza): so cadastra lead/parceiro e roteia pra pasta de
+  // vendedora, mesma logica do tecnico acima - nao ve o resto do CRM.
+  if (ctx.role === "prospeccao") redirect("/prospeccao");
+
   // Login restrito a Agenda/OS (ex.: quem so faz conferencia de OS no ACT):
   // bloqueia qualquer rota fora de /os aqui na raiz, pelo mesmo motivo do
   // tecnico acima - novo menu/rota ja nasce fechado pra ela por padrao.
@@ -73,6 +77,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             callsDashboardEnabled={ctx.tenant.calls_dashboard_enabled}
             broadcastEnabled={ctx.tenant.broadcast_enabled}
             fieldServiceEnabled={ctx.tenant.field_service_enabled}
+            leadFoldersEnabled={ctx.tenant.lead_folders_enabled}
             canManageFinance={canReviewServiceOrder(ctx.role)}
             canManageFieldService={canReviewServiceOrder(ctx.role)}
             isSeller={ctx.role === "vendedor"}

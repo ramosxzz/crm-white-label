@@ -40,6 +40,7 @@ const roleOptions: Array<{ value: MemberRole; label: string; description: string
   { value: "atendente", label: "Atendente", description: "Atende conversas e movimenta leads." },
   { value: "vendedor", label: "Vendedor", description: "Opera leads e atendimentos do dia a dia." },
   { value: "tecnico", label: "Tecnico", description: "Executa em campo apenas as ordens de servico atribuidas a ele." },
+  { value: "prospeccao", label: "Prospecção", description: "Cadastra leads e parceiros, envia pra pasta de uma vendedora." },
 ];
 
 function roleLabel(role: MemberRole) {

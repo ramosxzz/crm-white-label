@@ -10,6 +10,7 @@ import {
   MessageCircle,
   MessageSquareText,
   Mail,
+  FolderKanban,
   BarChart3,
   Boxes,
   Settings,
@@ -81,6 +82,7 @@ export function Sidebar({
   callsDashboardEnabled = false,
   broadcastEnabled = false,
   fieldServiceEnabled = false,
+  leadFoldersEnabled = false,
   canManageFinance = false,
   canManageFieldService = false,
   isSeller = false,
@@ -96,6 +98,7 @@ export function Sidebar({
   callsDashboardEnabled?: boolean;
   broadcastEnabled?: boolean;
   fieldServiceEnabled?: boolean;
+  leadFoldersEnabled?: boolean;
   canManageFinance?: boolean;
   canManageFieldService?: boolean;
   isSeller?: boolean;
@@ -135,6 +138,12 @@ export function Sidebar({
         if (item.href === "/disparos") return broadcastEnabled;
         return true;
       });
+  const folderItems = [
+    { href: "/leads?pasta=primeiro_contato", label: "Primeiro contato", icon: FolderKanban },
+    { href: "/leads?pasta=reaplicacao", label: "Reaplicação", icon: FolderKanban },
+    { href: "/leads?pasta=mkt", label: "MKT", icon: FolderKanban },
+  ];
+  const visibleFolderItems = !osOnlyAccess && leadFoldersEnabled ? folderItems : [];
   const visibleFieldServiceItems = (osOnlyAccess || fieldServiceEnabled)
     ? [
         ...fieldServiceItems,
@@ -187,6 +196,14 @@ export function Sidebar({
             label="Comunicação"
             icon={MessageCircle}
             items={visibleCommunicationItems}
+            pathname={pathname}
+          />
+        )}
+        {visibleFolderItems.length > 0 && (
+          <NavGroup
+            label="Pastas"
+            icon={FolderKanban}
+            items={visibleFolderItems}
             pathname={pathname}
           />
         )}

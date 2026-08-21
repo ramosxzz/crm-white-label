@@ -84,11 +84,18 @@ export async function updateSession(request: NextRequest) {
     const cookieTenant = request.cookies.get("avante_tenant_id")?.value;
     const { data: memberships } = await supabase
       .from("tenant_members")
-      .select("tenant_id, os_only_access")
+      .select("tenant_id, os_only_access, role")
       .eq("user_id", user.sub);
     const chosen =
       memberships?.find((m) => m.tenant_id === cookieTenant) ?? memberships?.[0];
-    url.pathname = chosen?.os_only_access ? "/os/agenda" : "/dashboard";
+    // Prospeccao (Jeruza) tambem manda direto, pelo mesmo motivo do
+    // os_only_access acima: evita o salto duplo /dashboard -> layout
+    // redirecionando de novo, que ja causou tela preta uma vez.
+    url.pathname = chosen?.os_only_access
+      ? "/os/agenda"
+      : chosen?.role === "prospeccao"
+        ? "/prospeccao"
+        : "/dashboard";
     return noStore(NextResponse.redirect(url));
   }
 

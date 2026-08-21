@@ -87,6 +87,10 @@ export function isTechnician(role: MemberRole) {
   return role === "tecnico";
 }
 
+export function isProspeccao(role: MemberRole) {
+  return role === "prospeccao";
+}
+
 // Alinhado com a RLS de automation_flows (apenas owner/admin escrevem).
 export function canManageAutomations(role: MemberRole) {
   return role === "owner" || role === "admin";
