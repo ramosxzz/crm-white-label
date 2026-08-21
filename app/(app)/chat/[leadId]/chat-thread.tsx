@@ -1379,6 +1379,10 @@ export function ChatThread({
               consultants={fieldService.consultants}
             partners={fieldService.partners}
             showMiniAgenda
+
+            lockedConsultant={fieldService.lockedConsultant}
+
+            leadReferral={fieldService.leadReferral}
               trigger={
                 <Button
                   type="button"
@@ -1487,6 +1491,10 @@ export function ChatThread({
                     consultants={fieldService.consultants}
             partners={fieldService.partners}
             showMiniAgenda
+
+            lockedConsultant={fieldService.lockedConsultant}
+
+            leadReferral={fieldService.leadReferral}
                     trigger={
                       <Button type="button" variant="outline" size="sm" className="rounded-lg">
                         <Wrench className="h-4 w-4" />

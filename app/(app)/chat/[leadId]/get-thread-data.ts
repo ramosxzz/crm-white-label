@@ -42,7 +42,7 @@ export async function getChatThreadData(leadId: string) {
   ] = await Promise.all([
     service
       .from("leads")
-      .select("id, name, phone, email, source, notes, tags, value_cents, created_at, assigned_to, pipeline_id, stage_id, automations_enabled, custom_fields, quality_stars, lost_reason, lost_pain")
+      .select("id, name, phone, email, source, notes, tags, value_cents, created_at, assigned_to, pipeline_id, stage_id, automations_enabled, custom_fields, quality_stars, lost_reason, lost_pain, referred_by_partner_id")
       .eq("id", leadId)
       .eq("tenant_id", ctx.tenantId)
       .single(),
@@ -299,6 +299,20 @@ export async function getChatThreadData(leadId: string) {
         ? {
             consultants: serviceOrderConsultants,
             partners: (serviceOrderPartnersRes.data ?? []) as FieldServicePartner[],
+            // Vendedora abre a OS ja como consultora dela mesma, com a
+            // indicacao que a prospeccao (Jeruza) deixou no lead - ela nao
+            // escolhe nem troca nada disso, so endereco/observacao/horario.
+            lockedConsultant:
+              ctx.role === "vendedor"
+                ? {
+                    id: ctx.userId,
+                    name: users.find((u) => u.id === ctx.userId)?.name ?? "Você",
+                  }
+                : null,
+            leadReferral: {
+              partnerId: (lead as { referred_by_partner_id?: string | null }).referred_by_partner_id ?? null,
+              source: lead.source ?? null,
+            },
           }
         : null,
     pipelineOptions: ((pipelinesRes.data ?? []) as {

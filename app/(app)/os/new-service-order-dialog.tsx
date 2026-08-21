@@ -17,6 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { notifyError } from "@/lib/ui/feedback";
+import { cn } from "@/lib/utils";
 import { ServiceOrderAddressFields } from "@/components/field-service/service-order-address-fields";
 import type { FieldServiceUser } from "@/lib/field-service/users";
 import type { FieldServicePartner } from "@/lib/supabase/database.types";
@@ -47,6 +48,8 @@ export function NewServiceOrderDialog({
   onOpenChange,
   agendaPreset,
   showMiniAgenda = false,
+  lockedConsultant = null,
+  leadReferral = null,
 }: {
   leads?: LeadOption[];
   lead?: LeadOption;
@@ -59,6 +62,12 @@ export function NewServiceOrderDialog({
   /** Abre com a agenda dos tecnicos embutida - usado no chat, onde a
    * vendedora fecha a venda e marca o horario na mesma tela. */
   showMiniAgenda?: boolean;
+  /** Vendedora: a consultora e ela mesma, sem escolha. Ligar isso tambem
+   * esconde os campos de indicacao/comissao - eles vem do que a prospeccao
+   * cadastrou no lead, e ela so preenche endereco, observacao e horario. */
+  lockedConsultant?: { id: string; name: string } | null;
+  /** Indicacao que veio no lead (cadastrada pela prospeccao). */
+  leadReferral?: { partnerId: string | null; source: string | null } | null;
 }) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
@@ -68,6 +77,13 @@ export function NewServiceOrderDialog({
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
   const [miniAgenda, setMiniAgenda] = useState<MiniAgendaSelection | null>(null);
+
+  // Modo simplificado (vendedora): consultora travada nela, indicacao e
+  // origem vem do lead, e o formulario pede so o que ela de fato preenche.
+  const simplified = Boolean(lockedConsultant);
+  const referralPartner = leadReferral?.partnerId
+    ? partners.find((p) => p.id === leadReferral.partnerId) ?? null
+    : null;
 
   const stores = partners.filter((p) => p.kind === "loja" && p.is_active);
   const sellers = partners.filter((p) => p.kind === "vendedor" && p.is_active);
@@ -205,68 +221,93 @@ export function NewServiceOrderDialog({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          {simplified ? (
             <div className="space-y-1.5">
-              <Label htmlFor="consultant_id">Consultora</Label>
-              <select
-                id="consultant_id"
-                name="consultant_id"
-                className="h-10 w-full rounded-md border border-border/70 bg-background px-3 text-sm"
-              >
-                <option value="">Sem consultora</option>
-                {consultants.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name}
-                  </option>
-                ))}
-              </select>
+              <Label>Consultora</Label>
+              <div className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-sm">
+                <p className="font-medium">{lockedConsultant!.name}</p>
+                {referralPartner && (
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Indicação: {referralPartner.name}
+                    {referralPartner.kind === "loja" ? " (loja parceira)" : " (vendedor da loja)"}
+                  </p>
+                )}
+              </div>
+              <input type="hidden" name="consultant_id" value={lockedConsultant!.id} />
+              {leadReferral?.partnerId && referralPartner && (
+                <input
+                  type="hidden"
+                  name={referralPartner.kind === "loja" ? "partner_store_id" : "partner_seller_id"}
+                  value={referralPartner.id}
+                />
+              )}
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="voltage">Voltagem da residência</Label>
-              <select
-                id="voltage"
-                name="voltage"
-                className="h-10 w-full rounded-md border border-border/70 bg-background px-3 text-sm"
-              >
-                <option value="">Não informada</option>
-                <option value="110v">110v</option>
-                <option value="220v">220v</option>
-              </select>
-            </div>
-          </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="consultant_id">Consultora</Label>
+                  <select
+                    id="consultant_id"
+                    name="consultant_id"
+                    className="h-10 w-full rounded-md border border-border/70 bg-background px-3 text-sm"
+                  >
+                    <option value="">Sem consultora</option>
+                    {consultants.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="voltage">Voltagem da residência</Label>
+                  <select
+                    id="voltage"
+                    name="voltage"
+                    className="h-10 w-full rounded-md border border-border/70 bg-background px-3 text-sm"
+                  >
+                    <option value="">Não informada</option>
+                    <option value="110v">110v</option>
+                    <option value="220v">220v</option>
+                  </select>
+                </div>
+              </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="consultant_extra_id">Consultora extra</Label>
-              <select
-                id="consultant_extra_id"
-                name="consultant_extra_id"
-                className="h-10 w-full rounded-md border border-border/70 bg-background px-3 text-sm"
-              >
-                <option value="">Nenhuma</option>
-                {consultants.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="sale_channel">Origem do cliente</Label>
-              <select
-                id="sale_channel"
-                name="sale_channel"
-                className="h-10 w-full rounded-md border border-border/70 bg-background px-3 text-sm"
-              >
-                <option value="">Não informada</option>
-                {Object.entries(SALE_CHANNEL_LABEL).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="consultant_extra_id">Consultora extra</Label>
+                  <select
+                    id="consultant_extra_id"
+                    name="consultant_extra_id"
+                    className="h-10 w-full rounded-md border border-border/70 bg-background px-3 text-sm"
+                  >
+                    <option value="">Nenhuma</option>
+                    {consultants.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="sale_channel">Origem do cliente</Label>
+                  <select
+                    id="sale_channel"
+                    name="sale_channel"
+                    className="h-10 w-full rounded-md border border-border/70 bg-background px-3 text-sm"
+                  >
+                    <option value="">Não informada</option>
+                    {Object.entries(SALE_CHANNEL_LABEL).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
 
           <ServiceOrderAddressFields />
 
@@ -274,14 +315,17 @@ export function NewServiceOrderDialog({
             <MiniAgenda value={miniAgenda} onChange={setMiniAgenda} />
           )}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="deadline">Prazo</Label>
-            <Input id="deadline" name="deadline" type="date" />
-          </div>
+          {!simplified && (
+            <div className="space-y-1.5">
+              <Label htmlFor="deadline">Prazo</Label>
+              <Input id="deadline" name="deadline" type="date" />
+            </div>
+          )}
 
           {/* A comissao externa e negociada indicacao a indicacao, entao o
-              percentual fica na OS: no faturamento ele vence a regra geral. */}
-          <fieldset className="space-y-3 rounded-lg border border-border/70 p-3">
+              percentual fica na OS: no faturamento ele vence a regra geral.
+              Escondido pra vendedora: comissao e coisa do escritorio. */}
+          <fieldset className={cn("space-y-3 rounded-lg border border-border/70 p-3", simplified && "hidden")}>
             <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Indicação
             </legend>
