@@ -23,6 +23,7 @@ import type { FieldServicePartner } from "@/lib/supabase/database.types";
 import { deriveShiftFromTime } from "@/lib/field-service/agenda";
 import { SALE_CHANNEL_LABEL } from "@/lib/field-service/status";
 import { createServiceOrder, scheduleServiceOrder } from "./actions";
+import { MiniAgenda, type MiniAgendaSelection } from "./mini-agenda";
 
 type LeadOption = { id: string; name: string; phone: string | null };
 
@@ -45,6 +46,7 @@ export function NewServiceOrderDialog({
   open: controlledOpen,
   onOpenChange,
   agendaPreset,
+  showMiniAgenda = false,
 }: {
   leads?: LeadOption[];
   lead?: LeadOption;
@@ -54,6 +56,9 @@ export function NewServiceOrderDialog({
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   agendaPreset?: { technicianId: string; technicianName: string; date: string; dateLabel: string };
+  /** Abre com a agenda dos tecnicos embutida - usado no chat, onde a
+   * vendedora fecha a venda e marca o horario na mesma tela. */
+  showMiniAgenda?: boolean;
 }) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
@@ -62,6 +67,7 @@ export function NewServiceOrderDialog({
   const router = useRouter();
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
+  const [miniAgenda, setMiniAgenda] = useState<MiniAgendaSelection | null>(null);
 
   const stores = partners.filter((p) => p.kind === "loja" && p.is_active);
   const sellers = partners.filter((p) => p.kind === "vendedor" && p.is_active);
@@ -86,14 +92,32 @@ export function NewServiceOrderDialog({
     start(async () => {
       try {
         const id = await createServiceOrder(fd);
-        if (agendaPreset) {
-          const startAt = new Date(`${agendaPreset.date}T${startTime}:00-03:00`).toISOString();
-          const endAt = new Date(`${agendaPreset.date}T${endTime}:00-03:00`).toISOString();
+        // Agenda (clique direito na coluna do tecnico) ou mini agenda do
+        // chat - os dois caminhos ja agendam a OS na hora de criar.
+        const scheduling = agendaPreset
+          ? {
+              date: agendaPreset.date,
+              technicianId: agendaPreset.technicianId,
+              start: startTime,
+              end: endTime,
+            }
+          : miniAgenda
+            ? {
+                date: miniAgenda.date,
+                technicianId: miniAgenda.technicianId,
+                start: miniAgenda.startTime,
+                end: miniAgenda.endTime,
+              }
+            : null;
+
+        if (scheduling) {
+          const startAt = new Date(`${scheduling.date}T${scheduling.start}:00-03:00`).toISOString();
+          const endAt = new Date(`${scheduling.date}T${scheduling.end}:00-03:00`).toISOString();
           await scheduleServiceOrder({
             id,
-            service_date: agendaPreset.date,
+            service_date: scheduling.date,
             shift: deriveShiftFromTime(startAt),
-            technician_ids: [agendaPreset.technicianId],
+            technician_ids: [scheduling.technicianId],
             scheduled_start_at: startAt,
             scheduled_end_at: endAt,
           });
@@ -245,6 +269,10 @@ export function NewServiceOrderDialog({
           </div>
 
           <ServiceOrderAddressFields />
+
+          {showMiniAgenda && !agendaPreset && (
+            <MiniAgenda value={miniAgenda} onChange={setMiniAgenda} />
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="deadline">Prazo</Label>

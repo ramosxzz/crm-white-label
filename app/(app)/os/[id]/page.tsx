@@ -6,6 +6,7 @@ import { requireContext } from "@/lib/tenant";
 import {
   canAccessServiceOrders,
   canApproveServiceOrderDiscount,
+  canCreateServiceOrder,
   canManageServiceOrders,
   canReopenServiceOrder,
   canReviewServiceOrder,
@@ -70,7 +71,7 @@ export default async function ServiceOrderDetailPage({
 }) {
   const ctx = await requireContext();
   if (!ctx.tenant.field_service_enabled) notFound();
-  if (!canAccessServiceOrders(ctx.role) && !isTechnicianRole(ctx.role)) notFound();
+  if (!canAccessServiceOrders(ctx.role) && !canCreateServiceOrder(ctx.role) && !isTechnicianRole(ctx.role)) notFound();
 
   const { id } = await params;
   const supabase = await createClient();

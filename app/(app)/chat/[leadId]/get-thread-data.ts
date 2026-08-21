@@ -12,7 +12,7 @@ import { displayLeadName } from "@/lib/leads/display";
 import { getCachedWhatsAppProfilePicture } from "@/lib/whatsapp/profile-picture";
 import { fetchApi4comCalls } from "@/lib/integrations/api4com";
 import { listQuickMessages } from "@/app/(app)/settings/quick-messages-actions";
-import { canManageServiceOrders } from "@/lib/auth/roles";
+import { canCreateServiceOrder } from "@/lib/auth/roles";
 import { listConsultants } from "@/lib/field-service/users";
 import { getSaleStockContext } from "@/lib/estoque/sale-stock-actions";
 import type { FieldServicePartner, WhatsAppProviderKind } from "@/lib/supabase/database.types";
@@ -90,10 +90,10 @@ export async function getChatThreadData(leadId: string) {
     ctx.tenant.calls_dashboard_enabled ? fetchApi4comCalls() : Promise.resolve([]),
     // Consultoras e parceiros da OS: so busca pra quem vai ver o botao de
     // abrir OS no chat.
-    ctx.tenant.field_service_enabled && canManageServiceOrders(ctx.role)
+    ctx.tenant.field_service_enabled && canCreateServiceOrder(ctx.role)
       ? listConsultants(ctx.tenantId)
       : Promise.resolve([]),
-    ctx.tenant.field_service_enabled && canManageServiceOrders(ctx.role)
+    ctx.tenant.field_service_enabled && canCreateServiceOrder(ctx.role)
       ? service
           .from("field_service_partners")
           .select("*")
@@ -295,7 +295,7 @@ export async function getChatThreadData(leadId: string) {
     saleStockLocations: saleStock?.locations ?? null,
     // null = tenant sem o ERP W+ ou usuario sem permissao de abrir OS.
     fieldService:
-      ctx.tenant.field_service_enabled && canManageServiceOrders(ctx.role)
+      ctx.tenant.field_service_enabled && canCreateServiceOrder(ctx.role)
         ? {
             consultants: serviceOrderConsultants,
             partners: (serviceOrderPartnersRes.data ?? []) as FieldServicePartner[],

@@ -53,16 +53,28 @@ export function canManageServiceOrders(role: MemberRole) {
   return ["owner", "admin", "gerente", "atendente"].includes(role);
 }
 
-// Vendedor entra na OS so pra acompanhar o que ele mesmo vendeu.
+// Lista completa de OS do tenant: so a gestao. A vendedora fecha a venda
+// abrindo a OS e o resto e com o escritorio - ela nao acompanha a operacao
+// de campo (ver canCreateServiceOrder/canViewTechnicianAgenda abaixo).
 export function canAccessServiceOrders(role: MemberRole) {
+  return ["owner", "admin", "gerente", "atendente"].includes(role);
+}
+
+// Abrir OS nova: a vendedora fecha a venda criando a OS e mandando pro
+// escritorio. Ela abre a OS, mas nao gerencia a operacao dela.
+export function canCreateServiceOrder(role: MemberRole) {
   return ["owner", "admin", "gerente", "atendente", "vendedor"].includes(role);
 }
 
-// Quem abre o roteiro e o mapa do dia. Vendedor entra pra ver o trajeto, mas
-// so leitura: otimizar rota, alocar tecnico e reagendar seguem em
-// canManageServiceOrders.
-export function canViewServiceRoutes(role: MemberRole) {
+// Agenda por tecnico: a vendedora precisa ver os horarios livres pra marcar
+// com o cliente na hora da venda.
+export function canViewTechnicianAgenda(role: MemberRole) {
   return ["owner", "admin", "gerente", "atendente", "vendedor"].includes(role);
+}
+
+// Roteiro e mapa do dia sao operacao de campo - so a gestao.
+export function canViewServiceRoutes(role: MemberRole) {
+  return ["owner", "admin", "gerente", "atendente"].includes(role);
 }
 
 // Conferencia / pre-fechamento e aprovacao de upsell: so a gestao.

@@ -55,7 +55,7 @@ export default async function ServiceOrderMapPage({
 }) {
   const ctx = await requireContext();
   if (!ctx.tenant.field_service_enabled) redirect("/dashboard");
-  if (!canViewServiceRoutes(ctx.role)) redirect("/os");
+  if (!canViewServiceRoutes(ctx.role)) redirect("/dashboard");
 
   const params = await searchParams;
   const day = /^\d{4}-\d{2}-\d{2}$/.test(params?.day ?? "") ? params!.day! : brtDay();

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
-import { canAccessServiceOrders, isTechnician as isTechnicianRole } from "@/lib/auth/roles";
+import { canAccessServiceOrders, canCreateServiceOrder, isTechnician as isTechnicianRole } from "@/lib/auth/roles";
 import { formatCurrencyBRL } from "@/lib/utils";
 import {
   SERVICE_ORDER_SHIFT_LABEL,
@@ -33,7 +33,7 @@ function formatDateTime(value: string | null) {
 export default async function ServiceOrderPrintPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireContext();
   if (!ctx.tenant.field_service_enabled) notFound();
-  if (!canAccessServiceOrders(ctx.role) && !isTechnicianRole(ctx.role)) notFound();
+  if (!canAccessServiceOrders(ctx.role) && !canCreateServiceOrder(ctx.role) && !isTechnicianRole(ctx.role)) notFound();
 
   const { id } = await params;
   const supabase = createServiceClient();

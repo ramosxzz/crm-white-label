@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
-import { canManageServiceOrders, canViewServiceRoutes } from "@/lib/auth/roles";
+import { canCreateServiceOrder, canManageServiceOrders, canViewTechnicianAgenda } from "@/lib/auth/roles";
 import { PageHeader } from "@/components/app/page-header";
 import { listTechnicians, listConsultants } from "@/lib/field-service/users";
 import { brtDay, offsetDay } from "@/lib/field-service/agenda";
@@ -19,8 +19,11 @@ export default async function AgendaPage({
 }) {
   const ctx = await requireContext();
   if (!ctx.tenant.field_service_enabled) redirect("/dashboard");
-  if (!canViewServiceRoutes(ctx.role)) redirect("/os");
+  if (!canViewTechnicianAgenda(ctx.role)) redirect("/dashboard");
   const canManage = canManageServiceOrders(ctx.role);
+  // Vendedora ve a agenda pra saber o horario livre do tecnico e abrir a OS
+  // ali mesmo, mas nao mexe na operacao (alocar, reagendar, arrastar card).
+  const canCreate = canCreateServiceOrder(ctx.role);
 
   const params = await searchParams;
   const day = /^\d{4}-\d{2}-\d{2}$/.test(params?.day ?? "") ? params!.day! : brtDay();
@@ -44,8 +47,8 @@ export default async function AgendaPage({
         .order("created_at", { ascending: true })
         .limit(50),
       listTechnicians(ctx.tenantId),
-      canManage ? listConsultants(ctx.tenantId) : Promise.resolve([]),
-      canManage
+      canCreate ? listConsultants(ctx.tenantId) : Promise.resolve([]),
+      canCreate
         ? supabase
             .from("field_service_partners")
             .select("*")
@@ -54,7 +57,7 @@ export default async function AgendaPage({
             .order("kind")
             .order("name")
         : Promise.resolve({ data: [] as FieldServicePartner[] }),
-      canManage
+      canCreate
         ? supabase
             .from("leads")
             .select("id, name, phone")
@@ -158,6 +161,7 @@ export default async function AgendaPage({
         technicians={technicians}
         orders={agendaOrders}
         canManage={canManage}
+        canCreate={canCreate}
         leads={(leads ?? []) as Array<{ id: string; name: string; phone: string | null }>}
         consultants={consultants}
         partners={(partnersData ?? []) as FieldServicePartner[]}

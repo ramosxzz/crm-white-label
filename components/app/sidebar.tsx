@@ -112,18 +112,22 @@ export function Sidebar({
   // Vendedor nao gerencia estoque, automacoes, IA W+, integracoes, usuarios,
   // nem ve o dashboard de reunioes (mostra receita/custo/ROI do tenant
   // inteiro - a mesma pagina ja redireciona se um vendedor acessar direto).
-  const sellerBlocked = new Set(["/estoque", "/automations", "/ia-w-mais", "/integrations", "/settings/users", "/funil", "/atendimento", "/reunioes", "/ligacoes"]);
+  const sellerBlocked = new Set(["/estoque", "/automations", "/ia-w-mais", "/integrations", "/settings/users", "/funil", "/atendimento", "/reunioes", "/ligacoes", "/os", "/os/roteiro", "/os/mapa"]);
   // Login restrito a Agenda/OS: so ve o que e do modulo de servico em campo,
   // nada do resto do CRM (chat, leads, kanban...).
-  const fieldServiceItems = [
-    { href: "/os/agenda", label: "Agenda de OS", icon: CalendarDays, exact: true },
-    { href: "/os", label: "Lista de OS", icon: List, exact: true },
-    { href: "/os/roteiro", label: "Roteiro", icon: Route, exact: true },
-    { href: "/os/mapa", label: "Mapa", icon: MapIcon, exact: true },
-    // Cadastro de parceiro e da prospeccao (Jeruza), nao do escritorio - o
-    // atalho sai do menu de OS e vive na tela dela. A rota continua de pe
-    // pra quem tiver o link, so nao e mais caminho normal do admin.
-  ];
+  // Vendedora fecha a venda abrindo a OS e para por ai: ve so a Agenda, pra
+  // consultar horario livre do tecnico na hora de marcar com o cliente.
+  // Lista de OS, roteiro e mapa sao operacao de campo, do escritorio.
+  // Cadastro de parceiro saiu daqui: quem cadastra e a prospeccao (Jeruza),
+  // na tela dela (a rota continua existindo pra quem tiver o link).
+  const fieldServiceItems = isSeller
+    ? [{ href: "/os/agenda", label: "Agenda de OS", icon: CalendarDays, exact: true }]
+    : [
+        { href: "/os/agenda", label: "Agenda de OS", icon: CalendarDays, exact: true },
+        { href: "/os", label: "Lista de OS", icon: List, exact: true },
+        { href: "/os/roteiro", label: "Roteiro", icon: Route, exact: true },
+        { href: "/os/mapa", label: "Mapa", icon: MapIcon, exact: true },
+      ];
   const visibleOperationItems = osOnlyAccess || isProspeccao
     ? []
     : operationItems.filter((item) => {

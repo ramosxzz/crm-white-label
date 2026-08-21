@@ -227,6 +227,7 @@ function TechnicianColumn({
   technician,
   orders,
   canManage,
+  canCreate = false,
   technicians,
   onOpen,
   onAction,
@@ -236,6 +237,7 @@ function TechnicianColumn({
   technician: FieldServiceUser;
   orders: AgendaOrder[];
   canManage: boolean;
+  canCreate?: boolean;
   technicians: FieldServiceUser[];
   onOpen: (id: string) => void;
   onAction: (fn: () => Promise<void>, successMsg?: string) => void;
@@ -275,7 +277,7 @@ function TechnicianColumn({
     </div>
   );
 
-  if (!canManage) return column;
+  if (!canManage && !canCreate) return column;
 
   return (
     <ContextMenu>
@@ -294,6 +296,7 @@ export function AgendaGrid({
   technicians,
   orders,
   canManage,
+  canCreate = false,
   leads,
   consultants,
   partners,
@@ -302,6 +305,8 @@ export function AgendaGrid({
   technicians: FieldServiceUser[];
   orders: AgendaOrder[];
   canManage: boolean;
+  /** Vendedora: abre OS nova no horario livre, mas nao gerencia a agenda. */
+  canCreate?: boolean;
   leads: Array<{ id: string; name: string; phone: string | null }>;
   consultants: FieldServiceUser[];
   partners: FieldServicePartner[];
@@ -396,6 +401,7 @@ export function AgendaGrid({
                 technician={t}
                 orders={dayOrders.filter((o) => o.technicianIds.includes(t.id))}
                 canManage={canManage}
+                canCreate={canCreate}
                 technicians={technicians}
                 onOpen={setQuickViewId}
                 onAction={onAction}
@@ -435,7 +441,7 @@ export function AgendaGrid({
 
       <OrderQuickView orderId={quickViewId} onClose={() => setQuickViewId(null)} />
 
-      {newOsPreset && canManage && (
+      {newOsPreset && (canManage || canCreate) && (
         <NewServiceOrderDialog
           leads={leads}
           consultants={consultants}

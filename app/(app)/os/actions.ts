@@ -7,11 +7,13 @@ import { requireContext } from "@/lib/tenant";
 import {
   canAccessServiceOrders,
   canApproveServiceOrderDiscount,
+  canCreateServiceOrder,
   canManageServiceOrders,
   canReopenServiceOrder,
   canReviewServiceOrder,
 } from "@/lib/auth/roles";
 import { canTransitionServiceOrder } from "@/lib/field-service/status";
+import { listTechnicians } from "@/lib/field-service/users";
 import type {
   CommissionParty,
   Database,
@@ -32,7 +34,9 @@ function assertFieldServiceEnabled(ctx: Ctx) {
 async function requireFieldServiceContext() {
   const ctx = await requireContext();
   assertFieldServiceEnabled(ctx);
-  if (!canAccessServiceOrders(ctx.role) && ctx.role !== "tecnico") {
+  // Vendedora entra por canCreateServiceOrder: ela abre a OS da venda dela
+  // (e ve essa OS), mesmo sem acesso a lista/roteiro/mapa do escritorio.
+  if (!canAccessServiceOrders(ctx.role) && !canCreateServiceOrder(ctx.role) && ctx.role !== "tecnico") {
     throw new Error("Sem permissao para acessar ordens de servico");
   }
   return ctx;
@@ -170,7 +174,13 @@ async function logStatusChange(
 }
 
 export async function createServiceOrder(formData: FormData) {
-  const ctx = await requireManagerContext();
+  // Abrir OS e o fechamento da venda da vendedora, nao so do escritorio -
+  // por isso aqui e canCreateServiceOrder e nao requireManagerContext.
+  const ctx = await requireContext();
+  assertFieldServiceEnabled(ctx);
+  if (!canCreateServiceOrder(ctx.role)) {
+    throw new Error("Sem permissao para abrir ordem de servico");
+  }
   const supabase = await createClient();
 
   const parsed = createSchema.parse({
@@ -347,7 +357,14 @@ export async function scheduleServiceOrder(input: {
   scheduled_start_at?: string | null;
   scheduled_end_at?: string | null;
 }) {
-  const ctx = await requireManagerContext();
+  // Vendedora marca o horario da OS que ela mesma abriu (fechando a venda
+  // com o cliente na linha) - remarcar/realocar depois segue com a gestao,
+  // que e checado no fluxo de status.
+  const ctx = await requireContext();
+  assertFieldServiceEnabled(ctx);
+  if (!canCreateServiceOrder(ctx.role)) {
+    throw new Error("Sem permissao para agendar ordem de servico");
+  }
   const parsed = scheduleSchema.parse(input);
   const supabase = await createClient();
 
@@ -1409,4 +1426,69 @@ export async function requestCommissionAdjustment(input: {
 
   revalidatePath(`/os/${parsed.service_order_id}`);
   revalidatePath("/financeiro");
+}
+
+export type TechnicianDayAvailability = {
+  technicianId: string;
+  technicianName: string;
+  busy: Array<{ startAt: string; endAt: string; leadName: string }>;
+};
+
+/**
+ * Agenda do dia por tecnico, so o suficiente pra vendedora ver o horario
+ * livre na hora de fechar a venda pelo chat - sem abrir a Agenda inteira
+ * (que e operacao de campo e ela nao acessa).
+ */
+export async function getTechnicianDayAvailability(day: string): Promise<TechnicianDayAvailability[]> {
+  const ctx = await requireContext();
+  assertFieldServiceEnabled(ctx);
+  if (!canCreateServiceOrder(ctx.role)) {
+    throw new Error("Sem permissao para ver a agenda dos tecnicos");
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error("Data invalida");
+
+  const supabase = await createClient();
+  const technicians = await listTechnicians(ctx.tenantId);
+  if (technicians.length === 0) return [];
+
+  const { data: orders } = await supabase
+    .from("service_orders")
+    .select("id, scheduled_start_at, scheduled_end_at, shift, service_date, status, leads(name)")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("service_date", day)
+    .not("status", "in", "(cancelada)");
+
+  const rows = (orders ?? []) as Array<{
+    id: string;
+    scheduled_start_at: string | null;
+    scheduled_end_at: string | null;
+    leads: { name: string | null } | null;
+  }>;
+
+  const { data: assignments } = rows.length
+    ? await supabase
+        .from("service_order_technicians")
+        .select("service_order_id, user_id")
+        .in("service_order_id", rows.map((r) => r.id))
+    : { data: [] };
+
+  const byOrder = new Map(rows.map((r) => [r.id, r]));
+  const busyByTech = new Map<string, TechnicianDayAvailability["busy"]>();
+  for (const a of (assignments ?? []) as Array<{ service_order_id: string; user_id: string }>) {
+    const order = byOrder.get(a.service_order_id);
+    if (!order?.scheduled_start_at || !order.scheduled_end_at) continue;
+    const list = busyByTech.get(a.user_id) ?? [];
+    list.push({
+      startAt: order.scheduled_start_at,
+      endAt: order.scheduled_end_at,
+      leadName: order.leads?.name ?? "Cliente",
+    });
+    busyByTech.set(a.user_id, list);
+  }
+
+  return technicians.map((tech) => ({
+    technicianId: tech.id,
+    technicianName: tech.name,
+    busy: (busyByTech.get(tech.id) ?? []).sort((a, b) => a.startAt.localeCompare(b.startAt)),
+  }));
 }

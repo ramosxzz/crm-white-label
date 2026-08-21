@@ -92,7 +92,7 @@ export default async function RoteiroPage({
 }) {
   const ctx = await requireContext();
   if (!ctx.tenant.field_service_enabled) redirect("/dashboard");
-  if (!canViewServiceRoutes(ctx.role)) redirect("/os");
+  if (!canViewServiceRoutes(ctx.role)) redirect("/dashboard");
   // Vendedora ve o trajeto, mas nao mexe: otimizar rota, alocar tecnico e
   // reagendar continuam so pra gestao.
   const canManage = canManageServiceOrders(ctx.role);
