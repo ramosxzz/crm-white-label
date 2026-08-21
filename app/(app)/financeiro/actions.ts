@@ -340,7 +340,7 @@ export async function updateCommissionRules(formData: FormData) {
     const { error } = await supabase.rpc("set_commission_rule", {
       p_tenant_id: ctx.tenantId,
       p_party_kind: row.party_kind,
-      p_user_id: null,
+      p_user_id: null as unknown as string,
       p_percent: row.percent,
     });
     if (error) throw new Error(error.message);
