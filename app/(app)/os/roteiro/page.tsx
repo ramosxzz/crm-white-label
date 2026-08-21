@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarClock, ChevronLeft, ChevronRight, Map as MapIcon, MapPin, Sun, Sunset } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight, Map as MapIcon, MapPin, Printer, Sun, Sunset } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { canManageServiceOrders, canViewServiceRoutes } from "@/lib/auth/roles";
@@ -208,6 +208,12 @@ export default async function RoteiroPage({
               className="rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
             >
               Lista de OS
+            </Link>
+            <Link
+              href={`/os/roteiro/print?day=${day}`}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
+            >
+              <Printer className="h-4 w-4" /> Imprimir
             </Link>
           </div>
         }
