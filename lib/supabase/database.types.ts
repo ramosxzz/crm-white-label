@@ -4006,6 +4006,15 @@ export type Database = {
         Args: { target_tenant_id: string }
         Returns: undefined
       }
+      set_commission_rule: {
+        Args: {
+          p_party_kind: string
+          p_percent: number
+          p_tenant_id: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       transfer_stock: {
         Args: {
           p_from_location_id: string
