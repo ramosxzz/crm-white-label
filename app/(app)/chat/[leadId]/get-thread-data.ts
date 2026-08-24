@@ -344,6 +344,11 @@ export async function getChatThreadData(leadId: string) {
       lostReason: lead.lost_reason,
       lostPain: lead.lost_pain,
       creativeName: (lead.custom_fields?.meta_creative_name as string | undefined) ?? null,
+      collectedCents: Number(lead.custom_fields?.payment_collected_cents ?? 0) || 0,
+      paymentMethod: (lead.custom_fields?.payment_method as string | undefined) ?? null,
+      paymentInstallments: (lead.custom_fields?.payment_installments as number | undefined) ?? null,
+      companyName: (lead.custom_fields?.company_name as string | undefined) ?? null,
+      companyCnpj: (lead.custom_fields?.company_cnpj as string | undefined) ?? null,
     },
   };
 }
