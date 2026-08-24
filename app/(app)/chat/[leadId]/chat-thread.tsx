@@ -37,6 +37,9 @@ import {
   ArrowLeft,
   Wrench,
   Pin,
+  ShieldCheck,
+  Cable,
+  Radio,
 } from "lucide-react";
 import { EmojiPickerButton } from "@/components/chat/emoji-picker-button";
 import { updateLead } from "@/app/(app)/leads/actions";
@@ -3094,6 +3097,34 @@ type WhatsAppAccountOption = {
   last_error_message?: string | null;
 };
 
+const whatsappProviderAppearance = {
+  cloud_api: {
+    label: "Meta Oficial",
+    icon: ShieldCheck,
+    iconClass: "text-emerald-500",
+    badgeClass:
+      "border-emerald-500/35 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+  },
+  evolution: {
+    label: "Evolution",
+    icon: Cable,
+    iconClass: "text-violet-500",
+    badgeClass:
+      "border-violet-500/35 bg-violet-500/15 text-violet-700 dark:text-violet-300",
+  },
+  zapi: {
+    label: "Z-API",
+    icon: Radio,
+    iconClass: "text-amber-500",
+    badgeClass:
+      "border-amber-500/35 bg-amber-500/15 text-amber-700 dark:text-amber-300",
+  },
+} as const;
+
+function getWhatsAppProviderAppearance(provider: string) {
+  return whatsappProviderAppearance[provider as keyof typeof whatsappProviderAppearance] ?? whatsappProviderAppearance.zapi;
+}
+
 function AccountSelector({
   accounts,
   selectedId,
@@ -3122,7 +3153,8 @@ function AccountSelector({
   if (!current) return null;
 
   const label = current.display_name || formatPhone(current.phone_number);
-  const currentProviderLabel = current.provider === "cloud_api" ? "API Oficial" : current.provider === "evolution" ? "Evolution" : "Z-API";
+  const currentProvider = getWhatsAppProviderAppearance(current.provider);
+  const CurrentProviderIcon = currentProvider.icon;
 
   return (
     <div ref={ref} className={cn("relative z-40 shrink-0", className)}>
@@ -3132,10 +3164,15 @@ function AccountSelector({
         className="inline-flex h-10 w-full shrink-0 items-center gap-1.5 rounded-lg border border-border/60 bg-background/60 px-2.5 text-xs font-medium transition-colors hover:bg-muted/40"
         title="Escolher por qual API/numero enviar"
       >
-        <Phone className="h-3.5 w-3.5 text-emerald-500" />
+        <CurrentProviderIcon className={cn("h-4 w-4 shrink-0", currentProvider.iconClass)} />
         <span className="min-w-0 flex-1 truncate text-left md:max-w-[120px]">{label}</span>
-        <span className="hidden rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground 2xl:inline">
-          {currentProviderLabel}
+        <span
+          className={cn(
+            "inline-flex shrink-0 items-center rounded-md border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide sm:text-[10px]",
+            currentProvider.badgeClass,
+          )}
+        >
+          {currentProvider.label}
         </span>
         <ChevronDown className="h-3.5 w-3.5 opacity-70" />
       </button>
@@ -3150,7 +3187,8 @@ function AccountSelector({
           {accounts.map((a) => {
             const active = a.id === (selectedId ?? accounts[0]?.id);
             const offline = a.health_status === "offline";
-            const providerLabel = a.provider === "cloud_api" ? "API Oficial" : a.provider === "evolution" ? "Evolution" : "Z-API";
+            const provider = getWhatsAppProviderAppearance(a.provider);
+            const ProviderIcon = provider.icon;
             return (
               <button
                 key={a.id}
@@ -3166,12 +3204,18 @@ function AccountSelector({
                   offline && "cursor-not-allowed opacity-50 hover:bg-transparent",
                 )}
               >
-                <Phone className="h-4 w-4 shrink-0 text-emerald-500" />
+                <div className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg border", provider.badgeClass)}>
+                  <ProviderIcon className="h-4 w-4" />
+                </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{a.display_name || formatPhone(a.phone_number)}</p>
-                  <p className="truncate text-[11px] text-muted-foreground">
-                    {formatPhone(a.phone_number)} · {providerLabel}{offline ? " · Desconectado" : ""}
-                  </p>
+                  <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
+                    <span className="truncate text-[11px] text-muted-foreground">{formatPhone(a.phone_number)}</span>
+                    <span className={cn("shrink-0 rounded border px-1 py-0.5 text-[9px] font-bold uppercase", provider.badgeClass)}>
+                      {provider.label}
+                    </span>
+                    {offline && <span className="shrink-0 text-[10px] text-red-500">Desconectado</span>}
+                  </div>
                 </div>
                 {offline ? (
                   <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-500">Offline</span>

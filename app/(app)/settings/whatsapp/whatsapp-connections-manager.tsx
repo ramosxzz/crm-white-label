@@ -2,7 +2,7 @@
 
 import { confirmDialog } from "@/lib/ui/feedback";
 import { useMemo, useState, useTransition } from "react";
-import { ExternalLink, MessageCircle, Plus, Power, Settings, Smartphone, Trash2, UserRound, Wifi, WifiOff } from "lucide-react";
+import { Cable, ExternalLink, MessageCircle, Plus, Power, Radio, Settings, ShieldCheck, Trash2, UserRound, Wifi, WifiOff } from "lucide-react";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,9 @@ type UserOption = { id: string; name: string };
 const providerMeta = {
   cloud_api: {
     title: "WhatsApp Cloud (Oficial)",
+    badge: "Meta Oficial",
+    icon: ShieldCheck,
+    accent: "border-emerald-500/30 bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
     channel: "WhatsApp",
     host: "whatsapp.com",
     href: "https://business.facebook.com/wa/manage/phone-numbers/",
@@ -31,6 +34,9 @@ const providerMeta = {
   },
   evolution: {
     title: "Evolution API",
+    badge: "Evolution",
+    icon: Cable,
+    accent: "border-violet-500/30 bg-violet-500/15 text-violet-600 dark:text-violet-300",
     channel: "WhatsApp",
     host: "doc.evolution-api.com",
     href: "https://doc.evolution-api.com/",
@@ -38,6 +44,9 @@ const providerMeta = {
   },
   zapi: {
     title: "Z-API",
+    badge: "Z-API",
+    icon: Radio,
+    accent: "border-amber-500/30 bg-amber-500/15 text-amber-600 dark:text-amber-300",
     channel: "WhatsApp",
     host: "z-api.io",
     href: "https://www.z-api.io/",
@@ -173,6 +182,7 @@ function ConnectionCard({
   users: UserOption[];
 }) {
   const meta = providerMeta[account.provider];
+  const ProviderIcon = meta.icon;
   const credentials = (account.credentials ?? {}) as Record<string, unknown>;
   const synced = typeof credentials.webhooks_synced_at === "string";
   const registrationPending = account.provider === "cloud_api" && credentials.registered === false;
@@ -208,12 +218,14 @@ function ConnectionCard({
         </div>
 
         <div className="flex gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-brand/15 text-brand">
-            <Smartphone className="h-6 w-6" />
+          <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border", meta.accent)}>
+            <ProviderIcon className="h-6 w-6" />
           </div>
           <div className="min-w-0">
             <h3 className="truncate font-display text-base font-semibold tracking-normal">{meta.title}</h3>
-            <p className="text-sm text-muted-foreground">{meta.channel}</p>
+            <span className={cn("mt-1 inline-flex rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide", meta.accent)}>
+              {meta.badge}
+            </span>
           </div>
         </div>
 
