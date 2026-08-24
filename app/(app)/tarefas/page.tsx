@@ -28,7 +28,9 @@ export default async function TarefasPage({
     .from("tasks")
     .select("id, title, notes, due_at, status, completed_at, created_at, assigned_to, created_by, lead_id, kind")
     .eq("tenant_id", ctx.tenantId)
-    .is("lead_id", null)
+    // Tarefa criada no perfil do lead (lead_id preenchido) tambem conta
+    // aqui - antes esse filtro deixava ela invisivel nessa aba, so dava
+    // pra ver de novo abrindo o lead.
     .order("status", { ascending: true })
     .order("due_at", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false })
@@ -39,6 +41,12 @@ export default async function TarefasPage({
   if (pessoa !== "todos") query = query.eq("assigned_to", pessoa);
 
   const { data: tasks } = await query;
+
+  const leadIds = Array.from(new Set((tasks ?? []).map((t) => t.lead_id).filter((id): id is string => Boolean(id))));
+  const { data: leadRows } = leadIds.length
+    ? await supabase.from("leads").select("id, name").in("id", leadIds).eq("tenant_id", ctx.tenantId)
+    : { data: [] as { id: string; name: string }[] };
+  const leadNames = Object.fromEntries((leadRows ?? []).map((l) => [l.id, l.name]));
 
   return (
     <div>
@@ -54,6 +62,7 @@ export default async function TarefasPage({
           currentUserId={ctx.userId}
           activeStatus={status}
           activePerson={pessoa}
+          leadNames={leadNames}
         />
       </div>
     </div>

@@ -75,6 +75,7 @@ export async function createLeadTask(input: {
   });
   if (error) throw new Error(error.message);
   revalidatePath(`/leads/${input.leadId}`);
+  revalidatePath("/tarefas");
 }
 
 export async function addLeadNote(input: { leadId: string; text: string }) {
@@ -129,4 +130,5 @@ export async function completeLeadTask(taskId: string, leadId: string) {
     .eq("tenant_id", ctx.tenantId);
   if (error) throw new Error(error.message);
   revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/tarefas");
 }

@@ -32,12 +32,15 @@ export function TasksView({
   currentUserId,
   activeStatus,
   activePerson,
+  leadNames = {},
 }: {
   tasks: TaskRow[];
   users: TenantUserOption[];
   currentUserId: string;
   activeStatus: string;
   activePerson: string;
+  /** Nome do lead pra tarefa criada no perfil dele (lead_id preenchido). */
+  leadNames?: Record<string, string>;
 }) {
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<"task" | "meeting">("task");
@@ -276,6 +279,11 @@ export function TasksView({
                         <CalendarClock className="h-3 w-3" />
                         {formatBRTDateShort(task.due_at)}
                       </span>
+                    )}
+                    {task.lead_id && leadNames[task.lead_id] && (
+                      <Link href={`/leads/${task.lead_id}`} className="text-brand hover:underline">
+                        {leadNames[task.lead_id]}
+                      </Link>
                     )}
                   </div>
                 </div>

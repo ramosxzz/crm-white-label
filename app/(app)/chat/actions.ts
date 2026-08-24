@@ -908,6 +908,103 @@ export async function updateChatLeadNotes(input: { leadId: string; notes: string
   return { notes: data.notes ?? "" };
 }
 
+/**
+ * Editar nome/email/telefone e empresa/CNPJ do lead direto do chat. Telefone
+ * e o numero usado pra mandar WhatsApp - mudar aqui muda pra onde a proxima
+ * mensagem sai, entao normaliza igual a qualquer outro numero do sistema.
+ */
+export async function updateChatLeadProfile(input: {
+  leadId: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  companyName: string | null;
+  companyCnpj: string | null;
+}) {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+  const name = input.name.trim();
+  if (!name) throw new Error("Nome nao pode ficar vazio");
+  const phone = input.phone?.trim() ? normalizePhone(input.phone.trim()) : null;
+  const cnpjDigits = input.companyCnpj?.replace(/\D/g, "") ?? "";
+  if (cnpjDigits && cnpjDigits.length !== 14) throw new Error("CNPJ precisa ter 14 digitos");
+
+  const { data: lead } = await supabase
+    .from("leads")
+    .select("custom_fields")
+    .eq("id", input.leadId)
+    .eq("tenant_id", ctx.tenantId)
+    .single();
+  if (!lead) throw new Error("Lead nao encontrado");
+
+  const { error } = await supabase
+    .from("leads")
+    .update({
+      name,
+      email: input.email?.trim() || null,
+      phone,
+      custom_fields: {
+        ...((lead as { custom_fields: Record<string, unknown> | null }).custom_fields ?? {}),
+        company_name: input.companyName?.trim() || null,
+        company_cnpj: cnpjDigits || null,
+      },
+    })
+    .eq("id", input.leadId)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/chat");
+  revalidatePath(`/chat/${input.leadId}`);
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${input.leadId}`);
+  return { name, email: input.email?.trim() || null, phone };
+}
+
+/**
+ * Sinal recebido / forma de pagamento - guardado em custom_fields (mesmo
+ * padrao ja usado por meta_creative_name) pra nao precisar de migration.
+ * Valor a receber nao e salvo: e sempre value_cents - collectedCents,
+ * calculado na hora de exibir.
+ */
+export async function updateChatLeadPayment(input: {
+  leadId: string;
+  collectedCents: number;
+  paymentMethod: string | null;
+  paymentInstallments: number | null;
+}) {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+  const collectedCents = Math.max(0, Math.round(Number(input.collectedCents) || 0));
+
+  const { data: lead } = await supabase
+    .from("leads")
+    .select("custom_fields")
+    .eq("id", input.leadId)
+    .eq("tenant_id", ctx.tenantId)
+    .single();
+  if (!lead) throw new Error("Lead nao encontrado");
+
+  const { error } = await supabase
+    .from("leads")
+    .update({
+      custom_fields: {
+        ...((lead as { custom_fields: Record<string, unknown> | null }).custom_fields ?? {}),
+        payment_collected_cents: collectedCents,
+        payment_method: input.paymentMethod?.trim() || null,
+        payment_installments: input.paymentInstallments || null,
+      },
+    })
+    .eq("id", input.leadId)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/chat");
+  revalidatePath(`/chat/${input.leadId}`);
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${input.leadId}`);
+  return { collectedCents, paymentMethod: input.paymentMethod, paymentInstallments: input.paymentInstallments };
+}
+
 export async function setLeadAutomations(input: { leadId: string; enabled: boolean }) {
   const ctx = await requireContext();
   const supabase = await createClient();

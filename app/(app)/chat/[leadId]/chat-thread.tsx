@@ -7,6 +7,7 @@ import { mediaSizeError } from "@/lib/whatsapp/media-limits";
 import { withTimeout } from "@/lib/async/with-timeout";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Send,
   Loader2,
@@ -101,6 +102,8 @@ import {
   cancelScheduledMessage,
   updateChatLeadBusiness,
   updateChatLeadNotes,
+  updateChatLeadPayment,
+  updateChatLeadProfile,
   updateChatLeadTags,
   listLeadTagCatalog,
   editChatMessage,
@@ -134,6 +137,12 @@ type LeadDetails = {
   lostReason: string | null;
   lostPain: string | null;
   creativeName: string | null;
+  /** Sinal/entrada ja pago. Resto = valueCents - collectedCents. */
+  collectedCents: number;
+  paymentMethod: string | null;
+  paymentInstallments: number | null;
+  companyName: string | null;
+  companyCnpj: string | null;
 };
 
 type PipelineOption = {
@@ -303,6 +312,11 @@ function buildLeadDetailsFromRow(
     lostReason: row.lost_reason,
     lostPain: row.lost_pain,
     creativeName: (row.custom_fields?.meta_creative_name as string | undefined) ?? null,
+    collectedCents: Number(row.custom_fields?.payment_collected_cents ?? 0) || 0,
+    paymentMethod: (row.custom_fields?.payment_method as string | undefined) ?? null,
+    paymentInstallments: (row.custom_fields?.payment_installments as number | undefined) ?? null,
+    companyName: (row.custom_fields?.company_name as string | undefined) ?? null,
+    companyCnpj: (row.custom_fields?.company_cnpj as string | undefined) ?? null,
   };
 }
 
@@ -2551,9 +2565,14 @@ function LeadSidePanel({
 }) {
   const [notes, setNotes] = useState(details?.notes ?? "");
   const [notesDirty, setNotesDirty] = useState(false);
+  // Nota critica pro atendimento - nao pode depender so do usuario lembrar
+  // de clicar "Salvar". Autosave por debounce, com status visivel pra nunca
+  // parecer que salvou quando na verdade falhou.
+  const [notesSaveState, setNotesSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const confirmedNotesRef = useRef<string | null>(null);
   const notesRef = useRef(notes);
   const notesDirtyRef = useRef(notesDirty);
+  const notesAutosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     notesRef.current = notes;
     notesDirtyRef.current = notesDirty;
@@ -2604,25 +2623,88 @@ function LeadSidePanel({
     pipelineOptions.find((pipeline) => pipeline.id === businessDraft.pipelineId) ?? pipelineOptions[0] ?? null;
   const selectedStages = selectedPipeline?.stages ?? [];
 
+  // Sinal recebido / restante a receber. Restante nunca e digitado direto -
+  // e sempre valor do negocio menos o que ja foi coletado, senao os dois
+  // campos ficam dessincronizados quando o valor total muda.
+  const [paymentCollectedReais, setPaymentCollectedReais] = useState(
+    ((details?.collectedCents ?? 0) / 100).toFixed(2).replace(".", ","),
+  );
+  const [paymentMethod, setPaymentMethod] = useState(details?.paymentMethod ?? "");
+  const [paymentInstallments, setPaymentInstallments] = useState(
+    details?.paymentInstallments ? String(details.paymentInstallments) : "",
+  );
+  const [paymentDirty, setPaymentDirty] = useState(false);
+  const [paymentSaving, setPaymentSaving] = useState(false);
+
+  const router = useRouter();
+  const [profileEditOpen, setProfileEditOpen] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileDraft, setProfileDraft] = useState({
+    name: leadName,
+    email: details?.email ?? "",
+    phone: channel === "instagram" ? "" : leadPhone,
+    companyName: details?.companyName ?? "",
+    companyCnpj: details?.companyCnpj ?? "",
+  });
+
+  function openProfileEdit() {
+    setProfileDraft({
+      name: leadName,
+      email: details?.email ?? "",
+      phone: channel === "instagram" ? "" : leadPhone,
+      companyName: details?.companyName ?? "",
+      companyCnpj: details?.companyCnpj ?? "",
+    });
+    setProfileEditOpen(true);
+  }
+
+  function saveProfile() {
+    setProfileSaving(true);
+    void updateChatLeadProfile({
+      leadId,
+      name: profileDraft.name,
+      email: profileDraft.email || null,
+      phone: profileDraft.phone || null,
+      companyName: profileDraft.companyName || null,
+      companyCnpj: profileDraft.companyCnpj || null,
+    })
+      .then(() => {
+        notify({ title: "Perfil atualizado", tone: "success" });
+        setProfileEditOpen(false);
+        router.refresh();
+      })
+      .catch((err) => notifyError(err, "Não foi possível salvar o perfil"))
+      .finally(() => setProfileSaving(false));
+  }
+
   useEffect(() => {
     confirmedNotesRef.current = null;
     setNotes(details?.notes ?? "");
     setNotesDirty(false);
     setBusinessDirty(false);
+    setPaymentCollectedReais(((details?.collectedCents ?? 0) / 100).toFixed(2).replace(".", ","));
+    setPaymentMethod(details?.paymentMethod ?? "");
+    setPaymentInstallments(details?.paymentInstallments ? String(details.paymentInstallments) : "");
+    setPaymentDirty(false);
     setLostReason(details?.lostReason ?? "");
     setLostPain(details?.lostPain ?? "");
     setCloseChannel("");
     setSourceSelect(deriveSourceSelect(details?.source ?? ""));
     setSourceCustomText(deriveSourceSelect(details?.source ?? "") === "Outro" ? (details?.source ?? "") : "");
     setCreativeDraft(details?.creativeName ?? "");
-    // Trocar de lead sem clicar "Salvar notas" descartava o texto digitado
-    // (o reset acima roda pro novo lead antes do usuario salvar o antigo).
-    // O cleanup fecha sobre o leadId anterior; salva a nota pendente antes
-    // de o painel virar pro proximo lead.
+    setNotesSaveState("idle");
+    // Trocar de lead sem salvar descartava o texto digitado (o reset acima
+    // roda pro novo lead antes do usuario salvar o antigo). O cleanup fecha
+    // sobre o leadId anterior; salva a nota pendente antes de o painel virar
+    // pro proximo lead. Erro aqui nao pode sumir calado - o usuario ja saiu
+    // da tela, entao avisa por notificacao mesmo assim.
     const previousLeadId = leadId;
     return () => {
+      if (notesAutosaveTimer.current) clearTimeout(notesAutosaveTimer.current);
       if (notesDirtyRef.current) {
-        void updateChatLeadNotes({ leadId: previousLeadId, notes: notesRef.current }).catch(() => {});
+        void updateChatLeadNotes({ leadId: previousLeadId, notes: notesRef.current }).catch((err) => {
+          notifyError(err, "Não foi possível salvar a nota do lead anterior");
+        });
       }
     };
   }, [leadId]);
@@ -2680,15 +2762,39 @@ function LeadSidePanel({
   }, [details?.valueCents, details?.pipelineId, details?.stageId, details?.assignedTo, pipelineOptions, stageOwnerPipelineId, businessDirty, businessSaving]);
 
   function saveNotes() {
+    if (notesAutosaveTimer.current) {
+      clearTimeout(notesAutosaveTimer.current);
+      notesAutosaveTimer.current = null;
+    }
+    const savingLeadId = leadId;
+    const savingText = notesRef.current;
     setSaving(true);
-    void updateChatLeadNotes({ leadId, notes })
+    setNotesSaveState("saving");
+    void updateChatLeadNotes({ leadId: savingLeadId, notes: savingText })
       .then((res) => {
+        // Lead pode ter trocado enquanto o save estava em voo - so aplica
+        // o resultado se ainda for o mesmo lead na tela.
+        if (leadId !== savingLeadId) return;
         confirmedNotesRef.current = res.notes;
         setNotes(res.notes);
         setNotesDirty(false);
+        setNotesSaveState("saved");
       })
-      .catch((err) => notifyError(err))
+      .catch((err) => {
+        if (leadId === savingLeadId) setNotesSaveState("error");
+        notifyError(err, "Não foi possível salvar a nota");
+      })
       .finally(() => setSaving(false));
+  }
+
+  // Autosave: 1.2s sem digitar ja salva sozinho, sem depender do usuario
+  // lembrar de clicar. Botao continua existindo pra salvar na hora.
+  function scheduleNotesAutosave() {
+    if (notesAutosaveTimer.current) clearTimeout(notesAutosaveTimer.current);
+    notesAutosaveTimer.current = setTimeout(() => {
+      notesAutosaveTimer.current = null;
+      if (notesDirtyRef.current) saveNotes();
+    }, 1200);
   }
 
   function changePipeline(pipelineId: string) {
@@ -2726,6 +2832,22 @@ function LeadSidePanel({
       })
       .catch((err) => notifyError(err))
       .finally(() => setBusinessSaving(false));
+  }
+
+  function savePayment() {
+    const parsed = Number(paymentCollectedReais.replace(/\./g, "").replace(",", "."));
+    const collectedCents = Math.round(Math.max(0, Number.isFinite(parsed) ? parsed : 0) * 100);
+    const installments = paymentInstallments ? parseInt(paymentInstallments, 10) : null;
+    setPaymentSaving(true);
+    void updateChatLeadPayment({
+      leadId,
+      collectedCents,
+      paymentMethod: paymentMethod || null,
+      paymentInstallments: installments && installments > 0 ? installments : null,
+    })
+      .then(() => setPaymentDirty(false))
+      .catch((err) => notifyError(err))
+      .finally(() => setPaymentSaving(false));
   }
 
   return (
@@ -2789,12 +2911,98 @@ function LeadSidePanel({
         </div>
       </PanelSection>
 
-      <PanelSection title="Perfil">
+      <PanelSection
+        title="Perfil"
+        action={
+          <button
+            type="button"
+            onClick={openProfileEdit}
+            className="text-muted-foreground hover:text-foreground"
+            title="Editar perfil"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        }
+      >
         <InfoRow label="Nome" value={leadName} />
         <InfoRow label="E-mail" value={details?.email || "Email do lead"} muted={!details?.email} />
         <InfoRow label="Telefone" value={channel === "instagram" ? "Instagram Direct" : formatPhone(leadPhone)} />
+        <InfoRow label="Empresa" value={details?.companyName || "Não informada"} muted={!details?.companyName} />
+        {details?.companyCnpj && (
+          <InfoRow label="CNPJ" value={details.companyCnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5")} />
+        )}
         <InfoRow label="Entrada" value={formatShortDate(details?.createdAt)} />
       </PanelSection>
+
+      <Dialog open={profileEditOpen} onOpenChange={setProfileEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar perfil do lead</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="profile-name">Nome</Label>
+              <Input
+                id="profile-name"
+                value={profileDraft.name}
+                onChange={(e) => setProfileDraft((d) => ({ ...d, name: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="profile-email">E-mail</Label>
+              <Input
+                id="profile-email"
+                type="email"
+                value={profileDraft.email}
+                onChange={(e) => setProfileDraft((d) => ({ ...d, email: e.target.value }))}
+              />
+            </div>
+            {channel !== "instagram" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="profile-phone">Telefone</Label>
+                <Input
+                  id="profile-phone"
+                  value={profileDraft.phone}
+                  onChange={(e) => setProfileDraft((d) => ({ ...d, phone: e.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Muda pra onde as próximas mensagens de WhatsApp são enviadas.
+                </p>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3 border-t border-border/60 pt-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="profile-company">Empresa</Label>
+                <Input
+                  id="profile-company"
+                  value={profileDraft.companyName}
+                  onChange={(e) => setProfileDraft((d) => ({ ...d, companyName: e.target.value }))}
+                  placeholder="Nome da empresa"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="profile-cnpj">CNPJ</Label>
+                <Input
+                  id="profile-cnpj"
+                  inputMode="numeric"
+                  value={profileDraft.companyCnpj}
+                  onChange={(e) => setProfileDraft((d) => ({ ...d, companyCnpj: e.target.value.replace(/\D/g, "").slice(0, 14) }))}
+                  placeholder="Só números"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setProfileEditOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={saveProfile} disabled={profileSaving}>
+              {profileSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <PanelSection title="Tags">
         <LeadTagPicker value={tags} options={tagOptions} onChange={persistTags} disabled={tagsSaving} />
@@ -2806,14 +3014,31 @@ function LeadSidePanel({
           onChange={(e) => {
             setNotes(e.target.value);
             setNotesDirty(true);
+            setNotesSaveState("idle");
+            scheduleNotesAutosave();
+          }}
+          onBlur={() => {
+            if (notesDirtyRef.current) saveNotes();
           }}
           placeholder="Anote contexto importante deste lead..."
           className="min-h-24 resize-none bg-background/70"
         />
-        <Button type="button" size="sm" variant="outline" className="mt-2 w-full" onClick={saveNotes} disabled={saving}>
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-          Salvar notas
-        </Button>
+        <div className="mt-2 flex items-center gap-2">
+          <Button type="button" size="sm" variant="outline" className="flex-1" onClick={saveNotes} disabled={saving}>
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+            Salvar notas
+          </Button>
+          <span
+            className={cn(
+              "text-xs",
+              notesSaveState === "error" ? "text-destructive font-medium" : "text-muted-foreground",
+            )}
+          >
+            {notesSaveState === "saving" && "Salvando..."}
+            {notesSaveState === "saved" && !notesDirty && "Salvo"}
+            {notesSaveState === "error" && "Falhou ao salvar"}
+          </span>
+        </div>
       </PanelSection>
 
       {callsEnabled && (
@@ -3051,6 +3276,87 @@ function LeadSidePanel({
         </div>
       </PanelSection>
 
+      <PanelSection title="Pagamento">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Valor coletado</label>
+            <Input
+              inputMode="decimal"
+              value={paymentCollectedReais}
+              onChange={(e) => {
+                setPaymentCollectedReais(e.target.value);
+                setPaymentDirty(true);
+              }}
+              placeholder="0,00"
+              className="h-9 bg-background/70"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Valor a receber</label>
+            <div className="flex h-9 items-center rounded-md border border-border/60 bg-muted/40 px-3 text-sm text-muted-foreground">
+              {(() => {
+                const collected = Number(paymentCollectedReais.replace(/\./g, "").replace(",", ".")) || 0;
+                const total = (details?.valueCents ?? 0) / 100;
+                return `R$ ${Math.max(0, total - collected).toFixed(2).replace(".", ",")}`;
+              })()}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Forma de pagamento</label>
+            <Select
+              value={paymentMethod || "none"}
+              onValueChange={(value) => {
+                setPaymentMethod(value === "none" ? "" : value);
+                setPaymentDirty(true);
+                if (value !== "credito") setPaymentInstallments("");
+              }}
+            >
+              <SelectTrigger className="h-9 bg-background/70">
+                <SelectValue placeholder="Selecione" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Não informado</SelectItem>
+                <SelectItem value="pix">Pix</SelectItem>
+                <SelectItem value="credito">Crédito</SelectItem>
+                <SelectItem value="debito">Débito</SelectItem>
+                <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                <SelectItem value="boleto">Boleto</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {paymentMethod === "credito" && (
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Nº de vezes</label>
+              <Input
+                inputMode="numeric"
+                value={paymentInstallments}
+                onChange={(e) => {
+                  setPaymentInstallments(e.target.value.replace(/\D/g, ""));
+                  setPaymentDirty(true);
+                }}
+                placeholder="1"
+                className="h-9 bg-background/70"
+              />
+            </div>
+          )}
+        </div>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="mt-3 w-full"
+          onClick={savePayment}
+          disabled={paymentSaving || !paymentDirty}
+        >
+          {paymentSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          Salvar pagamento
+        </Button>
+      </PanelSection>
+
       <PanelSection title="Histórico">
         <LeadTimeline leadId={leadId} />
       </PanelSection>
@@ -3069,10 +3375,21 @@ function LeadSidePanel({
   );
 }
 
-function PanelSection({ title, children }: { title: string; children: React.ReactNode }) {
+function PanelSection({
+  title,
+  children,
+  action,
+}: {
+  title: string;
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
   return (
     <section className="border-b border-border/60 p-4">
-      <h3 className="mb-3 text-sm font-semibold text-foreground">{title}</h3>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        {action}
+      </div>
       {children}
     </section>
   );
