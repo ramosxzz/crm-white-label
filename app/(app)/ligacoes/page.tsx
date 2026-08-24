@@ -15,6 +15,7 @@ import { isCallAnswered } from "@/lib/integrations/call-answered";
 import { cn } from "@/lib/utils";
 import { CallsTable, type CallRow } from "./calls-table";
 import { CallsFunnel } from "./calls-funnel";
+import { CallsByUser, type UserCallStats } from "./calls-by-user";
 import { RefreshButton } from "@/components/app/refresh-button";
 import { listScheduledCallsForTenant } from "../agenda/actions";
 import { ScheduledCallsPanel } from "./scheduled-calls-panel";
@@ -40,6 +41,7 @@ type SearchParams = {
   stage?: string | string[];
   tag?: string | string[];
   stars?: string | string[];
+  user?: string | string[];
 };
 
 export default async function CallsDashboardPage({ searchParams }: { searchParams?: Promise<SearchParams> }) {
@@ -54,6 +56,7 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
   const stageFilter = firstParam(params.stage) || "";
   const tagFilter = firstParam(params.tag) || "";
   const starsFilter = Number(firstParam(params.stars) || 0);
+  const userFilter = firstParam(params.user) || "";
 
   const supabase = await createClient();
 
@@ -93,6 +96,42 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
   const answerRate = total > 0 ? Math.round((answered / total) * 100) : 0;
   const totalTalkSeconds = calls.reduce((acc, c) => acc + c.duration, 0);
   const avgDurationSeconds = answered > 0 ? Math.round(totalTalkSeconds / answered) : 0;
+
+  // Dono da ligacao: gravado no metadata quando a chamada e disparada pelo
+  // CRM. Ligacao feita fora do sistema (discada direto no ramal) nao tem
+  // dono e entra como "Sem usuario".
+  const callUserId = (c: (typeof calls)[number]) =>
+    ((c.metadata as Record<string, unknown> | null)?.user_id as string | undefined) ?? "";
+  const userNameById = new Map(users.map((u) => [u.id, u.name]));
+
+  const statsByUser = new Map<string, UserCallStats>();
+  for (const c of calls) {
+    const id = callUserId(c);
+    const entry = statsByUser.get(id) ?? {
+      userId: id,
+      name: id ? (userNameById.get(id) ?? "Usuário removido") : "Sem usuário (discado no ramal)",
+      total: 0,
+      answered: 0,
+      answerRate: 0,
+      avgDurationSeconds: 0,
+      talkSeconds: 0,
+      recordings: 0,
+    };
+    entry.total += 1;
+    if (isCallAnswered(c.duration)) {
+      entry.answered += 1;
+      entry.talkSeconds += c.duration;
+    }
+    if (c.record_url) entry.recordings += 1;
+    statsByUser.set(id, entry);
+  }
+  const userStats: UserCallStats[] = [...statsByUser.values()]
+    .map((s) => ({
+      ...s,
+      answerRate: s.total > 0 ? Math.round((s.answered / s.total) * 100) : 0,
+      avgDurationSeconds: s.answered > 0 ? Math.round(s.talkSeconds / s.answered) : 0,
+    }))
+    .sort((a, b) => b.total - a.total);
 
   const leadIds = Array.from(
     new Set(
@@ -134,6 +173,7 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
   const allTags = Array.from(new Set(leadRows.flatMap((l) => l.tags ?? []))).sort();
 
   const rows: CallRow[] = calls
+    .filter((c) => (userFilter ? callUserId(c) === userFilter : true))
     .filter((c) => {
       if (!stageFilter) return true;
       const leadId = (c.metadata as Record<string, unknown> | null)?.lead_id as string | undefined;
@@ -176,6 +216,7 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
         wasAnswered: isCallAnswered(c.duration),
         hangupLabel: describeHangupCause(c.hangup_cause),
         recordUrl: c.record_url,
+        userName: callUserId(c) ? (userNameById.get(callUserId(c)) ?? null) : null,
       };
     });
 
@@ -190,6 +231,8 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
       <PageHeader title="Ligações" description="Chamadas realizadas via Api4com" actions={<RefreshButton title="Atualizar ligações" />} />
 
       <form className="mx-6 mt-6 flex flex-wrap items-end gap-3 rounded-xl border border-border/60 bg-card/70 p-4">
+        {/* Filtrar por data nao pode perder o vendedor ja selecionado. */}
+        {userFilter && <input type="hidden" name="user" value={userFilter} />}
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground" htmlFor="calls-from">De</label>
           <Input id="calls-from" name="from" type="date" defaultValue={formatDateInput(range.from)} className="h-9 w-40" />
@@ -248,7 +291,12 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
         <KpiCard icon={<PhoneCall className="h-5 w-5" />} label="Tentativas / Lead" value={avgAttempts} />
       </div>
 
-      <div className="grid gap-4 px-6 pb-6 lg:grid-cols-2">
+      <div className="grid gap-4 px-6 pb-6 lg:grid-cols-3">
+        <CallsByUser
+          stats={userStats}
+          activeUserId={userFilter}
+          buildHref={(userId) => buildCallsHref(params, userId)}
+        />
         <CallsFunnel counts={outcomeCounts} />
         <ScheduledCallsPanel calls={scheduledCalls} />
       </div>
@@ -292,6 +340,18 @@ function formatDuration(seconds: number): string {
 
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+/** Mantem os filtros atuais (periodo, etapa, tag...) e troca so o vendedor. */
+function buildCallsHref(params: SearchParams, userId: string) {
+  const qs = new URLSearchParams();
+  for (const key of ["from", "to", "preset", "stage", "tag", "stars"] as const) {
+    const value = firstParam(params[key]);
+    if (value) qs.set(key, value);
+  }
+  if (userId) qs.set("user", userId);
+  const query = qs.toString();
+  return query ? `/ligacoes?${query}` : "/ligacoes";
 }
 
 function startOfDay(date: Date) {

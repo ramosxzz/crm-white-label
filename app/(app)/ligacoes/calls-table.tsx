@@ -37,6 +37,8 @@ export type CallRow = {
   wasAnswered: boolean;
   hangupLabel: string;
   recordUrl: string | null;
+  /** Quem fez a ligacao (null quando foi discada direto no ramal). */
+  userName: string | null;
 };
 
 const PAGE_SIZE = 10;
@@ -127,6 +129,7 @@ export function CallsTable({
           <thead>
             <tr className="border-b border-border/60 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <th className="px-5 py-3">Data</th>
+              <th className="px-5 py-3">Vendedor</th>
               <th className="px-5 py-3">Destino</th>
               <th className="px-5 py-3">Lead</th>
               <th className="px-5 py-3">Tags</th>
@@ -145,6 +148,9 @@ export function CallsTable({
               <tr key={c.id} className="border-b border-border/40 last:border-0 hover:bg-muted/30">
                 <td className="px-5 py-3 text-muted-foreground">
                   {formatBRTDateTime(c.startedAt)}
+                </td>
+                <td className="px-5 py-3">
+                  {c.userName ?? <span className="text-muted-foreground">-</span>}
                 </td>
                 <td className="px-5 py-3 font-mono">{c.to}</td>
                 <td className="px-5 py-3">
