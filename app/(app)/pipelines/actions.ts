@@ -118,8 +118,13 @@ export async function updateStage(formData: FormData) {
   const name = z.string().trim().min(1, "Nome obrigatorio").parse(formData.get("name"));
   const color = z.string().regex(/^#[0-9a-f]{6}$/i, "Cor invalida").parse(formData.get("color"));
   const isWon = formData.get("is_won") === "on";
+  const triggerPhraseRaw = String(formData.get("trigger_phrase") ?? "").trim();
   const supabase = await createClient();
-  const { error } = await supabase.from("pipeline_stages").update({ name, color, is_won: isWon }).eq("id", id).eq("tenant_id", ctx.tenantId);
+  const { error } = await supabase
+    .from("pipeline_stages")
+    .update({ name, color, is_won: isWon, trigger_phrase: triggerPhraseRaw || null })
+    .eq("id", id)
+    .eq("tenant_id", ctx.tenantId);
   if (error) throw new Error(error.message);
   if (isWon) {
     // Marcar a etapa como ganho nao move retroativamente quem ja esta nela -

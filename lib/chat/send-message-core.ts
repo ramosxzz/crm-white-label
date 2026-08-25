@@ -4,6 +4,7 @@ import { normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
 import type { WhatsAppAccount, Database } from "@/lib/supabase/database.types";
 import type { ChatMessage } from "@/lib/chat/types";
 import { fireAutomationTrigger } from "@/lib/automations/trigger";
+import { applyStageTriggerPhrase } from "@/lib/leads/stage-trigger-phrase";
 
 export function providerErrorMessage(result: { status: string; raw?: unknown }): string {
   const messages: string[] = [];
@@ -234,6 +235,7 @@ export async function sendChatMessageCore(
     void fireAutomationTrigger(input.tenantId, "message_sent", lead.id, {
       quick_message_id: input.quickMessageId ?? null,
     });
+    void applyStageTriggerPhrase(supabase, input.tenantId, lead.id, input.body);
 
     return {
       conversationId,

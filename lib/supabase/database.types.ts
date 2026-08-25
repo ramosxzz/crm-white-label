@@ -2027,6 +2027,7 @@ export type Database = {
           pipeline_id: string
           position: number
           tenant_id: string
+          trigger_phrase: string | null
         }
         Insert: {
           color?: string | null
@@ -2038,6 +2039,7 @@ export type Database = {
           pipeline_id: string
           position?: number
           tenant_id: string
+          trigger_phrase?: string | null
         }
         Update: {
           color?: string | null
@@ -2049,6 +2051,7 @@ export type Database = {
           pipeline_id?: string
           position?: number
           tenant_id?: string
+          trigger_phrase?: string | null
         }
         Relationships: [
           {

@@ -20,7 +20,14 @@ import { cn } from "@/lib/utils";
 import { createStage, reorderStages, updateStage } from "./actions";
 import { DeleteStageButton } from "./delete-buttons";
 
-type StageRow = { id: string; name: string; color: string | null; position: number; is_won: boolean };
+type StageRow = {
+  id: string;
+  name: string;
+  color: string | null;
+  position: number;
+  is_won: boolean;
+  trigger_phrase?: string | null;
+};
 
 export function StageSorter({
   pipelineId,
@@ -138,6 +145,13 @@ function SortableStageRow({ stage }: { stage: StageRow }) {
           defaultValue={stage.color ?? "#9d7e52"}
           aria-label="Cor da etapa"
           className="h-8 w-10 cursor-pointer border-0 bg-transparent p-0"
+        />
+        <Input
+          name="trigger_phrase"
+          defaultValue={stage.trigger_phrase ?? ""}
+          aria-label="Frase que move pra essa etapa"
+          placeholder="Frase que move pra cá (opcional)"
+          className="h-8 min-w-56 flex-1"
         />
         <label className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground">
           <input name="is_won" type="checkbox" defaultChecked={stage.is_won} className="h-3.5 w-3.5 accent-[hsl(var(--brand))]" />

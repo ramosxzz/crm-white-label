@@ -12,7 +12,14 @@ import { DeletePipelineButton } from "./delete-buttons";
 import { PipelineForm } from "./pipeline-form";
 import { StageSorter } from "./stage-sorter";
 
-type StageRow = { id: string; name: string; color: string | null; position: number; is_won: boolean };
+type StageRow = {
+  id: string;
+  name: string;
+  color: string | null;
+  position: number;
+  is_won: boolean;
+  trigger_phrase: string | null;
+};
 type PipelineRow = { id: string; name: string; is_default: boolean; pipeline_stages: StageRow[] };
 
 export default async function PipelinesPage() {
@@ -20,7 +27,7 @@ export default async function PipelinesPage() {
   const supabase = await createClient();
   const { data } = await supabase
     .from("pipelines")
-    .select("id, name, is_default, pipeline_stages(id, name, color, position, is_won)")
+    .select("id, name, is_default, pipeline_stages(id, name, color, position, is_won, trigger_phrase)")
     .eq("tenant_id", ctx.tenantId)
     .order("created_at");
   const pipelines = (data ?? []) as unknown as PipelineRow[];
