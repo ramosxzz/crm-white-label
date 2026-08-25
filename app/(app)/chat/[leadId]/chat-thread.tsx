@@ -3,7 +3,8 @@
 import { notify, notifyError } from "@/lib/ui/feedback";
 import { formatBRTTime, formatBRTDateTime, formatBRTFullDate } from "@/lib/date/brt";
 import { LinkifiedText } from "@/components/chat/linkified-text";
-import { mediaSizeError } from "@/lib/whatsapp/media-limits";
+import { mediaSizeError, WHATSAPP_MEDIA_LIMITS_BYTES } from "@/lib/whatsapp/media-limits";
+import { shrinkImageUnderSize } from "@/lib/media/image";
 import { withTimeout } from "@/lib/async/with-timeout";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
@@ -907,11 +908,42 @@ export function ChatThread({
     }
   }
 
-  function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
     const kind = detectMediaKind(file.type);
+
+    // Foto de celular passa fácil de 5 MB (câmera moderna, HEIC convertido
+    // com muito peso) e batia direto no bloqueio - reportado como "algumas
+    // fotos não vão" na Atacado Moda Sul. Comprime antes de checar o teto,
+    // então a foto normal do dia a dia passa sem o usuário perceber nada.
+    if (kind === "image" && file.size > WHATSAPP_MEDIA_LIMITS_BYTES.image) {
+      const shrunk = await shrinkImageUnderSize(file, WHATSAPP_MEDIA_LIMITS_BYTES.image);
+      const sizeError = mediaSizeError("image", shrunk.size);
+      if (sizeError) {
+        notify({ title: sizeError, tone: "error" });
+        return;
+      }
+      void uploadAndSend(shrunk, file.name, "image");
+      return;
+    }
+
+    // Vídeo de celular acima de 16 MB (o teto de vídeo do WhatsApp) não dá
+    // pra comprimir no navegador sem uma biblioteca pesada - em vez de
+    // bloquear, manda como arquivo (documento aceita até 100 MB). Chega no
+    // WhatsApp como anexo pra baixar, não tocando inline, mas chega.
+    if (kind === "video" && file.size > WHATSAPP_MEDIA_LIMITS_BYTES.video) {
+      const docError = mediaSizeError("document", file.size);
+      if (docError) {
+        notify({ title: docError, tone: "error" });
+        return;
+      }
+      notify({ title: "Vídeo grande demais pra enviar como vídeo — mandando como arquivo.", tone: "info" });
+      void uploadAndSend(file, file.name, "document");
+      return;
+    }
+
     // O WhatsApp recusa arquivo acima do teto dele independente do que a
     // gente aceitar aqui. Bloquear antes de subir evita minutos de upload
     // (em loja com conexao ruim, literalmente minutos) pra um envio que
