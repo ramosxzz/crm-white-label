@@ -44,6 +44,7 @@ import { SettlementPanel } from "./settlement-panel";
 import { FollowupsPanel, type FollowupRow } from "./followups-panel";
 import { CommissionsPanel, type CommissionRow } from "./commissions-panel";
 import { CreateReapplicationButton } from "./create-reapplication-button";
+import { AtendimentoEditDialog } from "./atendimento-edit-dialog";
 
 function formatAddress(order: any) {
   const street = [order.address_street, order.address_number].filter(Boolean).join(", ");
@@ -288,7 +289,36 @@ export default async function ServiceOrderDetailPage({
       <div className="grid gap-6 p-8 lg:grid-cols-[1fr_22rem]">
         <div className="space-y-6">
           <section className="rounded-xl border border-border/70 bg-card p-5 shadow-elev-1">
-            <h2 className="mb-4 text-sm font-semibold">Atendimento</h2>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Atendimento</h2>
+              {canManage && (
+                <AtendimentoEditDialog
+                  serviceOrderId={order.id}
+                  leadName={order.leads?.name ?? ""}
+                  leadPhone={order.leads?.phone ?? null}
+                  voltage={order.voltage}
+                  deadline={order.deadline}
+                  saleChannel={order.sale_channel}
+                  partnerStore={order.partner_store}
+                  partnerExtraName={order.partner_extra_name}
+                  partnerExtraPercent={order.partner_extra_percent}
+                  consultantId={order.consultant_id}
+                  consultantExtraId={order.consultant_extra_id}
+                  technicianIds={assignedIds}
+                  address={{
+                    cep: order.address_cep ?? "",
+                    street: order.address_street ?? "",
+                    number: order.address_number ?? "",
+                    complement: order.address_complement ?? "",
+                    district: order.address_district ?? "",
+                    city: order.address_city ?? "",
+                    state: order.address_state ?? "",
+                  }}
+                  consultants={consultants}
+                  technicians={technicians}
+                />
+              )}
+            </div>
             <dl className="grid gap-4 sm:grid-cols-2">
               <div>
                 <dt className="text-xs uppercase tracking-wider text-muted-foreground">Cliente</dt>

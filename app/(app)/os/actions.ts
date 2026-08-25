@@ -155,6 +155,33 @@ async function insertWithSequentialCode(
   throw new Error("Nao foi possivel gerar o numero da OS. Tente novamente.");
 }
 
+/**
+ * Ao faturar, o cliente vira candidato a reaplicacao (a impermeabilizacao
+ * degrada com o tempo e precisa repetir). Move o lead pra pasta de
+ * reaplicacao, ja atribuido a mesma consultora que vendeu - ela quem vai
+ * fazer o follow-up daqui uns meses, sem precisar Michele redistribuir de
+ * novo algo que ja tem dono.
+ */
+async function routeLeadToReapplicationFolder(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tenantId: string,
+  serviceOrderId: string,
+) {
+  const { data: order } = await supabase
+    .from("service_orders")
+    .select("lead_id, consultant_id")
+    .eq("id", serviceOrderId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (!order?.lead_id) return;
+
+  await supabase
+    .from("leads")
+    .update({ lead_folder: "reaplicacao", assigned_to: order.consultant_id ?? null })
+    .eq("id", order.lead_id)
+    .eq("tenant_id", tenantId);
+}
+
 async function logStatusChange(
   supabase: Awaited<ReturnType<typeof createClient>>,
   ctx: Ctx,
@@ -682,12 +709,14 @@ export async function billServiceOrderWithOverrides(input: {
     p_overrides: overrides,
   });
   if (error) throw new Error(error.message);
+  await routeLeadToReapplicationFolder(supabase, ctx.tenantId, input.serviceOrderId);
 
   revalidatePath(`/os/${input.serviceOrderId}`);
   revalidatePath("/os");
   revalidatePath("/os/agenda");
   revalidatePath("/os/roteiro");
   revalidatePath("/financeiro");
+  revalidatePath("/pastas");
 }
 
 export async function transitionServiceOrder(input: {
@@ -748,12 +777,14 @@ export async function transitionServiceOrder(input: {
       p_user_id: ctx.userId,
     });
     if (billError) throw new Error(billError.message);
+    await routeLeadToReapplicationFolder(supabase, ctx.tenantId, parsed.id);
 
     revalidatePath("/os");
     revalidatePath("/os/agenda");
     revalidatePath("/os/roteiro");
     revalidatePath("/financeiro");
     revalidatePath(`/os/${parsed.id}`);
+    revalidatePath("/pastas");
     return;
   }
 
@@ -1491,4 +1522,108 @@ export async function getTechnicianDayAvailability(day: string): Promise<Technic
     technicianName: tech.name,
     busy: (busyByTech.get(tech.id) ?? []).sort((a, b) => a.startAt.localeCompare(b.startAt)),
   }));
+}
+
+const updateAtendimentoSchema = z.object({
+  lead_name: z.string().trim().min(1, "Nome obrigatorio").optional(),
+  lead_phone: z.string().trim().optional(),
+  consultant_id: z.string().uuid().optional(),
+  consultant_extra_id: z.string().uuid().optional(),
+  voltage: z.enum(["110v", "220v"]).optional(),
+  deadline: z.string().optional(),
+  sale_channel: z.enum(SALE_CHANNELS).optional(),
+  partner_store: z.string().trim().optional(),
+  partner_extra_name: z.string().trim().optional(),
+  partner_extra_percent: percentField,
+  technician_ids: z.string().optional(),
+  ...addressSchema,
+});
+
+/**
+ * "Tela da OS totalmente editavel" - pedido do ACT depois de ver que so
+ * dava pra corrigir nome/telefone abrindo o lead em outra tela, e voltagem/
+ * endereco/consultora nem isso. Um so form corrige tudo que foi digitado
+ * errado na hora da venda, sem duplicar campo em duas telas.
+ */
+export async function updateServiceOrderAtendimento(input: {
+  id: string;
+  formData: FormData;
+}) {
+  const ctx = await requireManagerContext();
+  const supabase = await createClient();
+  const formData = input.formData;
+
+  const parsed = updateAtendimentoSchema.parse({
+    lead_name: readForm(formData, "lead_name"),
+    lead_phone: readForm(formData, "lead_phone"),
+    consultant_id: readForm(formData, "consultant_id"),
+    consultant_extra_id: readForm(formData, "consultant_extra_id"),
+    voltage: readForm(formData, "voltage"),
+    deadline: readForm(formData, "deadline"),
+    sale_channel: readForm(formData, "sale_channel"),
+    partner_store: readForm(formData, "partner_store"),
+    partner_extra_name: readForm(formData, "partner_extra_name"),
+    partner_extra_percent: readForm(formData, "partner_extra_percent") ?? "",
+    technician_ids: readForm(formData, "technician_ids"),
+    address_street: readForm(formData, "address_street"),
+    address_number: readForm(formData, "address_number"),
+    address_complement: readForm(formData, "address_complement"),
+    address_district: readForm(formData, "address_district"),
+    address_city: readForm(formData, "address_city"),
+    address_state: readForm(formData, "address_state"),
+    address_cep: readForm(formData, "address_cep"),
+  });
+
+  const { data: order } = await supabase
+    .from("service_orders")
+    .select("lead_id")
+    .eq("id", input.id)
+    .eq("tenant_id", ctx.tenantId)
+    .maybeSingle();
+  if (!order) throw new Error("OS nao encontrada");
+
+  if ((parsed.lead_name || parsed.lead_phone) && order.lead_id) {
+    const { error: leadError } = await supabase
+      .from("leads")
+      .update({
+        ...(parsed.lead_name ? { name: parsed.lead_name } : {}),
+        ...(parsed.lead_phone !== undefined ? { phone: parsed.lead_phone || null } : {}),
+      })
+      .eq("id", order.lead_id)
+      .eq("tenant_id", ctx.tenantId);
+    if (leadError) throw new Error(leadError.message);
+  }
+
+  const { error } = await supabase
+    .from("service_orders")
+    .update({
+      voltage: parsed.voltage ?? null,
+      deadline: parsed.deadline || null,
+      sale_channel: parsed.sale_channel ?? null,
+      partner_store: parsed.partner_store || null,
+      partner_extra_name: parsed.partner_extra_name || null,
+      partner_extra_percent: parsed.partner_extra_percent,
+      consultant_id: parsed.consultant_id ?? null,
+      consultant_extra_id: parsed.consultant_extra_id ?? null,
+      address_street: parsed.address_street || null,
+      address_number: parsed.address_number || null,
+      address_complement: parsed.address_complement || null,
+      address_district: parsed.address_district || null,
+      address_city: parsed.address_city || null,
+      address_state: parsed.address_state || null,
+      address_cep: parsed.address_cep || null,
+    })
+    .eq("id", input.id)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+
+  if (parsed.technician_ids !== undefined) {
+    const ids = parsed.technician_ids ? parsed.technician_ids.split(",").filter(Boolean) : [];
+    await setServiceOrderTechniciansInternal(supabase, ctx, input.id, ids);
+  }
+
+  revalidatePath(`/os/${input.id}`);
+  revalidatePath("/os");
+  revalidatePath("/os/agenda");
+  revalidatePath("/os/roteiro");
 }

@@ -144,6 +144,8 @@ type LeadDetails = {
   paymentInstallments: number | null;
   companyName: string | null;
   companyCnpj: string | null;
+  /** Pecas que o parceiro passou pra prospeccao, fica visivel no lead ate finalizar. */
+  partnerPieces: string | null;
 };
 
 type PipelineOption = {
@@ -318,6 +320,7 @@ function buildLeadDetailsFromRow(
     paymentInstallments: (row.custom_fields?.payment_installments as number | undefined) ?? null,
     companyName: (row.custom_fields?.company_name as string | undefined) ?? null,
     companyCnpj: (row.custom_fields?.company_cnpj as string | undefined) ?? null,
+    partnerPieces: (row.custom_fields?.partner_pieces as string | undefined) ?? null,
   };
 }
 
@@ -391,7 +394,7 @@ export function ChatThread({
     consultants: FieldServiceUser[];
     partners: FieldServicePartner[];
     lockedConsultant?: { id: string; name: string } | null;
-    leadReferral?: { partnerId: string | null; source: string | null } | null;
+    leadReferral?: { partnerId: string | null; source: string | null; pieces: string | null } | null;
   } | null;
   saleStockProducts?: SaleStockProduct[] | null;
   saleStockLocations?: SaleStockLocation[] | null;
@@ -2963,6 +2966,7 @@ function LeadSidePanel({
         {details?.companyCnpj && (
           <InfoRow label="CNPJ" value={details.companyCnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5")} />
         )}
+        {details?.partnerPieces && <InfoRow label="Peças (parceiro)" value={details.partnerPieces} />}
         <InfoRow label="Entrada" value={formatShortDate(details?.createdAt)} />
       </PanelSection>
 

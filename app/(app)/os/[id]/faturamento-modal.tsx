@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,7 @@ import { formatCurrencyBRL } from "@/lib/utils";
 import { notify, notifyError } from "@/lib/ui/feedback";
 import { SERVICE_REPORT_CHECKLIST } from "@/lib/field-service/checklist";
 import { COMMISSION_PARTY_LABEL } from "@/lib/field-service/commissions";
+import type { CommissionParty } from "@/lib/supabase/database.types";
 import type {
   ServiceCatalogItem,
   ServiceOrderItem,
@@ -80,6 +81,42 @@ export function FaturamentoModal({
     setLines((prev) =>
       prev ? prev.map((l, i) => (i === index ? { ...l, amountCents: Number.isFinite(cents) ? Math.max(0, cents) : 0 } : l)) : prev,
     );
+  }
+
+  function removeLine(index: number) {
+    setLines((prev) => (prev ? prev.filter((_, i) => i !== index) : prev));
+  }
+
+  // Linha extra: consultora/tecnico/parceiro que o preview automatico nao
+  // trouxe (ex: um segundo tecnico que ajudou sem estar alocado na OS, ou
+  // uma indicacao que surgiu so na hora de fechar). Nome livre porque o
+  // RPC de faturamento grava a comissao pelo nome, nao exige usuario
+  // cadastrado - mesmo caminho que ja vale pra loja parceira/parceiro extra.
+  const [newLineKind, setNewLineKind] = useState<CommissionParty>("tecnico");
+  const [newLineName, setNewLineName] = useState("");
+  const [newLineAmount, setNewLineAmount] = useState("");
+
+  function addLine() {
+    const cents = Math.round(Number(newLineAmount.replace(",", ".")) * 100);
+    if (!newLineName.trim() || !Number.isFinite(cents) || cents <= 0) {
+      notify({ title: "Preencha nome e valor da comissão extra", tone: "error" });
+      return;
+    }
+    setLines((prev) => [
+      ...(prev ?? []),
+      {
+        partyKind: newLineKind,
+        userId: null,
+        partnerId: null,
+        partnerName: newLineName.trim(),
+        partnerStore: null,
+        baseCents: 0,
+        percent: 0,
+        amountCents: cents,
+      },
+    ]);
+    setNewLineName("");
+    setNewLineAmount("");
   }
 
   function confirmarFaturamento() {
@@ -179,7 +216,9 @@ export function FaturamentoModal({
                         {line.partnerName ? ` — ${line.partnerName}` : ""}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {line.percent}% de {formatCurrencyBRL(line.baseCents)}
+                        {line.baseCents > 0
+                          ? `${line.percent}% de ${formatCurrencyBRL(line.baseCents)}`
+                          : "adicionado manualmente"}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
@@ -196,10 +235,63 @@ export function FaturamentoModal({
                         defaultValue={(line.amountCents / 100).toFixed(2)}
                         onChange={(e) => editAmount(i, e.target.value)}
                       />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 text-destructive hover:bg-destructive/10"
+                        title="Remover linha"
+                        onClick={() => removeLine(i)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                   </li>
                 ))}
               </ul>
+            )}
+
+            {!loadingPreview && (
+              <div className="mt-3 flex flex-wrap items-end gap-2 rounded-md border border-dashed border-border/60 p-2">
+                <div className="space-y-1">
+                  <Label htmlFor="new-line-kind" className="text-xs">Tipo</Label>
+                  <select
+                    id="new-line-kind"
+                    value={newLineKind}
+                    onChange={(e) => setNewLineKind(e.target.value as CommissionParty)}
+                    className="h-9 rounded-md border border-border/70 bg-background px-2 text-sm"
+                  >
+                    {Object.entries(COMMISSION_PARTY_LABEL).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <Label htmlFor="new-line-name" className="text-xs">Nome</Label>
+                  <Input
+                    id="new-line-name"
+                    value={newLineName}
+                    onChange={(e) => setNewLineName(e.target.value)}
+                    placeholder="Quem recebe"
+                    className="h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="new-line-amount" className="text-xs">Valor (R$)</Label>
+                  <Input
+                    id="new-line-amount"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={newLineAmount}
+                    onChange={(e) => setNewLineAmount(e.target.value)}
+                    className="h-9 w-28"
+                  />
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={addLine}>
+                  <Plus className="h-3.5 w-3.5" /> Adicionar
+                </Button>
+              </div>
             )}
           </section>
         </div>

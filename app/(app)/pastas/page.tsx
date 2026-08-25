@@ -48,7 +48,7 @@ export default async function PastasPage({
   const [{ data: leads }, sellers] = await Promise.all([
     supabase
       .from("leads")
-      .select("id, name, phone, email, source, created_at, assigned_to")
+      .select("id, name, phone, email, source, created_at, assigned_to, custom_fields")
       .eq("tenant_id", ctx.tenantId)
       .eq("lead_folder", folder)
       .order("created_at", { ascending: false })
@@ -70,6 +70,11 @@ export default async function PastasPage({
             {lead.phone || "sem telefone"}
             {lead.source ? ` · ${lead.source}` : ""} · {formatDateTime(lead.created_at)}
           </p>
+          {(lead.custom_fields as { partner_pieces?: string } | null)?.partner_pieces && (
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              Peças: {(lead.custom_fields as { partner_pieces?: string }).partner_pieces}
+            </p>
+          )}
         </Link>
         <div className="shrink-0">
           {canDistribute ? (

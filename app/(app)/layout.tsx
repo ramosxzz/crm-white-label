@@ -99,7 +99,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <Topbar lastSeenUpdateAt={profile?.last_seen_update_at ?? null} />
             {ctx.tenant.payment_overdue && <PaymentOverdueBanner dueAt={ctx.tenant.payment_due_at} />}
             <Suspense fallback={null}>
-              <WhatsAppHealthBannerAsync tenantId={ctx.tenantId} />
+              <WhatsAppHealthBannerAsync tenantId={ctx.tenantId} userId={ctx.userId} role={ctx.role} />
             </Suspense>
             <main className="flex-1 overflow-auto pb-[calc(4.75rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
           </div>

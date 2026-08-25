@@ -5,6 +5,7 @@ import { Search, UserPlus, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { notify, notifyError } from "@/lib/ui/feedback";
 import {
@@ -107,108 +108,6 @@ export function ProspeccaoForm({
   return (
     <div className="space-y-6">
       <section className="rounded-xl border border-border/70 bg-card p-4">
-        <h2 className="mb-3 text-sm font-semibold">Novo lead</h2>
-        <form onSubmit={submitLead} className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="name">Nome *</Label>
-            <Input id="name" name="name" required disabled={pending} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="phone">Telefone</Label>
-            <Input id="phone" name="phone" disabled={pending} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" disabled={pending} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="source">Origem</Label>
-            <Input id="source" name="source" placeholder="Ex: indicação, Instagram..." disabled={pending} />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Parceiro que indicou (opcional)</Label>
-            <Select value={selectedPartnerId || "none"} onValueChange={(v) => setSelectedPartnerId(v === "none" ? "" : v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Nenhum" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nenhum</SelectItem>
-                {partners.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name} ({p.kind === "loja" ? "loja" : "vendedor"})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Pasta</Label>
-            <Select value={folder} onValueChange={setFolder}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(FOLDER_LABEL).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3 sm:col-span-2">
-            <label className="flex cursor-pointer items-start gap-2.5">
-              <input
-                type="checkbox"
-                checked={urgent}
-                onChange={(e) => {
-                  setUrgent(e.target.checked);
-                  if (!e.target.checked) setSellerId("");
-                }}
-                disabled={pending}
-                className="mt-0.5 h-4 w-4 cursor-pointer accent-[hsl(var(--brand))]"
-              />
-              <span>
-                <span className="text-sm font-medium">Emergência — mandar direto pra uma vendedora</span>
-                <span className="mt-0.5 block text-xs text-muted-foreground">
-                  Normalmente o lead vai só pra pasta e a gerente distribui. Marque só se o cliente
-                  precisa ser atendido agora.
-                </span>
-              </span>
-            </label>
-
-            {urgent && (
-              <div className="space-y-1.5 pt-1">
-                <Label>Vendedora que vai atender *</Label>
-                <Select value={sellerId} onValueChange={setSellerId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Escolha a vendedora" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sellers.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
-
-          <div className="sm:col-span-2">
-            <Button type="submit" variant="brand" disabled={pending} className="w-full sm:w-auto">
-              <Send className="h-4 w-4" />
-              {urgent ? "Cadastrar e enviar pra vendedora" : "Cadastrar e enviar pra pasta"}
-            </Button>
-          </div>
-        </form>
-      </section>
-
-      <section className="rounded-xl border border-border/70 bg-card p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold">Parceiros (lojas / vendedores externos)</h2>
           <Button type="button" size="sm" variant="outline" onClick={() => setShowNewPartner((v) => !v)}>
@@ -290,6 +189,124 @@ export function ProspeccaoForm({
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="rounded-xl border border-border/70 bg-card p-4">
+        <h2 className="mb-3 text-sm font-semibold">Novo lead</h2>
+        <form onSubmit={submitLead} className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="name">Nome *</Label>
+            <Input id="name" name="name" required disabled={pending} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="phone">Telefone</Label>
+            <Input id="phone" name="phone" disabled={pending} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input id="email" name="email" type="email" disabled={pending} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="source">Origem</Label>
+            <Input id="source" name="source" placeholder="Ex: indicação, Instagram..." disabled={pending} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Parceiro que indicou (opcional)</Label>
+            <Select value={selectedPartnerId || "none"} onValueChange={(v) => setSelectedPartnerId(v === "none" ? "" : v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Nenhum" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nenhum</SelectItem>
+                {partners.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name} ({p.kind === "loja" ? "loja" : "vendedor"})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {selectedPartnerId && (
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="pieces">Peças passadas pelo parceiro</Label>
+              <Textarea
+                id="pieces"
+                name="pieces"
+                placeholder="Ex: 1 sofá 3 lugares, 2 poltronas..."
+                disabled={pending}
+                rows={2}
+              />
+              <p className="text-xs text-muted-foreground">
+                Escreve aqui o que o parceiro passou pra você - vai junto pra Michele distribuir.
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label>Pasta</Label>
+            <Select value={folder} onValueChange={setFolder}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(FOLDER_LABEL).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3 sm:col-span-2">
+            <label className="flex cursor-pointer items-start gap-2.5">
+              <input
+                type="checkbox"
+                checked={urgent}
+                onChange={(e) => {
+                  setUrgent(e.target.checked);
+                  if (!e.target.checked) setSellerId("");
+                }}
+                disabled={pending}
+                className="mt-0.5 h-4 w-4 cursor-pointer accent-[hsl(var(--brand))]"
+              />
+              <span>
+                <span className="text-sm font-medium">Emergência — mandar direto pra uma vendedora</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  Normalmente o lead vai só pra pasta e a gerente distribui. Marque só se o cliente
+                  precisa ser atendido agora.
+                </span>
+              </span>
+            </label>
+
+            {urgent && (
+              <div className="space-y-1.5 pt-1">
+                <Label>Vendedora que vai atender *</Label>
+                <Select value={sellerId} onValueChange={setSellerId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Escolha a vendedora" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sellers.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+
+          <div className="sm:col-span-2">
+            <Button type="submit" variant="brand" disabled={pending} className="w-full sm:w-auto">
+              <Send className="h-4 w-4" />
+              {urgent ? "Cadastrar e enviar pra vendedora" : "Cadastrar e enviar pra pasta"}
+            </Button>
+          </div>
+        </form>
       </section>
     </div>
   );

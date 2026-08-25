@@ -67,7 +67,7 @@ export function NewServiceOrderDialog({
    * cadastrou no lead, e ela so preenche endereco, observacao e horario. */
   lockedConsultant?: { id: string; name: string } | null;
   /** Indicacao que veio no lead (cadastrada pela prospeccao). */
-  leadReferral?: { partnerId: string | null; source: string | null } | null;
+  leadReferral?: { partnerId: string | null; source: string | null; pieces: string | null } | null;
 }) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
@@ -231,6 +231,9 @@ export function NewServiceOrderDialog({
                     Indicação: {referralPartner.name}
                     {referralPartner.kind === "loja" ? " (loja parceira)" : " (vendedor da loja)"}
                   </p>
+                )}
+                {leadReferral?.pieces && (
+                  <p className="mt-0.5 text-xs text-muted-foreground">Peças: {leadReferral.pieces}</p>
                 )}
               </div>
               <input type="hidden" name="consultant_id" value={lockedConsultant!.id} />

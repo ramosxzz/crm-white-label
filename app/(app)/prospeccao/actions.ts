@@ -50,6 +50,11 @@ const createAndRouteSchema = z.object({
   email: z.string().email().optional().or(z.literal("")),
   source: z.string().optional(),
   referredByPartnerId: z.string().uuid().optional(),
+  // Peca por peca que o parceiro (loja/vendedor) passou pra Jeruza de
+  // viva voz - texto livre porque cada parceiro descreve do seu jeito.
+  // Fica gravado no lead (custom_fields) e visivel ate finalizar, pra
+  // sempre dar pra saber por onde e de onde o lead veio.
+  pieces: z.string().optional(),
   // Sem vendedora = fluxo normal: cai na pasta sem dono, e a gerente
   // (Michele) distribui de la. So preenche em emergencia, mandando direto.
   sellerId: z.string().uuid().optional(),
@@ -70,6 +75,7 @@ export async function createAndRouteLead(formData: FormData): Promise<CreateAndR
     email: formData.get("email") || undefined,
     source: formData.get("source") || undefined,
     referredByPartnerId: formData.get("referredByPartnerId") || undefined,
+    pieces: formData.get("pieces") || undefined,
     sellerId: formData.get("sellerId") || undefined,
     folder: formData.get("folder"),
   });
@@ -102,6 +108,7 @@ export async function createAndRouteLead(formData: FormData): Promise<CreateAndR
       pipeline_id: (pipeline as { id?: string } | null)?.id,
       assigned_to: input.sellerId ?? null,
       lead_folder: input.folder,
+      custom_fields: input.pieces?.trim() ? { partner_pieces: input.pieces.trim() } : undefined,
     })
     .select("id")
     .single();

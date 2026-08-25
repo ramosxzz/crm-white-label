@@ -312,6 +312,7 @@ export async function getChatThreadData(leadId: string) {
             leadReferral: {
               partnerId: (lead as { referred_by_partner_id?: string | null }).referred_by_partner_id ?? null,
               source: lead.source ?? null,
+              pieces: (lead.custom_fields?.partner_pieces as string | undefined) ?? null,
             },
           }
         : null,
@@ -349,6 +350,7 @@ export async function getChatThreadData(leadId: string) {
       paymentInstallments: (lead.custom_fields?.payment_installments as number | undefined) ?? null,
       companyName: (lead.custom_fields?.company_name as string | undefined) ?? null,
       companyCnpj: (lead.custom_fields?.company_cnpj as string | undefined) ?? null,
+      partnerPieces: (lead.custom_fields?.partner_pieces as string | undefined) ?? null,
     },
   };
 }
