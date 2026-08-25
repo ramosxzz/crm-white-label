@@ -1,7 +1,8 @@
 "use client";
 
 import { notify } from "@/lib/ui/feedback";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   closestCenter,
   DndContext,
@@ -40,6 +41,15 @@ export function StageSorter({
 }) {
   const [orderedStages, setOrderedStages] = useState(stages);
   const [pending, startTransition] = useTransition();
+
+  // O form de salvar etapa e um Server Action que revalida a pagina, mas
+  // esse state local so era preenchido uma vez no mount - depois de salvar,
+  // a tela renderizava de novo com o `stages` novo vindo do server só que
+  // esse array local continuava com o valor antigo, entao parecia que nada
+  // tinha sido salvo. Sincroniza sempre que o server manda dado novo.
+  useEffect(() => {
+    setOrderedStages(stages);
+  }, [stages]);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -116,6 +126,27 @@ function SortableStageRow({ stage }: { stage: StageRow }) {
     transform: CSS.Transform.toString(transform),
     transition,
   };
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+
+  // Antes era um <form action={updateStage}> puro: se desse certo ou errado
+  // a tela ficava do mesmo jeito, sem nenhum aviso - por isso "clico e nao
+  // salva" (na verdade ate podia estar salvando, so nao mostrava nada).
+  // Agora confirma o que salvou de verdade e avisa se der erro.
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    setSaving(true);
+    void updateStage(formData)
+      .then(() => {
+        notify({ title: "Etapa salva", tone: "success" });
+        router.refresh();
+      })
+      .catch((error) => {
+        notify({ title: error instanceof Error ? error.message : "Não foi possível salvar a etapa.", tone: "error" });
+      })
+      .finally(() => setSaving(false));
+  }
 
   return (
     <div
@@ -136,7 +167,7 @@ function SortableStageRow({ stage }: { stage: StageRow }) {
         <GripVertical className="h-4 w-4" />
       </button>
       <span className="h-3 w-3 rounded-full" style={{ backgroundColor: stage.color ?? "#9d7e52" }} />
-      <form action={updateStage} className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+      <form onSubmit={handleSubmit} className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
         <input type="hidden" name="id" value={stage.id} />
         <Input name="name" defaultValue={stage.name} aria-label="Nome da etapa" className="h-8 min-w-48 flex-1" />
         <input
@@ -157,7 +188,7 @@ function SortableStageRow({ stage }: { stage: StageRow }) {
           <input name="is_won" type="checkbox" defaultChecked={stage.is_won} className="h-3.5 w-3.5 accent-[hsl(var(--brand))]" />
           Etapa de ganho
         </label>
-        <Button size="icon" variant="ghost" className="h-8 w-8" title="Salvar etapa">
+        <Button size="icon" variant="ghost" className="h-8 w-8" title="Salvar etapa" disabled={saving}>
           <Save className="h-3.5 w-3.5" />
         </Button>
       </form>
