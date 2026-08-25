@@ -19,7 +19,17 @@ const AvatarImage = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Image>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
 >(({ className, ...props }, ref) => (
-  <AvatarPrimitive.Image ref={ref} className={cn("aspect-square h-full w-full", className)} {...props} />
+  // Sem lazy loading, uma lista com centenas de conversas (cada uma com
+  // foto de perfil do WhatsApp) baixava todas de uma vez ao abrir o chat -
+  // pesado numa loja com computador mais antigo. loading="lazy" só busca
+  // a foto quando ela entra perto da area visivel.
+  <AvatarPrimitive.Image
+    ref={ref}
+    loading="lazy"
+    decoding="async"
+    className={cn("aspect-square h-full w-full", className)}
+    {...props}
+  />
 ));
 AvatarImage.displayName = AvatarPrimitive.Image.displayName;
 
