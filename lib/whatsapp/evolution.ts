@@ -168,6 +168,39 @@ export class EvolutionProvider implements WhatsAppProvider {
     }
   }
 
+  /**
+   * Pede o QR pra parear o numero. A Evolution devolve o QR pronto (PNG em
+   * base64) numa unica chamada - nao precisa gerar nada aqui, so repassar
+   * pro navegador do cliente. O QR expira rapido (~30s), por isso quem usa
+   * isso deve pedir de novo periodicamente enquanto o dialogo estiver aberto
+   * e a conexao nao tiver fechado.
+   */
+  async requestConnectQr(): Promise<{ base64: string | null; pairingCode: string | null }> {
+    const base = this.creds.base_url.replace(/\/$/, "");
+    const url = `${base}/instance/connect/${encodeURIComponent(this.creds.instance)}`;
+    const res = await fetch(url, {
+      headers: { apikey: this.creds.api_key },
+    });
+    const data = (await res.json().catch(() => null)) as
+      | { base64?: string; code?: string; pairingCode?: string; error?: string; response?: { message?: string | string[] } }
+      | null;
+    if (!res.ok) {
+      const responseMessage = Array.isArray(data?.response?.message)
+        ? data?.response?.message.join(", ")
+        : data?.response?.message;
+      throw new Error(data?.error ?? responseMessage ?? `Evolution respondeu HTTP ${res.status}`);
+    }
+    return { base64: data?.base64 ?? null, pairingCode: data?.pairingCode ?? null };
+  }
+
+  /** Desconecta a instancia (logout) - usado antes de gerar um QR novo
+   * quando o cliente quer trocar de numero na mesma instancia. */
+  async logout(): Promise<void> {
+    const base = this.creds.base_url.replace(/\/$/, "");
+    const url = `${base}/instance/logout/${encodeURIComponent(this.creds.instance)}`;
+    await fetch(url, { method: "DELETE", headers: { apikey: this.creds.api_key } });
+  }
+
   async getConnectionStatus(): Promise<{ connected: boolean; state?: string; error?: string }> {
     const base = this.creds.base_url.replace(/\/$/, "");
     const url = `${base}/instance/connectionState/${encodeURIComponent(this.creds.instance)}`;

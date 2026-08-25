@@ -22,6 +22,7 @@ import {
   shouldUpgradeMessageStatus,
 } from "@/lib/whatsapp/zapi-status";
 import { parseEvolutionMessageStatusUpdates } from "@/lib/whatsapp/evolution-status";
+import { recordAccountHealthHeartbeat } from "@/lib/whatsapp/health-checker";
 import { parseEvolutionPresenceUpdate } from "@/lib/whatsapp/evolution-presence";
 import { findLeadByContact } from "@/lib/leads/find-by-contact";
 
@@ -260,6 +261,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
       parsed_count: 0,
       payload: toJson(payload),
     });
+
+    // A Evolution avisa quando a sessao conecta, cai ou desloga - sem isso
+    // a gente so descobria "desconectado" na proxima tentativa de mandar
+    // mensagem (com o cliente ja reclamando que sumiu resposta). Cobre os
+    // dois formatos de nome de evento vistos em versoes diferentes da
+    // Evolution (maiusculo com underscore, minusculo com ponto).
+    if (evoPayload.event === "connection.update" || evoPayload.event === "CONNECTION_UPDATE") {
+      const state = (payload as { data?: { state?: string } })?.data?.state;
+      const status = state === "open" ? "healthy" : state === "connecting" ? "warning" : "offline";
+      await recordAccountHealthHeartbeat(
+        supabase,
+        account.id,
+        status,
+        status === "healthy" ? null : `Evolution: conexao "${state ?? "desconhecida"}"`,
+      );
+      return NextResponse.json({ ok: true, connectionState: state ?? null });
+    }
 
     const statusUpdates = parseEvolutionMessageStatusUpdates(payload);
     if (statusUpdates.length > 0) {

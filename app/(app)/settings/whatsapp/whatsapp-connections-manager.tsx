@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { deleteWhatsAppAccount, setWhatsAppAccountActive } from "./actions";
 import { WhatsAppForm } from "./whatsapp-form";
+import { WhatsAppConnectDialog } from "./whatsapp-connect-dialog";
 
 type Account = WhatsAppAccount;
 type UserOption = { id: string; name: string };
@@ -186,7 +187,19 @@ function ConnectionCard({
   const credentials = (account.credentials ?? {}) as Record<string, unknown>;
   const synced = typeof credentials.webhooks_synced_at === "string";
   const registrationPending = account.provider === "cloud_api" && credentials.registered === false;
-  const status = !account.is_active ? "disabled" : registrationPending ? "pending" : synced ? "connected" : "unstable";
+  // health_status agora e mantido em tempo real pelo webhook de conexao da
+  // Evolution - prevalece sobre o heuristico antigo (so olhava se o
+  // webhook chegou a ser configurado uma vez, nao se ainda esta de pe).
+  const disconnected = account.provider === "evolution" && account.health_status === "offline";
+  const status = !account.is_active
+    ? "disabled"
+    : registrationPending
+      ? "pending"
+      : disconnected
+        ? "unstable"
+        : synced
+          ? "connected"
+          : "unstable";
   const assignedUser = account.assigned_to ? users.find((user) => user.id === account.assigned_to) : null;
 
   return (
@@ -249,6 +262,18 @@ function ConnectionCard({
               <Settings className="h-4 w-4" />
               Gerenciar
             </Button>
+            {account.provider === "evolution" && account.is_active && (
+              <WhatsAppConnectDialog
+                accountId={account.id}
+                displayName={account.display_name || account.phone_number}
+                trigger={
+                  <Button variant="ghost" size="sm">
+                    <Wifi className="h-4 w-4" />
+                    {status === "connected" ? "Reconectar" : "Conectar"}
+                  </Button>
+                }
+              />
+            )}
             <Button
               type="button"
               variant="ghost"

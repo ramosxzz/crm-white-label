@@ -498,3 +498,80 @@ export async function testWhatsAppConnection(input: {
     return { ok: false, message: describeConnectionError(e, input.credentials, "Z-API") };
   }
 }
+
+/**
+ * Autoatendimento de conexao: o cliente pede o QR direto do painel do CRM,
+ * sem precisar do Manager da Evolution (que exporia a api_key pra fora do
+ * backend). So funciona pra Evolution - Cloud API e Z-API nao pareiam por
+ * QR (Cloud API e OAuth da Meta, Z-API tem fluxo proprio no painel deles).
+ */
+export async function requestWhatsAppConnectQr(input: { id: string }): Promise<{
+  base64: string | null;
+  pairingCode: string | null;
+}> {
+  const ctx = await requireContext();
+  if (!canManageWhatsAppAccounts(ctx.role)) throw new Error("Sem permissao");
+  const supabase = await createClient();
+
+  const { data: account, error } = await supabase
+    .from("whatsapp_accounts")
+    .select("*")
+    .eq("id", input.id)
+    .eq("tenant_id", ctx.tenantId)
+    .single();
+  if (error || !account) throw new Error("Conexao nao encontrada");
+  if (account.provider !== "evolution") {
+    throw new Error("Conexao por QR so esta disponivel pra numeros Evolution.");
+  }
+
+  const { EvolutionProvider } = await import("@/lib/whatsapp/evolution");
+  const evo = new EvolutionProvider(account as WhatsAppAccount);
+
+  // Ja conectada: nao faz sentido pedir QR novo (a Evolution devolveria
+  // erro ou um QR que nunca vai ser lido). Confere antes de pedir.
+  const status = await evo.getConnectionStatus();
+  if (status.connected) {
+    throw new Error("Esse numero ja esta conectado.");
+  }
+
+  const qr = await evo.requestConnectQr();
+  return qr;
+}
+
+/** Consulta pra polling do dialogo de QR - tambem grava a saude real no
+ * banco, pra nao depender so do webhook chegar a tempo. */
+export async function checkWhatsAppConnectionStatus(input: {
+  id: string;
+}): Promise<{ connected: boolean; state?: string }> {
+  const ctx = await requireContext();
+  if (!canManageWhatsAppAccounts(ctx.role)) throw new Error("Sem permissao");
+  const supabase = await createClient();
+
+  const { data: account, error } = await supabase
+    .from("whatsapp_accounts")
+    .select("*")
+    .eq("id", input.id)
+    .eq("tenant_id", ctx.tenantId)
+    .single();
+  if (error || !account) throw new Error("Conexao nao encontrada");
+  if (account.provider !== "evolution") return { connected: true };
+
+  const { EvolutionProvider } = await import("@/lib/whatsapp/evolution");
+  const evo = new EvolutionProvider(account as WhatsAppAccount);
+  const status = await evo.getConnectionStatus();
+
+  const { recordAccountHealthHeartbeat } = await import("@/lib/whatsapp/health-checker");
+  await recordAccountHealthHeartbeat(
+    supabase,
+    input.id,
+    status.connected ? "healthy" : "offline",
+    status.connected ? null : (status.error ?? null),
+  );
+
+  if (status.connected) {
+    revalidatePath("/settings/whatsapp");
+    revalidatePath("/chat");
+  }
+
+  return { connected: status.connected, state: status.state };
+}
