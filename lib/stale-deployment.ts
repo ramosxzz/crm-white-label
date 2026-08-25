@@ -22,9 +22,23 @@ const STALE_MARKERS = [
   "Importing a module script failed",
 ];
 
+function matchesStaleMarker(haystack: string): boolean {
+  return STALE_MARKERS.some((marker) => haystack.includes(marker));
+}
+
 export function isStaleDeploymentError(error: Error | null | undefined): boolean {
   // O ChunkLoadError do webpack carrega a identificacao no `name`, nao na
   // mensagem - olhar so a mensagem deixaria ele passar batido.
-  const haystack = `${error?.name ?? ""} ${error?.message ?? ""}`;
-  return STALE_MARKERS.some((marker) => haystack.includes(marker));
+  return matchesStaleMarker(`${error?.name ?? ""} ${error?.message ?? ""}`);
+}
+
+/**
+ * Mesma deteccao, mas pra quando so sobrou o texto (ex.: um catch que ja
+ * formatou a mensagem antes de mostrar um toast, sem guardar o Error
+ * original). Os marcadores sao strings tecnicas em ingles que o Next gera -
+ * nunca algo que alguem escreveria a mao numa mensagem de erro em
+ * portugues, entao o risco de falso positivo e essencialmente zero.
+ */
+export function isStaleDeploymentMessage(text: string | null | undefined): boolean {
+  return matchesStaleMarker(text ?? "");
 }
