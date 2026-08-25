@@ -50,6 +50,13 @@ export function LeadsOpsDashboard({
 
   const totalPipeline = data.pipelineByStage.reduce((a, s) => a + s.count, 0);
 
+  // MQL = mesmo corte de 3+ estrelas ja usado no cartao "Qualidade dos
+  // leads" (lib/leads/operational-metrics.ts), so escopado no "hoje" pra
+  // casar com o resto do resumo diario, sem nova consulta.
+  const mqlToday = (data.starsByPeriod.today?.distribution ?? [])
+    .filter((item) => item.stars >= 3)
+    .reduce((sum, item) => sum + item.count, 0);
+
   return (
     <div className="space-y-6 p-6 md:p-8">
       <section className="border-b border-border/70 pb-5">
@@ -85,32 +92,29 @@ export function LeadsOpsDashboard({
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          icon={<UserPlus className="h-4 w-4" />}
-          label="Novos leads hoje"
-          value={String(data.kpis.newLeadsToday)}
-          trend={leadTrend}
-          hint="vs. ontem"
+      <div className="grid gap-4 lg:grid-cols-12">
+        <ConversionFunnel
+          className="lg:col-span-7"
+          stages={[
+            { label: "Leads recebidos", value: data.kpis.newLeadsToday, trend: leadTrend },
+            { label: "MQLs (3+ estrelas)", value: mqlToday },
+            { label: "Fechamentos", value: data.kpis.wonToday, hint: formatCurrencyBRL(data.kpis.pipelineValueTodayCents) },
+          ]}
         />
-        <KpiCard
-          icon={<MessageCircle className="h-4 w-4" />}
-          label="Mensagens enviadas"
-          value={String(data.kpis.outboundMessagesToday)}
-          hint="saídas no WhatsApp hoje"
-        />
-        <KpiCard
-          icon={<Users className="h-4 w-4" />}
-          label="Conversas ativas"
-          value={String(data.kpis.activeConversationsToday)}
-          hint="com atividade hoje"
-        />
-        <KpiCard
-          icon={<Target className="h-4 w-4" />}
-          label="Ganhos hoje"
-          value={String(data.kpis.wonToday)}
-          hint={formatCurrencyBRL(data.kpis.pipelineValueTodayCents) + " em novos leads"}
-        />
+        <div className="grid gap-4 sm:grid-cols-2 lg:col-span-5 lg:grid-cols-1">
+          <KpiCard
+            icon={<MessageCircle className="h-4 w-4" />}
+            label="Mensagens enviadas"
+            value={String(data.kpis.outboundMessagesToday)}
+            hint="saídas no WhatsApp hoje"
+          />
+          <KpiCard
+            icon={<Users className="h-4 w-4" />}
+            label="Conversas ativas"
+            value={String(data.kpis.activeConversationsToday)}
+            hint="com atividade hoje"
+          />
+        </div>
       </div>
 
       {metaAds && <MetaAdsPanel data={metaAds} />}
@@ -514,6 +518,82 @@ function KpiCard({
         <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
         <p className="mt-1 font-display text-3xl font-semibold tabular-nums">{value}</p>
         {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Funil macro do dia: leads -> qualificados (MQL) -> fechados. Cada estagio
+ * mostra a queda em relacao ao anterior, pra ver de relance onde o funil
+ * mais perde gente sem abrir mais um relatorio.
+ */
+function ConversionFunnel({
+  stages,
+  className,
+}: {
+  stages: { label: string; value: number; hint?: string; trend?: number }[];
+  className?: string;
+}) {
+  const first = stages[0]?.value ?? 0;
+  const widths = [100, 72, 46];
+
+  return (
+    <Card className={className}>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <UserPlus className="h-4 w-4 text-brand" />
+          Funil do dia
+        </CardTitle>
+        <CardDescription>Leads recebidos, qualificados e fechados hoje</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {first === 0 ? (
+          <EmptyChart message="Nenhum lead novo hoje ainda." />
+        ) : (
+          <div className="space-y-2">
+            {stages.map((stage, i) => {
+              const pctOfFirst = first > 0 ? Math.round((stage.value / first) * 100) : 0;
+              const pctOfPrev =
+                i > 0 && stages[i - 1].value > 0 ? Math.round((stage.value / stages[i - 1].value) * 100) : null;
+              return (
+                <div key={stage.label}>
+                  {i > 0 && pctOfPrev !== null && (
+                    <p className="py-1 text-center text-[11px] text-muted-foreground">
+                      ↓ {pctOfPrev}% avançou pra cá
+                    </p>
+                  )}
+                  <div
+                    className="mx-auto flex h-16 items-center justify-center rounded-lg text-center transition-[width] duration-300"
+                    style={{
+                      width: `${widths[i] ?? 30}%`,
+                      background: `color-mix(in srgb, hsl(var(--brand)) ${28 - i * 8}%, transparent)`,
+                      border: "1px solid color-mix(in srgb, hsl(var(--brand)) 35%, transparent)",
+                    }}
+                  >
+                    <div>
+                      <p className="text-xl font-semibold tabular-nums leading-tight">{stage.value}</p>
+                      <p className="text-[11px] font-medium text-muted-foreground">{stage.label}</p>
+                    </div>
+                  </div>
+                  {(stage.hint || stage.trend !== undefined || pctOfFirst !== 100) && i === 0 && (
+                    <p className="mt-1 text-center text-[11px] text-muted-foreground">
+                      {stage.trend !== undefined && (
+                        <span className={stage.trend >= 0 ? "text-success" : "text-destructive"}>
+                          {stage.trend >= 0 ? "+" : ""}
+                          {stage.trend}% vs. ontem
+                        </span>
+                      )}
+                    </p>
+                  )}
+                  {stage.hint && i === stages.length - 1 && (
+                    <p className="mt-1 text-center text-[11px] text-muted-foreground">{stage.hint}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
