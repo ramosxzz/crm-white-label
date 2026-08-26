@@ -1627,3 +1627,37 @@ export async function updateServiceOrderAtendimento(input: {
   revalidatePath("/os/agenda");
   revalidatePath("/os/roteiro");
 }
+
+/**
+ * Cria de uma vez os itens que a Jeruza ja anotou como vendidos pelo
+ * parceiro, direto na criacao da OS pela vendedora - ela so confere as
+ * pecas certas em vez de digitar tudo de novo manualmente no painel de
+ * itens depois.
+ */
+export async function addServiceOrderItemsBatch(input: {
+  serviceOrderId: string;
+  items: { description: string; quantity: number; unitPriceCents: number }[];
+}) {
+  const ctx = await requireFieldServiceContext();
+  const supabase = await createClient();
+  if (input.items.length === 0) return;
+
+  const { error } = await supabase.from("service_order_items").insert(
+    input.items.map((item) => ({
+      tenant_id: ctx.tenantId,
+      service_order_id: input.serviceOrderId,
+      catalog_item_id: null,
+      description: item.description,
+      quantity: item.quantity,
+      unit_price_cents: item.unitPriceCents,
+      amount_cents: Math.round(item.unitPriceCents * item.quantity),
+      kind: "original" as const,
+      approved: true,
+      table_price_cents: null,
+      discount_status: "nao_aplicavel" as const,
+    })),
+  );
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/os/${input.serviceOrderId}`);
+}

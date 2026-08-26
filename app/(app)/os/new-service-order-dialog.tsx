@@ -23,7 +23,7 @@ import type { FieldServiceUser } from "@/lib/field-service/users";
 import type { FieldServicePartner } from "@/lib/supabase/database.types";
 import { deriveShiftFromTime } from "@/lib/field-service/agenda";
 import { SALE_CHANNEL_LABEL } from "@/lib/field-service/status";
-import { createServiceOrder, scheduleServiceOrder } from "./actions";
+import { createServiceOrder, scheduleServiceOrder, addServiceOrderItemsBatch } from "./actions";
 import { MiniAgenda, type MiniAgendaSelection } from "./mini-agenda";
 
 type LeadOption = { id: string; name: string; phone: string | null };
@@ -77,6 +77,25 @@ export function NewServiceOrderDialog({
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
   const [miniAgenda, setMiniAgenda] = useState<MiniAgendaSelection | null>(null);
+
+  // Pecas que a Jeruza anotou como passadas pelo parceiro (texto livre,
+  // separado por virgula/quebra de linha) - a vendedora confere quais
+  // realmente foram vendidas em vez de digitar tudo nos itens de novo.
+  const pieceCandidates = (leadReferral?.pieces ?? "")
+    .split(/[,;\n]/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const [selectedPieces, setSelectedPieces] = useState<Set<string>>(new Set(pieceCandidates));
+  const [pieceUnitPrices, setPieceUnitPrices] = useState<Record<string, string>>({});
+
+  function togglePiece(piece: string) {
+    setSelectedPieces((prev) => {
+      const next = new Set(prev);
+      if (next.has(piece)) next.delete(piece);
+      else next.add(piece);
+      return next;
+    });
+  }
 
   // Modo simplificado (vendedora): consultora travada nela, indicacao e
   // origem vem do lead, e o formulario pede so o que ela de fato preenche.
@@ -138,6 +157,17 @@ export function NewServiceOrderDialog({
             scheduled_end_at: endAt,
           });
         }
+        if (selectedPieces.size > 0) {
+          await addServiceOrderItemsBatch({
+            serviceOrderId: id,
+            items: [...selectedPieces].map((piece) => ({
+              description: piece,
+              quantity: 1,
+              unitPriceCents: Math.round((Number((pieceUnitPrices[piece] ?? "0").replace(",", ".")) || 0) * 100),
+            })),
+          });
+        }
+
         setOpen(false);
         router.push(`/os/${id}`);
       } catch (error) {
@@ -232,9 +262,6 @@ export function NewServiceOrderDialog({
                     {referralPartner.kind === "loja" ? " (loja parceira)" : " (vendedor da loja)"}
                   </p>
                 )}
-                {leadReferral?.pieces && (
-                  <p className="mt-0.5 text-xs text-muted-foreground">Peças: {leadReferral.pieces}</p>
-                )}
               </div>
               <input type="hidden" name="consultant_id" value={lockedConsultant!.id} />
               {leadReferral?.partnerId && referralPartner && (
@@ -245,7 +272,44 @@ export function NewServiceOrderDialog({
                 />
               )}
             </div>
-          ) : (
+          ) : null}
+
+          {simplified && pieceCandidates.length > 0 && (
+            <div className="space-y-2 rounded-lg border border-brand/30 bg-brand/5 p-3">
+              <p className="text-sm font-medium">Peças passadas pelo parceiro — marque as que foram vendidas</p>
+              <ul className="space-y-2">
+                {pieceCandidates.map((piece) => {
+                  const checked = selectedPieces.has(piece);
+                  return (
+                    <li key={piece} className="flex items-center gap-2">
+                      <label className="flex flex-1 items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => togglePiece(piece)}
+                          className="h-4 w-4 accent-[hsl(var(--brand))]"
+                        />
+                        {piece}
+                      </label>
+                      {checked && (
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="R$ (opcional)"
+                          value={pieceUnitPrices[piece] ?? ""}
+                          onChange={(e) => setPieceUnitPrices((prev) => ({ ...prev, [piece]: e.target.value }))}
+                          className="h-8 w-32"
+                        />
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {!simplified && (
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
