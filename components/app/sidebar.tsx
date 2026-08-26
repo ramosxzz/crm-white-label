@@ -202,6 +202,7 @@ export function Sidebar({
             items={visibleProspeccaoItems}
             pathname={pathname}
             defaultOpen
+            color="violet"
           />
         )}
         {visibleOperationItems.length > 0 && (
@@ -211,6 +212,7 @@ export function Sidebar({
             items={visibleOperationItems}
             pathname={pathname}
             defaultOpen
+            color="blue"
           />
         )}
         {visibleCommunicationItems.length > 0 && (
@@ -219,6 +221,7 @@ export function Sidebar({
             icon={MessageCircle}
             items={visibleCommunicationItems}
             pathname={pathname}
+            color="emerald"
           />
         )}
         {visibleFolderItems.length > 0 && (
@@ -227,6 +230,7 @@ export function Sidebar({
             icon={FolderKanban}
             items={visibleFolderItems}
             pathname={pathname}
+            color="amber"
           />
         )}
         {visibleFieldServiceItems.length > 0 && (
@@ -236,6 +240,7 @@ export function Sidebar({
             items={visibleFieldServiceItems}
             pathname={pathname}
             defaultOpen={osOnlyAccess}
+            color="cyan"
           />
         )}
         {visibleSecondaryItems.length > 0 && (
@@ -244,6 +249,7 @@ export function Sidebar({
             icon={Settings}
             items={visibleSecondaryItems}
             pathname={pathname}
+            color="rose"
           />
         )}
       </nav>
@@ -287,21 +293,38 @@ function itemIsActive(item: SidebarItem, pathname: string) {
     : pathname === item.href || pathname.startsWith(item.href + "/");
 }
 
+// Cor fixa por categoria - a barra recolhida (so icone, sem rotulo) e onde
+// mais precisa disso: com todo mundo cinza, escolher a categoria certa exige
+// olhar o icone de perto toda vez. Uma cor propria da pra reconhecer de
+// relance, mesmo fechada.
+const NAV_GROUP_COLORS = {
+  violet: { icon: "text-violet-500 dark:text-violet-400", activeBg: "bg-violet-500/10", hoverBg: "hover:bg-violet-500/10" },
+  blue: { icon: "text-blue-500 dark:text-blue-400", activeBg: "bg-blue-500/10", hoverBg: "hover:bg-blue-500/10" },
+  emerald: { icon: "text-emerald-500 dark:text-emerald-400", activeBg: "bg-emerald-500/10", hoverBg: "hover:bg-emerald-500/10" },
+  amber: { icon: "text-amber-500 dark:text-amber-400", activeBg: "bg-amber-500/10", hoverBg: "hover:bg-amber-500/10" },
+  cyan: { icon: "text-cyan-500 dark:text-cyan-400", activeBg: "bg-cyan-500/10", hoverBg: "hover:bg-cyan-500/10" },
+  rose: { icon: "text-rose-500 dark:text-rose-400", activeBg: "bg-rose-500/10", hoverBg: "hover:bg-rose-500/10" },
+} as const;
+type NavGroupColor = keyof typeof NAV_GROUP_COLORS;
+
 function NavGroup({
   label,
   icon: Icon,
   items,
   pathname,
   defaultOpen = false,
+  color = "violet",
 }: {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   items: SidebarItem[];
   pathname: string;
   defaultOpen?: boolean;
+  color?: NavGroupColor;
 }) {
   const groupActive = items.some((item) => itemIsActive(item, pathname));
   const [open, setOpen] = useState(defaultOpen || groupActive);
+  const palette = NAV_GROUP_COLORS[color];
 
   useEffect(() => {
     if (groupActive) setOpen(true);
@@ -313,13 +336,14 @@ function NavGroup({
         type="button"
         onClick={() => setOpen((current) => !current)}
         className={cn(
-          "group flex h-10 w-full items-center justify-center gap-3 rounded-xl px-3 text-sm font-semibold text-muted-foreground transition-colors duration-150 hover:bg-brand/10 hover:text-foreground group-hover/sidebar:justify-start",
-          groupActive && "text-foreground",
+          "group flex h-10 w-full items-center justify-center gap-3 rounded-xl px-3 text-sm font-semibold text-muted-foreground transition-colors duration-150 hover:text-foreground group-hover/sidebar:justify-start",
+          palette.hoverBg,
+          groupActive && ["text-foreground", palette.activeBg],
         )}
         aria-expanded={open}
         title={label}
       >
-        <Icon className={cn("h-5 w-5 shrink-0 transition-colors", groupActive && "text-brand")} />
+        <Icon className={cn("h-5 w-5 shrink-0 transition-colors", palette.icon)} />
         <span className="max-w-0 flex-1 overflow-hidden truncate whitespace-nowrap text-left opacity-0 transition-all duration-150 group-hover/sidebar:max-w-[9rem] group-hover/sidebar:opacity-100">
           {label}
         </span>
