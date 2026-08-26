@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { notifyError } from "@/lib/ui/feedback";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrencyBRL } from "@/lib/utils";
 import { ServiceOrderAddressFields } from "@/components/field-service/service-order-address-fields";
 import type { FieldServiceUser } from "@/lib/field-service/users";
 import type { FieldServicePartner } from "@/lib/supabase/database.types";
@@ -50,6 +50,7 @@ export function NewServiceOrderDialog({
   showMiniAgenda = false,
   lockedConsultant = null,
   leadReferral = null,
+  catalogItems = [],
 }: {
   leads?: LeadOption[];
   lead?: LeadOption;
@@ -68,6 +69,9 @@ export function NewServiceOrderDialog({
   lockedConsultant?: { id: string; name: string } | null;
   /** Indicacao que veio no lead (cadastrada pela prospeccao). */
   leadReferral?: { partnerId: string | null; source: string | null; pieces: string | null } | null;
+  /** Tabela de servicos - a vendedora tambem pode adicionar peca da tabela
+   * (nao so as que a prospeccao anotou), ja com o preco certo. */
+  catalogItems?: { id: string; name: string; category: string | null; price_cents: number }[];
 }) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
@@ -95,6 +99,30 @@ export function NewServiceOrderDialog({
       else next.add(piece);
       return next;
     });
+  }
+
+  // Pecas escolhidas na tabela de servicos (nao so as que a prospeccao
+  // anotou) - a vendedora escolhe o item do catalogo e a quantidade, preco
+  // ja vem certo da tabela.
+  const [catalogPicks, setCatalogPicks] = useState<Record<string, number>>({});
+  const [catalogPickId, setCatalogPickId] = useState("");
+
+  function addCatalogPick() {
+    if (!catalogPickId) return;
+    setCatalogPicks((prev) => ({ ...prev, [catalogPickId]: (prev[catalogPickId] ?? 0) + 1 }));
+    setCatalogPickId("");
+  }
+
+  function removeCatalogPick(id: string) {
+    setCatalogPicks((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }
+
+  function setCatalogPickQuantity(id: string, quantity: number) {
+    setCatalogPicks((prev) => ({ ...prev, [id]: Math.max(1, quantity) }));
   }
 
   // Modo simplificado (vendedora): consultora travada nela, indicacao e
@@ -157,15 +185,25 @@ export function NewServiceOrderDialog({
             scheduled_end_at: endAt,
           });
         }
-        if (selectedPieces.size > 0) {
-          await addServiceOrderItemsBatch({
-            serviceOrderId: id,
-            items: [...selectedPieces].map((piece) => ({
-              description: piece,
-              quantity: 1,
-              unitPriceCents: Math.round((Number((pieceUnitPrices[piece] ?? "0").replace(",", ".")) || 0) * 100),
-            })),
-          });
+        const catalogItemsToAdd = Object.entries(catalogPicks)
+          .filter(([, qty]) => qty > 0)
+          .map(([catalogId, qty]) => {
+            const catalogItem = catalogItems.find((c) => c.id === catalogId);
+            return catalogItem
+              ? { description: catalogItem.name, quantity: qty, unitPriceCents: catalogItem.price_cents }
+              : null;
+          })
+          .filter((item): item is { description: string; quantity: number; unitPriceCents: number } => item !== null);
+
+        const pieceItemsToAdd = [...selectedPieces].map((piece) => ({
+          description: piece,
+          quantity: 1,
+          unitPriceCents: Math.round((Number((pieceUnitPrices[piece] ?? "0").replace(",", ".")) || 0) * 100),
+        }));
+
+        const itemsToAdd = [...pieceItemsToAdd, ...catalogItemsToAdd];
+        if (itemsToAdd.length > 0) {
+          await addServiceOrderItemsBatch({ serviceOrderId: id, items: itemsToAdd });
         }
 
         setOpen(false);
@@ -306,6 +344,63 @@ export function NewServiceOrderDialog({
                   );
                 })}
               </ul>
+            </div>
+          )}
+
+          {simplified && catalogItems.length > 0 && (
+            <div className="space-y-2 rounded-lg border border-border/70 p-3">
+              <p className="text-sm font-medium">Peças da tabela</p>
+              <div className="flex items-center gap-2">
+                <select
+                  value={catalogPickId}
+                  onChange={(e) => setCatalogPickId(e.target.value)}
+                  className="h-9 flex-1 rounded-md border border-border/70 bg-background px-2 text-sm"
+                >
+                  <option value="">Selecione um item da tabela</option>
+                  {catalogItems.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.category ? `${item.category} — ` : ""}
+                      {item.name} ({formatCurrencyBRL(item.price_cents)})
+                    </option>
+                  ))}
+                </select>
+                <Button type="button" variant="outline" size="sm" onClick={addCatalogPick} disabled={!catalogPickId}>
+                  <Plus className="h-3.5 w-3.5" /> Adicionar
+                </Button>
+              </div>
+
+              {Object.keys(catalogPicks).length > 0 && (
+                <ul className="space-y-1.5 pt-1">
+                  {Object.entries(catalogPicks).map(([id, qty]) => {
+                    const item = catalogItems.find((c) => c.id === id);
+                    if (!item) return null;
+                    return (
+                      <li key={id} className="flex items-center justify-between gap-2 rounded-md bg-muted/40 px-2.5 py-1.5 text-sm">
+                        <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={qty}
+                          onChange={(e) => setCatalogPickQuantity(id, parseInt(e.target.value, 10) || 1)}
+                          className="h-8 w-16"
+                        />
+                        <span className="w-20 shrink-0 text-right text-xs text-muted-foreground">
+                          {formatCurrencyBRL(item.price_cents * qty)}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0 text-destructive hover:bg-destructive/10"
+                          onClick={() => removeCatalogPick(id)}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           )}
 

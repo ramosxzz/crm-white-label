@@ -393,6 +393,7 @@ export function ChatThread({
   fieldService?: {
     consultants: FieldServiceUser[];
     partners: FieldServicePartner[];
+    catalogItems?: { id: string; name: string; category: string | null; price_cents: number }[];
     lockedConsultant?: { id: string; name: string } | null;
     leadReferral?: { partnerId: string | null; source: string | null; pieces: string | null } | null;
   } | null;
@@ -1440,6 +1441,7 @@ export function ChatThread({
             lockedConsultant={fieldService.lockedConsultant}
 
             leadReferral={fieldService.leadReferral}
+            catalogItems={fieldService.catalogItems}
               trigger={
                 <Button
                   type="button"
@@ -1552,6 +1554,7 @@ export function ChatThread({
             lockedConsultant={fieldService.lockedConsultant}
 
             leadReferral={fieldService.leadReferral}
+            catalogItems={fieldService.catalogItems}
                     trigger={
                       <Button type="button" variant="outline" size="sm" className="rounded-lg">
                         <Wrench className="h-4 w-4" />

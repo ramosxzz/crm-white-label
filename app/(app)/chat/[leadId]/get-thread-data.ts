@@ -38,6 +38,7 @@ export async function getChatThreadData(leadId: string) {
     api4comCalls,
     serviceOrderConsultants,
     serviceOrderPartnersRes,
+    serviceCatalogItemsRes,
     saleStock,
   ] = await Promise.all([
     service
@@ -102,6 +103,17 @@ export async function getChatThreadData(leadId: string) {
           .order("kind")
           .order("name")
       : Promise.resolve({ data: [] as FieldServicePartner[] }),
+    // Catalogo de servicos: a vendedora tambem pode adicionar peca da
+    // tabela (nao so as que a prospeccao anotou), com preco ja certo.
+    ctx.tenant.field_service_enabled && canCreateServiceOrder(ctx.role)
+      ? service
+          .from("service_catalog_items")
+          .select("id, name, category, price_cents")
+          .eq("tenant_id", ctx.tenantId)
+          .eq("is_active", true)
+          .order("category")
+          .order("name")
+      : Promise.resolve({ data: [] as { id: string; name: string; category: string | null; price_cents: number }[] }),
     getSaleStockContext(),
   ]);
 
@@ -299,6 +311,12 @@ export async function getChatThreadData(leadId: string) {
         ? {
             consultants: serviceOrderConsultants,
             partners: (serviceOrderPartnersRes.data ?? []) as FieldServicePartner[],
+            catalogItems: (serviceCatalogItemsRes.data ?? []) as {
+              id: string;
+              name: string;
+              category: string | null;
+              price_cents: number;
+            }[],
             // Vendedora abre a OS ja como consultora dela mesma, com a
             // indicacao que a prospeccao (Jeruza) deixou no lead - ela nao
             // escolhe nem troca nada disso, so endereco/observacao/horario.
