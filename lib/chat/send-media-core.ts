@@ -47,7 +47,14 @@ async function ensureOggAudio(
     const { error: upErr } = await supabase.storage.from("chat-media").upload(path, converted, {
       cacheControl: "3600",
       upsert: false,
-      contentType: "audio/ogg; codecs=opus",
+      // O bucket valida o content-type contra uma lista exata de MIME
+      // permitidos, e "audio/ogg; codecs=opus" (com o parametro) nao bate
+      // com "audio/ogg" da lista - toda conversao vinha falhando aqui com
+      // "mime type ... is not supported", caindo no catch e mandando o
+      // webm cru pro WhatsApp (que o cliente via como "indisponivel").
+      // O storage so precisa do tipo base; o codec vai no mimeType
+      // devolvido abaixo, que e o que o envio pro WhatsApp de fato usa.
+      contentType: "audio/ogg",
     });
     if (upErr) throw new Error(upErr.message);
     const { data: pub } = supabase.storage.from("chat-media").getPublicUrl(path);
