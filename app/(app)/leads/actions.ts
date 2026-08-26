@@ -523,12 +523,18 @@ export async function getCsvMappingSuggestion(
 export async function importLeadsCSV(
   rows: Array<{ name: string; phone?: string; email?: string; source?: string }>,
   assignedTo?: string | null,
+  folder?: "primeiro_contato" | "reaplicacao" | "mkt" | null,
 ) {
   const ctx = await requireContext();
   const supabase = await createClient();
 
   // So owner/admin/gerente podem escolher pra quem manda a planilha inteira.
   if (assignedTo && !canSeeAllLeads(ctx.role)) throw new Error("Sem permissao para atribuir leads");
+  // Mandar pra pasta so faz sentido pro tenant que usa o modulo de pastas -
+  // e o mesmo publico que ja pode atribuir a planilha inteira.
+  if (folder && (!ctx.tenant.lead_folders_enabled || !canSeeAllLeads(ctx.role))) {
+    throw new Error("Sem permissao para enviar pra pasta");
+  }
   if (assignedTo) {
     const { data: member } = await supabase
       .from("tenant_members")
@@ -585,6 +591,7 @@ export async function importLeadsCSV(
       stage_id: stageId,
       pipeline_id: pipelineId,
       assigned_to: assignedTo || null,
+      lead_folder: folder || null,
     }));
 
   if (inserts.length === 0) {
@@ -610,8 +617,10 @@ export async function importLeadsCSV(
   }
   if (error) throw new Error(error.message);
   // Atribuicao explicita (planilha mandada pra alguem especifico) tem
-  // prioridade - so distribui por round-robin quem ficou sem dono.
-  if (!assignedTo) {
+  // prioridade - so distribui por round-robin quem ficou sem dono. Mandado
+  // pra pasta e fila de proposito (mesma logica da prospeccao): round-robin
+  // aqui tiraria o sentido de "Michele distribui manualmente" da pasta.
+  if (!assignedTo && !folder) {
     for (const lead of createdLeads ?? []) {
       try {
         await autoAssignLead(lead.id);
@@ -636,6 +645,7 @@ export async function importLeadsCSV(
 
   revalidatePath("/leads");
   revalidatePath("/kanban");
+  revalidatePath("/pastas");
   return {
     count: createdLeads?.length ?? 0,
     skippedDuplicates,

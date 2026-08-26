@@ -83,12 +83,23 @@ async function suggestMapping(headers: string[], sampleRows: SpreadsheetRow[]): 
   }
 }
 
+const FOLDER_LABELS: Record<string, string> = {
+  none: "Nenhuma (kanban normal)",
+  primeiro_contato: "Primeiro contato",
+  reaplicacao: "Reaplicação",
+  mkt: "MKT",
+};
+
 export function ImportCsvDialog({
   canAssign,
   members,
+  foldersEnabled = false,
 }: {
   canAssign: boolean;
   members: { id: string; name: string }[];
+  /** Tenant usa o modulo de pastas (Primeiro contato/Reaplicacao/MKT) -
+   * so entao faz sentido oferecer mandar a planilha pra uma delas. */
+  foldersEnabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [readingStage, setReadingStage] = useState<ReadingStage>(null);
@@ -98,11 +109,13 @@ export function ImportCsvDialog({
   const [mapping, setMapping] = useState<CsvFieldMapping | null>(null);
   const [rows, setRows] = useState<ParsedLead[]>([]);
   const [assignedTo, setAssignedTo] = useState("auto");
+  const [folder, setFolder] = useState("none");
 
   function reset() {
     setMapping(null);
     setRows([]);
     setAssignedTo("auto");
+    setFolder("none");
     setResult(null);
   }
 
@@ -146,6 +159,7 @@ export function ImportCsvDialog({
         const { count, skippedDuplicates, invalidPhones } = await importLeadsCSV(
           rows,
           canAssign && assignedTo !== "auto" ? assignedTo : null,
+          canAssign && folder !== "none" ? (folder as "primeiro_contato" | "reaplicacao" | "mkt") : null,
         );
         const summary = [`${count} lead${count === 1 ? "" : "s"} importado${count === 1 ? "" : "s"}`];
         if (skippedDuplicates > 0) {
@@ -262,6 +276,27 @@ export function ImportCsvDialog({
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              )}
+
+              {canAssign && foldersEnabled && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Mandar pra pasta</label>
+                  <Select value={folder} onValueChange={setFolder}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(FOLDER_LABELS).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Cai na fila da pasta, sem dono, pra distribuir depois — igual as pastas da Prospecção.
+                  </p>
                 </div>
               )}
             </div>

@@ -202,7 +202,7 @@ export default async function LeadsPage({
         description={`${dateFilter.label}${tagFilter ? ` · tag "${tagFilter}"` : ""} · ${totalCount ?? 0} resultado${(totalCount ?? 0) === 1 ? "" : "s"}`}
         actions={
           <>
-            <ImportCsvDialog canAssign={canAssignLeads} members={members} />
+            <ImportCsvDialog canAssign={canAssignLeads} members={members} foldersEnabled={ctx.tenant.lead_folders_enabled} />
             <NewLeadDialog stages={stages ?? []} partners={partners ?? []} />
           </>
         }
