@@ -97,7 +97,7 @@ export default async function DashboardPage({
     { count: sharedQueueLeads },
     { count: appointmentsToday },
     { count: overdueTasks },
-    { count: wonTodayCount },
+    { data: wonTodayRows },
     productsResult,
     activeReservationsResult,
     { data: tenantMeta },
@@ -156,7 +156,7 @@ export default async function DashboardPage({
     supabase.from("tasks").select("id", { count: "exact", head: true }).eq("tenant_id", ctx.tenantId).eq("status", "open").lt("due_at", new Date().toISOString()),
     supabase
       .from("leads")
-      .select("id", { count: "exact", head: true })
+      .select("id, value_cents")
       .eq("tenant_id", ctx.tenantId)
       .gte("won_at", today.startIso)
       .lte("won_at", today.endIso),
@@ -206,7 +206,8 @@ export default async function DashboardPage({
       average: aggregated.average,
     };
   }
-  const wonToday = wonTodayCount ?? 0;
+  const wonToday = wonTodayRows?.length ?? 0;
+  const wonValueTodayCents = (wonTodayRows ?? []).reduce((a, l) => a + (l.value_cents ?? 0), 0);
   const pipelineValueTodayCents = (leadsToday ?? []).reduce((a, l) => a + (l.value_cents ?? 0), 0);
   const reservedByProduct = new Map<string, number>();
   for (const reservation of activeReservations) {
@@ -223,6 +224,7 @@ export default async function DashboardPage({
       outboundMessagesToday: messagesToday ?? 0,
       activeConversationsToday: convosToday?.length ?? 0,
       wonToday,
+      wonValueTodayCents,
       pipelineValueTodayCents,
     },
     operations: {

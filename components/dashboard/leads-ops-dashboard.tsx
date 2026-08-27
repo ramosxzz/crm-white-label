@@ -98,7 +98,7 @@ export function LeadsOpsDashboard({
           stages={[
             { label: "Leads recebidos", value: data.kpis.newLeadsToday, trend: leadTrend },
             { label: "MQLs (3+ estrelas)", value: mqlToday },
-            { label: "Fechamentos", value: data.kpis.wonToday, hint: formatCurrencyBRL(data.kpis.pipelineValueTodayCents) },
+            { label: "Fechamentos", value: data.kpis.wonToday, hint: formatCurrencyBRL(data.kpis.wonValueTodayCents) },
           ]}
         />
         <div className="grid gap-4 sm:grid-cols-2 lg:col-span-5 lg:grid-cols-1">
@@ -523,10 +523,18 @@ function KpiCard({
   );
 }
 
+const FUNNEL_STAGE_COLORS = [
+  { bar: "bg-sky-500/15 border-sky-500/40", text: "text-sky-600 dark:text-sky-400" },
+  { bar: "bg-amber-500/15 border-amber-500/40", text: "text-amber-600 dark:text-amber-400" },
+  { bar: "bg-emerald-500/15 border-emerald-500/40", text: "text-emerald-600 dark:text-emerald-400" },
+] as const;
+
 /**
- * Funil macro do dia: leads -> qualificados (MQL) -> fechados. Cada estagio
- * mostra a queda em relacao ao anterior, pra ver de relance onde o funil
- * mais perde gente sem abrir mais um relatorio.
+ * Funil macro do dia: leads recebidos, quantos ja estao qualificados (3+
+ * estrelas) e quantos fecharam - tres contagens independentes do dia, nao
+ * um cohort estrito (um fechamento de hoje pode ser de um lead de dias
+ * atras, por isso nao finge que X% "avancou" de um estagio pro outro).
+ * Largura da barra e proporcional ao valor de verdade, nao fixa.
  */
 function ConversionFunnel({
   stages,
@@ -536,7 +544,7 @@ function ConversionFunnel({
   className?: string;
 }) {
   const first = stages[0]?.value ?? 0;
-  const widths = [100, 72, 46];
+  const maxValue = Math.max(1, ...stages.map((s) => s.value));
 
   return (
     <Card className={className}>
@@ -545,50 +553,36 @@ function ConversionFunnel({
           <UserPlus className="h-4 w-4 text-brand" />
           Funil do dia
         </CardTitle>
-        <CardDescription>Leads recebidos, qualificados e fechados hoje</CardDescription>
+        <CardDescription>Leads recebidos, qualificados e fechados hoje — contagens independentes, não um funil estrito</CardDescription>
       </CardHeader>
       <CardContent>
         {first === 0 ? (
           <EmptyChart message="Nenhum lead novo hoje ainda." />
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {stages.map((stage, i) => {
-              const pctOfFirst = first > 0 ? Math.round((stage.value / first) * 100) : 0;
-              const pctOfPrev =
-                i > 0 && stages[i - 1].value > 0 ? Math.round((stage.value / stages[i - 1].value) * 100) : null;
+              const widthPct = Math.max(18, Math.round((stage.value / maxValue) * 100));
+              const color = FUNNEL_STAGE_COLORS[i] ?? FUNNEL_STAGE_COLORS[0];
               return (
-                <div key={stage.label}>
-                  {i > 0 && pctOfPrev !== null && (
-                    <p className="py-1 text-center text-[11px] text-muted-foreground">
-                      ↓ {pctOfPrev}% avançou pra cá
-                    </p>
-                  )}
-                  <div
-                    className="mx-auto flex h-16 items-center justify-center rounded-lg text-center transition-[width] duration-300"
-                    style={{
-                      width: `${widths[i] ?? 30}%`,
-                      background: `color-mix(in srgb, hsl(var(--brand)) ${28 - i * 8}%, transparent)`,
-                      border: "1px solid color-mix(in srgb, hsl(var(--brand)) 35%, transparent)",
-                    }}
-                  >
-                    <div>
-                      <p className="text-xl font-semibold tabular-nums leading-tight">{stage.value}</p>
-                      <p className="text-[11px] font-medium text-muted-foreground">{stage.label}</p>
-                    </div>
+                <div key={stage.label} className="flex items-center gap-3">
+                  <div className="w-28 shrink-0 text-right text-xs font-medium text-muted-foreground">
+                    {stage.label}
                   </div>
-                  {(stage.hint || stage.trend !== undefined || pctOfFirst !== 100) && i === 0 && (
-                    <p className="mt-1 text-center text-[11px] text-muted-foreground">
+                  <div className="min-w-0 flex-1">
+                    <div
+                      className={cn("flex h-11 items-center gap-2 rounded-lg border px-3 transition-[width] duration-300", color.bar)}
+                      style={{ width: `${widthPct}%` }}
+                    >
+                      <span className={cn("text-lg font-semibold tabular-nums", color.text)}>{stage.value}</span>
                       {stage.trend !== undefined && (
-                        <span className={stage.trend >= 0 ? "text-success" : "text-destructive"}>
+                        <span className={cn("text-[11px] font-medium", stage.trend >= 0 ? "text-success" : "text-destructive")}>
                           {stage.trend >= 0 ? "+" : ""}
                           {stage.trend}% vs. ontem
                         </span>
                       )}
-                    </p>
-                  )}
-                  {stage.hint && i === stages.length - 1 && (
-                    <p className="mt-1 text-center text-[11px] text-muted-foreground">{stage.hint}</p>
-                  )}
+                      {stage.hint && <span className="truncate text-[11px] text-muted-foreground">{stage.hint}</span>}
+                    </div>
+                  </div>
                 </div>
               );
             })}

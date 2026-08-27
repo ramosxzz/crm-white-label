@@ -10,6 +10,7 @@ export type LeadsDashboardData = {
     outboundMessagesToday: number;
     activeConversationsToday: number;
     wonToday: number;
+    wonValueTodayCents: number;
     pipelineValueTodayCents: number;
   };
   operations: {

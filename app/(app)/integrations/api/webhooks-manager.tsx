@@ -16,6 +16,9 @@ const EVENT_LABELS: Record<WebhookEvent, string> = {
   "lead.created": "Lead criado",
   "lead.stage_changed": "Lead mudou de etapa",
   "message.received": "Mensagem recebida",
+  "appointment.created": "Compromisso criado",
+  "appointment.updated": "Compromisso atualizado",
+  "appointment.cancelled": "Compromisso cancelado",
 };
 
 export function WebhooksManager({ webhooks, canEdit }: { webhooks: ApiWebhook[]; canEdit: boolean }) {
