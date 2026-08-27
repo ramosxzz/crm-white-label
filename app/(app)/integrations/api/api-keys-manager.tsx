@@ -20,6 +20,8 @@ const SCOPE_LABELS: Record<ApiScope, string> = {
   "automations:trigger": "Disparar automacoes",
   "pipelines:read": "Ler funis/etapas",
   "webhooks:manage": "Gerenciar webhooks de saida",
+  "agenda:read": "Ler agenda",
+  "agenda:write": "Criar/editar agenda",
 };
 
 export function ApiKeysManager({ keys, canEdit }: { keys: ApiKey[]; canEdit: boolean }) {
