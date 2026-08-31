@@ -1818,6 +1818,7 @@ export type Database = {
           media_type: string | null
           media_url: string | null
           quick_message_id: string | null
+          remote_phone: string | null
           reply_to_body: string | null
           reply_to_external_id: string | null
           reply_to_message_id: string | null
@@ -1840,6 +1841,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           quick_message_id?: string | null
+          remote_phone?: string | null
           reply_to_body?: string | null
           reply_to_external_id?: string | null
           reply_to_message_id?: string | null
@@ -1862,6 +1864,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           quick_message_id?: string | null
+          remote_phone?: string | null
           reply_to_body?: string | null
           reply_to_external_id?: string | null
           reply_to_message_id?: string | null

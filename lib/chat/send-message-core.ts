@@ -216,6 +216,7 @@ export async function sendChatMessageCore(
       .update({
         status: "sent",
         external_id: result.externalId,
+        remote_phone: to,
       })
       .eq("id", pendingMsg!.id)
       .select(

@@ -205,7 +205,7 @@ export async function sendChatMediaCore(
     }
     const { data: sentRow } = await supabase
       .from("messages")
-      .update({ status: "sent", external_id: result.externalId })
+      .update({ status: "sent", external_id: result.externalId, remote_phone: to })
       .eq("id", pendingMsg!.id)
       .select("id, external_id, body, direction, created_at, status, media_url, media_type")
       .single();

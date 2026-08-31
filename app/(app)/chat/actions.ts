@@ -318,6 +318,7 @@ type MessageMutationContext = {
     media_url: string | null;
     media_type: string | null;
     deleted_at: string | null;
+    remote_phone: string | null;
   };
   conversation: {
     id: string;
@@ -335,7 +336,7 @@ async function loadMessageMutationContext(
   const service = createServiceClient();
   const { data: messageData, error: messageError } = await service
     .from("messages")
-    .select("id, conversation_id, external_id, body, direction, media_url, media_type, deleted_at")
+    .select("id, conversation_id, external_id, body, direction, media_url, media_type, deleted_at, remote_phone")
     .eq("id", messageId)
     .eq("tenant_id", ctx.tenantId)
     .maybeSingle();
@@ -390,7 +391,7 @@ async function loadMessageMutationContext(
   if (accountError) throw new Error(accountError.message);
   if (leadError) throw new Error(leadError.message);
   const account = accountData as WhatsAppAccount | null;
-  const leadPhone = (leadData as { phone?: string | null } | null)?.phone?.trim();
+  const leadPhone = (message.remote_phone?.trim() || (leadData as { phone?: string | null } | null)?.phone?.trim());
   if (!account) throw new Error("Conta do WhatsApp nao encontrada");
   if (!leadPhone) throw new Error("O lead nao possui telefone valido para alterar a mensagem");
 
