@@ -6,15 +6,13 @@ import { enforceRateLimit } from "@/lib/api/rate-limit";
 import { apiJson, apiErrorResponse, CORS_HEADERS } from "@/lib/api/response";
 import { dispatchWebhookEvent } from "@/lib/api/dispatch-webhook";
 import type { Database } from "@/lib/supabase/database.types";
+import { AGENDA_SELECT_WITH_NAMES, withAssigneeNames, type AgendaRow } from "@/lib/api/agenda-enrich";
 
 export const dynamic = "force-dynamic";
 
 export async function OPTIONS() {
   return new NextResponse(null, { headers: CORS_HEADERS });
 }
-
-const AGENDA_SELECT =
-  "id, lead_id, assigned_to, professional_id, service_id, starts_at, duration_minutes, notes, kind, status, created_at, updated_at";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -26,7 +24,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const supabase = createServiceClient();
     const { data: appointment, error } = await supabase
       .from("appointments")
-      .select(AGENDA_SELECT)
+      .select(AGENDA_SELECT_WITH_NAMES)
       .eq("id", id)
       .eq("tenant_id", ctx.tenantId)
       .maybeSingle();
@@ -34,7 +32,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (error) throw new ApiError(500, "query_failed", error.message);
     if (!appointment) throw new ApiError(404, "not_found", "Compromisso nao encontrado");
 
-    return apiJson({ data: appointment });
+    const [enriched] = await withAssigneeNames(supabase, ctx.tenantId, [appointment as unknown as AgendaRow]);
+
+    return apiJson({ data: enriched });
   } catch (error) {
     return apiErrorResponse(error);
   }
@@ -75,20 +75,23 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       .update(patch)
       .eq("id", id)
       .eq("tenant_id", ctx.tenantId)
-      .select(AGENDA_SELECT)
+      .select(AGENDA_SELECT_WITH_NAMES)
       .maybeSingle();
 
     if (error) throw new ApiError(500, "update_failed", error.message);
     if (!appointment) throw new ApiError(404, "not_found", "Compromisso nao encontrado");
 
+    const [enriched] = await withAssigneeNames(supabase, ctx.tenantId, [appointment as unknown as AgendaRow]);
+
     void dispatchWebhookEvent(ctx.tenantId, "appointment.updated", {
       id: appointment.id,
       lead_id: appointment.lead_id,
+      lead_name: enriched.lead_name,
       starts_at: appointment.starts_at,
       status: appointment.status,
     });
 
-    return apiJson({ data: appointment });
+    return apiJson({ data: enriched });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return apiErrorResponse(new ApiError(400, "validation_error", error.issues[0]?.message ?? "Dados invalidos"));
@@ -112,15 +115,17 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       .update({ status: "cancelled" })
       .eq("id", id)
       .eq("tenant_id", ctx.tenantId)
-      .select(AGENDA_SELECT)
+      .select(AGENDA_SELECT_WITH_NAMES)
       .maybeSingle();
 
     if (error) throw new ApiError(500, "update_failed", error.message);
     if (!appointment) throw new ApiError(404, "not_found", "Compromisso nao encontrado");
 
+    const [enriched] = await withAssigneeNames(supabase, ctx.tenantId, [appointment as unknown as AgendaRow]);
+
     void dispatchWebhookEvent(ctx.tenantId, "appointment.cancelled", { id: appointment.id, lead_id: appointment.lead_id });
 
-    return apiJson({ data: appointment });
+    return apiJson({ data: enriched });
   } catch (error) {
     return apiErrorResponse(error);
   }

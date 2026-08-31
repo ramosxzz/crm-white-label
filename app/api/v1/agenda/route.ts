@@ -6,6 +6,7 @@ import { enforceRateLimit } from "@/lib/api/rate-limit";
 import { apiJson, apiErrorResponse, CORS_HEADERS } from "@/lib/api/response";
 import { fireAutomationTrigger } from "@/lib/automations/trigger";
 import { dispatchWebhookEvent } from "@/lib/api/dispatch-webhook";
+import { AGENDA_SELECT_WITH_NAMES, withAssigneeNames, type AgendaRow } from "@/lib/api/agenda-enrich";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +15,6 @@ export async function OPTIONS() {
 }
 
 const LIST_PAGE_SIZE = 50;
-
-const AGENDA_SELECT =
-  "id, lead_id, assigned_to, professional_id, service_id, starts_at, duration_minutes, notes, kind, status, created_at, updated_at";
 
 export async function GET(req: Request) {
   try {
@@ -35,7 +33,7 @@ export async function GET(req: Request) {
     const supabase = createServiceClient();
     let query = supabase
       .from("appointments")
-      .select(AGENDA_SELECT, { count: "exact" })
+      .select(AGENDA_SELECT_WITH_NAMES, { count: "exact" })
       .eq("tenant_id", ctx.tenantId)
       .order("starts_at", { ascending: true });
 
@@ -50,8 +48,10 @@ export async function GET(req: Request) {
     const { data, count, error } = await query.range(from, to);
     if (error) throw new ApiError(500, "query_failed", error.message);
 
+    const enriched = await withAssigneeNames(supabase, ctx.tenantId, (data ?? []) as unknown as AgendaRow[]);
+
     return apiJson({
-      data: data ?? [],
+      data: enriched,
       pagination: {
         page,
         page_size: LIST_PAGE_SIZE,
@@ -126,10 +126,12 @@ export async function POST(req: Request) {
         notes: parsed.notes?.trim() || null,
         kind: parsed.kind,
       })
-      .select(AGENDA_SELECT)
+      .select(AGENDA_SELECT_WITH_NAMES)
       .single();
 
     if (error) throw new ApiError(500, "insert_failed", error.message);
+
+    const [enriched] = await withAssigneeNames(supabase, ctx.tenantId, [appointment as unknown as AgendaRow]);
 
     if (leadId) {
       void fireAutomationTrigger(ctx.tenantId, "appointment_created", leadId, { appointment_id: appointment.id });
@@ -137,11 +139,14 @@ export async function POST(req: Request) {
     void dispatchWebhookEvent(ctx.tenantId, "appointment.created", {
       id: appointment.id,
       lead_id: appointment.lead_id,
+      lead_name: enriched.lead_name,
+      assigned_to: appointment.assigned_to,
+      assigned_to_name: enriched.assigned_to_name,
       starts_at: appointment.starts_at,
       kind: appointment.kind,
     });
 
-    return apiJson({ data: appointment }, { status: 201 });
+    return apiJson({ data: enriched }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return apiErrorResponse(new ApiError(400, "validation_error", error.issues[0]?.message ?? "Dados invalidos"));
