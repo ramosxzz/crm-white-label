@@ -45,6 +45,12 @@ export function MiniAgenda({
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      // Input type="date" passa valor vazio/incompleto enquanto o usuario
+      // ta editando o campo - so busca quando a data ficar completa.
+      setRows([]);
+      return;
+    }
     setLoading(true);
     getTechnicianDayAvailability(date)
       .then(setRows)
