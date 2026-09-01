@@ -1027,7 +1027,13 @@ export async function openLeadByPhone(rawPhone: string): Promise<{ leadId: strin
   const phone = normalizePhone(rawPhone);
   if (!phone) throw new Error("Numero invalido");
 
-  const { data: existing } = await supabase
+  // Busca com o client de servico (sem RLS): existe indice unico
+  // (tenant_id, phone) em leads, e a vendedora nao enxerga leads de outra
+  // pessoa pela RLS. Se buscasse com o client de sessao, um lead existente
+  // mas invisivel pra ela levava a tentar inserir de novo e estourar o
+  // indice unico com um erro cru do Postgres.
+  const service = createServiceClient();
+  const { data: existing } = await service
     .from("leads")
     .select("id")
     .eq("tenant_id", ctx.tenantId)

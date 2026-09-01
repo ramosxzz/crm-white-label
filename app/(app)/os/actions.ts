@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import {
   canAccessServiceOrders,
@@ -129,8 +129,13 @@ async function insertWithSequentialCode(
   tenantId: string,
   payload: ServiceOrderInsert,
 ): Promise<ServiceOrder> {
+  // Le o maior code_seq com o client de servico (sem RLS): a vendedora so
+  // enxerga uma fatia das OS pela RLS (as dela), entao usar o client de
+  // sessao aqui subestimava o maximo e sempre colidia com a constraint
+  // unique(tenant_id, code_seq) ate estourar as tentativas.
+  const service = createServiceClient();
   for (let attempt = 0; attempt < 5; attempt++) {
-    const { data: last } = await supabase
+    const { data: last } = await service
       .from("service_orders")
       .select("code_seq")
       .eq("tenant_id", tenantId)
