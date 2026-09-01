@@ -42,6 +42,7 @@ import { cn, initials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { markTeamChatRead } from "@/app/(app)/team-chat/actions";
 
 const operationItems = [
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
@@ -76,6 +77,9 @@ const secondaryItems = [
 ];
 
 export function Sidebar({
+  tenantId,
+  userId,
+  unreadTeamChat: initialUnreadTeamChat = 0,
   tenantName,
   tenantLogoUrl,
   tenantTagline,
@@ -93,6 +97,9 @@ export function Sidebar({
   userName,
   userEmail,
 }: {
+  tenantId: string;
+  userId: string;
+  unreadTeamChat?: number;
   tenantName: string;
   tenantLogoUrl: string | null;
   tenantTagline?: string | null;
@@ -111,6 +118,32 @@ export function Sidebar({
   userEmail: string;
 }) {
   const pathname = usePathname();
+  const [unreadTeamChat, setUnreadTeamChat] = useState(initialUnreadTeamChat);
+
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`sidebar-team-chat-${tenantId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "team_messages", filter: `tenant_id=eq.${tenantId}` },
+        (payload) => {
+          const row = payload.new as { sender_id: string };
+          if (row.sender_id !== userId) setUnreadTeamChat((c) => c + 1);
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [tenantId, userId]);
+
+  useEffect(() => {
+    if (pathname.startsWith("/team-chat")) {
+      setUnreadTeamChat(0);
+      void markTeamChatRead();
+    }
+  }, [pathname]);
   // Vendedor nao gerencia estoque, automacoes, IA W+, integracoes, usuarios,
   // nem ve o dashboard de reunioes (mostra receita/custo/ROI do tenant
   // inteiro - a mesma pagina ja redireciona se um vendedor acessar direto).
@@ -224,6 +257,7 @@ export function Sidebar({
             items={visibleCommunicationItems}
             pathname={pathname}
             color="emerald"
+            badges={unreadTeamChat > 0 ? { "/team-chat": unreadTeamChat } : undefined}
           />
         )}
         {visibleFolderItems.length > 0 && (
@@ -316,6 +350,7 @@ function NavGroup({
   pathname,
   defaultOpen = false,
   color = "violet",
+  badges,
 }: {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -323,8 +358,10 @@ function NavGroup({
   pathname: string;
   defaultOpen?: boolean;
   color?: NavGroupColor;
+  badges?: Record<string, number>;
 }) {
   const groupActive = items.some((item) => itemIsActive(item, pathname));
+  const groupBadgeTotal = badges ? Object.values(badges).reduce((a, b) => a + b, 0) : 0;
   const [open, setOpen] = useState(defaultOpen || groupActive);
   const palette = NAV_GROUP_COLORS[color];
 
@@ -345,7 +382,14 @@ function NavGroup({
         aria-expanded={open}
         title={label}
       >
-        <Icon className={cn("h-5 w-5 shrink-0 transition-colors", palette.icon)} />
+        <span className="relative shrink-0">
+          <Icon className={cn("h-5 w-5 transition-colors", palette.icon)} />
+          {groupBadgeTotal > 0 && (
+            <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold leading-none text-destructive-foreground">
+              {groupBadgeTotal > 99 ? "99+" : groupBadgeTotal}
+            </span>
+          )}
+        </span>
         <span className="max-w-0 flex-1 overflow-hidden truncate whitespace-nowrap text-left opacity-0 transition-all duration-150 group-hover/sidebar:max-w-[9rem] group-hover/sidebar:opacity-100">
           {label}
         </span>
@@ -366,7 +410,7 @@ function NavGroup({
         <div className="min-h-0 overflow-hidden">
           <div className="space-y-1">
             {items.map((item) => (
-              <NavLink key={item.href} item={item} pathname={pathname} nested />
+              <NavLink key={item.href} item={item} pathname={pathname} nested badge={badges?.[item.href]} />
             ))}
           </div>
         </div>
@@ -379,10 +423,12 @@ function NavLink({
   item,
   pathname,
   nested = false,
+  badge,
 }: {
   item: SidebarItem;
   pathname: string;
   nested?: boolean;
+  badge?: number;
 }) {
   const Icon = item.icon;
   const active = itemIsActive(item, pathname);
@@ -405,15 +451,27 @@ function NavLink({
           aria-hidden
         />
       )}
-      <Icon
-        className={cn(
-          "h-5 w-5 shrink-0 transition-colors duration-150",
-          active ? "text-brand" : "text-muted-foreground group-hover:text-brand",
+      <span className="relative shrink-0">
+        <Icon
+          className={cn(
+            "h-5 w-5 transition-colors duration-150",
+            active ? "text-brand" : "text-muted-foreground group-hover:text-brand",
+          )}
+        />
+        {!!badge && badge > 0 && (
+          <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold leading-none text-destructive-foreground">
+            {badge > 99 ? "99+" : badge}
+          </span>
         )}
-      />
-      <span className="max-w-0 overflow-hidden truncate whitespace-nowrap opacity-0 transition-all duration-150 group-hover/sidebar:max-w-[10rem] group-hover/sidebar:opacity-100">
+      </span>
+      <span className="max-w-0 flex-1 overflow-hidden truncate whitespace-nowrap opacity-0 transition-all duration-150 group-hover/sidebar:max-w-[10rem] group-hover/sidebar:opacity-100">
         {item.label}
       </span>
+      {!!badge && badge > 0 && (
+        <span className="hidden shrink-0 rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-bold leading-none text-destructive-foreground opacity-0 transition-opacity duration-150 group-hover/sidebar:inline-block group-hover/sidebar:opacity-100">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
     </Link>
   );
 }

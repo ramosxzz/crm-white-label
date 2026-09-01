@@ -3501,6 +3501,32 @@ export type Database = {
           },
         ]
       }
+      team_message_reads: {
+        Row: {
+          last_read_at: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          last_read_at?: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          last_read_at?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_message_reads_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_messages: {
         Row: {
           body: string | null

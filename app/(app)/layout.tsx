@@ -12,6 +12,7 @@ import { getCurrentContext } from "@/lib/tenant";
 import { canReviewServiceOrder } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { WhatsAppHealthBannerAsync } from "@/components/app/whatsapp-health-banner-async";
+import { getTeamChatUnreadCount } from "@/lib/team-chat/unread";
 import { PaymentOverdueBanner } from "@/components/app/payment-overdue-banner";
 import { ForceLightTheme } from "@/components/app/force-light-theme";
 import { TopNavigationProgress } from "@/components/ui/top-navigation-progress";
@@ -61,11 +62,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   const supabase = await createClient();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name, last_seen_update_at")
-    .eq("id", ctx.userId)
-    .single();
+  const [{ data: profile }, unreadTeamChat] = await Promise.all([
+    supabase.from("profiles").select("full_name, last_seen_update_at").eq("id", ctx.userId).single(),
+    getTeamChatUnreadCount(supabase, ctx.tenantId, ctx.userId),
+  ]);
 
   return (
     <>
@@ -78,6 +78,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <MobileMenuProvider>
         <div className="flex h-[100dvh] overflow-hidden">
           <Sidebar
+            tenantId={ctx.tenantId}
+            userId={ctx.userId}
+            unreadTeamChat={unreadTeamChat}
             tenantName={ctx.tenant.name}
             tenantLogoUrl={ctx.tenant.logo_url}
             tenantTagline={ctx.tenant.tagline}

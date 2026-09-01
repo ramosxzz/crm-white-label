@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
+import { notifyUser } from "@/lib/notifications/notify";
 import type { TeamMessageMediaType } from "@/lib/supabase/database.types";
 
 export async function sendTeamMessage(input: {
@@ -32,7 +33,41 @@ export async function sendTeamMessage(input: {
 
   if (error) throw new Error(error.message);
   revalidatePath("/team-chat");
+
+  const mentionedIds = [...new Set((input.mentions ?? []).filter((id) => id !== ctx.userId))];
+  if (mentionedIds.length > 0) {
+    const { data: senderProfile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", ctx.userId)
+      .maybeSingle();
+    const senderName = senderProfile?.full_name?.trim() || "Alguém";
+    await Promise.all(
+      mentionedIds.map((userId) =>
+        notifyUser(supabase, {
+          tenantId: ctx.tenantId,
+          userId,
+          kind: "team_chat_mention",
+          title: `${senderName} mencionou você no chat da equipe`,
+          description: body,
+          link: "/team-chat",
+        }),
+      ),
+    );
+  }
+
   return data;
+}
+
+export async function markTeamChatRead() {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+  await supabase
+    .from("team_message_reads")
+    .upsert(
+      { tenant_id: ctx.tenantId, user_id: ctx.userId, last_read_at: new Date().toISOString() },
+      { onConflict: "tenant_id,user_id" },
+    );
 }
 
 export async function editTeamMessage(input: { id: string; body: string }) {
