@@ -11,10 +11,17 @@ export async function OPTIONS() {
   return new NextResponse(null, { headers: CORS_HEADERS });
 }
 
+// Google Forms manda string ou array de strings (se a pergunta virar checkbox
+// de multipla escolha em vez de radio) - aceita os dois e normaliza pra string.
+const employeeNameField = z
+  .union([z.string(), z.array(z.string())])
+  .optional()
+  .transform((v) => (Array.isArray(v) ? v.join(", ") : v)?.trim().slice(0, 200));
+
 const createSurveyResponseSchema = z.object({
-  employee_name: z.string().trim().max(200).optional(),
-  service_rating: z.number().int().min(1).max(5).optional(),
-  nps_score: z.number().int().min(0).max(10),
+  employee_name: employeeNameField,
+  service_rating: z.coerce.number().int().min(1).max(5).optional(),
+  nps_score: z.coerce.number().int().min(0).max(10),
   comments: z.string().trim().max(4000).optional(),
 });
 
