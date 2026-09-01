@@ -42,6 +42,7 @@ import {
   ShieldCheck,
   Cable,
   Radio,
+  Video,
 } from "lucide-react";
 import { EmojiPickerButton } from "@/components/chat/emoji-picker-button";
 import { updateLead } from "@/app/(app)/leads/actions";
@@ -984,12 +985,13 @@ export function ChatThread({
 
   function onPickQuick(m: { id?: string; title?: string | null; body: string | null; media_url: string | null; media_type: string | null }) {
     setPendingQuickMessageId(m.id ?? null);
-    if (m.media_url && m.media_type === "audio") {
+    const mediaKind = m.media_type as MediaKind | null;
+    if (m.media_url && mediaKind && ["audio", "image", "video", "document"].includes(mediaKind)) {
       if (isInstagram) {
-        notify({ title: "Envio de áudio rápido ainda está disponível apenas para WhatsApp.", tone: "error" });
+        notify({ title: "Envio de mídia rápida ainda está disponível apenas para WhatsApp.", tone: "error" });
         return;
       }
-      setQuickMediaDraft({ title: m.title ?? "Áudio rápido", mediaUrl: m.media_url, mediaType: "audio" });
+      setQuickMediaDraft({ title: m.title ?? "Mídia rápida", mediaUrl: m.media_url, mediaType: mediaKind });
       updateTextDraft(textDraftRef.current.startsWith("/") ? "" : textDraftRef.current);
     } else if (m.body) {
       setQuickMediaDraft(null);
@@ -1839,7 +1841,15 @@ export function ChatThread({
               <div className="absolute bottom-full left-0 right-0 mb-2 rounded-2xl border border-border bg-popover p-3 shadow-lg sm:left-16 sm:right-14">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand/10 text-brand">
-                    <Mic className="h-4 w-4" />
+                    {quickMediaDraft.mediaType === "image" ? (
+                      <ImageIcon className="h-4 w-4" />
+                    ) : quickMediaDraft.mediaType === "video" ? (
+                      <Video className="h-4 w-4" />
+                    ) : quickMediaDraft.mediaType === "document" ? (
+                      <FileIcon className="h-4 w-4" />
+                    ) : (
+                      <Mic className="h-4 w-4" />
+                    )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{quickMediaDraft.title}</p>
@@ -1869,12 +1879,30 @@ export function ChatThread({
                     onClick={() => onPickQuick(message)}
                   >
                     <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand">
-                      {message.media_type === "audio" ? <Mic className="h-3.5 w-3.5" /> : <Zap className="h-3.5 w-3.5" />}
+                      {message.media_type === "audio" ? (
+                        <Mic className="h-3.5 w-3.5" />
+                      ) : message.media_type === "image" ? (
+                        <ImageIcon className="h-3.5 w-3.5" />
+                      ) : message.media_type === "video" ? (
+                        <Video className="h-3.5 w-3.5" />
+                      ) : message.media_type === "document" ? (
+                        <FileIcon className="h-3.5 w-3.5" />
+                      ) : (
+                        <Zap className="h-3.5 w-3.5" />
+                      )}
                     </span>
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium">{message.title}</span>
                       <span className="line-clamp-1 text-xs text-muted-foreground">
-                        {message.media_type === "audio" ? "Áudio rápido" : message.body}
+                        {message.media_type === "audio"
+                          ? "Áudio rápido"
+                          : message.media_type === "image"
+                            ? "Imagem rápida"
+                            : message.media_type === "video"
+                              ? "Vídeo rápido"
+                              : message.media_type === "document"
+                                ? "Documento rápido"
+                                : message.body}
                       </span>
                     </span>
                   </button>
