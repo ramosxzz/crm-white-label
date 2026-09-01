@@ -3501,6 +3501,53 @@ export type Database = {
           },
         ]
       }
+      team_messages: {
+        Row: {
+          body: string | null
+          created_at: string
+          deleted_at: string | null
+          edited_at: string | null
+          id: string
+          media_type: string | null
+          media_url: string | null
+          mentions: string[]
+          sender_id: string
+          tenant_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          mentions?: string[]
+          sender_id: string
+          tenant_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          mentions?: string[]
+          sender_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_messages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       technician_locations: {
         Row: {
           accuracy_meters: number | null
@@ -4474,4 +4521,10 @@ export type Appointment = WithLiteral<
 export type StockReservation = WithLiteral<
   Database["public"]["Tables"]["stock_reservations"]["Row"],
   { status: StockReservationStatus }
+>;
+
+export type TeamMessageMediaType = "audio" | "image" | "document";
+export type TeamMessage = WithLiteral<
+  Database["public"]["Tables"]["team_messages"]["Row"],
+  { media_type: TeamMessageMediaType | null }
 >;

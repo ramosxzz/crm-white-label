@@ -119,6 +119,7 @@ export function MobileBottomNav({
     { href: "/tarefas", label: "Tarefas", icon: ListChecks },
     // Mostra receita/custo/ROI do tenant inteiro - mesmo corte do sidebar.
     ...(!isSeller ? [{ href: "/reunioes", label: "Reuniões", icon: CalendarCheck }] : []),
+    { href: "/team-chat", label: "Chat da equipe", icon: Users },
     { href: "/mensagens-rapidas", label: "Mensagens rápidas", icon: MessageSquareText },
     ...(stockEnabled && !isSeller ? [{ href: "/estoque", label: "Estoque", icon: Boxes }] : []),
     ...(!isSeller ? [{ href: "/automations", label: "Automações", icon: Zap }] : []),

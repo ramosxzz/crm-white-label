@@ -7,6 +7,7 @@ import {
   KanbanSquare,
   ListChecks,
   Users,
+  Users2,
   MessageCircle,
   MessageSquareText,
   Mail,
@@ -57,6 +58,7 @@ const operationItems = [
 
 const communicationItems = [
   { href: "/chat", label: "Conversas", icon: MessageCircle },
+  { href: "/team-chat", label: "Chat da equipe", icon: Users2 },
   { href: "/emails", label: "Emails", icon: Mail },
   { href: "/mensagens-rapidas", label: "Mensagens rápidas", icon: MessageSquareText },
   { href: "/ligacoes", label: "Ligações", icon: PhoneCall },
