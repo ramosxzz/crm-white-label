@@ -2391,6 +2391,44 @@ export type Database = {
           },
         ]
       }
+      satisfaction_survey_responses: {
+        Row: {
+          comments: string | null
+          created_at: string
+          employee_name: string | null
+          id: string
+          nps_score: number
+          service_rating: number | null
+          tenant_id: string
+        }
+        Insert: {
+          comments?: string | null
+          created_at?: string
+          employee_name?: string | null
+          id?: string
+          nps_score: number
+          service_rating?: number | null
+          tenant_id: string
+        }
+        Update: {
+          comments?: string | null
+          created_at?: string
+          employee_name?: string | null
+          id?: string
+          nps_score?: number
+          service_rating?: number | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "satisfaction_survey_responses_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scheduled_messages: {
         Row: {
           body: string | null

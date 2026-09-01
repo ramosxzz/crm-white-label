@@ -22,6 +22,7 @@ const SCOPE_LABELS: Record<ApiScope, string> = {
   "webhooks:manage": "Gerenciar webhooks de saida",
   "agenda:read": "Ler agenda",
   "agenda:write": "Criar/editar agenda",
+  "survey:write": "Registrar pesquisa de satisfacao",
 };
 
 export function ApiKeysManager({ keys, canEdit }: { keys: ApiKey[]; canEdit: boolean }) {

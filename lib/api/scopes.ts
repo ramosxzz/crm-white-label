@@ -7,7 +7,8 @@ export type ApiScope =
   | "pipelines:read"
   | "webhooks:manage"
   | "agenda:read"
-  | "agenda:write";
+  | "agenda:write"
+  | "survey:write";
 
 export const API_SCOPES: ApiScope[] = [
   "leads:read",
@@ -19,4 +20,5 @@ export const API_SCOPES: ApiScope[] = [
   "webhooks:manage",
   "agenda:read",
   "agenda:write",
+  "survey:write",
 ];

@@ -1,47 +1,57 @@
 import { notFound } from "next/navigation";
-import { Heart, MessageSquareQuote } from "lucide-react";
+import { Heart, MessageSquareQuote, Star } from "lucide-react";
 import { requireContext } from "@/lib/tenant";
+import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { fetchSatisfactionSurveys } from "@/lib/integrations/satisfaction-survey";
 import { cn } from "@/lib/utils";
 import { formatBRTDateTime } from "@/lib/date/brt";
+
+type SurveyResponse = {
+  id: string;
+  employee_name: string | null;
+  service_rating: number | null;
+  nps_score: number;
+  comments: string | null;
+  created_at: string;
+};
 
 export default async function SatisfactionSurveyPage() {
   const ctx = await requireContext();
   if (!ctx.tenant.satisfaction_survey_enabled) notFound();
 
-  const surveys = await fetchSatisfactionSurveys();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("satisfaction_survey_responses")
+    .select("id, employee_name, service_rating, nps_score, comments, created_at")
+    .eq("tenant_id", ctx.tenant.id)
+    .order("created_at", { ascending: false })
+    .limit(500);
+
+  const surveys = (data ?? []) as SurveyResponse[];
   const total = surveys.length;
 
   let promoters = 0;
   let detractors = 0;
   surveys.forEach((s) => {
-    if (s.npsScore >= 9) promoters++;
-    else if (s.npsScore <= 6) detractors++;
+    if (s.nps_score >= 9) promoters++;
+    else if (s.nps_score <= 6) detractors++;
   });
   const npsScore = total > 0 ? Math.round(((promoters - detractors) / total) * 100) : null;
   const promotersPct = total > 0 ? Math.round((promoters / total) * 100) : 0;
   const detractorsPct = total > 0 ? Math.round((detractors / total) * 100) : 0;
 
-  const bars = [
-    {
-      label: "Qualidade Ótima/Boa",
-      pct: pctFor(surveys, (s) => s.productQuality === "Excelente" || s.productQuality === "Bom"),
-    },
-    {
-      label: "Atendimento Ótimo/Bom",
-      pct: pctFor(surveys, (s) => s.serviceRating === "Excelente" || s.serviceRating === "Bom"),
-    },
-    {
-      label: "Entrega no Prazo/Expectativa",
-      pct: pctFor(surveys, (s) => s.deliveryRating === "Sim, totalmente"),
-    },
-    {
-      label: "Compra Fácil/Muito Fácil",
-      pct: pctFor(surveys, (s) => s.purchaseEase === "Muito Fácil" || s.purchaseEase === "Fácil"),
-    },
-  ];
+  const byEmployee = new Map<string, { sum: number; count: number }>();
+  for (const s of surveys) {
+    if (!s.employee_name || s.service_rating == null) continue;
+    const acc = byEmployee.get(s.employee_name) ?? { sum: 0, count: 0 };
+    acc.sum += s.service_rating;
+    acc.count += 1;
+    byEmployee.set(s.employee_name, acc);
+  }
+  const employeeRanking = [...byEmployee.entries()]
+    .map(([name, { sum, count }]) => ({ name, avg: sum / count, count }))
+    .sort((a, b) => b.avg - a.avg);
 
   const feedbacks = surveys.filter((s) => s.comments && s.comments.trim().length > 0);
 
@@ -53,7 +63,7 @@ export default async function SatisfactionSurveyPage() {
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Heart className="h-4 w-4 text-destructive" /> Pesquisa de Satisfação
+              <Heart className="h-4 w-4 text-destructive" /> NPS Geral
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -82,14 +92,6 @@ export default async function SatisfactionSurveyPage() {
                 <RatioBar label="Detratores (0-6)" pct={detractorsPct} className="bg-destructive" />
               </div>
             </div>
-
-            <div className="mt-6 flex flex-col gap-4">
-              {total === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhum dado detalhado de avaliação disponível.</p>
-              ) : (
-                bars.map((b) => <RatioBar key={b.label} label={b.label} pct={b.pct} className="bg-brand" />)
-              )}
-            </div>
           </CardContent>
         </Card>
 
@@ -108,27 +110,49 @@ export default async function SatisfactionSurveyPage() {
                   <span
                     className={cn(
                       "absolute left-0 top-1.5 h-2 w-2 rounded-full",
-                      s.npsScore >= 9 ? "bg-success" : s.npsScore <= 6 ? "bg-destructive" : "bg-amber-500",
+                      s.nps_score >= 9 ? "bg-success" : s.nps_score <= 6 ? "bg-destructive" : "bg-amber-500",
                     )}
                   />
                   <p className="text-sm italic">&ldquo;{s.comments}&rdquo;</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    <strong>{s.boutiqueName ?? "Lojista Anônimo"}</strong> (Nota {s.npsScore}) ·{" "}
-                    {formatBRTDateTime(s.createdAt)}
+                    <strong>{s.employee_name ?? "Sem funcionária"}</strong> (Nota {s.nps_score}) ·{" "}
+                    {formatBRTDateTime(s.created_at)}
                   </p>
                 </div>
               ))
             )}
           </CardContent>
         </Card>
+
+        <Card className="lg:col-span-5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Star className="h-4 w-4 text-amber-500" /> Avaliação por vendedora
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {employeeRanking.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma avaliação de atendimento registrada ainda.</p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {employeeRanking.map((e) => (
+                  <div key={e.name} className="rounded-lg border border-border/70 bg-card/50 p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{e.name}</span>
+                      <span className="flex items-center gap-1 text-sm font-semibold text-amber-500">
+                        <Star className="h-3.5 w-3.5 fill-amber-500" /> {e.avg.toFixed(1)}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">{e.count} avaliações</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
-}
-
-function pctFor<T>(items: T[], predicate: (item: T) => boolean): number {
-  if (items.length === 0) return 0;
-  return Math.round((items.filter(predicate).length / items.length) * 100);
 }
 
 function RatioBar({ label, pct, className }: { label: string; pct: number; className: string }) {
