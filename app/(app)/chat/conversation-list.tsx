@@ -673,6 +673,12 @@ export function ConversationList({
                     ))}
                   </SelectContent>
                 </Select>
+                {appliedFilters.minStars > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Conta todos os pipelines com conversa aberta — o Kanban mostra só o pipeline
+                    selecionado ali, por isso o número pode bater diferente.
+                  </p>
+                )}
               </FilterField>
 
               <FilterField label="Janela em atendimento">

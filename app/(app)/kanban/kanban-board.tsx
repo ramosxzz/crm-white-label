@@ -622,6 +622,11 @@ export function KanbanBoard({
                   <option key={n} value={n}>{"★".repeat(n)}</option>
                 ))}
               </select>
+              {appliedFilters.minStars > 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  Conta só este pipeline — em Conversas o número soma todos os pipelines com chat aberto.
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">
