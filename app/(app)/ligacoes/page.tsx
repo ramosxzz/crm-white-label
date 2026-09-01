@@ -3,7 +3,7 @@ import Link from "next/link";
 import { PhoneCall, PhoneOff, Clock, Headphones, User } from "lucide-react";
 import { redirect } from "next/navigation";
 import { requireContext } from "@/lib/tenant";
-import { canSeeFullDashboard } from "@/lib/auth/roles";
+import { canSeeFullDashboard, canManageOperationalSetup } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { listTenantUserOptions } from "@/lib/tenant/users";
 import { PageHeader } from "@/components/app/page-header";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { fetchApi4comCalls } from "@/lib/integrations/api4com";
 import { isCallAnswered } from "@/lib/integrations/call-answered";
 import { cn } from "@/lib/utils";
+import { getBRTDayBounds } from "@/lib/date/brt";
 import { CallsTable, type CallRow } from "./calls-table";
 import { CallsFunnel } from "./calls-funnel";
 import { CallsByUser, type UserCallStats } from "./calls-by-user";
@@ -20,6 +21,8 @@ import { RefreshButton } from "@/components/app/refresh-button";
 import { listScheduledCallsForTenant } from "../agenda/actions";
 import { ScheduledCallsPanel } from "./scheduled-calls-panel";
 import { buildCallFunnelCounts } from "@/lib/leads/operational-metrics";
+import { listUserDailyGoals } from "./actions";
+import { DailyGoalsPanel, type DailyGoalsRow, type DailyGoalMetricKey } from "./daily-goals-panel";
 
 const ANSWERED_CAUSE = "NORMAL_CLEARING";
 type CallLeadRow = {
@@ -60,7 +63,9 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
 
   const supabase = await createClient();
 
-  const [allCalls, pipelinesRes, users, scheduledCalls] = await Promise.all([
+  const today = getBRTDayBounds();
+
+  const [allCalls, pipelinesRes, users, scheduledCalls, goals, scheduledTodayRes, attendedTodayRes, closedTodayRes] = await Promise.all([
     fetchApi4comCalls(),
     supabase
       .from("pipelines")
@@ -69,6 +74,30 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
       .order("name"),
     listTenantUserOptions(ctx.tenantId),
     listScheduledCallsForTenant(),
+    listUserDailyGoals(),
+    supabase
+      .from("appointments")
+      .select("created_by")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("kind", "meeting")
+      .gte("created_at", today.startIso)
+      .lte("created_at", today.endIso),
+    supabase
+      .from("appointments")
+      .select("created_by, outcome")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("kind", "meeting")
+      .gte("starts_at", today.startIso)
+      .lte("starts_at", today.endIso)
+      .in("outcome", ["done", "closed_on_call", "closed_later"]),
+    supabase
+      .from("appointments")
+      .select("created_by, outcome")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("kind", "meeting")
+      .gte("closed_at", today.startIso)
+      .lte("closed_at", today.endIso)
+      .in("outcome", ["closed_on_call", "closed_later"]),
   ]);
 
   const pipelineOptions = ((pipelinesRes.data ?? []) as {
@@ -226,6 +255,61 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
     new Set(allStages.filter((stage) => stage.is_won).map((stage) => stage.id)),
   );
 
+  // Metas do dia: sempre HOJE, independente do filtro de data escolhido acima
+  // (o filtro de data e pra analisar historico, meta e pra acompanhar o dia).
+  const callsToday = allCalls
+    .filter((c) => (c.metadata as Record<string, unknown> | null)?.tenant_id === ctx.tenantId)
+    .filter((c) => {
+      const time = new Date(c.started_at).getTime();
+      return time >= new Date(today.startIso).getTime() && time <= new Date(today.endIso).getTime();
+    });
+
+  const goalsByUserId = new Map(goals.map((g) => [g.userId, g]));
+  const actualsByUserId = new Map<string, Record<DailyGoalMetricKey, number>>();
+  const bump = (userId: string | null | undefined, key: DailyGoalMetricKey) => {
+    if (!userId) return;
+    const entry = actualsByUserId.get(userId) ?? {
+      callsMade: 0,
+      callsAnswered: 0,
+      meetingsScheduled: 0,
+      meetingsAttended: 0,
+      closedOnCall: 0,
+      closedLater: 0,
+    };
+    entry[key] += 1;
+    actualsByUserId.set(userId, entry);
+  };
+  for (const c of callsToday) {
+    const uid = (c.metadata as Record<string, unknown> | null)?.user_id as string | undefined;
+    bump(uid, "callsMade");
+    if (isCallAnswered(c.duration)) bump(uid, "callsAnswered");
+  }
+  for (const a of (scheduledTodayRes.data ?? []) as { created_by: string | null }[]) {
+    bump(a.created_by, "meetingsScheduled");
+  }
+  for (const a of (attendedTodayRes.data ?? []) as { created_by: string | null; outcome: string | null }[]) {
+    bump(a.created_by, "meetingsAttended");
+  }
+  for (const a of (closedTodayRes.data ?? []) as { created_by: string | null; outcome: string | null }[]) {
+    bump(a.created_by, a.outcome === "closed_on_call" ? "closedOnCall" : "closedLater");
+  }
+
+  const dailyGoalsRows: DailyGoalsRow[] = users
+    .map((u) => ({
+      userId: u.id,
+      name: u.name,
+      actuals: actualsByUserId.get(u.id) ?? {
+        callsMade: 0,
+        callsAnswered: 0,
+        meetingsScheduled: 0,
+        meetingsAttended: 0,
+        closedOnCall: 0,
+        closedLater: 0,
+      },
+      goals: goalsByUserId.get(u.id) ?? null,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   return (
     <div>
       <PageHeader title="Ligações" description="Chamadas realizadas via Api4com" actions={<RefreshButton title="Atualizar ligações" />} />
@@ -299,6 +383,10 @@ export default async function CallsDashboardPage({ searchParams }: { searchParam
         />
         <CallsFunnel counts={outcomeCounts} />
         <ScheduledCallsPanel calls={scheduledCalls} />
+      </div>
+
+      <div className="px-6 pb-6">
+        <DailyGoalsPanel rows={dailyGoalsRows} canManage={canManageOperationalSetup(ctx.role)} />
       </div>
 
       <div className="px-6 pb-6">

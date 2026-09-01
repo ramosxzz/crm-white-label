@@ -3723,6 +3723,56 @@ export type Database = {
         }
         Relationships: []
       }
+      user_daily_goals: {
+        Row: {
+          calls_answered_target: number
+          calls_made_target: number
+          closed_later_target: number
+          closed_on_call_target: number
+          created_at: string
+          id: string
+          meetings_attended_target: number
+          meetings_scheduled_target: number
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          calls_answered_target?: number
+          calls_made_target?: number
+          closed_later_target?: number
+          closed_on_call_target?: number
+          created_at?: string
+          id?: string
+          meetings_attended_target?: number
+          meetings_scheduled_target?: number
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          calls_answered_target?: number
+          calls_made_target?: number
+          closed_later_target?: number
+          closed_on_call_target?: number
+          created_at?: string
+          id?: string
+          meetings_attended_target?: number
+          meetings_scheduled_target?: number
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_daily_goals_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_accounts: {
         Row: {
           assigned_to: string | null

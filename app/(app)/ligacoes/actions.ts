@@ -5,7 +5,68 @@ import { z } from "zod";
 import { requireContext } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { logLeadActivity } from "@/lib/leads/activity-log";
+import { canManageOperationalSetup } from "@/lib/auth/roles";
 import { CALL_OUTCOME_LABEL, type CallOutcome } from "./call-outcomes";
+
+export type UserDailyGoals = {
+  userId: string;
+  callsMadeTarget: number;
+  callsAnsweredTarget: number;
+  meetingsScheduledTarget: number;
+  meetingsAttendedTarget: number;
+  closedOnCallTarget: number;
+  closedLaterTarget: number;
+};
+
+export async function listUserDailyGoals(): Promise<UserDailyGoals[]> {
+  const ctx = await requireContext();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("user_daily_goals")
+    .select("*")
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => ({
+    userId: row.user_id,
+    callsMadeTarget: row.calls_made_target,
+    callsAnsweredTarget: row.calls_answered_target,
+    meetingsScheduledTarget: row.meetings_scheduled_target,
+    meetingsAttendedTarget: row.meetings_attended_target,
+    closedOnCallTarget: row.closed_on_call_target,
+    closedLaterTarget: row.closed_later_target,
+  }));
+}
+
+export async function setUserDailyGoals(input: {
+  userId: string;
+  callsMadeTarget: number;
+  callsAnsweredTarget: number;
+  meetingsScheduledTarget: number;
+  meetingsAttendedTarget: number;
+  closedOnCallTarget: number;
+  closedLaterTarget: number;
+}) {
+  const ctx = await requireContext();
+  if (!canManageOperationalSetup(ctx.role)) throw new Error("Sem permissao para definir metas");
+  const supabase = await createClient();
+  const clamp = (n: number) => Math.max(0, Math.round(Number.isFinite(n) ? n : 0));
+  const { error } = await supabase.from("user_daily_goals").upsert(
+    {
+      tenant_id: ctx.tenantId,
+      user_id: input.userId,
+      calls_made_target: clamp(input.callsMadeTarget),
+      calls_answered_target: clamp(input.callsAnsweredTarget),
+      meetings_scheduled_target: clamp(input.meetingsScheduledTarget),
+      meetings_attended_target: clamp(input.meetingsAttendedTarget),
+      closed_on_call_target: clamp(input.closedOnCallTarget),
+      closed_later_target: clamp(input.closedLaterTarget),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "tenant_id,user_id" },
+  );
+  if (error) throw new Error(error.message);
+  revalidatePath("/ligacoes");
+}
 
 export async function getLeadCallPanelData(leadId: string) {
   const ctx = await requireContext();
