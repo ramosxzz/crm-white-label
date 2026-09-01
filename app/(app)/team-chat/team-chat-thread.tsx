@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Mic, Send, Square, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { notify, notifyError, confirmDialog } from "@/lib/ui/feedback";
@@ -67,6 +67,7 @@ export function TeamChatThread({
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m.name])), [members]);
+  const memberAvatarById = useMemo(() => new Map(members.map((m) => [m.id, m.avatarUrl])), [members]);
   const memberByNameLower = useMemo(
     () => new Map(members.map((m) => [m.name.toLowerCase(), m])),
     [members],
@@ -241,7 +242,7 @@ export function TeamChatThread({
       ? members.filter((m) => m.name.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 6)
       : [];
 
-  function renderBody(text: string) {
+  function renderBody(text: string, mine: boolean) {
     if (!mentionRegex) return text;
     const parts: (string | React.ReactNode)[] = [];
     let lastIndex = 0;
@@ -251,7 +252,13 @@ export function TeamChatThread({
     while ((m = mentionRegex.exec(text))) {
       if (m.index > lastIndex) parts.push(text.slice(lastIndex, m.index));
       parts.push(
-        <span key={key++} className="rounded bg-brand/15 px-1 font-medium text-brand">
+        <span
+          key={key++}
+          className={cn(
+            "rounded px-1 font-medium",
+            mine ? "bg-black/15 text-brand-foreground underline decoration-2 underline-offset-2" : "bg-brand/15 text-brand",
+          )}
+        >
           {m[0]}
         </span>,
       );
@@ -275,6 +282,7 @@ export function TeamChatThread({
           {messages.map((m) => {
             const mine = m.sender_id === currentUserId;
             const senderName = memberById.get(m.sender_id) ?? "Usuário";
+            const senderAvatar = memberAvatarById.get(m.sender_id) ?? null;
             const day = dayLabel(m.created_at);
             const showDaySeparator = day !== lastDay;
             lastDay = day;
@@ -289,6 +297,7 @@ export function TeamChatThread({
                 )}
                 <div className={cn("flex items-end gap-2", mine && "flex-row-reverse")}>
                   <Avatar className="h-7 w-7 shrink-0">
+                    {senderAvatar && <AvatarImage src={senderAvatar} alt={senderName} />}
                     <AvatarFallback className="text-[10px]">{initials(senderName)}</AvatarFallback>
                   </Avatar>
                   <div className={cn("group flex max-w-[75%] flex-col gap-1", mine && "items-end")}>
@@ -304,7 +313,7 @@ export function TeamChatThread({
                       ) : m.media_type === "audio" && m.media_url ? (
                         <audio controls src={m.media_url} className="h-9 w-56" />
                       ) : (
-                        <p className="whitespace-pre-wrap break-words">{renderBody(m.body ?? "")}</p>
+                        <p className="whitespace-pre-wrap break-words">{renderBody(m.body ?? "", mine)}</p>
                       )}
                       {mine && !m.deleted_at && (
                         <button
@@ -341,6 +350,7 @@ export function TeamChatThread({
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
                 >
                   <Avatar className="h-6 w-6">
+                    {m.avatarUrl && <AvatarImage src={m.avatarUrl} alt={m.name} />}
                     <AvatarFallback className="text-[9px]">{initials(m.name)}</AvatarFallback>
                   </Avatar>
                   {m.name}

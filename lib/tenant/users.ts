@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 export type TenantUserOption = {
   id: string;
   name: string;
+  avatarUrl: string | null;
 };
 
 export async function listTenantUserOptions(tenantId: string): Promise<TenantUserOption[]> {
@@ -20,18 +21,22 @@ export async function listTenantUserOptions(tenantId: string): Promise<TenantUse
 
   const { data: profiles } = await supabase
     .from("profiles")
-    .select("id, full_name")
+    .select("id, full_name, avatar_url")
     .in("id", userIds);
 
   const profileMap = new Map(
-    ((profiles ?? []) as Array<{ id: string; full_name: string | null }>).map((profile) => [
+    ((profiles ?? []) as Array<{ id: string; full_name: string | null; avatar_url: string | null }>).map((profile) => [
       profile.id,
-      profile.full_name?.trim() || `Usuario ${profile.id.slice(0, 6)}`,
+      { name: profile.full_name?.trim() || `Usuario ${profile.id.slice(0, 6)}`, avatarUrl: profile.avatar_url ?? null },
     ]),
   );
 
-  return userIds.map((id) => ({
-    id,
-    name: profileMap.get(id) ?? `Usuario ${id.slice(0, 6)}`,
-  }));
+  return userIds.map((id) => {
+    const profile = profileMap.get(id);
+    return {
+      id,
+      name: profile?.name ?? `Usuario ${id.slice(0, 6)}`,
+      avatarUrl: profile?.avatarUrl ?? null,
+    };
+  });
 }
