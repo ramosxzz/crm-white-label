@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { createServiceClient } from "@/lib/supabase/server";
 
+import { verifyMetaSignature } from "@/lib/webhooks/verify-meta-signature";
+
+const CLOUD_API_APP_SECRET = process.env.META_APP_SECRET;
+
 import { createProvider } from "@/lib/whatsapp/factory";
 
 import { ensureZapiPhoneMessageSync } from "@/lib/whatsapp/ensure-zapi-phone-sync";
@@ -92,7 +96,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
 
 
-  const payload = (await req.json()) as unknown;
+  const rawBody = await req.text();
+
+
+
+  // Cloud API (Meta) assina todo POST com X-Hub-Signature-256 (mesmo app
+  // secret do WhatsApp Embedded Signup) - sem isso, qualquer um que descubra
+  // o phone_number_id de um tenant (nao e segredo) conseguia forjar mensagem.
+  if (provider === "cloud_api") {
+    if (!CLOUD_API_APP_SECRET) {
+      console.error("[webhook][cloud_api] META_APP_SECRET nao configurado; recusando payload.");
+      return new NextResponse("Not configured", { status: 503 });
+    }
+    const signature = req.headers.get("x-hub-signature-256");
+    if (!verifyMetaSignature(rawBody, signature, CLOUD_API_APP_SECRET)) {
+      console.error("[webhook][cloud_api] assinatura invalida ou ausente; payload recusado.");
+      return new NextResponse("Invalid signature", { status: 401 });
+    }
+  }
+
+  const payload = JSON.parse(rawBody) as unknown;
 
 
 
@@ -144,6 +167,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
     account = matchZapiAccount(accounts, instanceId);
 
+    // instanceId nao e segredo (aparece em outras integracoes do proprio
+    // tenant). Onde a conta tiver Client-Token configurado (Z-API ->
+    // Seguranca da conta), a Z-API reenvia esse mesmo token no header em todo
+    // webhook - exige bater para nao aceitar payload forjado. Conta sem
+    // Client-Token configurado mantem o comportamento anterior (nao da pra
+    // validar o que nao foi configurado).
+    if (account) {
+      const creds = account.credentials as { client_token?: string };
+      const expectedToken = creds.client_token?.trim();
+      if (expectedToken) {
+        const gotToken = req.headers.get("client-token")?.trim();
+        if (gotToken !== expectedToken) {
+          console.error("[webhook][zapi] Client-Token ausente ou invalido para a instancia resolvida; payload recusado.");
+          account = null;
+        }
+      }
+    }
+
   }
 
   if (provider === "evolution") {
@@ -179,6 +220,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
       apikey: raw.apikey,
       server_url: raw.server_url,
     });
+
+    // instance/instanceName nao e segredo (aparece em logs, no proprio nome
+    // da instancia). A Evolution sempre inclui o apikey configurado da
+    // instancia no corpo de todo webhook - exigir que bata com o api_key
+    // salvo fecha a brecha de forjar payload so adivinhando o nome da
+    // instancia.
+    if (account) {
+      const creds = account.credentials as { api_key?: string };
+      const expectedKey = creds.api_key?.trim();
+      const gotKey = raw.apikey?.trim();
+      if (expectedKey && gotKey !== expectedKey) {
+        console.error("[webhook][evolution] apikey do payload nao bate com a instancia resolvida; payload recusado.");
+        account = null;
+      }
+    }
 
     // NAO usar match por sufixo de telefone (sender/owner/ownerJid via endsWith):
     // digitos curtos ou formatacao inconsistente (com/sem 55, com/sem 9) podem

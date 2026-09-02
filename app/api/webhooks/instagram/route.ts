@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { findOrCreateInstagramLead } from "@/lib/instagram/find-or-create";
+import { verifyMetaSignature } from "@/lib/webhooks/verify-meta-signature";
+
+const APP_SECRET = process.env.META_INSTAGRAM_APP_SECRET ?? process.env.META_APP_SECRET;
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +41,20 @@ type InstagramWebhookPayload = {
 };
 
 export async function POST(req: NextRequest) {
-  const payload = (await req.json()) as InstagramWebhookPayload;
+  const rawBody = await req.text();
+
+  if (!APP_SECRET) {
+    console.error("[webhook][instagram] META_APP_SECRET/META_INSTAGRAM_APP_SECRET nao configurado; recusando payload.");
+    return new NextResponse("Not configured", { status: 503 });
+  }
+
+  const signature = req.headers.get("x-hub-signature-256");
+  if (!verifyMetaSignature(rawBody, signature, APP_SECRET)) {
+    console.error("[webhook][instagram] assinatura invalida ou ausente; payload recusado.");
+    return new NextResponse("Invalid signature", { status: 401 });
+  }
+
+  const payload = JSON.parse(rawBody) as InstagramWebhookPayload;
 
   if (payload.object !== "instagram") {
     return NextResponse.json({ ok: false, reason: "not instagram" }, { status: 200 });
