@@ -119,6 +119,7 @@ export function LeadsTable({
         </div>
       )}
 
+      <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead className="border-b border-border/70 bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
           <tr>
@@ -228,6 +229,7 @@ export function LeadsTable({
           </tr>
         </tfoot>
       </table>
+      </div>
 
       {pageCount > 1 && (
         <div className="flex items-center justify-between border-t border-border/70 px-5 py-3 text-sm text-muted-foreground">

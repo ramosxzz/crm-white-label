@@ -43,9 +43,10 @@ export default async function EstoquePage() {
         actions={<NewProductDialog />}
       />
 
-      <div className="space-y-6 p-8">
+      <div className="space-y-6 p-4 sm:p-8">
         <StockLocationsManager locations={locations} />
         <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-elev-1">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="border-b border-border/70 bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
               <tr>
@@ -105,6 +106,7 @@ export default async function EstoquePage() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </div>

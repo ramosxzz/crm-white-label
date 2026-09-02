@@ -233,7 +233,7 @@ export function ImportCsvDialog({
                 ))}
               </div>
 
-              <div className="max-h-56 overflow-y-auto rounded-md border border-border/60">
+              <div className="max-h-56 overflow-auto rounded-md border border-border/60">
                 <table className="w-full text-xs">
                   <thead className="sticky top-0 bg-muted/60 text-left uppercase tracking-wide text-muted-foreground">
                     <tr>
