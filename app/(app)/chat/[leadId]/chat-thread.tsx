@@ -200,7 +200,7 @@ function detectMediaKind(mime: string): MediaKind {
 // (caso o realtime perca um evento) e roda devagar e so com a aba visivel.
 const POLL_MS = 90_000;
 const CLOSE_CHANNEL_OPTIONS = ["Ligação", "Reunião (Meet)", "Reunião presencial", "WhatsApp", "Outro"];
-const LEAD_SOURCE_OPTIONS = ["Social Seller", "Indicação", "Anúncio Meta", "Anúncio Google", "WhatsApp", "Instagram", "Site", "Outro"];
+const LEAD_SOURCE_OPTIONS = ["Marketplace", "Loja", "Indicação", "Anúncio Meta", "Anúncio Google", "WhatsApp", "Instagram", "Outro"];
 
 // Teto pro upload de midia do chat. Nao cancela o upload de verdade (a rede
 // pode continuar tentando em segundo plano), mas garante que a tela nunca

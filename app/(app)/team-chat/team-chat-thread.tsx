@@ -31,14 +31,22 @@ function initials(name: string) {
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
+// "Hoje"/"Ontem" comparado em data-calendario de Brasilia (timeZone fixo),
+// nao no fuso local da maquina - servidor (SSR, UTC) e navegador (BRT)
+// calculavam dia diferente perto da virada, causando mismatch de hidratacao
+// (React descartava o HTML do servidor e re-renderizava, travando a pagina
+// no loading.tsx em carregamento direto/hard-reload).
+function brtDateKey(date: Date) {
+  return date.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+}
+
 function dayLabel(iso: string) {
-  const d = new Date(iso);
-  const today = new Date();
-  const sameDay = d.toDateString() === today.toDateString();
-  if (sameDay) return "Hoje";
-  const yesterday = new Date(today);
+  const key = brtDateKey(new Date(iso));
+  const todayKey = brtDateKey(new Date());
+  if (key === todayKey) return "Hoje";
+  const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  if (d.toDateString() === yesterday.toDateString()) return "Ontem";
+  if (key === brtDateKey(yesterday)) return "Ontem";
   return formatBRTDateShort(iso);
 }
 
