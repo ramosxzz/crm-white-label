@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -138,11 +138,19 @@ export function Sidebar({
     };
   }, [tenantId, userId]);
 
+  const skipInitialMarkReadRef = useRef(true);
   useEffect(() => {
-    if (pathname.startsWith("/team-chat")) {
-      setUnreadTeamChat(0);
-      void markTeamChatRead();
+    if (!pathname.startsWith("/team-chat")) return;
+    setUnreadTeamChat(0);
+    // Pula a chamada da Server Action no carregamento direto/hard-reload: ela
+    // competia com o streaming SSR ainda em andamento e travava a pagina no
+    // loading.tsx. Numa navegacao de verdade (clicando no link) ja nao ha
+    // stream concorrente, entao dispara normal.
+    if (skipInitialMarkReadRef.current) {
+      skipInitialMarkReadRef.current = false;
+      return;
     }
+    void markTeamChatRead();
   }, [pathname]);
   // Vendedor nao gerencia estoque, automacoes, IA W+, integracoes, usuarios,
   // nem ve o dashboard de reunioes (mostra receita/custo/ROI do tenant
