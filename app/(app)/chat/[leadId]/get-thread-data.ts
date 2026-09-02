@@ -368,6 +368,7 @@ export async function getChatThreadData(leadId: string) {
       paymentInstallments: (lead.custom_fields?.payment_installments as number | undefined) ?? null,
       companyName: (lead.custom_fields?.company_name as string | undefined) ?? null,
       companyCnpj: (lead.custom_fields?.company_cnpj as string | undefined) ?? null,
+      address: (lead.custom_fields?.address as string | undefined) ?? null,
       partnerPieces: (lead.custom_fields?.partner_pieces as string | undefined) ?? null,
     },
   };

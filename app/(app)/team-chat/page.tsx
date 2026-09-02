@@ -4,8 +4,6 @@ import { createClient } from "@/lib/supabase/server";
 import { listTenantUserOptions } from "@/lib/tenant/users";
 import { TeamChatThread } from "./team-chat-thread";
 
-export const dynamic = "force-dynamic";
-
 const MESSAGE_SELECT = "id, tenant_id, sender_id, body, media_url, media_type, mentions, created_at, edited_at, deleted_at";
 
 export default async function TeamChatPage() {

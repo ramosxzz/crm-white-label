@@ -145,6 +145,7 @@ type LeadDetails = {
   paymentInstallments: number | null;
   companyName: string | null;
   companyCnpj: string | null;
+  address: string | null;
   /** Pecas que o parceiro passou pra prospeccao, fica visivel no lead ate finalizar. */
   partnerPieces: string | null;
 };
@@ -321,6 +322,7 @@ function buildLeadDetailsFromRow(
     paymentInstallments: (row.custom_fields?.payment_installments as number | undefined) ?? null,
     companyName: (row.custom_fields?.company_name as string | undefined) ?? null,
     companyCnpj: (row.custom_fields?.company_cnpj as string | undefined) ?? null,
+    address: (row.custom_fields?.address as string | undefined) ?? null,
     partnerPieces: (row.custom_fields?.partner_pieces as string | undefined) ?? null,
   };
 }
@@ -2221,6 +2223,7 @@ export function ChatThread({
 
       <LeadSidePanel
         leadId={leadId}
+        tenantId={tenantId}
         leadName={displayName}
         leadPhone={leadPhone}
         channel={channel}
@@ -2596,6 +2599,7 @@ function describeCallCause(cause: string): string {
 
 function LeadSidePanel({
   leadId,
+  tenantId,
   leadName,
   leadPhone,
   channel,
@@ -2613,6 +2617,7 @@ function LeadSidePanel({
   saleStockLocations = null,
 }: {
   leadId: string;
+  tenantId: string;
   leadName: string;
   leadPhone: string;
   channel: "whatsapp" | "instagram";
@@ -2705,12 +2710,16 @@ function LeadSidePanel({
   const router = useRouter();
   const [profileEditOpen, setProfileEditOpen] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
+  // Endereco no perfil do lead: pedido especifico do tenant Vasos Fortuna
+  // (venda com entrega), nao faz sentido pros outros tenants ainda.
+  const showAddressField = tenantId === "fd0f666f-e303-4694-aa51-1190740c3d12";
   const [profileDraft, setProfileDraft] = useState({
     name: leadName,
     email: details?.email ?? "",
     phone: channel === "instagram" ? "" : leadPhone,
     companyName: details?.companyName ?? "",
     companyCnpj: details?.companyCnpj ?? "",
+    address: details?.address ?? "",
   });
 
   function openProfileEdit() {
@@ -2720,6 +2729,7 @@ function LeadSidePanel({
       phone: channel === "instagram" ? "" : leadPhone,
       companyName: details?.companyName ?? "",
       companyCnpj: details?.companyCnpj ?? "",
+      address: details?.address ?? "",
     });
     setProfileEditOpen(true);
   }
@@ -2733,6 +2743,7 @@ function LeadSidePanel({
       phone: profileDraft.phone || null,
       companyName: profileDraft.companyName || null,
       companyCnpj: profileDraft.companyCnpj || null,
+      ...(showAddressField ? { address: profileDraft.address || null } : {}),
     })
       .then(() => {
         notify({ title: "Perfil atualizado", tone: "success" });
@@ -2997,6 +3008,7 @@ function LeadSidePanel({
         {details?.companyCnpj && (
           <InfoRow label="CNPJ" value={details.companyCnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5")} />
         )}
+        {showAddressField && <InfoRow label="Endereço" value={details?.address || "Não informado"} muted={!details?.address} />}
         {details?.partnerPieces && <InfoRow label="Peças (parceiro)" value={details.partnerPieces} />}
         <InfoRow label="Entrada" value={formatShortDate(details?.createdAt)} />
       </PanelSection>
@@ -3058,6 +3070,17 @@ function LeadSidePanel({
                 />
               </div>
             </div>
+            {showAddressField && (
+              <div className="space-y-1.5 border-t border-border/60 pt-3">
+                <Label htmlFor="profile-address">Endereço</Label>
+                <Input
+                  id="profile-address"
+                  value={profileDraft.address}
+                  onChange={(e) => setProfileDraft((d) => ({ ...d, address: e.target.value }))}
+                  placeholder="Rua, número, bairro, cidade"
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setProfileEditOpen(false)}>

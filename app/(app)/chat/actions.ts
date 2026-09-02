@@ -921,6 +921,7 @@ export async function updateChatLeadProfile(input: {
   phone: string | null;
   companyName: string | null;
   companyCnpj: string | null;
+  address?: string | null;
 }) {
   const ctx = await requireContext();
   const supabase = await createClient();
@@ -948,6 +949,7 @@ export async function updateChatLeadProfile(input: {
         ...((lead as { custom_fields: Record<string, unknown> | null }).custom_fields ?? {}),
         company_name: input.companyName?.trim() || null,
         company_cnpj: cnpjDigits || null,
+        ...(input.address !== undefined ? { address: input.address?.trim() || null } : {}),
       },
     })
     .eq("id", input.leadId)
