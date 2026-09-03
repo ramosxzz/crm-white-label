@@ -75,7 +75,12 @@ export async function updateSession(request: NextRequest) {
     return noStore(NextResponse.redirect(url));
   }
 
-  if (user && !isPublic) {
+  // isAuthRoute (login/signup) e !isPublic (resto do app) sao mutuamente
+  // exclusivos - isAuthRoute ja e um subconjunto de isPublic. As demais rotas
+  // publicas (health check, webhooks, api/v1 por api key, marketing) ficam
+  // de fora de proposito: nao tem sessao de usuario pra checar, e um usuario
+  // logado batendo nelas (ex.: link de marketing) nao deve ser redirecionado.
+  if (user && (isAuthRoute || !isPublic)) {
     const cookieTenant = request.cookies.get("avante_tenant_id")?.value;
     const { data: memberships } = await supabase
       .from("tenant_members")
