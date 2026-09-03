@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 
 // Aviso de manutencao pontual (migracao do banco Virginia -> Sao Paulo,
-// 02/09/2026 22h-00h). Some sozinho a partir do dia seguinte (compara a data
-// de hoje em America/Sao_Paulo), entao nao precisa lembrar de remover depois
-// - so o componente em si pode ser removido do layout quando nao for mais
-// usado de novo.
-const TARGET_DATE = "2026-09-02";
+// 03/09/2026, ja em andamento). Some sozinho a partir do dia seguinte
+// (compara a data de hoje em America/Sao_Paulo), entao nao precisa lembrar
+// de remover depois - so o componente em si pode ser removido do layout
+// quando nao for mais usado de novo.
+const TARGET_DATE = "2026-09-03";
 const DISMISS_KEY = `maintenance-notice-${TARGET_DATE}-dismissed`;
 
 export function MaintenanceNoticeBanner() {
@@ -40,9 +40,9 @@ export function MaintenanceNoticeBanner() {
     <div className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/15 px-4 py-2 text-sm text-amber-900 dark:text-amber-200">
       <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
       <span className="flex-1">
-        <strong>Manutenção programada hoje, das 22h às 00h.</strong>{" "}
-        O sistema pode ficar fora do ar por alguns minutos durante esse período. Nenhum dado será perdido — mensagens
-        do WhatsApp continuam chegando normalmente e aparecem assim que o sistema voltar.
+        <strong>Manutenção em andamento agora.</strong>{" "}
+        O sistema pode ficar fora do ar por alguns minutos. Nenhum dado será perdido — mensagens do WhatsApp
+        continuam chegando normalmente e aparecem assim que o sistema voltar.
       </span>
       <button
         type="button"
