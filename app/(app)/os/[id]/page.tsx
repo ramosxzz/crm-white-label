@@ -267,10 +267,11 @@ export default async function ServiceOrderDetailPage({
         }
       />
 
-      <div className="space-y-6 p-8 pb-28">
-        <section className="rounded-xl border border-border/70 bg-card p-5 shadow-elev-1">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Atendimento</h2>
+      <div className="space-y-4 p-8 pb-28">
+        <div className="grid gap-4 lg:grid-cols-[20rem_1fr] lg:items-start">
+          <section className="rounded-xl border border-border/70 bg-card p-4 shadow-elev-1">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Negociação</h2>
               {canManage && (
                 <AtendimentoEditDialog
                   serviceOrderId={order.id}
@@ -299,44 +300,38 @@ export default async function ServiceOrderDetailPage({
                 />
               )}
             </div>
-            <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div>
-                <dt className="text-xs uppercase tracking-wider text-muted-foreground">Cliente</dt>
-                <dd className="mt-1 text-sm font-medium">
-                  {order.leads?.id ? (
-                    <Link href={`/leads/${order.leads.id}`} className="hover:text-brand">
-                      {order.leads.name}
-                    </Link>
-                  ) : (
-                    "Lead removido"
-                  )}
-                </dd>
-                {order.leads?.phone && (
-                  <dd className="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <Phone className="h-3 w-3" /> {order.leads.phone}
+            <dl className="space-y-2.5 text-sm">
+              {order.partner_store && (
+                <div>
+                  <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Loja parceira</dt>
+                  <dd className="font-medium">{order.partner_store}</dd>
+                </div>
+              )}
+              {order.partner_extra_name && (
+                <div>
+                  <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Parceiro extra</dt>
+                  <dd>
+                    {order.partner_extra_name}
+                    {order.partner_extra_percent != null ? ` · ${String(order.partner_extra_percent).replace(".", ",")}%` : ""}
                   </dd>
-                )}
-              </div>
+                </div>
+              )}
+              {order.sale_channel && (
+                <div>
+                  <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Origem do cliente</dt>
+                  <dd>{SALE_CHANNEL_LABEL[order.sale_channel] ?? order.sale_channel}</dd>
+                </div>
+              )}
               <div>
-                <dt className="text-xs uppercase tracking-wider text-muted-foreground">Endereço</dt>
-                <dd className="mt-1 inline-flex items-start gap-1 text-sm">
-                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  {formatAddress(order)}
-                </dd>
-                {order.address_cep && (
-                  <dd className="mt-0.5 text-xs text-muted-foreground">CEP {order.address_cep}</dd>
-                )}
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wider text-muted-foreground">Voltagem</dt>
-                <dd className="mt-1 inline-flex items-center gap-1 text-sm">
-                  <Plug className="h-3.5 w-3.5 text-muted-foreground" />
-                  {order.voltage ?? "Não informada"}
+                <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Consultor(a)</dt>
+                <dd>
+                  {consultantName ?? "—"}
+                  {consultantExtraName ? ` + ${consultantExtraName}` : ""}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs uppercase tracking-wider text-muted-foreground">Técnicos</dt>
-                <dd className="mt-1 inline-flex items-center gap-1 text-sm">
+                <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Técnicos</dt>
+                <dd className="inline-flex items-center gap-1">
                   <User className="h-3.5 w-3.5 text-muted-foreground" />
                   {technicianNames.length > 0
                     ? technicianNames.join(", ")
@@ -345,100 +340,119 @@ export default async function ServiceOrderDetailPage({
                       : "Nenhum alocado"}
                 </dd>
               </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Agenda</dt>
+                  <dd>
+                    {scheduled
+                      ? `${scheduled}${order.shift ? ` · ${SERVICE_ORDER_SHIFT_LABEL[order.shift as "manha" | "tarde"]}` : ""}`
+                      : "Não agendada"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Prazo</dt>
+                  <dd>{formatDate(order.deadline) ?? "Sem prazo"}</dd>
+                </div>
+              </div>
               <div>
-                <dt className="text-xs uppercase tracking-wider text-muted-foreground">Agenda</dt>
-                <dd className="mt-1 text-sm">
-                  {scheduled
-                    ? `${scheduled}${order.shift ? ` · ${SERVICE_ORDER_SHIFT_LABEL[order.shift as "manha" | "tarde"]}` : ""}`
-                    : "Não agendada"}
+                <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Voltagem</dt>
+                <dd className="inline-flex items-center gap-1">
+                  <Plug className="h-3.5 w-3.5 text-muted-foreground" />
+                  {order.voltage ?? "Não informada"}
                 </dd>
               </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wider text-muted-foreground">Prazo</dt>
-                <dd className="mt-1 text-sm">{formatDate(order.deadline) ?? "Sem prazo"}</dd>
-              </div>
-              {order.partner_store && (
-                <div>
-                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">Loja parceira</dt>
-                  <dd className="mt-1 text-sm">{order.partner_store}</dd>
-                </div>
-              )}
-              {order.partner_extra_name && (
-                <div>
-                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">Parceiro extra</dt>
-                  <dd className="mt-1 text-sm">
-                    {order.partner_extra_name}
-                    {order.partner_extra_percent != null ? ` · ${String(order.partner_extra_percent).replace(".", ",")}%` : ""}
-                  </dd>
-                </div>
-              )}
-              {order.sale_channel && (
-                <div>
-                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">Origem do cliente</dt>
-                  <dd className="mt-1 text-sm">{SALE_CHANNEL_LABEL[order.sale_channel] ?? order.sale_channel}</dd>
-                </div>
-              )}
-              {(consultantName || consultantExtraName) && (
-                <div>
-                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">Consultor(a)</dt>
-                  <dd className="mt-1 text-sm">
-                    {consultantName ?? "—"}
-                    {consultantExtraName ? ` + ${consultantExtraName}` : ""}
-                  </dd>
-                </div>
-              )}
-              <div>
-                <dt className="text-xs uppercase tracking-wider text-muted-foreground">Total</dt>
-                <dd className="mt-1 text-sm font-semibold">{formatCurrencyBRL(order.total_cents)}</dd>
+              <div className="border-t border-border/60 pt-2.5">
+                <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Total</dt>
+                <dd className="text-base font-semibold">{formatCurrencyBRL(order.total_cents)}</dd>
               </div>
             </dl>
-
             {order.observations && (
-              <div className="mt-4 rounded-lg bg-muted/40 p-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="mt-3 rounded-lg bg-muted/40 p-2.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Observações da venda
                 </p>
-                <p className="mt-1 whitespace-pre-wrap text-sm">{order.observations}</p>
+                <p className="mt-1 whitespace-pre-wrap text-xs">{order.observations}</p>
               </div>
             )}
-        </section>
-
-        <ItemsPanel
-          serviceOrderId={order.id}
-          items={(items ?? []) as ServiceOrderItem[]}
-          canEdit={!locked && canPriceItems}
-          canApprove={canReview}
-          canApproveDiscount={canApproveDiscount}
-          canDelete={canManage && !locked}
-          travelFeeCents={order.travel_fee_cents ?? 0}
-          catalogItems={(catalogItems ?? []) as ServiceCatalogItem[]}
-        />
-
-        {(damages ?? []).length > 0 && (
-          <section className="rounded-xl border border-border/70 bg-card p-5 shadow-elev-1">
-            <h2 className="mb-3 text-sm font-semibold">Avarias registradas</h2>
-            <ul className="space-y-2">
-              {(damages ?? []).map((damage: any) => (
-                <li key={damage.id} className="rounded-lg bg-muted/40 px-3 py-2 text-sm">
-                  {damage.description}
-                </li>
-              ))}
-            </ul>
           </section>
-        )}
 
-        <RegistrosPanel
-          serviceOrderId={order.id}
-          events={(events ?? []) as any}
-          checklist={checklist as { answers: unknown; observations: string | null } | null}
-          originOrder={originOrder as any}
-          originItems={originItems as any}
-          originChecklist={originChecklist as { answers: unknown; observations: string | null } | null}
-          originServiceOrderId={order.origin_service_order_id}
-          followups={followupRows}
-          consultants={consultants}
-          canManageFollowups={canManage}
-        />
+          <ItemsPanel
+            serviceOrderId={order.id}
+            items={(items ?? []) as ServiceOrderItem[]}
+            canEdit={!locked && canPriceItems}
+            canApprove={canReview}
+            canApproveDiscount={canApproveDiscount}
+            canDelete={canManage && !locked}
+            travelFeeCents={order.travel_fee_cents ?? 0}
+            catalogItems={(catalogItems ?? []) as ServiceCatalogItem[]}
+          />
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[20rem_1fr] lg:items-start">
+          <div className="space-y-4">
+            <section className="rounded-xl border border-border/70 bg-card p-4 shadow-elev-1">
+              <h2 className="mb-3 text-sm font-semibold">Dados do cliente</h2>
+              <dl className="space-y-2.5 text-sm">
+                <div>
+                  <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Cliente</dt>
+                  <dd className="font-medium">
+                    {order.leads?.id ? (
+                      <Link href={`/leads/${order.leads.id}`} className="hover:text-brand">
+                        {order.leads.name}
+                      </Link>
+                    ) : (
+                      "Lead removido"
+                    )}
+                  </dd>
+                </div>
+                {order.leads?.phone && (
+                  <div>
+                    <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Fone</dt>
+                    <dd className="inline-flex items-center gap-1">
+                      <Phone className="h-3 w-3 text-muted-foreground" /> {order.leads.phone}
+                    </dd>
+                  </div>
+                )}
+                <div>
+                  <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Endereço</dt>
+                  <dd className="inline-flex items-start gap-1">
+                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    {formatAddress(order)}
+                  </dd>
+                  {order.address_cep && (
+                    <dd className="mt-0.5 text-xs text-muted-foreground">CEP {order.address_cep}</dd>
+                  )}
+                </div>
+              </dl>
+            </section>
+
+            {(damages ?? []).length > 0 && (
+              <section className="rounded-xl border border-border/70 bg-card p-4 shadow-elev-1">
+                <h2 className="mb-3 text-sm font-semibold">Avarias registradas</h2>
+                <ul className="space-y-2">
+                  {(damages ?? []).map((damage: any) => (
+                    <li key={damage.id} className="rounded-lg bg-muted/40 px-3 py-2 text-sm">
+                      {damage.description}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </div>
+
+          <RegistrosPanel
+            serviceOrderId={order.id}
+            events={(events ?? []) as any}
+            checklist={checklist as { answers: unknown; observations: string | null } | null}
+            originOrder={originOrder as any}
+            originItems={originItems as any}
+            originChecklist={originChecklist as { answers: unknown; observations: string | null } | null}
+            originServiceOrderId={order.origin_service_order_id}
+            followups={followupRows}
+            consultants={consultants}
+            canManageFollowups={canManage}
+          />
+        </div>
 
         {canReview && order.service_type !== "assistencia" && (
           <SettlementPanel
