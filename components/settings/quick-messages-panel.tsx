@@ -490,6 +490,8 @@ function SortableRow({
         </p>
         {message.media_url && message.media_type === "audio" ? (
           <audio controls src={message.media_url} className="mt-2 h-9 w-full max-w-xs" />
+        ) : message.media_urls && message.media_urls.length > 0 ? (
+          <p className="mt-1 text-sm text-muted-foreground">Envia {message.media_urls.length} fotos de uma vez, em sequência.</p>
         ) : (
           <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{message.body}</p>
         )}

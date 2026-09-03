@@ -985,9 +985,33 @@ export function ChatThread({
     }
   }
 
-  function onPickQuick(m: { id?: string; title?: string | null; body: string | null; media_url: string | null; media_type: string | null }) {
+  async function sendQuickMediaBatch(urls: string[], kind: MediaKind, quickMessageId?: string) {
+    if (isInstagram) {
+      notify({ title: "Envio de mídia rápida ainda está disponível apenas para WhatsApp.", tone: "error" });
+      return;
+    }
+    notify({ title: `Enviando ${urls.length} fotos...`, tone: "success" });
+    for (const url of urls) {
+      // Sequencial de proposito: manda uma de cada vez, na ordem, sem
+      // sobrecarregar o provider do WhatsApp com tudo de uma vez so.
+      await sendExistingMedia(url, kind, undefined, quickMessageId);
+    }
+  }
+
+  function onPickQuick(m: {
+    id?: string;
+    title?: string | null;
+    body: string | null;
+    media_url: string | null;
+    media_type: string | null;
+    media_urls?: string[] | null;
+  }) {
     setPendingQuickMessageId(m.id ?? null);
     const mediaKind = m.media_type as MediaKind | null;
+    if (m.media_urls && m.media_urls.length > 0 && mediaKind) {
+      void sendQuickMediaBatch(m.media_urls, mediaKind, m.id);
+      return;
+    }
     if (m.media_url && mediaKind && ["audio", "image", "video", "document"].includes(mediaKind)) {
       if (isInstagram) {
         notify({ title: "Envio de mídia rápida ainda está disponível apenas para WhatsApp.", tone: "error" });

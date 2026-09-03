@@ -2352,6 +2352,7 @@ export type Database = {
           is_preset: boolean
           media_type: string | null
           media_url: string | null
+          media_urls: string[] | null
           sort_order: number
           tenant_id: string
           title: string
@@ -2364,6 +2365,7 @@ export type Database = {
           is_preset?: boolean
           media_type?: string | null
           media_url?: string | null
+          media_urls?: string[] | null
           sort_order?: number
           tenant_id: string
           title: string
@@ -2376,6 +2378,7 @@ export type Database = {
           is_preset?: boolean
           media_type?: string | null
           media_url?: string | null
+          media_urls?: string[] | null
           sort_order?: number
           tenant_id?: string
           title?: string
