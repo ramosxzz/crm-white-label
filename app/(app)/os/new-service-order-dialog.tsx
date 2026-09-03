@@ -216,7 +216,12 @@ export function NewServiceOrderDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {!agendaPreset && (
+      {/* controlledOpen !== undefined = quem chama controla open/onOpenChange
+          por fora (ex.: AgendaGrid, que abre pelo menu de contexto de um
+          horario livre) - nesse caso o dialogo nao deve ter gatilho proprio,
+          senao clicar nele so chama onOpenChange(true) que quem controla nao
+          trata (so trata o fechamento), e o botao fica sem efeito nenhum. */}
+      {!agendaPreset && controlledOpen === undefined && (
         <DialogTrigger asChild>
           {trigger ?? (
             <Button variant="brand">
