@@ -75,12 +75,7 @@ export async function updateSession(request: NextRequest) {
     return noStore(NextResponse.redirect(url));
   }
 
-  if (user && isAuthRoute) {
-    // Login restrito a Agenda/OS: manda direto pra /os/agenda em vez de
-    // /dashboard -> layout.tsx redirect. Esse salto duplo (dashboard
-    // renderizando ate o layout perceber e redirecionar de novo, dentro de
-    // Server Component ja carregando a Agenda inteira) e o que causava tela
-    // preta no primeiro login dessas contas.
+  if (user && !isPublic) {
     const cookieTenant = request.cookies.get("avante_tenant_id")?.value;
     const { data: memberships } = await supabase
       .from("tenant_members")
@@ -88,15 +83,46 @@ export async function updateSession(request: NextRequest) {
       .eq("user_id", user.sub);
     const chosen =
       memberships?.find((m) => m.tenant_id === cookieTenant) ?? memberships?.[0];
-    // Prospeccao (Jeruza) tambem manda direto, pelo mesmo motivo do
-    // os_only_access acima: evita o salto duplo /dashboard -> layout
-    // redirecionando de novo, que ja causou tela preta uma vez.
-    url.pathname = chosen?.os_only_access
-      ? "/os/agenda"
-      : chosen?.role === "prospeccao"
-        ? "/prospeccao"
-        : "/dashboard";
-    return noStore(NextResponse.redirect(url));
+
+    if (isAuthRoute) {
+      // Login restrito a Agenda/OS: manda direto pra /os/agenda em vez de
+      // /dashboard -> layout.tsx redirect. Esse salto duplo (dashboard
+      // renderizando ate o layout perceber e redirecionar de novo, dentro de
+      // Server Component ja carregando a Agenda inteira) e o que causava tela
+      // preta no primeiro login dessas contas.
+      url.pathname = chosen?.os_only_access
+        ? "/os/agenda"
+        : chosen?.role === "prospeccao"
+          ? "/prospeccao"
+          : chosen?.role === "tecnico"
+            ? "/campo"
+            : "/dashboard";
+      return noStore(NextResponse.redirect(url));
+    }
+
+    // Mesma restricao de rota que existe em app/(app)/layout.tsx, mas
+    // reforcada aqui no middleware: um redirect so no layout Server Component
+    // pode nao rodar de novo numa navegacao client-side (Link/router.push)
+    // que reaproveita o Router Cache do layout compartilhado - foi assim que
+    // uma conta so-Agenda/OS conseguiu abrir /leads/[id] clicando num link.
+    // O middleware roda sempre, em toda navegacao, sem esse cache.
+    if (chosen?.os_only_access && !url.pathname.startsWith("/os")) {
+      url.pathname = "/os/agenda";
+      return noStore(NextResponse.redirect(url));
+    }
+    if (
+      chosen?.role === "prospeccao" &&
+      !url.pathname.startsWith("/prospeccao") &&
+      !url.pathname.startsWith("/chat") &&
+      !url.pathname.startsWith("/settings/whatsapp")
+    ) {
+      url.pathname = "/prospeccao";
+      return noStore(NextResponse.redirect(url));
+    }
+    if (chosen?.role === "tecnico" && !url.pathname.startsWith("/campo")) {
+      url.pathname = "/campo";
+      return noStore(NextResponse.redirect(url));
+    }
   }
 
   return response;

@@ -181,11 +181,6 @@ export default async function ServiceOrderPrintPage({ params }: { params: Promis
             : ""}
         </p>
       </section>
-
-      <section className="mt-10 grid grid-cols-2 gap-8 border-t border-slate-200 pt-8 text-sm">
-        <div className="border-t border-slate-400 pt-2 text-center text-xs text-slate-500">Assinatura do cliente</div>
-        <div className="border-t border-slate-400 pt-2 text-center text-xs text-slate-500">Assinatura do técnico</div>
-      </section>
     </main>
   );
 }
