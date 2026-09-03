@@ -111,7 +111,13 @@ export async function updateSession(request: NextRequest) {
     // que reaproveita o Router Cache do layout compartilhado - foi assim que
     // uma conta so-Agenda/OS conseguiu abrir /leads/[id] clicando num link.
     // O middleware roda sempre, em toda navegacao, sem esse cache.
-    if (chosen?.os_only_access && !url.pathname.startsWith("/os")) {
+    // /financeiro fica de fora do "/os": quem tem essa conta E papel de
+    // gestao (owner/admin/gerente - mesmo corte de canReviewServiceOrder)
+    // precisa conseguir abrir, igual o layout.tsx permite.
+    const canOpenFinanceOsOnly =
+      url.pathname === "/financeiro" &&
+      (chosen?.role === "owner" || chosen?.role === "admin" || chosen?.role === "gerente");
+    if (chosen?.os_only_access && !url.pathname.startsWith("/os") && !canOpenFinanceOsOnly) {
       url.pathname = "/os/agenda";
       return noStore(NextResponse.redirect(url));
     }

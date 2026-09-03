@@ -58,7 +58,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // tecnico acima - novo menu/rota ja nasce fechado pra ela por padrao.
   if (ctx.osOnlyAccess) {
     const pathname = (await headers()).get("x-pathname") ?? "";
-    if (!pathname.startsWith("/os")) redirect("/os/agenda");
+    // /financeiro fica de fora do "/os": quem tem essa conta E permissao de
+    // gestao financeira (Sidebar so mostra o link nesse caso) precisa
+    // conseguir abrir - nao e so-Agenda/OS igual o resto do CRM que essa
+    // conta nao ve.
+    if (!pathname.startsWith("/os") && pathname !== "/financeiro") redirect("/os/agenda");
   }
 
   const supabase = await createClient();
