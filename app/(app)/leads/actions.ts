@@ -103,29 +103,27 @@ export async function createLead(formData: FormData): Promise<CreateLeadResult> 
     .eq("id", stageId!)
     .single();
 
-  const { data: createdLead, error } = await supabase
-    .from("leads")
-    .insert({
-      tenant_id: ctx.tenantId,
-      name: parsed.name,
-      phone: parsed.phone ? normalizePhone(parsed.phone) : null,
-      email: parsed.email || null,
-      source: parsed.source || null,
-      notes: parsed.notes || null,
-      stage_id: stageId,
-      pipeline_id: pipelineRow?.pipeline_id,
-      value_cents: parsed.value_cents ?? 0,
-      referred_by_partner_id: parsed.referred_by_partner_id ?? null,
-      // So checa o role, nao o lead_assignment_enabled: a RLS de insert exige
-      // assigned_to = auth.uid() quando esse flag ta ligado, e o ctx.tenant
-      // aqui pode estar com valor em cache (contextMemoryCache, 20s) - se
-      // ficar dessincronizado com o valor real do banco, a vendedora nunca
-      // consegue criar lead nenhum (RLS 42501). Vendedora dona do proprio
-      // lead recem-criado e sempre correto, independente do flag.
-      assigned_to: ctx.role === "vendedor" ? ctx.userId : null,
-    })
-    .select("id")
-    .single();
+  // Id gerado aqui e nao via RETURNING de proposito: a policy de SELECT
+  // (can_access_lead) refaz uma subquery na propria leads pra checar
+  // assigned_to, e essa subquery falha na avaliacao do RETURNING logo apos o
+  // INSERT pra quem so passa por esse branch (vendedor - admin/gerente/etc
+  // tem atalho por role e nunca batem nisso). Sem "id" gerado nao ha
+  // RETURNING nenhum, entao a policy de SELECT nem entra em jogo aqui.
+  const leadId = crypto.randomUUID();
+  const { error } = await supabase.from("leads").insert({
+    id: leadId,
+    tenant_id: ctx.tenantId,
+    name: parsed.name,
+    phone: parsed.phone ? normalizePhone(parsed.phone) : null,
+    email: parsed.email || null,
+    source: parsed.source || null,
+    notes: parsed.notes || null,
+    stage_id: stageId,
+    pipeline_id: pipelineRow?.pipeline_id,
+    value_cents: parsed.value_cents ?? 0,
+    referred_by_partner_id: parsed.referred_by_partner_id ?? null,
+    assigned_to: ctx.role === "vendedor" ? ctx.userId : null,
+  });
 
   if (error) {
     if (isDuplicateLeadPhoneError(error)) {
@@ -134,63 +132,62 @@ export async function createLead(formData: FormData): Promise<CreateLeadResult> 
     console.error("[leads] Falha ao criar lead", { tenantId: ctx.tenantId, code: error.code });
     return { ok: false, error: "Não foi possível criar o lead agora. Tente novamente." };
   }
-  if (createdLead) {
-    if (parsed.value_cents && parsed.value_cents > 0) {
-      await supabase.from("lead_value_items").insert({
-        tenant_id: ctx.tenantId,
-        lead_id: createdLead.id,
-        label: "Valor inicial",
-        amount_cents: parsed.value_cents,
-        created_by: ctx.userId,
-      });
-    }
-    try {
-      // Lead indicado por parceiro (loja/vendedor): fica sem dono de proposito,
-      // pra coordenadora triar manualmente - pedido explicito do ACT, pra nao
-      // cair no sorteio automatico junto com os leads de marketing.
-      if (ctx.role === "vendedor" && ctx.tenant.lead_assignment_enabled) {
-        // No tenant com distribuicao ativa, o lead cadastrado pela propria
-        // vendedora permanece com ela e nao entra no fluxo automatico.
-      } else if (parsed.referred_by_partner_id) {
-        // no-op: sem modo ausente, sem round-robin.
-      } else {
-        // Modo ausente tem prioridade: se ativo, o lead vai direto para o
-        // vendedor escolhido; senao, distribuicao normal (round-robin).
-        const forwarded = await forwardNewLead(supabase, ctx.tenantId, createdLead.id);
-        if (!forwarded) await autoAssignLead(createdLead.id);
-      }
-    } catch (assignmentError) {
-      console.error("Erro ao distribuir lead automaticamente:", assignmentError);
-    }
-    void fireAutomationTrigger(ctx.tenantId, "lead_created", createdLead.id, {
-      source: parsed.source,
-    });
-    void dispatchWebhookEvent(ctx.tenantId, "lead.created", {
-      id: createdLead.id,
-      name: parsed.name,
-      phone: parsed.phone ?? null,
-      source: parsed.source ?? null,
-    });
 
-    // Vendedor criou um lead: avisa o dono (owner) do tenant.
-    if (ctx.role === "vendedor") {
-      const ownerId = await getTenantOwnerId(supabase, ctx.tenantId);
-      if (ownerId && ownerId !== ctx.userId) {
-        void notifyUser(supabase, {
-          tenantId: ctx.tenantId,
-          userId: ownerId,
-          kind: "lead_created_by_seller",
-          title: "Novo lead criado por vendedor",
-          description: parsed.name,
-          link: `/leads/${createdLead.id}`,
-        });
-      }
+  if (parsed.value_cents && parsed.value_cents > 0) {
+    await supabase.from("lead_value_items").insert({
+      tenant_id: ctx.tenantId,
+      lead_id: leadId,
+      label: "Valor inicial",
+      amount_cents: parsed.value_cents,
+      created_by: ctx.userId,
+    });
+  }
+  try {
+    // Lead indicado por parceiro (loja/vendedor): fica sem dono de proposito,
+    // pra coordenadora triar manualmente - pedido explicito do ACT, pra nao
+    // cair no sorteio automatico junto com os leads de marketing.
+    if (ctx.role === "vendedor" && ctx.tenant.lead_assignment_enabled) {
+      // No tenant com distribuicao ativa, o lead cadastrado pela propria
+      // vendedora permanece com ela e nao entra no fluxo automatico.
+    } else if (parsed.referred_by_partner_id) {
+      // no-op: sem modo ausente, sem round-robin.
+    } else {
+      // Modo ausente tem prioridade: se ativo, o lead vai direto para o
+      // vendedor escolhido; senao, distribuicao normal (round-robin).
+      const forwarded = await forwardNewLead(supabase, ctx.tenantId, leadId);
+      if (!forwarded) await autoAssignLead(leadId);
+    }
+  } catch (assignmentError) {
+    console.error("Erro ao distribuir lead automaticamente:", assignmentError);
+  }
+  void fireAutomationTrigger(ctx.tenantId, "lead_created", leadId, {
+    source: parsed.source,
+  });
+  void dispatchWebhookEvent(ctx.tenantId, "lead.created", {
+    id: leadId,
+    name: parsed.name,
+    phone: parsed.phone ?? null,
+    source: parsed.source ?? null,
+  });
+
+  // Vendedor criou um lead: avisa o dono (owner) do tenant.
+  if (ctx.role === "vendedor") {
+    const ownerId = await getTenantOwnerId(supabase, ctx.tenantId);
+    if (ownerId && ownerId !== ctx.userId) {
+      void notifyUser(supabase, {
+        tenantId: ctx.tenantId,
+        userId: ownerId,
+        kind: "lead_created_by_seller",
+        title: "Novo lead criado por vendedor",
+        description: parsed.name,
+        link: `/leads/${leadId}`,
+      });
     }
   }
 
   revalidatePath("/leads");
   revalidatePath("/kanban");
-  return { ok: true, leadId: createdLead!.id };
+  return { ok: true, leadId };
 }
 
 export async function updateLead(id: string, patch: Partial<{
@@ -585,7 +582,13 @@ export async function importLeadsCSV(
     return false;
   });
 
+  // Id gerado aqui (nao via RETURNING) de proposito: a policy de SELECT
+  // (can_access_lead) refaz uma subquery na propria leads pra checar
+  // assigned_to, e ela falha na avaliacao do RETURNING pra vendedor (unico
+  // role que so passa por esse branch - os demais tem atalho por role).
+  // Mesmo bug do createLead/openLeadByPhone, aqui em lote.
   const inserts = newRows.map((r) => ({
+      id: crypto.randomUUID(),
       tenant_id: ctx.tenantId,
       name: r.name,
       phone: r.phone,
@@ -593,7 +596,7 @@ export async function importLeadsCSV(
       source: r.source || "csv-import",
       stage_id: stageId,
       pipeline_id: pipelineId,
-      assigned_to: assignedTo || null,
+      assigned_to: assignedTo || (ctx.role === "vendedor" ? ctx.userId : null),
       lead_folder: folder || null,
     }));
 
@@ -601,20 +604,23 @@ export async function importLeadsCSV(
     return { count: 0, skippedDuplicates, invalidPhones: prepared.invalidPhones };
   }
 
-  let { data: createdLeads, error } = await supabase.from("leads").insert(inserts).select("id");
-  if (error && isDuplicateLeadPhoneError(error)) {
+  let createdLeads: { id: string }[] = [];
+  let { error } = await supabase.from("leads").insert(inserts);
+  if (!error) {
+    createdLeads = inserts.map((i) => ({ id: i.id }));
+  } else if (isDuplicateLeadPhoneError(error)) {
     // O insert em lote e atomico. Se surgiu um duplicado entre a consulta e
     // a gravacao (ou ele estava invisivel por RLS), tenta cada linha para nao
     // perder todas as outras.
     createdLeads = [];
     for (const insert of inserts) {
-      const { data: created, error: rowError } = await supabase.from("leads").insert(insert).select("id").maybeSingle();
+      const { error: rowError } = await supabase.from("leads").insert(insert);
       if (isDuplicateLeadPhoneError(rowError)) {
         skippedDuplicates++;
         continue;
       }
       if (rowError) throw new Error(rowError.message);
-      if (created) createdLeads.push(created);
+      createdLeads.push({ id: insert.id });
     }
     error = null;
   }

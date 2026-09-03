@@ -230,7 +230,7 @@ export function NewServiceOrderDialog({
           )}
         </DialogTrigger>
       )}
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-h-[85vh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>Nova ordem de serviço</DialogTitle>
         </DialogHeader>

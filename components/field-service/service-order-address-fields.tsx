@@ -98,7 +98,7 @@ export function ServiceOrderAddressFields({
         Endereço do atendimento
       </legend>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div className="space-y-1.5">
           <Label htmlFor="address_cep">CEP</Label>
           <div className="relative">

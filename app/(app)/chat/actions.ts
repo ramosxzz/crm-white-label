@@ -1052,23 +1052,26 @@ export async function openLeadByPhone(rawPhone: string): Promise<{ leadId: strin
   const stages = (pipeline as { pipeline_stages?: { id: string; position: number }[] } | null)
     ?.pipeline_stages?.sort((a, b) => a.position - b.position);
 
-  const { data: created, error } = await supabase
-    .from("leads")
-    .insert({
-      tenant_id: ctx.tenantId,
-      name: phone,
-      phone,
-      source: "manual",
-      stage_id: stages?.[0]?.id,
-      pipeline_id: (pipeline as { id?: string } | null)?.id,
-      assigned_to: ctx.role === "vendedor" ? ctx.userId : null,
-    })
-    .select("id")
-    .single();
+  // Sem RETURNING (id gerado aqui) de proposito: a policy de SELECT
+  // (can_access_lead) refaz uma subquery na propria leads pra checar
+  // assigned_to, e ela falha na avaliacao do RETURNING pra vendedor (unico
+  // role que cai nesse branch - os demais tem atalho por role na policy).
+  // Mesmo bug do createLead em app/(app)/leads/actions.ts.
+  const leadId = crypto.randomUUID();
+  const { error } = await supabase.from("leads").insert({
+    id: leadId,
+    tenant_id: ctx.tenantId,
+    name: phone,
+    phone,
+    source: "manual",
+    stage_id: stages?.[0]?.id,
+    pipeline_id: (pipeline as { id?: string } | null)?.id,
+    assigned_to: ctx.role === "vendedor" ? ctx.userId : null,
+  });
   if (error) throw new Error(error.message);
 
   revalidatePath("/leads");
-  return { leadId: created.id };
+  return { leadId };
 }
 
 export async function markConversationRead(conversationId: string) {
