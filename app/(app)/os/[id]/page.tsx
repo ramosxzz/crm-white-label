@@ -15,11 +15,9 @@ import {
 import { PageHeader } from "@/components/app/page-header";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrencyBRL } from "@/lib/utils";
-import { SERVICE_REPORT_CHECKLIST } from "@/lib/field-service/checklist";
 import {
   SALE_CHANNEL_LABEL,
   SERVICE_ORDER_SHIFT_LABEL,
-  SERVICE_ORDER_STATUS_LABEL,
   formatServiceOrderCode,
   isServiceOrderLocked,
 } from "@/lib/field-service/status";
@@ -45,6 +43,7 @@ import { FollowupsPanel, type FollowupRow } from "./followups-panel";
 import { CommissionsPanel, type CommissionRow } from "./commissions-panel";
 import { CreateReapplicationButton } from "./create-reapplication-button";
 import { AtendimentoEditDialog } from "./atendimento-edit-dialog";
+import { RegistrosPanel } from "./registros-panel";
 
 function formatAddress(order: any) {
   const street = [order.address_street, order.address_number].filter(Boolean).join(", ");
@@ -264,31 +263,12 @@ export default async function ServiceOrderDetailPage({
             {canManage && ["concluida", "conferida", "faturada"].includes(status) && (
               <CreateReapplicationButton originServiceOrderId={order.id} />
             )}
-            <StatusActions
-              serviceOrderId={order.id}
-              status={status}
-              canManage={canManage}
-              canReview={canReview}
-              canReopen={canReopen}
-              isTechnician={isTech}
-              leadName={order.leads?.name ?? "Lead removido"}
-              leadPhone={order.leads?.phone ?? null}
-              leadEmail={order.leads?.email ?? null}
-              checklist={checklist as { answers: unknown; observations: string | null } | null}
-              items={(items ?? []) as ServiceOrderItem[]}
-              catalogItems={(catalogItems ?? []) as ServiceCatalogItem[]}
-              travelFeeCents={order.travel_fee_cents ?? 0}
-              canEditItems={!locked && canPriceItems}
-              canApproveDiscount={canApproveDiscount}
-              canDeleteItems={canManage && !locked}
-            />
           </div>
         }
       />
 
-      <div className="grid gap-6 p-8 lg:grid-cols-[1fr_22rem]">
-        <div className="space-y-6">
-          <section className="rounded-xl border border-border/70 bg-card p-5 shadow-elev-1">
+      <div className="space-y-6 p-8 pb-28">
+        <section className="rounded-xl border border-border/70 bg-card p-5 shadow-elev-1">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-sm font-semibold">Atendimento</h2>
               {canManage && (
@@ -319,7 +299,7 @@ export default async function ServiceOrderDetailPage({
                 />
               )}
             </div>
-            <dl className="grid gap-4 sm:grid-cols-2">
+            <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <dt className="text-xs uppercase tracking-wider text-muted-foreground">Cliente</dt>
                 <dd className="mt-1 text-sm font-medium">
@@ -421,83 +401,61 @@ export default async function ServiceOrderDetailPage({
                 <p className="mt-1 whitespace-pre-wrap text-sm">{order.observations}</p>
               </div>
             )}
+        </section>
+
+        <ItemsPanel
+          serviceOrderId={order.id}
+          items={(items ?? []) as ServiceOrderItem[]}
+          canEdit={!locked && canPriceItems}
+          canApprove={canReview}
+          canApproveDiscount={canApproveDiscount}
+          canDelete={canManage && !locked}
+          travelFeeCents={order.travel_fee_cents ?? 0}
+          catalogItems={(catalogItems ?? []) as ServiceCatalogItem[]}
+        />
+
+        {(damages ?? []).length > 0 && (
+          <section className="rounded-xl border border-border/70 bg-card p-5 shadow-elev-1">
+            <h2 className="mb-3 text-sm font-semibold">Avarias registradas</h2>
+            <ul className="space-y-2">
+              {(damages ?? []).map((damage: any) => (
+                <li key={damage.id} className="rounded-lg bg-muted/40 px-3 py-2 text-sm">
+                  {damage.description}
+                </li>
+              ))}
+            </ul>
           </section>
+        )}
 
-          <ItemsPanel
+        <RegistrosPanel
+          serviceOrderId={order.id}
+          events={(events ?? []) as any}
+          checklist={checklist as { answers: unknown; observations: string | null } | null}
+          originOrder={originOrder as any}
+          originItems={originItems as any}
+          originChecklist={originChecklist as { answers: unknown; observations: string | null } | null}
+          originServiceOrderId={order.origin_service_order_id}
+          followups={followupRows}
+          consultants={consultants}
+          canManageFollowups={canManage}
+        />
+
+        {canReview && order.service_type !== "assistencia" && (
+          <SettlementPanel
             serviceOrderId={order.id}
-            items={(items ?? []) as ServiceOrderItem[]}
-            canEdit={!locked && canPriceItems}
-            canApprove={canReview}
-            canApproveDiscount={canApproveDiscount}
-            canDelete={canManage && !locked}
-            travelFeeCents={order.travel_fee_cents ?? 0}
-            catalogItems={(catalogItems ?? []) as ServiceCatalogItem[]}
+            status={status}
+            totalCents={order.total_cents}
+            expectedCents={order.expected_receipt_cents}
+            receivedCents={order.received_cents ?? 0}
+            paymentMethod={order.payment_method}
+            rates={(paymentRates ?? []) as PaymentMethodRate[]}
+            requests={(adjustmentRequests ?? []) as FinancialAdjustmentRequest[]}
+            isOwner={ctx.role === "owner"}
           />
+        )}
 
-          {(damages ?? []).length > 0 && (
-            <section className="rounded-xl border border-border/70 bg-card p-5 shadow-elev-1">
-              <h2 className="mb-3 text-sm font-semibold">Avarias registradas</h2>
-              <ul className="space-y-2">
-                {(damages ?? []).map((damage: any) => (
-                  <li key={damage.id} className="rounded-lg bg-muted/40 px-3 py-2 text-sm">
-                    {damage.description}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {checklist && (
-            <section className="rounded-xl border border-border/70 bg-card p-5 shadow-elev-1">
-              <h2 className="mb-3 text-sm font-semibold">Laudo técnico</h2>
-              <dl className="space-y-2">
-                {SERVICE_REPORT_CHECKLIST.map((item) => (
-                  <div key={item.key} className="flex items-start justify-between gap-3 text-sm">
-                    <dt className="text-muted-foreground">{item.label}</dt>
-                    <dd className="shrink-0 font-semibold">
-                      {(checklist.answers as Record<string, boolean>)[item.key] ? "Sim" : "Não"}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-              {checklist.observations && (
-                <p className="mt-4 whitespace-pre-wrap rounded-lg bg-muted/40 p-3 text-sm">
-                  {checklist.observations}
-                </p>
-              )}
-            </section>
-          )}
-
-          {(quotes ?? []).length > 0 && (
-            <QuotesPanel quotes={(quotes ?? []) as ServiceOrderQuote[]} canManage={canManage} />
-          )}
-        </div>
-
-        <div className="space-y-6">
-          {canReview && order.service_type !== "assistencia" && (
-            <SettlementPanel
-              serviceOrderId={order.id}
-              status={status}
-              totalCents={order.total_cents}
-              expectedCents={order.expected_receipt_cents}
-              receivedCents={order.received_cents ?? 0}
-              paymentMethod={order.payment_method}
-              rates={(paymentRates ?? []) as PaymentMethodRate[]}
-              requests={(adjustmentRequests ?? []) as FinancialAdjustmentRequest[]}
-              isOwner={ctx.role === "owner"}
-            />
-          )}
-
+        <div className="grid gap-6 lg:grid-cols-3">
           <CommissionsPanel serviceOrderId={order.id} commissions={commissions} canAdjust={canReview} />
-
-          {canManage && (
-            <FollowupsPanel
-              serviceOrderId={order.id}
-              followups={followupRows}
-              consultants={consultants}
-              canManage={canManage}
-            />
-          )}
 
           {canManage && !locked && (
             <SchedulePanel
@@ -523,60 +481,13 @@ export default async function ServiceOrderDetailPage({
             )}
           </section>
 
-          {(order.origin_service_order_id || (relatedOrders ?? []).length > 0) && (
+          {(quotes ?? []).length > 0 && (
+            <QuotesPanel quotes={(quotes ?? []) as ServiceOrderQuote[]} canManage={canManage} />
+          )}
+
+          {(relatedOrders ?? []).length > 0 && (
             <section className="rounded-xl border border-border/70 bg-card p-5 shadow-elev-1">
-              <h2 className="mb-3 text-sm font-semibold">Histórico do cliente</h2>
-              {originOrder && (
-                <div className="mb-3 rounded-lg border border-brand/30 bg-brand/5 p-3">
-                  <p className="text-xs font-semibold text-brand">
-                    Cliente retornando — resumo do último pedido ({formatServiceOrderCode(originOrder.code_seq)}
-                    {originOrder.service_date ? `, ${formatDate(originOrder.service_date)}` : ""})
-                  </p>
-                  {(originItems ?? []).length > 0 && (
-                    <ul className="mt-2 space-y-1 text-xs">
-                      {(originItems ?? []).map((it: any, i: number) => (
-                        <li key={i} className="flex items-center justify-between gap-2">
-                          <span className="truncate">{it.quantity}× {it.description}</span>
-                          <span className="shrink-0 tabular-nums">{formatCurrencyBRL(it.amount_cents)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <p className="mt-2 text-xs font-semibold">
-                    Total do pedido anterior: {formatCurrencyBRL(originOrder.total_cents)}
-                  </p>
-
-                  {originChecklist && (
-                    <details className="mt-3">
-                      <summary className="cursor-pointer text-xs font-semibold text-brand">
-                        Ver checklist completa do pedido anterior
-                      </summary>
-                      <dl className="mt-2 space-y-1.5 rounded-md bg-background/60 p-2">
-                        {SERVICE_REPORT_CHECKLIST.map((item) => (
-                          <div key={item.key} className="flex items-start justify-between gap-3 text-xs">
-                            <dt className="text-muted-foreground">{item.label}</dt>
-                            <dd className="shrink-0 font-semibold">
-                              {(originChecklist.answers as Record<string, boolean>)[item.key] ? "Sim" : "Não"}
-                            </dd>
-                          </div>
-                        ))}
-                      </dl>
-                      {originChecklist.observations && (
-                        <p className="mt-2 whitespace-pre-wrap rounded-md bg-background/60 p-2 text-xs">
-                          {originChecklist.observations}
-                        </p>
-                      )}
-                    </details>
-                  )}
-
-                  <Link
-                    href={`/os/${order.origin_service_order_id}`}
-                    className="mt-3 inline-block text-xs font-semibold text-brand underline"
-                  >
-                    Abrir OS original
-                  </Link>
-                </div>
-              )}
+              <h2 className="mb-3 text-sm font-semibold">OS relacionadas</h2>
               <ul className="space-y-2">
                 {(relatedOrders ?? []).map((related: any) => (
                   <li key={related.id}>
@@ -592,26 +503,32 @@ export default async function ServiceOrderDetailPage({
               </ul>
             </section>
           )}
+        </div>
+      </div>
 
-          <section className="rounded-xl border border-border/70 bg-card p-5 shadow-elev-1">
-            <h2 className="mb-3 text-sm font-semibold">Histórico</h2>
-            <ol className="space-y-3">
-              {(events ?? []).length === 0 && (
-                <li className="text-sm text-muted-foreground">Sem movimentações ainda.</li>
-              )}
-              {(events ?? []).map((event: any) => (
-                <li key={event.id} className="border-l-2 border-border/70 pl-3">
-                  <p className="text-sm font-medium">
-                    {event.from_status
-                      ? `${SERVICE_ORDER_STATUS_LABEL[event.from_status as ServiceOrderStatus]} → ${SERVICE_ORDER_STATUS_LABEL[event.to_status as ServiceOrderStatus]}`
-                      : SERVICE_ORDER_STATUS_LABEL[event.to_status as ServiceOrderStatus]}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{formatDateTime(event.created_at)}</p>
-                  {event.reason && <p className="mt-0.5 text-xs text-muted-foreground">{event.reason}</p>}
-                </li>
-              ))}
-            </ol>
-          </section>
+      <div className="sticky bottom-0 z-10 border-t border-border/70 bg-card/95 px-8 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] backdrop-blur print:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <p className="hidden text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:block">
+            Confirmação de serviço
+          </p>
+          <StatusActions
+            serviceOrderId={order.id}
+            status={status}
+            canManage={canManage}
+            canReview={canReview}
+            canReopen={canReopen}
+            isTechnician={isTech}
+            leadName={order.leads?.name ?? "Lead removido"}
+            leadPhone={order.leads?.phone ?? null}
+            leadEmail={order.leads?.email ?? null}
+            checklist={checklist as { answers: unknown; observations: string | null } | null}
+            items={(items ?? []) as ServiceOrderItem[]}
+            catalogItems={(catalogItems ?? []) as ServiceCatalogItem[]}
+            travelFeeCents={order.travel_fee_cents ?? 0}
+            canEditItems={!locked && canPriceItems}
+            canApproveDiscount={canApproveDiscount}
+            canDeleteItems={canManage && !locked}
+          />
         </div>
       </div>
     </div>

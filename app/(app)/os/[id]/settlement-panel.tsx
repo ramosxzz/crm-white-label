@@ -98,67 +98,82 @@ export function SettlementPanel({
       </p>
 
       <form onSubmit={save} className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="settlement-expected">Previsto (R$)</Label>
-            <Input
-              id="settlement-expected"
-              type="number"
-              min="0"
-              step="0.01"
-              value={expected}
-              onChange={(event) => setExpected(event.target.value)}
-            />
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Negociação</p>
+            <div className="space-y-1.5">
+              <Label htmlFor="settlement-expected">Previsto (R$)</Label>
+              <Input
+                id="settlement-expected"
+                type="number"
+                min="0"
+                step="0.01"
+                value={expected}
+                onChange={(event) => setExpected(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="settlement-method">Forma de pagamento</Label>
+              <select
+                id="settlement-method"
+                value={method}
+                onChange={(event) => setMethod(event.target.value)}
+                className="h-10 w-full rounded-md border border-border/70 bg-background px-3 text-sm"
+              >
+                <option value="">Não informada</option>
+                {rates.filter((rate) => rate.is_active).map((rate) => (
+                  <option key={rate.id} value={rate.name}>
+                    {rate.name}
+                    {rate.installment_count > 1 ? ` · ${rate.installment_count} parcelas` : ""}
+                    {rate.fee_percent > 0 ? ` · taxa ${rate.fee_percent}%` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="settlement-received">Recebido (R$)</Label>
-            <Input
-              id="settlement-received"
-              type="number"
-              min="0"
-              step="0.01"
-              value={received}
-              onChange={(event) => setReceived(event.target.value)}
-            />
+
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Valores finais</p>
+            <div className="space-y-1.5">
+              <Label htmlFor="settlement-received">Recebido (R$)</Label>
+              <Input
+                id="settlement-received"
+                type="number"
+                min="0"
+                step="0.01"
+                value={received}
+                onChange={(event) => setReceived(event.target.value)}
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+              <span className="text-xs text-muted-foreground">Pendente</span>
+              <strong className={pendingCents > 0 ? "text-sm text-warning" : "text-sm text-success"}>
+                {formatCurrencyBRL(pendingCents)}
+              </strong>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Observações</p>
+            {locked ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="settlement-reason">Motivo da alteração</Label>
+                <Textarea
+                  id="settlement-reason"
+                  rows={4}
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  placeholder="Obrigatório: será enviado para liberação de um dono."
+                />
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                OS aberta — alterações aqui são livres. Depois de faturada, viram pedido de liberação.
+              </p>
+            )}
           </div>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="settlement-method">Forma de pagamento</Label>
-          <select
-            id="settlement-method"
-            value={method}
-            onChange={(event) => setMethod(event.target.value)}
-            className="h-10 w-full rounded-md border border-border/70 bg-background px-3 text-sm"
-          >
-            <option value="">Não informada</option>
-            {rates.filter((rate) => rate.is_active).map((rate) => (
-              <option key={rate.id} value={rate.name}>
-                {rate.name}
-                {rate.installment_count > 1 ? ` · ${rate.installment_count} parcelas` : ""}
-                {rate.fee_percent > 0 ? ` · taxa ${rate.fee_percent}%` : ""}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
-          <span className="text-xs text-muted-foreground">Pendente</span>
-          <strong className={pendingCents > 0 ? "text-sm text-warning" : "text-sm text-success"}>
-            {formatCurrencyBRL(pendingCents)}
-          </strong>
-        </div>
-        {locked && (
-          <div className="space-y-1.5">
-            <Label htmlFor="settlement-reason">Motivo da alteração</Label>
-            <Textarea
-              id="settlement-reason"
-              rows={2}
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              placeholder="Obrigatório: será enviado para liberação de um dono."
-            />
-          </div>
-        )}
-        <Button type="submit" variant="brand" className="w-full" disabled={pending}>
+        <Button type="submit" variant="brand" disabled={pending}>
           {locked ? "Solicitar alteração" : "Salvar acerto"}
         </Button>
       </form>

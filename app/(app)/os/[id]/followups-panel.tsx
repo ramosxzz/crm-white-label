@@ -29,12 +29,16 @@ export function FollowupsPanel({
   followups,
   consultants,
   canManage,
+  embedded = false,
 }: {
   serviceOrderId: string;
   followups: FollowupRow[];
   consultants: FieldServiceUser[];
   canManage: boolean;
+  /** Sem moldura de card propria - usado dentro de outra secao (RegistrosPanel). */
+  embedded?: boolean;
 }) {
+  const Wrapper = embedded ? "div" : "section";
   const [pending, start] = useTransition();
   const [showForm, setShowForm] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
@@ -72,7 +76,7 @@ export function FollowupsPanel({
   const responsibleName = (id: string | null) => consultants.find((c) => c.id === id)?.name ?? null;
 
   return (
-    <section className="rounded-xl border border-border/70 bg-card p-5 shadow-elev-1">
+    <Wrapper className={embedded ? "" : "rounded-xl border border-border/70 bg-card p-5 shadow-elev-1"}>
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-semibold">Próximo contato</h2>
         {canManage && (
@@ -152,6 +156,6 @@ export function FollowupsPanel({
           ))}
         </ul>
       )}
-    </section>
+    </Wrapper>
   );
 }
