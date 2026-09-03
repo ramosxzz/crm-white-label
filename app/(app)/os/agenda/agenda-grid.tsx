@@ -441,19 +441,23 @@ export function AgendaGrid({
 
       <OrderQuickView orderId={quickViewId} onClose={() => setQuickViewId(null)} />
 
-      {newOsPreset && (canManage || canCreate) && (
+      {(canManage || canCreate) && (
         <NewServiceOrderDialog
           leads={leads}
           consultants={consultants}
           partners={partners}
           open={Boolean(newOsPreset)}
           onOpenChange={(open) => !open && setNewOsPreset(null)}
-          agendaPreset={{
-            technicianId: newOsPreset.technicianId,
-            technicianName: newOsPreset.technicianName,
-            date: day,
-            dateLabel: new Date(`${day}T12:00:00-03:00`).toLocaleDateString("pt-BR"),
-          }}
+          agendaPreset={
+            newOsPreset
+              ? {
+                  technicianId: newOsPreset.technicianId,
+                  technicianName: newOsPreset.technicianName,
+                  date: day,
+                  dateLabel: new Date(`${day}T12:00:00-03:00`).toLocaleDateString("pt-BR"),
+                }
+              : undefined
+          }
         />
       )}
     </div>
