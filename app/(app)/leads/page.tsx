@@ -93,9 +93,14 @@ export default async function LeadsPage({
 
   // 500 leads de uma vez travava o scroll da pagina (renderizava tudo numa
   // tabela so). Pagina no servidor em vez de trazer tudo.
+  // count "estimated": exato quando e pouca coisa, aproximado (via
+  // estatisticas do Postgres, sem escanear linha a linha) quando e muita -
+  // count "exact" aqui forcava avaliar a policy de RLS pra cada linha do
+  // tenant so pra contar, e era a query mais pesada da pagina pra quem tem
+  // muitos leads (medido: ~400ms so nisso, num tenant ainda pequeno).
   let leadsQuery = supabase
     .from("leads")
-    .select("id, name, phone, email, source, value_cents, created_at, stage_id, assigned_to, quality_stars", { count: "exact" })
+    .select("id, name, phone, email, source, value_cents, created_at, stage_id, assigned_to, quality_stars", { count: "estimated" })
     .eq("tenant_id", ctx.tenantId)
     .order("created_at", { ascending: false })
     .range(from, to);
@@ -135,7 +140,12 @@ export default async function LeadsPage({
     }),
     supabase.rpc("attendant_sla_metrics", {
       p_tenant_id: ctx.tenantId,
-      p_from: dateFilter.bounds?.startIso ?? "1970-01-01T00:00:00.000Z",
+      // Sem filtro de data ("Todos"), antes escaneava a tabela messages
+      // inteira desde 1970 com window function por cima - so piorava com o
+      // tempo e era o gargalo mais pesado da pagina (>100ms so nisso, num
+      // tenant ainda pequeno). Tempo de resposta de mensagem de anos atras
+      // nao serve pra nada num painel operacional; limita a 90 dias.
+      p_from: dateFilter.bounds?.startIso ?? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
       p_to: dateFilter.bounds?.endIso ?? new Date().toISOString(),
     }),
     listTagsWithLeadCount(),
