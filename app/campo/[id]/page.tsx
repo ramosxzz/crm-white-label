@@ -18,6 +18,7 @@ import { FieldStatusActions } from "./field-status-actions";
 import { SignaturePad } from "./signature-pad";
 import { UpsellPanel } from "./upsell-panel";
 import { ServiceClosingPanel } from "./service-closing-panel";
+import { OrderLive } from "./order-live";
 
 function fullAddress(order: any) {
   const street = [order.address_street, order.address_number].filter(Boolean).join(", ");
@@ -68,6 +69,7 @@ export default async function CampoOrderPage({ params }: { params: Promise<{ id:
 
   return (
     <div className="space-y-4 p-4">
+      <OrderLive orderId={id} />
       <Link
         href="/campo"
         className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground"

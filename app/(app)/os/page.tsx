@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronRight, MapPin } from "lucide-react";
+import { ChevronRight, MapPin, Printer } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import {
   canAccessServiceOrders,
   canManageServiceOrders,
+  canViewServiceRoutes,
 } from "@/lib/auth/roles";
 import { formatCurrencyBRL } from "@/lib/utils";
 import { PageHeader } from "@/components/app/page-header";
@@ -14,6 +15,7 @@ import {
   SERVICE_ORDER_SHIFT_LABEL,
   formatServiceOrderCode,
 } from "@/lib/field-service/status";
+import { brtDay } from "@/lib/field-service/agenda";
 import type { ServiceOrderStatus } from "@/lib/supabase/database.types";
 import { listConsultants } from "@/lib/field-service/users";
 import type { FieldServicePartner } from "@/lib/supabase/database.types";
@@ -121,6 +123,15 @@ export default async function ServiceOrdersPage({
         description={`${rows.length} ${rows.length === 1 ? "OS" : "OS"} nesse filtro`}
         actions={
           <div className="flex items-center gap-2">
+            {canViewServiceRoutes(ctx.role) && (
+              <Link
+                href={`/os/roteiro/print?day=${brtDay()}`}
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border/70 px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50"
+                title="Imprimir roteiro do dia (varias OS numa folha)"
+              >
+                <Printer className="h-4 w-4" /> Imprimir roteiro
+              </Link>
+            )}
             {canManage && (
               <NewServiceOrderDialog
                 leads={(leads ?? []) as Array<{ id: string; name: string; phone: string | null }>}

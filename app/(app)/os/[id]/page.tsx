@@ -242,6 +242,14 @@ export default async function ServiceOrderDetailPage({
     });
   }
 
+  // Mesma coisa pra assinatura do cliente: o tecnico ja manda a imagem
+  // (signature_path), mas a tela so mostrava nome/data, nunca a assinatura.
+  let signatureUrl: string | null = null;
+  if (order.signature_path) {
+    const { data } = await supabase.storage.from("service-orders").createSignedUrl(order.signature_path, 60 * 30);
+    signatureUrl = data?.signedUrl ?? null;
+  }
+
   const assignedIds = (assigned ?? []).map((row: any) => row.user_id as string);
   const technicianNames = technicians
     .filter((tech) => assignedIds.includes(tech.id))
@@ -510,6 +518,13 @@ export default async function ServiceOrderDetailPage({
               <div className="text-sm">
                 <p className="font-medium">{order.signer_name ?? "Assinada"}</p>
                 <p className="text-xs text-muted-foreground">{formatDateTime(order.signed_at)}</p>
+                {signatureUrl && (
+                  <img
+                    src={signatureUrl}
+                    alt="Assinatura do cliente"
+                    className="mt-2 max-h-32 w-full rounded-md border border-border/60 bg-white object-contain"
+                  />
+                )}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
