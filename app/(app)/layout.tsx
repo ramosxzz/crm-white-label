@@ -76,46 +76,52 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <TenantPageTitle tenantName={ctx.tenant.name} />
       {ctx.osOnlyAccess && <ForceLightTheme />}
       <MobileMenuProvider>
-        <div className="flex h-[100dvh] overflow-hidden">
-          <Sidebar
-            tenantId={ctx.tenantId}
-            userId={ctx.userId}
-            unreadTeamChat={unreadTeamChat}
-            tenantName={ctx.tenant.name}
-            tenantLogoUrl={ctx.tenant.logo_url}
-            tenantTagline={ctx.tenant.tagline}
-            stockEnabled={ctx.tenant.stock_enabled}
-            satisfactionSurveyEnabled={ctx.tenant.satisfaction_survey_enabled}
-            callsDashboardEnabled={ctx.tenant.calls_dashboard_enabled}
-            broadcastEnabled={ctx.tenant.broadcast_enabled}
-            fieldServiceEnabled={ctx.tenant.field_service_enabled}
-            leadFoldersEnabled={ctx.tenant.lead_folders_enabled}
-            canManageFinance={canReviewServiceOrder(ctx.role)}
-            canManageFieldService={canReviewServiceOrder(ctx.role)}
-            isSeller={ctx.role === "vendedor"}
-            isProspeccao={ctx.role === "prospeccao"}
-            osOnlyAccess={ctx.osOnlyAccess}
-            userName={profile?.full_name ?? "Usuario"}
-            userEmail={ctx.userEmail}
-          />
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <Topbar lastSeenUpdateAt={profile?.last_seen_update_at ?? null} />
-            {ctx.tenant.payment_overdue && <PaymentOverdueBanner dueAt={ctx.tenant.payment_due_at} />}
-            <Suspense fallback={null}>
-              <WhatsAppHealthBannerAsync tenantId={ctx.tenantId} userId={ctx.userId} role={ctx.role} />
-            </Suspense>
-            <main className="flex-1 overflow-auto pb-[calc(4.75rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
+        <div className="flex h-[100dvh] overflow-hidden print:h-auto print:overflow-visible print:block">
+          <div className="print:hidden">
+            <Sidebar
+              tenantId={ctx.tenantId}
+              userId={ctx.userId}
+              unreadTeamChat={unreadTeamChat}
+              tenantName={ctx.tenant.name}
+              tenantLogoUrl={ctx.tenant.logo_url}
+              tenantTagline={ctx.tenant.tagline}
+              stockEnabled={ctx.tenant.stock_enabled}
+              satisfactionSurveyEnabled={ctx.tenant.satisfaction_survey_enabled}
+              callsDashboardEnabled={ctx.tenant.calls_dashboard_enabled}
+              broadcastEnabled={ctx.tenant.broadcast_enabled}
+              fieldServiceEnabled={ctx.tenant.field_service_enabled}
+              leadFoldersEnabled={ctx.tenant.lead_folders_enabled}
+              canManageFinance={canReviewServiceOrder(ctx.role)}
+              canManageFieldService={canReviewServiceOrder(ctx.role)}
+              isSeller={ctx.role === "vendedor"}
+              isProspeccao={ctx.role === "prospeccao"}
+              osOnlyAccess={ctx.osOnlyAccess}
+              userName={profile?.full_name ?? "Usuario"}
+              userEmail={ctx.userEmail}
+            />
           </div>
-          <MobileBottomNav
-            stockEnabled={ctx.tenant.stock_enabled}
-            satisfactionSurveyEnabled={ctx.tenant.satisfaction_survey_enabled}
-            callsDashboardEnabled={ctx.tenant.calls_dashboard_enabled}
-            broadcastEnabled={ctx.tenant.broadcast_enabled}
-            fieldServiceEnabled={ctx.tenant.field_service_enabled}
-            canManageFinance={canReviewServiceOrder(ctx.role)}
-            isSeller={ctx.role === "vendedor"}
-            osOnlyAccess={ctx.osOnlyAccess}
-          />
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col print:block print:min-h-0">
+            <div className="print:hidden">
+              <Topbar lastSeenUpdateAt={profile?.last_seen_update_at ?? null} />
+              {ctx.tenant.payment_overdue && <PaymentOverdueBanner dueAt={ctx.tenant.payment_due_at} />}
+              <Suspense fallback={null}>
+                <WhatsAppHealthBannerAsync tenantId={ctx.tenantId} userId={ctx.userId} role={ctx.role} />
+              </Suspense>
+            </div>
+            <main className="flex-1 overflow-auto pb-[calc(4.75rem+env(safe-area-inset-bottom))] md:pb-0 print:overflow-visible print:pb-0">{children}</main>
+          </div>
+          <div className="print:hidden">
+            <MobileBottomNav
+              stockEnabled={ctx.tenant.stock_enabled}
+              satisfactionSurveyEnabled={ctx.tenant.satisfaction_survey_enabled}
+              callsDashboardEnabled={ctx.tenant.calls_dashboard_enabled}
+              broadcastEnabled={ctx.tenant.broadcast_enabled}
+              fieldServiceEnabled={ctx.tenant.field_service_enabled}
+              canManageFinance={canReviewServiceOrder(ctx.role)}
+              isSeller={ctx.role === "vendedor"}
+              osOnlyAccess={ctx.osOnlyAccess}
+            />
+          </div>
         </div>
       </MobileMenuProvider>
     </>
