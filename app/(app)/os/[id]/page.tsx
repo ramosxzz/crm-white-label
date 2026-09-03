@@ -228,6 +228,20 @@ export default async function ServiceOrderDetailPage({
     status: f.status,
   }));
 
+  // Foto da avaria (bucket privado "service-orders"): precisa de URL
+  // assinada pra renderizar - o tecnico manda a foto, mas a tela so
+  // mostrava a descricao da avaria sem a imagem.
+  const damagePhotoUrls = new Map<string, string>();
+  const damagesWithPhoto = ((damages ?? []) as any[]).filter((d) => d.photo_path);
+  if (damagesWithPhoto.length > 0) {
+    const signed = await Promise.all(
+      damagesWithPhoto.map((d) => supabase.storage.from("service-orders").createSignedUrl(d.photo_path, 60 * 30)),
+    );
+    signed.forEach((result, i) => {
+      if (result.data?.signedUrl) damagePhotoUrls.set(damagesWithPhoto[i].id, result.data.signedUrl);
+    });
+  }
+
   const assignedIds = (assigned ?? []).map((row: any) => row.user_id as string);
   const technicianNames = technicians
     .filter((tech) => assignedIds.includes(tech.id))
@@ -429,10 +443,19 @@ export default async function ServiceOrderDetailPage({
             {(damages ?? []).length > 0 && (
               <section className="rounded-xl border border-border/70 bg-card p-4 shadow-elev-1">
                 <h2 className="mb-3 text-sm font-semibold">Avarias registradas</h2>
-                <ul className="space-y-2">
+                <ul className="space-y-3">
                   {(damages ?? []).map((damage: any) => (
-                    <li key={damage.id} className="rounded-lg bg-muted/40 px-3 py-2 text-sm">
-                      {damage.description}
+                    <li key={damage.id} className="rounded-lg bg-muted/40 p-2.5 text-sm">
+                      <p>{damage.description}</p>
+                      {damagePhotoUrls.has(damage.id) && (
+                        <a href={damagePhotoUrls.get(damage.id)} target="_blank" rel="noreferrer" className="mt-2 block">
+                          <img
+                            src={damagePhotoUrls.get(damage.id)}
+                            alt="Foto da avaria"
+                            className="max-h-48 w-full rounded-md border border-border/60 object-cover"
+                          />
+                        </a>
+                      )}
                     </li>
                   ))}
                 </ul>
