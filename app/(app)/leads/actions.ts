@@ -116,10 +116,13 @@ export async function createLead(formData: FormData): Promise<CreateLeadResult> 
       pipeline_id: pipelineRow?.pipeline_id,
       value_cents: parsed.value_cents ?? 0,
       referred_by_partner_id: parsed.referred_by_partner_id ?? null,
-      assigned_to:
-        ctx.role === "vendedor" && ctx.tenant.lead_assignment_enabled
-          ? ctx.userId
-          : null,
+      // So checa o role, nao o lead_assignment_enabled: a RLS de insert exige
+      // assigned_to = auth.uid() quando esse flag ta ligado, e o ctx.tenant
+      // aqui pode estar com valor em cache (contextMemoryCache, 20s) - se
+      // ficar dessincronizado com o valor real do banco, a vendedora nunca
+      // consegue criar lead nenhum (RLS 42501). Vendedora dona do proprio
+      // lead recem-criado e sempre correto, independente do flag.
+      assigned_to: ctx.role === "vendedor" ? ctx.userId : null,
     })
     .select("id")
     .single();
