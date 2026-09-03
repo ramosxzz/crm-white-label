@@ -10,7 +10,8 @@ import {
   MessageCircleMore,
   Sparkles,
 } from "lucide-react";
-import ParticleText from "@/components/effects/particle-text";
+import DecryptedText from "@/components/effects/decrypted-text";
+import Prism from "@/components/effects/prism";
 import ShinyText from "@/components/effects/shiny-text";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { buildDemoWhatsappUrl } from "@/lib/demo-whatsapp";
@@ -87,22 +88,19 @@ export function LoginShowcase({ children }: { children: ReactNode }) {
         </div>
 
         <section id="inicio" className="relative min-h-screen overflow-hidden px-5 pb-20 pt-28 sm:px-8 lg:px-12 lg:pb-24 lg:pt-32">
-          <div
-            className="absolute inset-0 opacity-80"
-            style={{
-              background:
-                "radial-gradient(ellipse at 24% 12%, rgba(37,99,235,.34), transparent 46%), radial-gradient(ellipse at 76% 18%, rgba(6,182,212,.2), transparent 42%), linear-gradient(180deg, #060914 0%, #05070c 72%)",
-            }}
-          />
-          <div
-            className="absolute inset-0 opacity-[0.075]"
-            style={{
-              backgroundImage:
-                "linear-gradient(rgba(148,163,184,.18) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.18) 1px, transparent 1px)",
-              backgroundSize: "52px 52px",
-              maskImage: "linear-gradient(to bottom, black 0%, black 62%, transparent 100%)",
-            }}
-          />
+          <div className="absolute inset-0">
+            <Prism
+              animationType="rotate"
+              timeScale={0.5}
+              height={3.5}
+              baseWidth={5.5}
+              scale={3.6}
+              hueShift={0.5}
+              colorFrequency={1}
+              noise={0.4}
+              glow={1}
+            />
+          </div>
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,transparent_0%,rgba(5,7,12,.13)_42%,rgba(5,7,12,.88)_100%)]" />
 
           <div className="relative z-10 mx-auto flex w-full max-w-[1240px] flex-col items-center">
@@ -117,24 +115,18 @@ export function LoginShowcase({ children }: { children: ReactNode }) {
               />
             </div>
 
-            <div className="mt-3 h-[118px] w-full max-w-[860px] sm:h-[150px] lg:h-[178px]">
-              <ParticleText
+            <div className="mt-3 flex h-[118px] w-full max-w-[860px] items-center justify-center sm:h-[150px] lg:h-[178px]">
+              <DecryptedText
                 text="CRM W+"
-                particleSize={1.8}
-                density={7}
-                color="#F8FAFC"
-                highlightColor="#38BDF8"
-                scatter={165}
-                gatherDuration={1450}
-                stagger={360}
-                pointerRepel={24}
-                repelRadius={110}
-                idleDrift={0}
-                trigger="hover"
-                fontSize="clamp(4.2rem, 12vw, 10rem)"
-                fontWeight={800}
-                glow={false}
-                className="font-display"
+                animateOn="view"
+                revealDirection="center"
+                sequential
+                speed={35}
+                maxIterations={12}
+                characters="ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*+="
+                className="text-[#F8FAFC]"
+                encryptedClassName="text-cyan-300/50"
+                parentClassName="font-display font-extrabold leading-none text-[clamp(4.2rem,12vw,10rem)] tracking-tight"
               />
             </div>
 
