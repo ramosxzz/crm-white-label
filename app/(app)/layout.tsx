@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 import { WhatsAppHealthBannerAsync } from "@/components/app/whatsapp-health-banner-async";
 import { getTeamChatUnreadCount } from "@/lib/team-chat/unread";
 import { PaymentOverdueBanner } from "@/components/app/payment-overdue-banner";
+import { MaintenanceNoticeBanner } from "@/components/app/maintenance-notice-banner";
 import { ForceLightTheme } from "@/components/app/force-light-theme";
 import { TopNavigationProgress } from "@/components/ui/top-navigation-progress";
 
@@ -107,6 +108,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <div className="flex min-h-0 min-w-0 flex-1 flex-col print:block print:min-h-0">
             <div className="print:hidden">
               <Topbar lastSeenUpdateAt={profile?.last_seen_update_at ?? null} />
+              <MaintenanceNoticeBanner />
               {ctx.tenant.payment_overdue && <PaymentOverdueBanner dueAt={ctx.tenant.payment_due_at} />}
               <Suspense fallback={null}>
                 <WhatsAppHealthBannerAsync tenantId={ctx.tenantId} userId={ctx.userId} role={ctx.role} />
