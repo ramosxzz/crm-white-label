@@ -41,6 +41,7 @@ export function StatusActions({
   canEditItems,
   canApproveDiscount,
   canDeleteItems,
+  hideStatuses,
 }: {
   serviceOrderId: string;
   status: ServiceOrderStatus;
@@ -58,6 +59,11 @@ export function StatusActions({
   canEditItems: boolean;
   canApproveDiscount: boolean;
   canDeleteItems: boolean;
+  /** Esconde uma transicao que outro painel na mesma tela ja cobre com um
+      fluxo mais completo (ex.: "concluida" pelo laudo+fechamento em vez de
+      um botao generico sem laudo) - evita dois jeitos de fazer a mesma
+      coisa na mesma tela. */
+  hideStatuses?: ServiceOrderStatus[];
 }) {
   const [pending, start] = useTransition();
 
@@ -68,6 +74,7 @@ export function StatusActions({
   ]);
 
   const options = nextServiceOrderStatuses(status).filter((next) => {
+    if (hideStatuses?.includes(next)) return false;
     if (!allowed.has(next)) return false;
     // Conferencia e faturamento so aparecem pra quem pode de fato aprovar.
     if ((next === "conferida" || next === "faturada") && !canReview) return false;

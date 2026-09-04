@@ -596,6 +596,7 @@ export default async function ServiceOrderDetailPage({
             canEditItems={!locked && canPriceItems}
             canApproveDiscount={canApproveDiscount}
             canDeleteItems={canManage && !locked}
+            hideStatuses={canManage && status === "em_execucao" ? ["concluida"] : undefined}
           />
         </div>
       </div>
