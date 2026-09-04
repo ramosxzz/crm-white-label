@@ -51,7 +51,7 @@ export default async function RoteiroPrintPage({
   const rows = (orders ?? []) as any[];
 
   const technicianIds = [
-    ...new Set(rows.flatMap((o) => [o.consultant_id]).filter(Boolean)),
+    ...new Set(rows.flatMap((o) => [o.consultant_id, o.consultant_extra_id]).filter(Boolean)),
   ] as string[];
   const { data: assignments } = rows.length
     ? await supabase
@@ -132,6 +132,28 @@ export default async function RoteiroPrintPage({
               <div>
                 <p className="text-[10px] font-semibold uppercase text-slate-500">Serviço / Valor</p>
                 <p className="text-xs">{row.service_type === "assistencia" ? "Assistência" : formatCurrencyBRL(row.total_cents)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase text-slate-500">Vendedora</p>
+                <p className="text-xs">
+                  {nameById.get(row.consultant_id) ?? "—"}
+                  {row.consultant_extra_id && nameById.get(row.consultant_extra_id)
+                    ? ` + ${nameById.get(row.consultant_extra_id)}`
+                    : ""}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase text-slate-500">Loja / Parceiro</p>
+                <p className="text-xs">
+                  {row.partner_store || "—"}
+                  {row.partner_seller_name ? ` · ${row.partner_seller_name}` : ""}
+                </p>
+                {row.partner_extra_name && (
+                  <p className="text-xs text-slate-600">
+                    Extra: {row.partner_extra_name}
+                    {row.partner_extra_percent != null ? ` (${String(row.partner_extra_percent).replace(".", ",")}%)` : ""}
+                  </p>
+                )}
               </div>
             </div>
 
