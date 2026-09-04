@@ -44,6 +44,7 @@ import { CommissionsPanel, type CommissionRow } from "./commissions-panel";
 import { CreateReapplicationButton } from "./create-reapplication-button";
 import { AtendimentoEditDialog } from "./atendimento-edit-dialog";
 import { RegistrosPanel } from "./registros-panel";
+import { ServiceClosingPanel } from "@/app/campo/[id]/service-closing-panel";
 
 function formatAddress(order: any) {
   const street = [order.address_street, order.address_number].filter(Boolean).join(", ");
@@ -408,6 +409,21 @@ export default async function ServiceOrderDetailPage({
             travelFeeCents={order.travel_fee_cents ?? 0}
             catalogItems={(catalogItems ?? []) as ServiceCatalogItem[]}
           />
+
+          {/* Mesmo painel de laudo+fechamento do celular do tecnico: pedido
+              explicito pra gestao poder fechar a OS pelo computador tambem
+              (tecnico sem celular a mao, etc). A action por tras (
+              closeFieldServiceOrder) ja nao restringe por papel, so por
+              visibilidade da OS - so faltava o botao aqui. */}
+          {canManage && status === "em_execucao" && (
+            <ServiceClosingPanel
+              serviceOrderId={order.id}
+              hasSignature={Boolean(order.signed_at)}
+              initialAnswers={(checklist?.answers as Record<string, boolean> | null) ?? undefined}
+              initialObservations={checklist?.observations ?? null}
+              redirectTo={`/os/${order.id}`}
+            />
+          )}
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[20rem_1fr] lg:items-start">

@@ -47,11 +47,15 @@ export function ServiceClosingPanel({
   hasSignature,
   initialAnswers,
   initialObservations,
+  redirectTo = "/campo",
 }: {
   serviceOrderId: string;
   hasSignature: boolean;
   initialAnswers?: Record<string, boolean>;
   initialObservations?: string | null;
+  /** Pra onde ir apos fechar - o celular do tecnico volta pra lista (/campo);
+      usado tambem pelo escritorio na tela da OS, que deve continuar ali. */
+  redirectTo?: string;
 }) {
   const [answers, setAnswers] = useState<Answers>((initialAnswers ?? {}) as Answers);
   const [closureType, setClosureType] = useState<ClosureType>("finalizado");
@@ -99,14 +103,14 @@ export function ServiceClosingPanel({
         const outcome = await syncNow();
         if (outcome.failed.length > 0) throw new Error(outcome.failed[0].error);
         notify({ title: "Atendimento fechado", tone: "success" });
-        window.location.assign("/campo");
+        window.location.assign(redirectTo);
       } else {
         notify({
           title: "Fechamento guardado no celular",
           description: "Será enviado automaticamente quando a internet voltar.",
           tone: "info",
         });
-        window.location.assign("/campo");
+        window.location.assign(redirectTo);
       }
     } catch (error) {
       notifyError(error, "Não foi possível fechar o atendimento");
