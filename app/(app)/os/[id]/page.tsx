@@ -45,6 +45,8 @@ import { CreateReapplicationButton } from "./create-reapplication-button";
 import { AtendimentoEditDialog } from "./atendimento-edit-dialog";
 import { RegistrosPanel } from "./registros-panel";
 import { ServiceClosingPanel } from "@/app/campo/[id]/service-closing-panel";
+import { OsWorkspaceRail } from "./os-workspace-rail";
+import { brtDay } from "@/lib/field-service/agenda";
 
 function formatAddress(order: any) {
   const street = [order.address_street, order.address_number].filter(Boolean).join(", ");
@@ -263,7 +265,15 @@ export default async function ServiceOrderDetailPage({
   const scheduled = formatDate(order.service_date);
 
   return (
-    <div>
+    <div className="flex">
+      {canManage && (
+        <OsWorkspaceRail
+          tenantId={ctx.tenantId}
+          currentOrderId={order.id}
+          day={order.service_date ?? brtDay()}
+        />
+      )}
+      <div className="min-w-0 flex-1">
       <ServiceOrdersLive tenantId={ctx.tenantId} />
       <PageHeader
         backHref="/os"
@@ -599,6 +609,7 @@ export default async function ServiceOrderDetailPage({
             hideStatuses={canManage && status === "em_execucao" ? ["concluida"] : undefined}
           />
         </div>
+      </div>
       </div>
     </div>
   );

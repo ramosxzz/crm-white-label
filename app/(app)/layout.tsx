@@ -72,6 +72,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     getTeamChatUnreadCount(supabase, ctx.tenantId, ctx.userId),
   ]);
 
+  // Tela de uma OS aberta: o menu principal recolhe e da lugar pra agenda do
+  // dia inteiro (pedido explicito, "workspace" de OS) - so a rota exata
+  // /os/<uuid>, nao /os/agenda, /os/roteiro etc (essas ja tem rota propria e
+  // nunca batem no [id] dinamico).
+  const currentPathname = (await headers()).get("x-pathname") ?? "";
+  const isOsWorkspace = /^\/os\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentPathname);
+
   return (
     <>
       <Suspense fallback={null}>
@@ -82,29 +89,31 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {ctx.osOnlyAccess && <ForceLightTheme />}
       <MobileMenuProvider>
         <div className="flex h-[100dvh] overflow-hidden print:h-auto print:overflow-visible print:block">
-          <div className="print:hidden">
-            <Sidebar
-              tenantId={ctx.tenantId}
-              userId={ctx.userId}
-              unreadTeamChat={unreadTeamChat}
-              tenantName={ctx.tenant.name}
-              tenantLogoUrl={ctx.tenant.logo_url}
-              tenantTagline={ctx.tenant.tagline}
-              stockEnabled={ctx.tenant.stock_enabled}
-              satisfactionSurveyEnabled={ctx.tenant.satisfaction_survey_enabled}
-              callsDashboardEnabled={ctx.tenant.calls_dashboard_enabled}
-              broadcastEnabled={ctx.tenant.broadcast_enabled}
-              fieldServiceEnabled={ctx.tenant.field_service_enabled}
-              leadFoldersEnabled={ctx.tenant.lead_folders_enabled}
-              canManageFinance={canReviewServiceOrder(ctx.role)}
-              canManageFieldService={canReviewServiceOrder(ctx.role)}
-              isSeller={ctx.role === "vendedor"}
-              isProspeccao={ctx.role === "prospeccao"}
-              osOnlyAccess={ctx.osOnlyAccess}
-              userName={profile?.full_name ?? "Usuario"}
-              userEmail={ctx.userEmail}
-            />
-          </div>
+          {!isOsWorkspace && (
+            <div className="print:hidden">
+              <Sidebar
+                tenantId={ctx.tenantId}
+                userId={ctx.userId}
+                unreadTeamChat={unreadTeamChat}
+                tenantName={ctx.tenant.name}
+                tenantLogoUrl={ctx.tenant.logo_url}
+                tenantTagline={ctx.tenant.tagline}
+                stockEnabled={ctx.tenant.stock_enabled}
+                satisfactionSurveyEnabled={ctx.tenant.satisfaction_survey_enabled}
+                callsDashboardEnabled={ctx.tenant.calls_dashboard_enabled}
+                broadcastEnabled={ctx.tenant.broadcast_enabled}
+                fieldServiceEnabled={ctx.tenant.field_service_enabled}
+                leadFoldersEnabled={ctx.tenant.lead_folders_enabled}
+                canManageFinance={canReviewServiceOrder(ctx.role)}
+                canManageFieldService={canReviewServiceOrder(ctx.role)}
+                isSeller={ctx.role === "vendedor"}
+                isProspeccao={ctx.role === "prospeccao"}
+                osOnlyAccess={ctx.osOnlyAccess}
+                userName={profile?.full_name ?? "Usuario"}
+                userEmail={ctx.userEmail}
+              />
+            </div>
+          )}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col print:block print:min-h-0">
             <div className="print:hidden">
               <Topbar lastSeenUpdateAt={profile?.last_seen_update_at ?? null} />
