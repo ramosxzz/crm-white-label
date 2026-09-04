@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { mapSignupError } from "@/lib/auth/signup-errors";
-import { LoginShowcase } from "@/components/auth/login-showcase";
+import { LoginCard } from "@/components/auth/login-card";
 import { TurnstileWidget } from "@/components/auth/turnstile-widget";
 import { checkLoginRateLimit } from "./actions";
 
@@ -77,7 +77,7 @@ export default function LoginPage() {
   }
 
   return (
-    <LoginShowcase>
+    <LoginCard>
       <div>
         <div className="mb-7 space-y-2">
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300">Área segura</p>
@@ -135,6 +135,6 @@ export default function LoginPage() {
           </button>
         </form>
       </div>
-    </LoginShowcase>
+    </LoginCard>
   );
 }
