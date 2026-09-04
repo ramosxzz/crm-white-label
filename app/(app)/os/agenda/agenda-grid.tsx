@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { AlertTriangle, Ban, CalendarClock, CheckCircle2, ExternalLink, Plus, UserCog } from "lucide-react";
+import { AlertTriangle, Ban, CalendarClock, CheckCircle2, DollarSign, ExternalLink, Plus, UserCog } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { notify, notifyError } from "@/lib/ui/feedback";
 import {
@@ -31,9 +31,17 @@ import {
 } from "@/lib/field-service/agenda";
 import type { FieldServicePartner, ServiceOrderStatus } from "@/lib/supabase/database.types";
 import type { FieldServiceUser } from "@/lib/field-service/users";
-import { confirmServiceOrder, setServiceOrderPendingIssue, transitionServiceOrder, unconfirmServiceOrder } from "../actions";
+import {
+  confirmServiceOrder,
+  getServiceOrderEditData,
+  setServiceOrderPendingIssue,
+  transitionServiceOrder,
+  unconfirmServiceOrder,
+  type ServiceOrderEditData,
+} from "../actions";
 import { NewServiceOrderDialog } from "../new-service-order-dialog";
 import { OrderQuickView } from "../mapa/order-quick-view";
+import { AtendimentoEditDialog } from "../[id]/atendimento-edit-dialog";
 
 export type AgendaOrder = {
   id: string;
@@ -65,6 +73,7 @@ function AgendaCard({
   day,
   canManage,
   technicians,
+  consultants,
   onOpen,
   onAction,
 }: {
@@ -72,9 +81,23 @@ function AgendaCard({
   day: string;
   canManage: boolean;
   technicians: FieldServiceUser[];
+  consultants: FieldServiceUser[];
   onOpen: (id: string) => void;
   onAction: (fn: () => Promise<void>, successMsg?: string) => void;
 }) {
+  const [editData, setEditData] = useState<ServiceOrderEditData | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+
+  function openCommissionEdit() {
+    setEditOpen(true);
+    getServiceOrderEditData(order.id)
+      .then(setEditData)
+      .catch((error) => {
+        notifyError(error, "Não foi possível abrir a edição");
+        setEditOpen(false);
+      });
+  }
+
   const window_ = order.scheduledStartAt && order.scheduledEndAt
     ? { startAt: order.scheduledStartAt, endAt: order.scheduledEndAt }
     : fallbackWindowForShift(order.serviceDate ?? day, order.shift);
@@ -112,6 +135,7 @@ function AgendaCard({
   if (!canManage) return card;
 
   return (
+    <>
     <ContextMenu>
       <ContextMenuTrigger asChild>{card}</ContextMenuTrigger>
       <ContextMenuContent>
@@ -200,6 +224,9 @@ function AgendaCard({
             <CalendarClock className="h-3.5 w-3.5" /> Mover para Remarcar
           </ContextMenuItem>
         )}
+        <ContextMenuItem onSelect={openCommissionEdit}>
+          <DollarSign className="h-3.5 w-3.5" /> Editar comissões
+        </ContextMenuItem>
         {!closed && order.status !== "cancelada" && (
           <>
             <ContextMenuSeparator />
@@ -219,6 +246,31 @@ function AgendaCard({
         )}
       </ContextMenuContent>
     </ContextMenu>
+    {editData && (
+      <AtendimentoEditDialog
+        serviceOrderId={order.id}
+        leadName={editData.leadName}
+        leadPhone={editData.leadPhone}
+        voltage={editData.voltage}
+        deadline={editData.deadline}
+        saleChannel={editData.saleChannel}
+        partnerStore={editData.partnerStore}
+        partnerExtraName={editData.partnerExtraName}
+        partnerExtraPercent={editData.partnerExtraPercent}
+        consultantId={editData.consultantId}
+        consultantExtraId={editData.consultantExtraId}
+        technicianIds={editData.technicianIds}
+        address={editData.address}
+        consultants={consultants}
+        technicians={technicians}
+        open={editOpen}
+        onOpenChange={(next) => {
+          setEditOpen(next);
+          if (!next) setEditData(null);
+        }}
+      />
+    )}
+    </>
   );
 }
 
@@ -229,6 +281,7 @@ function TechnicianColumn({
   canManage,
   canCreate = false,
   technicians,
+  consultants,
   onOpen,
   onAction,
   onNewHere,
@@ -239,6 +292,7 @@ function TechnicianColumn({
   canManage: boolean;
   canCreate?: boolean;
   technicians: FieldServiceUser[];
+  consultants: FieldServiceUser[];
   onOpen: (id: string) => void;
   onAction: (fn: () => Promise<void>, successMsg?: string) => void;
   onNewHere: (technicianId: string, technicianName: string) => void;
@@ -270,7 +324,7 @@ function TechnicianColumn({
             className="absolute inset-x-0.5"
             style={{ top, height: durationMin * AGENDA_PX_PER_MINUTE }}
           >
-            <AgendaCard order={order} day={day} canManage={canManage} technicians={technicians} onOpen={onOpen} onAction={onAction} />
+            <AgendaCard order={order} day={day} canManage={canManage} technicians={technicians} consultants={consultants} onOpen={onOpen} onAction={onAction} />
           </div>
         );
       })}
@@ -403,6 +457,7 @@ export function AgendaGrid({
                 canManage={canManage}
                 canCreate={canCreate}
                 technicians={technicians}
+                consultants={consultants}
                 onOpen={setQuickViewId}
                 onAction={onAction}
                 onNewHere={(id, name) => setNewOsPreset({ technicianId: id, technicianName: name })}
@@ -420,6 +475,7 @@ export function AgendaGrid({
                     day={day}
                     canManage={canManage}
                     technicians={technicians}
+                    consultants={consultants}
                     onOpen={setQuickViewId}
                     onAction={onAction}
                   />

@@ -1666,3 +1666,72 @@ export async function addServiceOrderItemsBatch(input: {
 
   revalidatePath(`/os/${input.serviceOrderId}`);
 }
+
+export type ServiceOrderEditData = {
+  leadName: string;
+  leadPhone: string | null;
+  voltage: string | null;
+  deadline: string | null;
+  saleChannel: string | null;
+  partnerStore: string | null;
+  partnerExtraName: string | null;
+  partnerExtraPercent: number | null;
+  consultantId: string | null;
+  consultantExtraId: string | null;
+  technicianIds: string[];
+  address: {
+    cep: string;
+    street: string;
+    number: string;
+    complement: string;
+    district: string;
+    city: string;
+    state: string;
+  };
+};
+
+/** Dado cru pra abrir o AtendimentoEditDialog fora da pagina da OS (ex.:
+    "Editar comissões" no menu de contexto da Agenda) - o dialogo precisa
+    dos ids/campos brutos, nao do formato ja resumido do quick-view. */
+export async function getServiceOrderEditData(id: string): Promise<ServiceOrderEditData> {
+  const ctx = await requireManagerContext();
+  const supabase = await createClient();
+
+  const { data: order, error } = await supabase
+    .from("service_orders")
+    .select("*, leads(name, phone)")
+    .eq("id", id)
+    .eq("tenant_id", ctx.tenantId)
+    .single();
+  if (error) throw new Error(error.message);
+
+  const { data: assignments } = await supabase
+    .from("service_order_technicians")
+    .select("user_id")
+    .eq("service_order_id", id)
+    .eq("tenant_id", ctx.tenantId);
+
+  const row = order as any;
+  return {
+    leadName: row.leads?.name ?? "",
+    leadPhone: row.leads?.phone ?? null,
+    voltage: row.voltage,
+    deadline: row.deadline,
+    saleChannel: row.sale_channel,
+    partnerStore: row.partner_store,
+    partnerExtraName: row.partner_extra_name,
+    partnerExtraPercent: row.partner_extra_percent,
+    consultantId: row.consultant_id,
+    consultantExtraId: row.consultant_extra_id,
+    technicianIds: ((assignments ?? []) as any[]).map((a) => a.user_id),
+    address: {
+      cep: row.address_cep ?? "",
+      street: row.address_street ?? "",
+      number: row.address_number ?? "",
+      complement: row.address_complement ?? "",
+      district: row.address_district ?? "",
+      city: row.address_city ?? "",
+      state: row.address_state ?? "",
+    },
+  };
+}

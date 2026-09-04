@@ -42,6 +42,8 @@ export function AtendimentoEditDialog({
   address,
   consultants,
   technicians,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   serviceOrderId: string;
   leadName: string;
@@ -66,8 +68,14 @@ export function AtendimentoEditDialog({
   };
   consultants: FieldServiceUser[];
   technicians: FieldServiceUser[];
+  /** Controlado por fora (ex.: menu de contexto da Agenda) - sem gatilho
+      proprio nesse caso, quem chama decide quando abre. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = onOpenChange ?? setUncontrolledOpen;
   const [saving, setSaving] = useState(false);
   const [selectedTechs, setSelectedTechs] = useState<string[]>(technicianIds);
   const [pending, start] = useTransition();
@@ -98,11 +106,13 @@ export function AtendimentoEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" title="Editar atendimento">
-          <PencilLine className="h-3.5 w-3.5" />
-        </Button>
-      </DialogTrigger>
+      {controlledOpen === undefined && (
+        <DialogTrigger asChild>
+          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" title="Editar atendimento">
+            <PencilLine className="h-3.5 w-3.5" />
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-h-[90vh] w-[95vw] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editar atendimento</DialogTitle>
