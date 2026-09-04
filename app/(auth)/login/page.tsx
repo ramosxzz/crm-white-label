@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowRight, Eye, Loader2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { Eye, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { mapSignupError } from "@/lib/auth/signup-errors";
 import { LoginCard } from "@/components/auth/login-card";
 import { TurnstileWidget } from "@/components/auth/turnstile-widget";
+import { ArrowRightIcon, type ArrowRightIconHandle } from "@/components/icons/arrow-right-icon";
 import { checkLoginRateLimit } from "./actions";
 
 function withTimeout<T>(promise: Promise<T>, ms: number) {
@@ -28,6 +29,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const arrowIconRef = useRef<ArrowRightIconHandle>(null);
   function fillDemoCredentials() {
     setEmail("demo@solairew.com");
     setPassword("12345678");
@@ -116,7 +118,14 @@ export default function LoginPage() {
           </div>
         )}
         <TurnstileWidget onVerify={setTurnstileToken} />
-        <Button type="submit" size="lg" className="w-full bg-white text-[#05070c] hover:bg-cyan-50" disabled={loading || redirecting}>
+        <Button
+          type="submit"
+          size="lg"
+          className="w-full bg-white text-[#05070c] hover:bg-cyan-50"
+          disabled={loading || redirecting}
+          onMouseEnter={() => arrowIconRef.current?.startAnimation()}
+          onMouseLeave={() => arrowIconRef.current?.stopAnimation()}
+        >
           {loading || redirecting ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -125,7 +134,7 @@ export default function LoginPage() {
           ) : (
             <>
               Entrar no CRM
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRightIcon ref={arrowIconRef} size={16} />
             </>
           )}
         </Button>

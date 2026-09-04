@@ -1,4 +1,7 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useRef, type ReactNode } from "react";
+import { PlusIcon, type PlusIconHandle } from "@/components/icons/plus-icon";
 
 /**
  * Tela de login enxuta - sem Prism/DecryptedText/video, que sao pesados
@@ -6,6 +9,8 @@ import type { ReactNode } from "react";
  * separada em solairew.com.br (MarketingSite); aqui e so acesso ao sistema.
  */
 export function LoginCard({ children }: { children: ReactNode }) {
+  const plusIconRef = useRef<PlusIconHandle>(null);
+
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#05070c] px-5 py-10 text-white">
       <div
@@ -17,9 +22,18 @@ export function LoginCard({ children }: { children: ReactNode }) {
       />
 
       <div className="relative z-10 w-full max-w-[430px]">
-        <a href="/" className="mb-7 flex items-center justify-center gap-3" aria-label="Solaire W+ CRM">
+        <a
+          href="/"
+          className="mb-7 flex items-center justify-center gap-3"
+          aria-label="Solaire W+ CRM"
+          onMouseEnter={() => plusIconRef.current?.startAnimation()}
+          onMouseLeave={() => plusIconRef.current?.stopAnimation()}
+        >
           <span className="grid h-9 w-9 place-items-center border border-white/20 bg-white/10 font-display text-[11px] font-bold text-white shadow-[0_0_28px_rgba(37,99,235,.2)]">
-            W+
+            <span className="flex items-center">
+              W
+              <PlusIcon ref={plusIconRef} size={12} className="text-white" />
+            </span>
           </span>
           <span>
             <span className="block font-display text-sm font-semibold tracking-tight">Solaire W+</span>
