@@ -33,15 +33,15 @@ import type { FieldServicePartner, ServiceOrderStatus } from "@/lib/supabase/dat
 import type { FieldServiceUser } from "@/lib/field-service/users";
 import {
   confirmServiceOrder,
-  getServiceOrderEditData,
+  getServiceOrderBillingData,
   setServiceOrderPendingIssue,
   transitionServiceOrder,
   unconfirmServiceOrder,
-  type ServiceOrderEditData,
+  type ServiceOrderBillingData,
 } from "../actions";
 import { NewServiceOrderDialog } from "../new-service-order-dialog";
 import { OrderQuickView } from "../mapa/order-quick-view";
-import { AtendimentoEditDialog } from "../[id]/atendimento-edit-dialog";
+import { FaturamentoModal } from "../[id]/faturamento-modal";
 
 export type AgendaOrder = {
   id: string;
@@ -85,16 +85,16 @@ function AgendaCard({
   onOpen: (id: string) => void;
   onAction: (fn: () => Promise<void>, successMsg?: string) => void;
 }) {
-  const [editData, setEditData] = useState<ServiceOrderEditData | null>(null);
-  const [editOpen, setEditOpen] = useState(false);
+  const [billingData, setBillingData] = useState<ServiceOrderBillingData | null>(null);
+  const [commissionsOpen, setCommissionsOpen] = useState(false);
 
   function openCommissionEdit() {
-    setEditOpen(true);
-    getServiceOrderEditData(order.id)
-      .then(setEditData)
+    setCommissionsOpen(true);
+    getServiceOrderBillingData(order.id)
+      .then(setBillingData)
       .catch((error) => {
-        notifyError(error, "Não foi possível abrir a edição");
-        setEditOpen(false);
+        notifyError(error, "Não foi possível abrir a edição de comissões");
+        setCommissionsOpen(false);
       });
   }
 
@@ -246,27 +246,24 @@ function AgendaCard({
         )}
       </ContextMenuContent>
     </ContextMenu>
-    {editData && (
-      <AtendimentoEditDialog
+    {billingData && (
+      <FaturamentoModal
         serviceOrderId={order.id}
-        leadName={editData.leadName}
-        leadPhone={editData.leadPhone}
-        voltage={editData.voltage}
-        deadline={editData.deadline}
-        saleChannel={editData.saleChannel}
-        partnerStore={editData.partnerStore}
-        partnerExtraName={editData.partnerExtraName}
-        partnerExtraPercent={editData.partnerExtraPercent}
-        consultantId={editData.consultantId}
-        consultantExtraId={editData.consultantExtraId}
-        technicianIds={editData.technicianIds}
-        address={editData.address}
-        consultants={consultants}
-        technicians={technicians}
-        open={editOpen}
+        leadName={billingData.leadName}
+        leadPhone={billingData.leadPhone}
+        leadEmail={billingData.leadEmail}
+        checklist={billingData.checklist}
+        items={billingData.items}
+        catalogItems={billingData.catalogItems}
+        travelFeeCents={billingData.travelFeeCents}
+        canEditItems
+        canApprove
+        canApproveDiscount
+        canDelete
+        open={commissionsOpen}
         onOpenChange={(next) => {
-          setEditOpen(next);
-          if (!next) setEditData(null);
+          setCommissionsOpen(next);
+          if (!next) setBillingData(null);
         }}
       />
     )}

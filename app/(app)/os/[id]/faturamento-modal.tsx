@@ -44,6 +44,8 @@ export function FaturamentoModal({
   canApprove,
   canApproveDiscount,
   canDelete,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   serviceOrderId: string;
   leadName: string;
@@ -57,8 +59,14 @@ export function FaturamentoModal({
   canApprove: boolean;
   canApproveDiscount: boolean;
   canDelete: boolean;
+  /** Controlado por fora (ex.: "Editar comissões" no menu da Agenda) - sem
+      gatilho proprio nesse caso. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = onOpenChange ?? setUncontrolledOpen;
   const [lines, setLines] = useState<CommissionPreviewLine[] | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [confirming, startConfirm] = useTransition();
@@ -134,11 +142,13 @@ export function FaturamentoModal({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button type="button" size="sm" variant="brand">
-          Faturar
-        </Button>
-      </DialogTrigger>
+      {controlledOpen === undefined && (
+        <DialogTrigger asChild>
+          <Button type="button" size="sm" variant="brand">
+            Faturar
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="grid max-h-[92vh] w-[97vw] max-w-6xl grid-rows-[auto_1fr_auto] overflow-hidden">
         <DialogHeader>
           <DialogTitle>Faturar OS</DialogTitle>

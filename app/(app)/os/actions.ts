@@ -17,7 +17,9 @@ import { listTechnicians } from "@/lib/field-service/users";
 import type {
   CommissionParty,
   Database,
+  ServiceCatalogItem,
   ServiceOrder,
+  ServiceOrderItem,
   ServiceOrderStatus,
 } from "@/lib/supabase/database.types";
 import { formatCurrencyBRL } from "@/lib/utils";
@@ -1733,5 +1735,41 @@ export async function getServiceOrderEditData(id: string): Promise<ServiceOrderE
       city: row.address_city ?? "",
       state: row.address_state ?? "",
     },
+  };
+}
+
+export type ServiceOrderBillingData = {
+  leadName: string;
+  leadPhone: string | null;
+  leadEmail: string | null;
+  checklist: { answers: unknown; observations: string | null } | null;
+  items: ServiceOrderItem[];
+  catalogItems: ServiceCatalogItem[];
+  travelFeeCents: number;
+};
+
+/** Dado que o FaturamentoModal precisa, buscado sob demanda pra abrir ele
+    fora da pagina da OS (ex.: "Editar comissões" no menu da Agenda). */
+export async function getServiceOrderBillingData(id: string): Promise<ServiceOrderBillingData> {
+  const ctx = await requireManagerContext();
+  const supabase = await createClient();
+
+  const [{ data: order, error }, { data: items }, { data: checklist }, { data: catalogItems }] = await Promise.all([
+    supabase.from("service_orders").select("travel_fee_cents, leads(name, phone, email)").eq("id", id).eq("tenant_id", ctx.tenantId).single(),
+    supabase.from("service_order_items").select("*").eq("service_order_id", id).order("created_at", { ascending: true }),
+    supabase.from("service_order_checklists").select("answers, observations").eq("service_order_id", id).maybeSingle(),
+    supabase.from("service_catalog_items").select("*").eq("tenant_id", ctx.tenantId).eq("is_active", true).order("category").order("name"),
+  ]);
+  if (error) throw new Error(error.message);
+
+  const row = order as any;
+  return {
+    leadName: row.leads?.name ?? "",
+    leadPhone: row.leads?.phone ?? null,
+    leadEmail: row.leads?.email ?? null,
+    checklist: (checklist as any) ?? null,
+    items: (items ?? []) as ServiceOrderItem[],
+    catalogItems: (catalogItems ?? []) as ServiceCatalogItem[],
+    travelFeeCents: row.travel_fee_cents ?? 0,
   };
 }
