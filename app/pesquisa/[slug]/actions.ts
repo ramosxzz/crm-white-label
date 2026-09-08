@@ -58,6 +58,7 @@ export async function submitSatisfactionSurvey(input: z.infer<typeof submitSchem
     .single();
 
   if (error || !response) {
+    console.error("[pesquisa] erro ao inserir response:", error);
     return { ok: false as const, error: "Nao foi possivel enviar. Tenta de novo em instantes." };
   }
 
@@ -71,6 +72,7 @@ export async function submitSatisfactionSurvey(input: z.infer<typeof submitSchem
   );
 
   if (ratingsError) {
+    console.error("[pesquisa] erro ao inserir ratings:", ratingsError);
     return { ok: false as const, error: "Nao foi possivel enviar. Tenta de novo em instantes." };
   }
 
