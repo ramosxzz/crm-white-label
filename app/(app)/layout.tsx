@@ -15,6 +15,7 @@ import { WhatsAppHealthBannerAsync } from "@/components/app/whatsapp-health-bann
 import { getTeamChatUnreadCount } from "@/lib/team-chat/unread";
 import { PaymentOverdueBanner } from "@/components/app/payment-overdue-banner";
 import { MaintenanceNoticeBanner } from "@/components/app/maintenance-notice-banner";
+import { TenantSuspendedScreen } from "@/components/app/tenant-suspended-screen";
 import { ForceLightTheme } from "@/components/app/force-light-theme";
 import { TopNavigationProgress } from "@/components/ui/top-navigation-progress";
 
@@ -35,6 +36,13 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getCurrentContext();
   if (!ctx) redirect("/login");
+
+  // Conta suspensa (inadimplente sem cobranca automatica, abuso, etc):
+  // trava tudo, antes de qualquer redirect por role - nem tecnico nem
+  // prospeccao passam disso.
+  if (ctx.tenant.suspended) {
+    return <TenantSuspendedScreen reason={ctx.tenant.suspended_reason} />;
+  }
 
   // Tecnico nao usa o CRM: o app dele e /campo, com layout proprio. Barrar
   // aqui, na raiz do grupo, e mais confiavel do que esconder item por item

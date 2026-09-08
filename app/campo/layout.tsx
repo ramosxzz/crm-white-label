@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { TenantTheme } from "@/components/app/tenant-theme";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { getCurrentContext } from "@/lib/tenant";
+import { TenantSuspendedScreen } from "@/components/app/tenant-suspended-screen";
 import { LogoutButton } from "./logout-button";
 import { SyncIndicator } from "./sync-indicator";
 import { LocationSharing } from "./location-sharing";
@@ -19,6 +20,9 @@ export const metadata: Metadata = {
 export default async function CampoLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getCurrentContext();
   if (!ctx) redirect("/login");
+  if (ctx.tenant.suspended) {
+    return <TenantSuspendedScreen reason={ctx.tenant.suspended_reason} />;
+  }
   if (!ctx.tenant.field_service_enabled) redirect("/dashboard");
 
   return (

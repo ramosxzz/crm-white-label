@@ -3812,6 +3812,9 @@ export type Database = {
           stock_deduct_on_won: boolean
           stock_enabled: boolean
           subscription_price_cents: number | null
+          suspended: boolean
+          suspended_at: string | null
+          suspended_reason: string | null
           tagline: string | null
           website: string | null
         }
@@ -3846,6 +3849,9 @@ export type Database = {
           stock_deduct_on_won?: boolean
           stock_enabled?: boolean
           subscription_price_cents?: number | null
+          suspended?: boolean
+          suspended_at?: string | null
+          suspended_reason?: string | null
           tagline?: string | null
           website?: string | null
         }
@@ -3880,6 +3886,9 @@ export type Database = {
           stock_deduct_on_won?: boolean
           stock_enabled?: boolean
           subscription_price_cents?: number | null
+          suspended?: boolean
+          suspended_at?: string | null
+          suspended_reason?: string | null
           tagline?: string | null
           website?: string | null
         }
