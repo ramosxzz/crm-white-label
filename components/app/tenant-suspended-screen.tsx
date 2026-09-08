@@ -1,5 +1,6 @@
 import { Lock } from "lucide-react";
 import { buildDemoWhatsappUrl } from "@/lib/demo-whatsapp";
+import { SuspendedLogoutButton } from "./suspended-logout-button";
 
 /**
  * Bloqueio de conta suspensa. Diferente do PaymentOverdueBanner (so avisa,
@@ -23,10 +24,11 @@ export function TenantSuspendedScreen({ reason }: { reason: string | null }) {
           href={whatsappUrl}
           target="_blank"
           rel="noreferrer"
-          className="mt-6 inline-flex h-11 items-center justify-center gap-2 bg-white px-5 text-sm font-semibold text-[#05070c] transition-colors hover:bg-cyan-50"
+          className="mt-6 inline-flex h-11 w-full items-center justify-center gap-2 bg-white px-5 text-sm font-semibold text-[#05070c] transition-colors hover:bg-cyan-50"
         >
           Falar com a Solaire W+
         </a>
+        <SuspendedLogoutButton />
       </div>
     </div>
   );
