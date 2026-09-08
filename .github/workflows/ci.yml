@@ -111,5 +111,15 @@ jobs:
 
       - name: Health check
         run: |
+          # Container "Started" nao significa Next.js ja aceitando conexao -
+          # o bind da porta leva alguns segundos. Um wget so, sem espera,
+          # falhava com "connection refused" mesmo com o deploy correto
+          # (aconteceu 2x em 2026-09-08). Tenta por ate 60s antes de desistir.
           ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_SSH_USER }}@${{ secrets.VPS_HOST }}" \
-            "docker exec n8n-caddy-1 wget -qO- http://${{ steps.target.outputs.service }}:3000/api/health"
+            'for i in $(seq 1 12); do
+              docker exec n8n-caddy-1 wget -qO- http://${{ steps.target.outputs.service }}:3000/api/health && exit 0
+              echo "health check falhou (tentativa $i/12), esperando 5s..."
+              sleep 5
+            done
+            echo "health check nao respondeu apos 60s"
+            exit 1'
