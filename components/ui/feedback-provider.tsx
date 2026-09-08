@@ -78,6 +78,21 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
     registerFeedbackHandlers(value);
   }, [value]);
 
+  React.useEffect(() => {
+    // Promise rejeitada fora da arvore do React (ex: prefetch de link, fetch
+    // disparado sem await numa transicao de rota) nunca passa por um catch
+    // local nem por um error boundary - some sem deixar rastro, e a tela fica
+    // parecendo travada sem nenhum aviso. Isso joga pro mesmo funil de toast
+    // de erro de sempre, que ja sabe detectar deploy obsoleto e recarregar.
+    function handleRejection(event: PromiseRejectionEvent) {
+      const reason = event.reason;
+      const message = reason instanceof Error ? reason.message : String(reason ?? "Erro desconhecido");
+      notify({ title: "Algo travou", description: message, tone: "error" });
+    }
+    window.addEventListener("unhandledrejection", handleRejection);
+    return () => window.removeEventListener("unhandledrejection", handleRejection);
+  }, [notify]);
+
   function settle(result: boolean) {
     confirmState?.resolve(result);
     setConfirmState(null);

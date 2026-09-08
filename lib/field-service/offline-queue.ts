@@ -5,6 +5,14 @@
  * e o que fazer quando um envio falha e testavel sem browser.
  */
 
+import { withTimeout } from "@/lib/async/with-timeout";
+
+/** Mesmo raciocinio do timeout do fetch do Supabase: sem isso, um item cujo
+ * envio trava (rede caiu no meio do upload) nunca rejeita, e o `for` do
+ * flushQueue fica parado nele pra sempre - a fila inteira empaca, nao so
+ * esse item. */
+const FLUSH_ITEM_TIMEOUT_MS = 35_000;
+
 export type QueuedMutationKind = "signature" | "damage" | "upsell_item" | "status" | "closure";
 
 export type QueuedMutation = {
@@ -101,7 +109,7 @@ export async function flushQueue(
       continue;
     }
     try {
-      await handler(item);
+      await withTimeout(handler(item), FLUSH_ITEM_TIMEOUT_MS, "Envio travou (sem resposta do servidor).");
       outcome.sent.push(item.id);
     } catch (error) {
       outcome.failed.push({
