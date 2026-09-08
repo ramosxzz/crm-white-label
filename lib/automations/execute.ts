@@ -5,6 +5,7 @@ import { normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
 import { getWhatsAppAccountForLead } from "@/lib/whatsapp/account-for-lead";
 import { deferUntil, DEFAULT_SEND_START_HOUR, DEFAULT_SEND_END_HOUR } from "@/lib/automations/sending-window";
 import { dayGreeting } from "@/lib/whatsapp/day-greeting";
+import { ufFromPhone } from "@/lib/automations/ddd-uf";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 
 type Block = {
@@ -83,6 +84,10 @@ type ActionCtx = {
   executionId: string;
   /** Inicio da execucao - marco pra saber se o lead respondeu no meio dela. */
   startedAt: string | null;
+  /** Flow + bloco de origem - usado pelo cursor de round-robin (precisa saber
+   * de qual bloco/fluxo e a vez de cada execucao, nao é global por tenant). */
+  flowId: string;
+  blockId: string;
 };
 
 /**
@@ -130,7 +135,7 @@ async function runAction(
   blockConfig: Record<string, unknown>,
   ctx: ActionCtx,
 ): Promise<Record<string, unknown>> {
-  const { supabase, tenantId, leadId, lead, executionId, startedAt } = ctx;
+  const { supabase, tenantId, leadId, lead, executionId, startedAt, flowId, blockId } = ctx;
 
   if (kind === "send_message" && leadId) {
     // Passo de cadencia: se o lead ja respondeu, para por aqui. Quem atende
@@ -256,6 +261,49 @@ async function runAction(
       return { assigned_to: userId };
     }
     return { skipped: "responsavel nao informado" };
+  }
+
+  if (kind === "assign_lead_round_robin" && leadId) {
+    const userIds = String(blockConfig.user_ids ?? "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
+    if (userIds.length === 0) return { skipped: "nenhum usuario configurado" };
+
+    // Cursor persistido por (flow, bloco): le o ultimo indice usado, avanca
+    // um e grava de volta. Nao e atomico sob concorrencia alta, mas pra
+    // volume de lead de PME (um de cada vez, minutos de intervalo) o risco de
+    // duas execucoes lerem o mesmo indice ao mesmo tempo e desprezivel - nao
+    // vale a complexidade de uma function/lock so pra isso.
+    const { data: cursorRow } = await supabase
+      .from("automation_round_robin_cursors")
+      .select("last_index")
+      .eq("flow_id", flowId)
+      .eq("block_id", blockId)
+      .maybeSingle();
+    const lastIndex = (cursorRow as { last_index?: number } | null)?.last_index ?? -1;
+    const nextIndex = (lastIndex + 1) % userIds.length;
+    const userId = userIds[nextIndex];
+
+    await supabase.from("automation_round_robin_cursors").upsert(
+      { flow_id: flowId, block_id: blockId, last_index: nextIndex, updated_at: new Date().toISOString() },
+      { onConflict: "flow_id,block_id" },
+    );
+    await supabase.from("leads").update({ assigned_to: userId }).eq("id", leadId).eq("tenant_id", tenantId);
+    lead.assigned_to = userId;
+    return { assigned_to: userId, round_robin_index: nextIndex };
+  }
+
+  if (kind === "tag_by_ddd" && leadId) {
+    const uf = ufFromPhone(String(lead.phone ?? ""));
+    if (!uf) return { skipped: "DDD nao reconhecido no telefone do lead" };
+    const { data: currentLead } = await supabase.from("leads").select("tags").eq("id", leadId).single();
+    const tags = (currentLead as { tags?: string[] } | null)?.tags ?? [];
+    if (!tags.includes(uf)) {
+      await supabase.from("leads").update({ tags: [...tags, uf] }).eq("id", leadId).eq("tenant_id", tenantId);
+    }
+    lead.tags = tags.includes(uf) ? tags : [...tags, uf];
+    return { tag_added: uf };
   }
 
   if (kind === "create_task" && leadId) {
@@ -452,6 +500,7 @@ export async function processExecution(
   const { blocks, connections } = config;
   const tenantId = execution.tenant_id as string;
   const leadId = execution.lead_id as string | null;
+  const flowId = execution.flow_id as string;
 
   // Fetch lead data for interpolation
   let lead: Record<string, unknown> = {};
@@ -587,6 +636,8 @@ export async function processExecution(
         lead,
         executionId,
         startedAt: (execution.started_at as string | null) ?? null,
+        flowId,
+        blockId: block.id,
       };
 
       if (kind === "action_group") {

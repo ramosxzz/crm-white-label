@@ -273,6 +273,31 @@ export function NodeConfigPanel({
           </div>
         )}
 
+        {/* assign_lead_round_robin */}
+        {kind === "assign_lead_round_robin" && (
+          <div className="space-y-1.5">
+            <Label>IDs dos usuários (rodízio)</Label>
+            <Textarea
+              placeholder="uuid-vendedor-1, uuid-vendedor-2"
+              value={String(config.user_ids ?? "")}
+              onChange={(e) => set("user_ids", e.target.value)}
+              rows={3}
+            />
+            <p className="text-xs text-muted-foreground">
+              Separe os IDs por vírgula (pegue em Configurações → Usuários). Cada lead novo vai pro próximo da lista,
+              alternando na ordem.
+            </p>
+          </div>
+        )}
+
+        {/* tag_by_ddd */}
+        {kind === "tag_by_ddd" && (
+          <p className="text-xs text-muted-foreground">
+            Sem configuração — identifica o DDD do telefone do lead automaticamente e adiciona a tag da UF
+            correspondente (ex: DDD 51 → tag "RS"). Se o DDD não for reconhecido, não adiciona tag nenhuma.
+          </p>
+        )}
+
         {/* create_task */}
         {kind === "create_task" && (
           <>

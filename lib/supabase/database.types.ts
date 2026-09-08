@@ -499,6 +499,35 @@ export type Database = {
           },
         ]
       }
+      automation_round_robin_cursors: {
+        Row: {
+          block_id: string
+          flow_id: string
+          last_index: number
+          updated_at: string
+        }
+        Insert: {
+          block_id: string
+          flow_id: string
+          last_index?: number
+          updated_at?: string
+        }
+        Update: {
+          block_id?: string
+          flow_id?: string
+          last_index?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_round_robin_cursors_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "automation_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automation_flows: {
         Row: {
           created_at: string

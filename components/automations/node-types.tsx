@@ -66,9 +66,11 @@ const kindMeta: Record<string, Meta> = {
   send_message: { label: "Enviar mensagem", sub: "Mensagem", icon: Send, accent: "blue" },
   move_stage: { label: "Mover etapa", sub: "Ação", icon: MoveRight, accent: "green" },
   assign_lead: { label: "Atribuir lead", sub: "Ação", icon: UserCheck, accent: "orange" },
+  assign_lead_round_robin: { label: "Distribuir entre vendedores", sub: "Rodízio", icon: Shuffle, accent: "orange" },
   create_task: { label: "Criar tarefa", sub: "Ação", icon: ListTodo, accent: "yellow" },
   api4com_call: { label: "Ligação", sub: "Api4com", icon: PhoneCall, accent: "green" },
   add_tag: { label: "Adicionar tag", sub: "Ação", icon: Tag, accent: "pink" },
+  tag_by_ddd: { label: "Tag por DDD (UF)", sub: "Ação", icon: Tag, accent: "pink" },
   log_activity: { label: "Registrar atividade", sub: "Ação", icon: ActivitySquare, accent: "gray" },
   field_ops: { label: "Operações de campos", sub: "Ação", icon: SlidersHorizontal, accent: "teal" },
   api_call: { label: "Requisição API", sub: "Integração", icon: Webhook, accent: "indigo" },
@@ -100,7 +102,9 @@ export const AVAILABLE_SUB_ACTIONS: { kind: string; label: string; description: 
   { kind: "send_message", label: "Enviar mensagem", description: "Envia uma mensagem pelo WhatsApp" },
   { kind: "move_stage", label: "Mover etapa", description: "Move o lead para outra etapa" },
   { kind: "assign_lead", label: "Atribuir lead", description: "Atribui o lead a um responsável" },
+  { kind: "assign_lead_round_robin", label: "Distribuir entre vendedores", description: "Alterna o responsável entre uma lista de usuários, um por vez" },
   { kind: "add_tag", label: "Adicionar tag", description: "Adiciona uma tag ao lead" },
+  { kind: "tag_by_ddd", label: "Tag por DDD (UF)", description: "Identifica o DDD do telefone e marca o lead com a UF (ex: 51 → RS)" },
   { kind: "create_task", label: "Criar tarefa", description: "Cria uma tarefa para o lead" },
   { kind: "api4com_call", label: "Ligação", description: "Inicia uma ligação pelo Api4com" },
   { kind: "log_activity", label: "Registrar atividade", description: "Registra uma atividade no lead" },
@@ -120,6 +124,11 @@ function configPreview(kind: string, config: Record<string, unknown>): string | 
   if (kind === "add_tag" && config.tag) return `#${String(config.tag)}`;
   if (kind === "move_stage" && config.stage_id) return `→ etapa selecionada`;
   if (kind === "assign_lead" && config.user_id) return `→ responsável`;
+  if (kind === "assign_lead_round_robin" && config.user_ids) {
+    const count = String(config.user_ids).split(",").filter((s) => s.trim()).length;
+    return `→ rodízio entre ${count} vendedor(es)`;
+  }
+  if (kind === "tag_by_ddd") return `→ tag automática por UF`;
   if (kind === "condition" && config.field) return `${String(config.field)} ${String(config.operator ?? "=")} ${String(config.value ?? "")}`;
   if (kind === "api_call" && config.url) return String(config.url);
   if (kind === "randomizer" && config.branches) return `${String(config.branches)} caminhos`;
