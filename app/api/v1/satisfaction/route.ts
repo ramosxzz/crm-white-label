@@ -39,15 +39,22 @@ export async function POST(req: Request) {
       .from("satisfaction_survey_responses")
       .insert({
         tenant_id: ctx.tenantId,
-        employee_name: parsed.employee_name || null,
-        service_rating: parsed.service_rating ?? null,
         nps_score: parsed.nps_score,
         comments: parsed.comments || null,
       })
-      .select("id, employee_name, service_rating, nps_score, comments, created_at")
+      .select("id, nps_score, comments, created_at")
       .single();
 
     if (error) throw new ApiError(500, "insert_failed", error.message);
+
+    if (parsed.employee_name && parsed.service_rating) {
+      await supabase.from("satisfaction_survey_employee_ratings").insert({
+        response_id: data.id,
+        tenant_id: ctx.tenantId,
+        employee_name: parsed.employee_name,
+        service_rating: parsed.service_rating,
+      });
+    }
 
     return apiJson({ data }, { status: 201 });
   } catch (error) {

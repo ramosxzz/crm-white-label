@@ -2435,6 +2435,48 @@ export type Database = {
           },
         ]
       }
+      satisfaction_survey_employee_ratings: {
+        Row: {
+          created_at: string
+          employee_name: string
+          id: string
+          response_id: string
+          service_rating: number
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          employee_name: string
+          id?: string
+          response_id: string
+          service_rating: number
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          employee_name?: string
+          id?: string
+          response_id?: string
+          service_rating?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "satisfaction_survey_employee_ratings_response_id_fkey"
+            columns: ["response_id"]
+            isOneToOne: false
+            referencedRelation: "satisfaction_survey_responses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "satisfaction_survey_employee_ratings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       satisfaction_survey_forms: {
         Row: {
           created_at: string

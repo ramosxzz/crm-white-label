@@ -9,9 +9,8 @@ import { cn } from "@/lib/utils";
 import { submitSatisfactionSurvey } from "./actions";
 
 export function SurveyForm({ slug, employees }: { slug: string; employees: string[] }) {
-  const [employee, setEmployee] = useState<string | null>(null);
-  const [rating, setRating] = useState(0);
-  const [hoverRating, setHoverRating] = useState(0);
+  const [ratings, setRatings] = useState<Record<string, number>>({});
+  const [hover, setHover] = useState<{ name: string; n: number } | null>(null);
   const [nps, setNps] = useState<number | null>(null);
   const [comments, setComments] = useState("");
   const [website, setWebsite] = useState("");
@@ -19,18 +18,25 @@ export function SurveyForm({ slug, employees }: { slug: string; employees: strin
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function setRating(name: string, n: number) {
+    setRatings((prev) => ({ ...prev, [name]: prev[name] === n ? 0 : n }));
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!employee || nps === null) {
-      setError("Preencha quem te atendeu e a nota de recomendação.");
+    const filled = Object.entries(ratings)
+      .filter(([, n]) => n > 0)
+      .map(([employee_name, service_rating]) => ({ employee_name, service_rating }));
+
+    if (filled.length === 0 || nps === null) {
+      setError("Avalie quem te atendeu (estrelas) e informe a nota de recomendação.");
       return;
     }
     setError(null);
     setSubmitting(true);
     const result = await submitSatisfactionSurvey({
       slug,
-      employee_name: employee,
-      service_rating: rating > 0 ? rating : undefined,
+      ratings: filled,
       nps_score: nps,
       comments: comments.trim() || undefined,
       website,
@@ -68,47 +74,41 @@ export function SurveyForm({ slug, employees }: { slug: string; employees: strin
       />
 
       <div>
-        <Label>Qual funcionária lhe atendeu? *</Label>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {employees.map((name) => (
-            <button
-              key={name}
-              type="button"
-              onClick={() => setEmployee(name)}
-              className={cn(
-                "rounded-full border px-3.5 py-1.5 text-sm transition-colors",
-                employee === name
-                  ? "border-brand bg-brand text-brand-foreground"
-                  : "border-border/70 bg-background hover:border-brand/60",
-              )}
-            >
-              {name}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <Label>Como foi seu atendimento?</Label>
-        <div className="mt-2 flex items-center gap-1">
-          {[1, 2, 3, 4, 5].map((n) => (
-            <button
-              key={n}
-              type="button"
-              onClick={() => setRating(n)}
-              onMouseEnter={() => setHoverRating(n)}
-              onMouseLeave={() => setHoverRating(0)}
-              aria-label={`${n} estrela${n > 1 ? "s" : ""}`}
-              className="p-0.5"
-            >
-              <Star
-                className={cn(
-                  "h-8 w-8 transition-colors",
-                  (hoverRating || rating) >= n ? "fill-amber-500 text-amber-500" : "text-muted-foreground/40",
-                )}
-              />
-            </button>
-          ))}
+        <Label>Quem te atendeu? Dê uma nota de 1 a 5 estrelas pra cada uma que participou *</Label>
+        <div className="mt-3 space-y-2.5">
+          {employees.map((name) => {
+            const current = ratings[name] ?? 0;
+            return (
+              <div
+                key={name}
+                className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background/60 px-3 py-2"
+              >
+                <span className="text-sm">{name}</span>
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setRating(name, n)}
+                      onMouseEnter={() => setHover({ name, n })}
+                      onMouseLeave={() => setHover(null)}
+                      aria-label={`${name}: ${n} estrela${n > 1 ? "s" : ""}`}
+                      className="p-0.5"
+                    >
+                      <Star
+                        className={cn(
+                          "h-6 w-6 transition-colors",
+                          (hover?.name === name ? hover.n : current) >= n
+                            ? "fill-amber-500 text-amber-500"
+                            : "text-muted-foreground/40",
+                        )}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

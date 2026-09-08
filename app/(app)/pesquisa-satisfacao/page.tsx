@@ -9,11 +9,14 @@ import { formatBRTDateTime } from "@/lib/date/brt";
 
 type SurveyResponse = {
   id: string;
-  employee_name: string | null;
-  service_rating: number | null;
   nps_score: number;
   comments: string | null;
   created_at: string;
+};
+
+type EmployeeRating = {
+  employee_name: string;
+  service_rating: number;
 };
 
 export default async function SatisfactionSurveyPage() {
@@ -21,14 +24,22 @@ export default async function SatisfactionSurveyPage() {
   if (!ctx.tenant.satisfaction_survey_enabled) notFound();
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("satisfaction_survey_responses")
-    .select("id, employee_name, service_rating, nps_score, comments, created_at")
-    .eq("tenant_id", ctx.tenant.id)
-    .order("created_at", { ascending: false })
-    .limit(500);
+  const [{ data }, { data: ratingsData }] = await Promise.all([
+    supabase
+      .from("satisfaction_survey_responses")
+      .select("id, nps_score, comments, created_at")
+      .eq("tenant_id", ctx.tenant.id)
+      .order("created_at", { ascending: false })
+      .limit(500),
+    supabase
+      .from("satisfaction_survey_employee_ratings")
+      .select("employee_name, service_rating")
+      .eq("tenant_id", ctx.tenant.id)
+      .limit(2000),
+  ]);
 
   const surveys = (data ?? []) as SurveyResponse[];
+  const ratings = (ratingsData ?? []) as EmployeeRating[];
   const total = surveys.length;
 
   let promoters = 0;
@@ -42,12 +53,11 @@ export default async function SatisfactionSurveyPage() {
   const detractorsPct = total > 0 ? Math.round((detractors / total) * 100) : 0;
 
   const byEmployee = new Map<string, { sum: number; count: number }>();
-  for (const s of surveys) {
-    if (!s.employee_name || s.service_rating == null) continue;
-    const acc = byEmployee.get(s.employee_name) ?? { sum: 0, count: 0 };
-    acc.sum += s.service_rating;
+  for (const r of ratings) {
+    const acc = byEmployee.get(r.employee_name) ?? { sum: 0, count: 0 };
+    acc.sum += r.service_rating;
     acc.count += 1;
-    byEmployee.set(s.employee_name, acc);
+    byEmployee.set(r.employee_name, acc);
   }
   const employeeRanking = [...byEmployee.entries()]
     .map(([name, { sum, count }]) => ({ name, avg: sum / count, count }))
@@ -115,8 +125,7 @@ export default async function SatisfactionSurveyPage() {
                   />
                   <p className="text-sm italic">&ldquo;{s.comments}&rdquo;</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    <strong>{s.employee_name ?? "Sem funcionária"}</strong> (Nota {s.nps_score}) ·{" "}
-                    {formatBRTDateTime(s.created_at)}
+                    Nota {s.nps_score} · {formatBRTDateTime(s.created_at)}
                   </p>
                 </div>
               ))
