@@ -7,6 +7,7 @@ import { requireContext } from "@/lib/tenant";
 import { canTransitionServiceOrder } from "@/lib/field-service/status";
 import { isWithinTrackingWindow } from "@/lib/field-service/tracking-window";
 import type { Database, ServiceOrderStatus } from "@/lib/supabase/database.types";
+import { safeAction } from "@/lib/server-action-result";
 
 type Ctx = Awaited<ReturnType<typeof requireContext>>;
 
@@ -53,7 +54,7 @@ const signatureSchema = z.object({
  * Registra a assinatura do cliente. O arquivo ja subiu direto do browser pro
  * bucket (mesmo fluxo do lead-files), aqui so gravamos o ponteiro.
  */
-export async function saveSignature(input: {
+async function saveSignatureImpl(input: {
   service_order_id: string;
   storage_path: string;
   signer_name: string;
@@ -86,7 +87,7 @@ const damageSchema = z.object({
 });
 
 /** Avaria encontrada no estofado na chegada - o "recebido" que eles usam hoje. */
-export async function addDamage(input: {
+async function addDamageImpl(input: {
   service_order_id: string;
   description: string;
   photo_path?: string | null;
@@ -121,7 +122,7 @@ const fieldItemSchema = z.object({
  * libera e o ADM na conferencia, e e sobre esse valor que sai a comissao do
  * tecnico na fase 3.
  */
-export async function addFieldUpsellItem(input: {
+async function addFieldUpsellItemImpl(input: {
   service_order_id: string;
   description: string;
   quantity: number;
@@ -160,7 +161,7 @@ const fieldTransitionSchema = z.object({
  * Transicoes que o tecnico dispara em campo. O conjunto e fechado aqui de
  * proposito - conferir e faturar continuam sendo da gestao.
  */
-export async function fieldTransition(input: {
+async function fieldTransitionImpl(input: {
   service_order_id: string;
   to: "em_execucao" | "concluida";
   reason?: string;
@@ -229,7 +230,7 @@ const fieldClosureSchema = z.object({
  * Fechamento unico do atendimento. O RPC grava laudo, resultado, eventual
  * orcamento e historico na mesma transacao.
  */
-export async function closeFieldServiceOrder(input: {
+async function closeFieldServiceOrderImpl(input: {
   service_order_id: string;
   closure_type: "finalizado" | "finalizado_orcamento" | "assistencia";
   answers: Record<string, boolean>;
@@ -334,3 +335,15 @@ export async function clearTechnicianLocation() {
     .eq("tenant_id", ctx.tenantId)
     .eq("user_id", ctx.userId);
 }
+
+// safeAction: preserva a mensagem de erro de verdade ate o cliente (Next.js
+// apaga qualquer throw cru vindo de Server Action em producao). Ver
+// lib/server-action-result.ts. IMPORTANTE: o flushQueue da fila offline
+// (lib/field-service/offline-queue.ts) decide sucesso/falha pelo throw do
+// handler - por isso app/campo/sync.ts chama essas 5 actions via
+// unwrapAction (lib/ui/feedback.ts), que reconstroi o throw no navegador.
+export const saveSignature = safeAction(saveSignatureImpl);
+export const addDamage = safeAction(addDamageImpl);
+export const addFieldUpsellItem = safeAction(addFieldUpsellItemImpl);
+export const fieldTransition = safeAction(fieldTransitionImpl);
+export const closeFieldServiceOrder = safeAction(closeFieldServiceOrderImpl);

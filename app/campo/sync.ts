@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { unwrapAction } from "@/lib/ui/feedback";
 import { syncPending, type QueuedMutation } from "@/lib/field-service/offline";
 import {
   addDamage,
@@ -61,11 +62,13 @@ export async function applyMutation(item: QueuedMutation) {
     case "signature": {
       const path = item.payload.storage_path as string;
       if (item.blob) await uploadBlob(path, item.blob, "image/png");
-      await saveSignature({
-        service_order_id: item.serviceOrderId,
-        storage_path: path,
-        signer_name: item.payload.signer_name as string,
-      });
+      await unwrapAction(
+        saveSignature({
+          service_order_id: item.serviceOrderId,
+          storage_path: path,
+          signer_name: item.payload.signer_name as string,
+        }),
+      );
       return;
     }
     case "damage": {
@@ -73,41 +76,49 @@ export async function applyMutation(item: QueuedMutation) {
       if (item.blob && path) {
         await uploadBlob(path, item.blob, item.blob.type || "image/jpeg");
       }
-      await addDamage({
-        service_order_id: item.serviceOrderId,
-        description: item.payload.description as string,
-        photo_path: path,
-      });
+      await unwrapAction(
+        addDamage({
+          service_order_id: item.serviceOrderId,
+          description: item.payload.description as string,
+          photo_path: path,
+        }),
+      );
       return;
     }
     case "upsell_item": {
-      await addFieldUpsellItem({
-        service_order_id: item.serviceOrderId,
-        description: item.payload.description as string,
-        quantity: item.payload.quantity as number,
-        unit_price: item.payload.unit_price as number,
-      });
+      await unwrapAction(
+        addFieldUpsellItem({
+          service_order_id: item.serviceOrderId,
+          description: item.payload.description as string,
+          quantity: item.payload.quantity as number,
+          unit_price: item.payload.unit_price as number,
+        }),
+      );
       return;
     }
     case "status": {
-      await fieldTransition({
-        service_order_id: item.serviceOrderId,
-        to: item.payload.to as "em_execucao" | "concluida",
-        reason: (item.payload.reason as string | undefined) ?? undefined,
-      });
+      await unwrapAction(
+        fieldTransition({
+          service_order_id: item.serviceOrderId,
+          to: item.payload.to as "em_execucao" | "concluida",
+          reason: (item.payload.reason as string | undefined) ?? undefined,
+        }),
+      );
       return;
     }
     case "closure": {
-      await closeFieldServiceOrder({
-        service_order_id: item.serviceOrderId,
-        closure_type: item.payload.closure_type as
-          | "finalizado"
-          | "finalizado_orcamento"
-          | "assistencia",
-        answers: item.payload.answers as Record<string, boolean>,
-        observations: (item.payload.observations as string | undefined) ?? undefined,
-        quote_description: (item.payload.quote_description as string | undefined) ?? undefined,
-      });
+      await unwrapAction(
+        closeFieldServiceOrder({
+          service_order_id: item.serviceOrderId,
+          closure_type: item.payload.closure_type as
+            | "finalizado"
+            | "finalizado_orcamento"
+            | "assistencia",
+          answers: item.payload.answers as Record<string, boolean>,
+          observations: (item.payload.observations as string | undefined) ?? undefined,
+          quote_description: (item.payload.quote_description as string | undefined) ?? undefined,
+        }),
+      );
       return;
     }
   }

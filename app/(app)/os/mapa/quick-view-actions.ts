@@ -2,8 +2,9 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
-import { canManageServiceOrders } from "@/lib/auth/roles";
+import { canAccessServiceOrders, canCreateServiceOrder } from "@/lib/auth/roles";
 import { formatServiceOrderCode } from "@/lib/field-service/status";
+import { safeAction } from "@/lib/server-action-result";
 import type { ServiceOrderStatus } from "@/lib/supabase/database.types";
 
 export type QuickViewItem = {
@@ -61,10 +62,14 @@ function joinAddress(order: Record<string, unknown>) {
  * continua indo pra pagina dela, que tem os botoes de transicao, conferencia e
  * faturamento.
  */
-export async function getServiceOrderQuickView(orderId: string): Promise<ServiceOrderQuickView> {
+async function getServiceOrderQuickViewImpl(orderId: string): Promise<ServiceOrderQuickView> {
   const ctx = await requireContext();
   if (!ctx.tenant.field_service_enabled) throw new Error("Módulo desativado para esta empresa");
-  if (!canManageServiceOrders(ctx.role)) throw new Error("Sem permissão para ver esta OS");
+  // So leitura: mesma regra de quem enxerga OS no resto do modulo (gestao
+  // ve tudo, vendedora ve a que ela abriu - a RLS ja filtra a linha).
+  if (!canAccessServiceOrders(ctx.role) && !canCreateServiceOrder(ctx.role)) {
+    throw new Error("Sem permissão para ver esta OS");
+  }
 
   const supabase = await createClient();
 
@@ -154,3 +159,8 @@ export async function getServiceOrderQuickView(orderId: string): Promise<Service
     pendingIssueNote: row.pending_issue_note ?? null,
   };
 }
+
+// safeAction: preserva a mensagem de erro de verdade ate o cliente (Next.js
+// apaga qualquer throw cru vindo de Server Action em producao). Ver
+// lib/server-action-result.ts.
+export const getServiceOrderQuickView = safeAction(getServiceOrderQuickViewImpl);

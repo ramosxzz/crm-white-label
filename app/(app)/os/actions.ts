@@ -1140,9 +1140,9 @@ async function addServiceOrderItemImpl(formData: FormData) {
   const unitPriceCents = Math.round(parsed.unit_price * 100);
   const amountCents = Math.round(unitPriceCents * parsed.quantity);
 
-  if (tablePriceCents != null && unitPriceCents > tablePriceCents) {
-    throw new Error("O valor negociado nao pode ser maior que o valor de tabela.");
-  }
+  // Tabela e so referencia: negociar acima dela e pratica normal (ex.: peca
+  // fora do padrao, servico extra) e nao deve travar o lancamento. So abaixo
+  // da tabela conta como desconto e pede aprovacao (ver hasDiscount abaixo).
 
   // Upsell lancado em campo entra pendente: so soma no total da OS depois que
   // o ADM aprova na conferencia.

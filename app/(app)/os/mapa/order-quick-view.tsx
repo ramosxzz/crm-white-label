@@ -14,6 +14,7 @@ import {
   SERVICE_ORDER_SHIFT_LABEL,
   SERVICE_ORDER_STATUS_LABEL,
 } from "@/lib/field-service/status";
+import { unwrapAction } from "@/lib/ui/feedback";
 import { getServiceOrderQuickView, type ServiceOrderQuickView } from "./quick-view-actions";
 
 function formatDate(value: string | null) {
@@ -59,7 +60,7 @@ export function OrderQuickView({
     let ativo = true;
     setData(null);
     setErro(null);
-    getServiceOrderQuickView(orderId)
+    unwrapAction(getServiceOrderQuickView(orderId))
       .then((res) => ativo && setData(res))
       .catch((e) => ativo && setErro((e as Error).message));
     return () => {
