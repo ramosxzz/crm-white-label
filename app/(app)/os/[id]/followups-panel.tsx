@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { notifyError } from "@/lib/ui/feedback";
+import { notifyError, unwrapAction } from "@/lib/ui/feedback";
 import type { FieldServiceUser } from "@/lib/field-service/users";
 import { createServiceOrderFollowup, setServiceOrderFollowupStatus } from "../actions";
 
@@ -48,13 +48,15 @@ export function FollowupsPanel({
     const fd = new FormData(e.currentTarget);
     start(async () => {
       try {
-        await createServiceOrderFollowup({
-          service_order_id: serviceOrderId,
-          category: String(fd.get("category") ?? ""),
-          responsible_id: String(fd.get("responsible_id") ?? "") || null,
-          contact_date: String(fd.get("contact_date") ?? ""),
-          description: String(fd.get("description") ?? ""),
-        });
+        await unwrapAction(
+          createServiceOrderFollowup({
+            service_order_id: serviceOrderId,
+            category: String(fd.get("category") ?? ""),
+            responsible_id: String(fd.get("responsible_id") ?? "") || null,
+            contact_date: String(fd.get("contact_date") ?? ""),
+            description: String(fd.get("description") ?? ""),
+          }),
+        );
         formRef.current?.reset();
         setShowForm(false);
       } catch (error) {
@@ -66,7 +68,7 @@ export function FollowupsPanel({
   function onStatus(id: string, status: "feito" | "cancelado") {
     start(async () => {
       try {
-        await setServiceOrderFollowupStatus({ id, service_order_id: serviceOrderId, status });
+        await unwrapAction(setServiceOrderFollowupStatus({ id, service_order_id: serviceOrderId, status }));
       } catch (error) {
         notifyError(error, "Não foi possível atualizar");
       }

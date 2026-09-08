@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrencyBRL } from "@/lib/utils";
-import { notify, notifyError } from "@/lib/ui/feedback";
+import { notify, notifyError, unwrapAction } from "@/lib/ui/feedback";
 import { COMMISSION_PARTY_LABEL } from "@/lib/field-service/commissions";
 import type { CommissionParty, CommissionStatus } from "@/lib/supabase/database.types";
 import {
@@ -102,7 +102,7 @@ export function CommissionsPanel({
   function review(requestId: string, approve: boolean) {
     start(async () => {
       try {
-        await reviewFinancialAdjustment({ request_id: requestId, approve });
+        await unwrapAction(reviewFinancialAdjustment({ request_id: requestId, approve }));
         notify({ title: approve ? "Ajuste liberado" : "Ajuste recusado", tone: "success" });
       } catch (error) {
         notifyError(error, "Não foi possível revisar o ajuste");

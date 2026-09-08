@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCurrencyBRL } from "@/lib/utils";
-import { notify, notifyError } from "@/lib/ui/feedback";
+import { notify, notifyError, unwrapAction } from "@/lib/ui/feedback";
 import type {
   FinancialAdjustmentRequest,
   PaymentMethodRate,
@@ -57,13 +57,15 @@ export function SettlementPanel({
     event.preventDefault();
     start(async () => {
       try {
-        const result = await saveServiceOrderSettlement({
-          service_order_id: serviceOrderId,
-          expected: Number(expected.replace(",", ".")),
-          received: Number(received.replace(",", ".")),
-          payment_method: method || null,
-          reason: reason.trim() || undefined,
-        });
+        const result = await unwrapAction(
+          saveServiceOrderSettlement({
+            service_order_id: serviceOrderId,
+            expected: Number(expected.replace(",", ".")),
+            received: Number(received.replace(",", ".")),
+            payment_method: method || null,
+            reason: reason.trim() || undefined,
+          }),
+        );
         notify({
           title: result.pendingApproval
             ? "Alteração enviada para aprovação de um dono"
@@ -80,7 +82,7 @@ export function SettlementPanel({
   function review(requestId: string, approve: boolean) {
     start(async () => {
       try {
-        await reviewFinancialAdjustment({ request_id: requestId, approve });
+        await unwrapAction(reviewFinancialAdjustment({ request_id: requestId, approve }));
         notify({ title: approve ? "Alteração liberada" : "Alteração recusada", tone: "success" });
       } catch (error) {
         notifyError(error, "Não foi possível revisar a solicitação");

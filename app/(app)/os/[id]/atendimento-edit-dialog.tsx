@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { ServiceOrderAddressFields } from "@/components/field-service/service-order-address-fields";
 import { SALE_CHANNEL_LABEL } from "@/lib/field-service/status";
-import { notify, notifyError } from "@/lib/ui/feedback";
+import { notify, notifyError, unwrapAction } from "@/lib/ui/feedback";
 import { updateServiceOrderAtendimento } from "../actions";
 import type { FieldServiceUser } from "@/lib/field-service/users";
 
@@ -92,7 +92,7 @@ export function AtendimentoEditDialog({
     setSaving(true);
     start(async () => {
       try {
-        await updateServiceOrderAtendimento({ id: serviceOrderId, formData });
+        await unwrapAction(updateServiceOrderAtendimento({ id: serviceOrderId, formData }));
         notify({ title: "Atendimento atualizado", tone: "success" });
         setOpen(false);
         router.refresh();

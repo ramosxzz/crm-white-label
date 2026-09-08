@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { confirmDialog, notify, notifyError } from "@/lib/ui/feedback";
+import { confirmDialog, notify, notifyError, unwrapAction } from "@/lib/ui/feedback";
 import {
   SERVICE_ORDER_STATUS_LABEL,
   nextServiceOrderStatuses,
@@ -123,7 +123,7 @@ export function StatusActions({
 
     start(async () => {
       try {
-        await transitionServiceOrder({ id: serviceOrderId, to, reason });
+        await unwrapAction(transitionServiceOrder({ id: serviceOrderId, to, reason }));
         notify({ title: `OS marcada como ${SERVICE_ORDER_STATUS_LABEL[to].toLowerCase()}`, tone: "success" });
       } catch (error) {
         notifyError(error, "Não foi possível mudar o status");
@@ -145,7 +145,7 @@ export function StatusActions({
 
     start(async () => {
       try {
-        await cancelServiceOrderClosure({ id: serviceOrderId, reason });
+        await unwrapAction(cancelServiceOrderClosure({ id: serviceOrderId, reason }));
         notify({ title: "Finalização cancelada", tone: "success" });
       } catch (error) {
         notifyError(error, "Não foi possível cancelar a finalização");

@@ -5,7 +5,7 @@ import { PencilLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatCurrencyBRL } from "@/lib/utils";
-import { notifyError } from "@/lib/ui/feedback";
+import { notifyError, unwrapAction } from "@/lib/ui/feedback";
 import { COMMISSION_PARTY_LABEL } from "@/lib/field-service/commissions";
 import type { CommissionParty } from "@/lib/supabase/database.types";
 import { requestCommissionAdjustment } from "../actions";
@@ -44,12 +44,14 @@ export function CommissionsPanel({
     if (!Number.isFinite(cents) || cents < 0) return;
     start(async () => {
       try {
-        await requestCommissionAdjustment({
-          commission_id: row.id,
-          service_order_id: serviceOrderId,
-          new_amount_cents: cents,
-          reason,
-        });
+        await unwrapAction(
+          requestCommissionAdjustment({
+            commission_id: row.id,
+            service_order_id: serviceOrderId,
+            new_amount_cents: cents,
+            reason,
+          }),
+        );
         setEditingId(null);
       } catch (error) {
         notifyError(error, "Não foi possível pedir o ajuste");

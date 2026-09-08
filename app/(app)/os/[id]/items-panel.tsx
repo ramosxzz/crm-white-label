@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrencyBRL } from "@/lib/utils";
-import { confirmDialog, notifyError } from "@/lib/ui/feedback";
+import { confirmDialog, notifyError, unwrapAction } from "@/lib/ui/feedback";
 import type {
   ServiceCatalogItem,
   ServiceOrderItem,
@@ -60,7 +60,7 @@ export function ItemsPanel({
     fd.set("service_order_id", serviceOrderId);
     start(async () => {
       try {
-        await addServiceOrderItem(fd);
+        await unwrapAction(addServiceOrderItem(fd));
         formRef.current?.reset();
         setSelectedCatalogId("");
         setDescription("");
@@ -85,7 +85,7 @@ export function ItemsPanel({
   function onToggleApproved(itemId: string, approved: boolean) {
     start(async () => {
       try {
-        await setServiceOrderItemApproved({ item_id: itemId, approved });
+        await unwrapAction(setServiceOrderItemApproved({ item_id: itemId, approved }));
       } catch (error) {
         notifyError(error, "Não foi possível atualizar o item");
       }
@@ -95,7 +95,7 @@ export function ItemsPanel({
   function onReviewDiscount(itemId: string, approved: boolean) {
     start(async () => {
       try {
-        await reviewServiceOrderItemDiscount({ item_id: itemId, approved });
+        await unwrapAction(reviewServiceOrderItemDiscount({ item_id: itemId, approved }));
       } catch (error) {
         notifyError(error, "Não foi possível revisar o desconto");
       }
@@ -106,7 +106,7 @@ export function ItemsPanel({
     const value = Number(travelFee.replace(",", "."));
     start(async () => {
       try {
-        await setServiceOrderTravelFee({ service_order_id: serviceOrderId, value });
+        await unwrapAction(setServiceOrderTravelFee({ service_order_id: serviceOrderId, value }));
       } catch (error) {
         notifyError(error, "Não foi possível salvar o deslocamento");
       }
@@ -126,7 +126,7 @@ export function ItemsPanel({
     if (!confirmed) return;
     start(async () => {
       try {
-        await deleteServiceOrderItem({ item_id: itemId });
+        await unwrapAction(deleteServiceOrderItem({ item_id: itemId }));
       } catch (error) {
         notifyError(error, "Não foi possível remover o item");
       }

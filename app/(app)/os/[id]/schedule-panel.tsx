@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { notify, notifyError } from "@/lib/ui/feedback";
+import { notify, notifyError, unwrapAction } from "@/lib/ui/feedback";
 import type { FieldServiceUser } from "@/lib/field-service/users";
 import { scheduleServiceOrder } from "../actions";
 
@@ -51,13 +51,15 @@ export function SchedulePanel({
     }
     start(async () => {
       try {
-        await scheduleServiceOrder({
-          id: serviceOrderId,
-          service_date: date,
-          shift,
-          technician_ids: selected,
-          reason: reason.trim() || undefined,
-        });
+        await unwrapAction(
+          scheduleServiceOrder({
+            id: serviceOrderId,
+            service_date: date,
+            shift,
+            technician_ids: selected,
+            reason: reason.trim() || undefined,
+          }),
+        );
         notify({ title: "OS agendada", tone: "success" });
       } catch (error) {
         notifyError(error, "Não foi possível agendar a OS");

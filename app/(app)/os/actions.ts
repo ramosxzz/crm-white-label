@@ -23,6 +23,7 @@ import type {
   ServiceOrderStatus,
 } from "@/lib/supabase/database.types";
 import { formatCurrencyBRL } from "@/lib/utils";
+import { safeAction } from "@/lib/server-action-result";
 
 type Ctx = Awaited<ReturnType<typeof requireContext>>;
 
@@ -207,7 +208,7 @@ async function logStatusChange(
   });
 }
 
-export async function createServiceOrder(formData: FormData) {
+async function createServiceOrderImpl(formData: FormData) {
   // Abrir OS e o fechamento da venda da vendedora, nao so do escritorio -
   // por isso aqui e canCreateServiceOrder e nao requireManagerContext.
   const ctx = await requireContext();
@@ -382,7 +383,7 @@ const scheduleSchema = z.object({
 });
 
 /** Agenda a OS num turno e aloca os tecnicos que vao na residencia. */
-export async function scheduleServiceOrder(input: {
+async function scheduleServiceOrderImpl(input: {
   id: string;
   service_date: string;
   shift: "manha" | "tarde";
@@ -498,7 +499,7 @@ export async function scheduleServiceOrder(input: {
 /** Confirma com o cliente que a visita vai acontecer - so muda a cor do
  * card na Agenda, nao e transicao de status (o sistema antigo do ACT ja
  * tinha exatamente esse campo: "Contato" + "Data/Hora" da confirmacao). */
-export async function confirmServiceOrder(input: { id: string; contact_name?: string }) {
+async function confirmServiceOrderImpl(input: { id: string; contact_name?: string }) {
   const ctx = await requireManagerContext();
   const supabase = await createClient();
 
@@ -520,7 +521,7 @@ export async function confirmServiceOrder(input: { id: string; contact_name?: st
   revalidatePath(`/os/${input.id}`);
 }
 
-export async function unconfirmServiceOrder(input: { id: string }) {
+async function unconfirmServiceOrderImpl(input: { id: string }) {
   const ctx = await requireManagerContext();
   const supabase = await createClient();
 
@@ -544,7 +545,7 @@ export async function unconfirmServiceOrder(input: { id: string }) {
 
 /** Marca/desmarca uma pendencia visivel na Agenda (card fica vermelho), sem
  * mexer no status - "problema" e um alerta visual, nao um estado da OS. */
-export async function setServiceOrderPendingIssue(input: {
+async function setServiceOrderPendingIssueImpl(input: {
   id: string;
   has_pending_issue: boolean;
   note?: string;
@@ -597,7 +598,7 @@ async function setServiceOrderTechniciansInternal(
   if (error) throw new Error(error.message);
 }
 
-export async function setServiceOrderTechnicians(input: { id: string; technician_ids: string[] }) {
+async function setServiceOrderTechniciansImpl(input: { id: string; technician_ids: string[] }) {
   const ctx = await requireManagerContext();
   const supabase = await createClient();
   await setServiceOrderTechniciansInternal(supabase, ctx, input.id, input.technician_ids);
@@ -642,7 +643,7 @@ export type CommissionPreviewLine = {
  * faturamento sao, por construcao, a mesma conta - nao existe as duas
  * divergindo.
  */
-export async function previewServiceOrderCommissions(
+async function previewServiceOrderCommissionsImpl(
   serviceOrderId: string,
 ): Promise<CommissionPreviewLine[]> {
   const ctx = await requireContext();
@@ -691,7 +692,7 @@ export async function previewServiceOrderCommissions(
 
 /** Faturamento com comissao ajustada manualmente pelo admin no modal - cada
  * linha do preview pode ter o valor alterado antes de confirmar. */
-export async function billServiceOrderWithOverrides(input: {
+async function billServiceOrderWithOverridesImpl(input: {
   serviceOrderId: string;
   lines: CommissionPreviewLine[];
 }) {
@@ -726,7 +727,7 @@ export async function billServiceOrderWithOverrides(input: {
   revalidatePath("/pastas");
 }
 
-export async function transitionServiceOrder(input: {
+async function transitionServiceOrderImpl(input: {
   id: string;
   to: ServiceOrderStatus;
   reason?: string;
@@ -848,7 +849,7 @@ export async function transitionServiceOrder(input: {
   revalidatePath(`/os/${parsed.id}`);
 }
 
-export async function cancelServiceOrderClosure(input: {
+async function cancelServiceOrderClosureImpl(input: {
   id: string;
   reason: string;
 }) {
@@ -882,7 +883,7 @@ const quoteConversionSchema = z.object({
 });
 
 /** Transforma o orcamento feito em campo em outra OS ligada ao historico. */
-export async function convertServiceOrderQuote(input: {
+async function convertServiceOrderQuoteImpl(input: {
   quote_id: string;
   amount?: number | null;
 }): Promise<string> {
@@ -915,7 +916,7 @@ export async function convertServiceOrderQuote(input: {
   return data as string;
 }
 
-export async function cancelServiceOrderQuote(input: { quote_id: string }) {
+async function cancelServiceOrderQuoteImpl(input: { quote_id: string }) {
   const ctx = await requireManagerContext();
   const parsed = z.object({ quote_id: z.string().uuid() }).parse(input);
   const supabase = await createClient();
@@ -945,7 +946,7 @@ export type SettlementSaveResult = { pendingApproval: boolean };
  * Acerto da OS. Antes do faturamento salva direto; depois de qualquer
  * lancamento vira solicitacao auditada para um owner liberar.
  */
-export async function saveServiceOrderSettlement(input: {
+async function saveServiceOrderSettlementImpl(input: {
   service_order_id: string;
   expected: number;
   received: number;
@@ -1055,7 +1056,7 @@ export async function saveServiceOrderSettlement(input: {
   return { pendingApproval: false };
 }
 
-export async function reviewFinancialAdjustment(input: {
+async function reviewFinancialAdjustmentImpl(input: {
   request_id: string;
   approve: boolean;
 }) {
@@ -1104,7 +1105,7 @@ const itemSchema = z.object({
   kind: z.enum(["original", "upsell"]),
 });
 
-export async function addServiceOrderItem(formData: FormData) {
+async function addServiceOrderItemImpl(formData: FormData) {
   const ctx = await requireFieldServiceContext();
   const supabase = await createClient();
 
@@ -1171,7 +1172,7 @@ export async function addServiceOrderItem(formData: FormData) {
 }
 
 /** Aprovacao/rejeicao do upsell na conferencia do ADM. */
-export async function setServiceOrderItemApproved(input: { item_id: string; approved: boolean }) {
+async function setServiceOrderItemApprovedImpl(input: { item_id: string; approved: boolean }) {
   const ctx = await requireContext();
   assertFieldServiceEnabled(ctx);
   if (!canReviewServiceOrder(ctx.role)) throw new Error("Só a gestão pode aprovar itens");
@@ -1190,7 +1191,7 @@ export async function setServiceOrderItemApproved(input: { item_id: string; appr
 }
 
 /** Gerencia decide uma solicitacao de desconto da vendedora. */
-export async function reviewServiceOrderItemDiscount(input: {
+async function reviewServiceOrderItemDiscountImpl(input: {
   item_id: string;
   approved: boolean;
 }) {
@@ -1225,7 +1226,7 @@ const travelFeeSchema = z.object({
 });
 
 /** Deslocamento e cobrado separado dos itens, mas compoe o total da OS. */
-export async function setServiceOrderTravelFee(input: { service_order_id: string; value: number }) {
+async function setServiceOrderTravelFeeImpl(input: { service_order_id: string; value: number }) {
   const ctx = await requireFieldServiceContext();
   const parsed = travelFeeSchema.parse(input);
   const supabase = await createClient();
@@ -1241,7 +1242,7 @@ export async function setServiceOrderTravelFee(input: { service_order_id: string
   revalidatePath(`/os/${parsed.service_order_id}`);
 }
 
-export async function deleteServiceOrderItem(input: { item_id: string }) {
+async function deleteServiceOrderItemImpl(input: { item_id: string }) {
   const ctx = await requireManagerContext();
   const supabase = await createClient();
 
@@ -1289,7 +1290,7 @@ export async function reorderShiftRoute(input: { ordered_ids: string[] }) {
  * Copia os itens originais como ponto de partida (o ADM ajusta o que for
  * preciso), sem copiar valores de upsell nem o financeiro ja fechado.
  */
-export async function createReapplicationServiceOrder(input: { originServiceOrderId: string }) {
+async function createReapplicationServiceOrderImpl(input: { originServiceOrderId: string }) {
   const ctx = await requireManagerContext();
   const supabase = await createClient();
 
@@ -1381,7 +1382,7 @@ const followupSchema = z.object({
 /** Proximo contato comercial gerado a partir de uma OS - ex: "fez lavagem,
  * oferecer impermeabilizacao daqui 30 dias". Fica ligado a OS de origem,
  * nao alimenta nenhum outro modulo por enquanto (so listagem/consulta). */
-export async function createServiceOrderFollowup(input: {
+async function createServiceOrderFollowupImpl(input: {
   service_order_id: string;
   category: string;
   responsible_id?: string | null;
@@ -1408,7 +1409,7 @@ export async function createServiceOrderFollowup(input: {
   revalidatePath(`/os/${parsed.service_order_id}`);
 }
 
-export async function setServiceOrderFollowupStatus(input: {
+async function setServiceOrderFollowupStatusImpl(input: {
   id: string;
   service_order_id: string;
   status: "pendente" | "feito" | "cancelado";
@@ -1431,7 +1432,7 @@ export async function setServiceOrderFollowupStatus(input: {
  * adjustment_kind='comissao' (approve_financial_adjustment) desde a fase de
  * resumo de comissao - so faltava um jeito de pedir isso pela tela. So o
  * dono aprova, igual todo ajuste pos-faturamento. */
-export async function requestCommissionAdjustment(input: {
+async function requestCommissionAdjustmentImpl(input: {
   commission_id: string;
   service_order_id: string;
   new_amount_cents: number;
@@ -1552,7 +1553,7 @@ const updateAtendimentoSchema = z.object({
  * endereco/consultora nem isso. Um so form corrige tudo que foi digitado
  * errado na hora da venda, sem duplicar campo em duas telas.
  */
-export async function updateServiceOrderAtendimento(input: {
+async function updateServiceOrderAtendimentoImpl(input: {
   id: string;
   formData: FormData;
 }) {
@@ -1641,7 +1642,7 @@ export async function updateServiceOrderAtendimento(input: {
  * pecas certas em vez de digitar tudo de novo manualmente no painel de
  * itens depois.
  */
-export async function addServiceOrderItemsBatch(input: {
+async function addServiceOrderItemsBatchImpl(input: {
   serviceOrderId: string;
   items: { description: string; quantity: number; unitPriceCents: number }[];
 }) {
@@ -1773,3 +1774,32 @@ export async function getServiceOrderBillingData(id: string): Promise<ServiceOrd
     travelFeeCents: row.travel_fee_cents ?? 0,
   };
 }
+
+// safeAction: preserva a mensagem de erro de verdade ate o cliente (Next.js
+// apaga qualquer throw cru vindo de Server Action em producao). Ver
+// lib/server-action-result.ts e unwrapAction em lib/ui/feedback.ts.
+export const createServiceOrder = safeAction(createServiceOrderImpl);
+export const scheduleServiceOrder = safeAction(scheduleServiceOrderImpl);
+export const confirmServiceOrder = safeAction(confirmServiceOrderImpl);
+export const unconfirmServiceOrder = safeAction(unconfirmServiceOrderImpl);
+export const setServiceOrderPendingIssue = safeAction(setServiceOrderPendingIssueImpl);
+export const setServiceOrderTechnicians = safeAction(setServiceOrderTechniciansImpl);
+export const previewServiceOrderCommissions = safeAction(previewServiceOrderCommissionsImpl);
+export const billServiceOrderWithOverrides = safeAction(billServiceOrderWithOverridesImpl);
+export const transitionServiceOrder = safeAction(transitionServiceOrderImpl);
+export const cancelServiceOrderClosure = safeAction(cancelServiceOrderClosureImpl);
+export const convertServiceOrderQuote = safeAction(convertServiceOrderQuoteImpl);
+export const cancelServiceOrderQuote = safeAction(cancelServiceOrderQuoteImpl);
+export const saveServiceOrderSettlement = safeAction(saveServiceOrderSettlementImpl);
+export const reviewFinancialAdjustment = safeAction(reviewFinancialAdjustmentImpl);
+export const addServiceOrderItem = safeAction(addServiceOrderItemImpl);
+export const setServiceOrderItemApproved = safeAction(setServiceOrderItemApprovedImpl);
+export const reviewServiceOrderItemDiscount = safeAction(reviewServiceOrderItemDiscountImpl);
+export const setServiceOrderTravelFee = safeAction(setServiceOrderTravelFeeImpl);
+export const deleteServiceOrderItem = safeAction(deleteServiceOrderItemImpl);
+export const createReapplicationServiceOrder = safeAction(createReapplicationServiceOrderImpl);
+export const createServiceOrderFollowup = safeAction(createServiceOrderFollowupImpl);
+export const setServiceOrderFollowupStatus = safeAction(setServiceOrderFollowupStatusImpl);
+export const requestCommissionAdjustment = safeAction(requestCommissionAdjustmentImpl);
+export const updateServiceOrderAtendimento = safeAction(updateServiceOrderAtendimentoImpl);
+export const addServiceOrderItemsBatch = safeAction(addServiceOrderItemsBatchImpl);

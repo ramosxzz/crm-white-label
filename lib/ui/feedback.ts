@@ -1,6 +1,7 @@
 "use client";
 
 import { isStaleDeploymentMessage } from "@/lib/stale-deployment";
+import type { ActionResult } from "@/lib/server-action-result";
 
 export type ConfirmOptions = {
   title: string;
@@ -88,6 +89,19 @@ export function notify(options: NotifyOptions) {
     return;
   }
   handlers.notify(options);
+}
+
+/**
+ * Desembrulha o retorno de uma Server Action envolvida em safeAction
+ * (lib/server-action-result.ts): joga o erro de volta como throw comum,
+ * agora no navegador - onde a mensagem NAO e redigida pelo Next, diferente
+ * de um throw cru dentro da action. Deixa o try/catch + notifyError que ja
+ * existe em cada tela funcionando sem precisar mudar nada mais ali.
+ */
+export async function unwrapAction<T>(promise: Promise<ActionResult<T>>): Promise<T> {
+  const result = await promise;
+  if (!result.ok) throw new Error(result.error);
+  return result.data;
 }
 
 /** Atalho pros casos de "deu erro, mostra a mensagem" (o padrao antigo com alert). */

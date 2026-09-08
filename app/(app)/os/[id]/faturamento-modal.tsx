@@ -14,7 +14,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { formatCurrencyBRL } from "@/lib/utils";
-import { notify, notifyError } from "@/lib/ui/feedback";
+import { notify, notifyError, unwrapAction } from "@/lib/ui/feedback";
 import { SERVICE_REPORT_CHECKLIST } from "@/lib/field-service/checklist";
 import { COMMISSION_PARTY_LABEL } from "@/lib/field-service/commissions";
 import type { CommissionParty } from "@/lib/supabase/database.types";
@@ -78,7 +78,7 @@ export function FaturamentoModal({
   useEffect(() => {
     if (!open) return;
     setLoadingPreview(true);
-    previewServiceOrderCommissions(serviceOrderId)
+    unwrapAction(previewServiceOrderCommissions(serviceOrderId))
       .then(setLines)
       .catch((err) => notifyError(err, "Não foi possível calcular as comissões"))
       .finally(() => setLoadingPreview(false));
@@ -131,7 +131,7 @@ export function FaturamentoModal({
     if (!lines) return;
     startConfirm(async () => {
       try {
-        await billServiceOrderWithOverrides({ serviceOrderId, lines });
+        await unwrapAction(billServiceOrderWithOverrides({ serviceOrderId, lines }));
         notify({ title: "OS faturada", tone: "success" });
         setOpen(false);
       } catch (err) {

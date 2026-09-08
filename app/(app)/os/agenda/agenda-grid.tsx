@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { AlertTriangle, Ban, CalendarClock, CheckCircle2, DollarSign, ExternalLink, Plus, UserCog } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { notify, notifyError } from "@/lib/ui/feedback";
+import { notify, notifyError, unwrapAction } from "@/lib/ui/feedback";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -152,8 +152,8 @@ function AgendaCard({
           <ContextMenuItem
             onSelect={() =>
               onAction(async () => {
-                if (order.confirmedAt) await unconfirmServiceOrder({ id: order.id });
-                else await confirmServiceOrder({ id: order.id });
+                if (order.confirmedAt) await unwrapAction(unconfirmServiceOrder({ id: order.id }));
+                else await unwrapAction(confirmServiceOrder({ id: order.id }));
               })
             }
           >
@@ -168,11 +168,13 @@ function AgendaCard({
                 ? undefined
                 : window.prompt("Qual o problema/pendência?") ?? undefined;
               if (!order.hasPendingIssue && !note) return;
-              await setServiceOrderPendingIssue({
-                id: order.id,
-                has_pending_issue: !order.hasPendingIssue,
-                note,
-              });
+              await unwrapAction(
+                setServiceOrderPendingIssue({
+                  id: order.id,
+                  has_pending_issue: !order.hasPendingIssue,
+                  note,
+                }),
+              );
             })
           }
         >
@@ -193,15 +195,17 @@ function AgendaCard({
                     onSelect={() =>
                       onAction(async () => {
                         const { scheduleServiceOrder } = await import("../actions");
-                        await scheduleServiceOrder({
-                          id: order.id,
-                          service_date: order.serviceDate ?? day,
-                          shift: order.shift ?? "manha",
-                          technician_ids: [t.id],
-                          scheduled_start_at: order.scheduledStartAt ?? undefined,
-                          scheduled_end_at: order.scheduledEndAt ?? undefined,
-                          reason: `Trocado pra ${t.name} pela agenda`,
-                        });
+                        await unwrapAction(
+                          scheduleServiceOrder({
+                            id: order.id,
+                            service_date: order.serviceDate ?? day,
+                            shift: order.shift ?? "manha",
+                            technician_ids: [t.id],
+                            scheduled_start_at: order.scheduledStartAt ?? undefined,
+                            scheduled_end_at: order.scheduledEndAt ?? undefined,
+                            reason: `Trocado pra ${t.name} pela agenda`,
+                          }),
+                        );
                       }, `Técnico trocado para ${t.name}`)
                     }
                   >
@@ -217,7 +221,7 @@ function AgendaCard({
               onAction(async () => {
                 const reason = window.prompt("Motivo da remarcação:");
                 if (!reason) return;
-                await transitionServiceOrder({ id: order.id, to: "remarcada", reason });
+                await unwrapAction(transitionServiceOrder({ id: order.id, to: "remarcada", reason }));
               }, "Movida para Remarcar")
             }
           >
@@ -236,7 +240,7 @@ function AgendaCard({
                 onAction(async () => {
                   const reason = window.prompt("Motivo do cancelamento:");
                   if (!reason) return;
-                  await transitionServiceOrder({ id: order.id, to: "cancelada", reason });
+                  await unwrapAction(transitionServiceOrder({ id: order.id, to: "cancelada", reason }));
                 }, "OS cancelada")
               }
             >

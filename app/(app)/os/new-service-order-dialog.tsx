@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { notifyError } from "@/lib/ui/feedback";
+import { notifyError, unwrapAction } from "@/lib/ui/feedback";
 import { cn, formatCurrencyBRL } from "@/lib/utils";
 import { ServiceOrderAddressFields } from "@/components/field-service/service-order-address-fields";
 import type { FieldServiceUser } from "@/lib/field-service/users";
@@ -154,7 +154,7 @@ export function NewServiceOrderDialog({
     const fd = new FormData(e.currentTarget);
     start(async () => {
       try {
-        const id = await createServiceOrder(fd);
+        const id = await unwrapAction(createServiceOrder(fd));
         // Agenda (clique direito na coluna do tecnico) ou mini agenda do
         // chat - os dois caminhos ja agendam a OS na hora de criar.
         const scheduling = agendaPreset
@@ -176,14 +176,16 @@ export function NewServiceOrderDialog({
         if (scheduling) {
           const startAt = new Date(`${scheduling.date}T${scheduling.start}:00-03:00`).toISOString();
           const endAt = new Date(`${scheduling.date}T${scheduling.end}:00-03:00`).toISOString();
-          await scheduleServiceOrder({
-            id,
-            service_date: scheduling.date,
-            shift: deriveShiftFromTime(startAt),
-            technician_ids: [scheduling.technicianId],
-            scheduled_start_at: startAt,
-            scheduled_end_at: endAt,
-          });
+          await unwrapAction(
+            scheduleServiceOrder({
+              id,
+              service_date: scheduling.date,
+              shift: deriveShiftFromTime(startAt),
+              technician_ids: [scheduling.technicianId],
+              scheduled_start_at: startAt,
+              scheduled_end_at: endAt,
+            }),
+          );
         }
         const catalogItemsToAdd = Object.entries(catalogPicks)
           .filter(([, qty]) => qty > 0)
@@ -203,7 +205,7 @@ export function NewServiceOrderDialog({
 
         const itemsToAdd = [...pieceItemsToAdd, ...catalogItemsToAdd];
         if (itemsToAdd.length > 0) {
-          await addServiceOrderItemsBatch({ serviceOrderId: id, items: itemsToAdd });
+          await unwrapAction(addServiceOrderItemsBatch({ serviceOrderId: id, items: itemsToAdd }));
         }
 
         setOpen(false);

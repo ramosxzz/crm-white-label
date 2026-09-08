@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatCurrencyBRL } from "@/lib/utils";
-import { confirmDialog, notify, notifyError } from "@/lib/ui/feedback";
+import { confirmDialog, notify, notifyError, unwrapAction } from "@/lib/ui/feedback";
 import type { ServiceOrderQuote } from "@/lib/supabase/database.types";
 import { cancelServiceOrderQuote, convertServiceOrderQuote } from "../actions";
 
@@ -28,7 +28,7 @@ export function QuotesPanel({
     const amount = raw?.trim() ? Number(raw.replace(",", ".")) : null;
     start(async () => {
       try {
-        const newId = await convertServiceOrderQuote({ quote_id: quote.id, amount });
+        const newId = await unwrapAction(convertServiceOrderQuote({ quote_id: quote.id, amount }));
         notify({ title: "Nova OS criada a partir do orçamento", tone: "success" });
         router.push(`/os/${newId}`);
       } catch (error) {
@@ -47,7 +47,7 @@ export function QuotesPanel({
     if (!confirmed) return;
     start(async () => {
       try {
-        await cancelServiceOrderQuote({ quote_id: quote.id });
+        await unwrapAction(cancelServiceOrderQuote({ quote_id: quote.id }));
         notify({ title: "Orçamento cancelado", tone: "success" });
       } catch (error) {
         notifyError(error, "Não foi possível cancelar o orçamento");

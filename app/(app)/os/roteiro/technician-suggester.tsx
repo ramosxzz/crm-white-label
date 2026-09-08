@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { notify, notifyError } from "@/lib/ui/feedback";
+import { notify, notifyError, unwrapAction } from "@/lib/ui/feedback";
 import { setServiceOrderTechnicians } from "../actions";
 import { suggestTechnicianForOrder, type TechnicianSuggestionResult } from "../routing-actions";
 
@@ -45,10 +45,12 @@ export function TechnicianSuggester({
   function assign(technicianId: string, technicianName: string) {
     start(async () => {
       try {
-        await setServiceOrderTechnicians({
-          id: serviceOrderId,
-          technician_ids: [technicianId],
-        });
+        await unwrapAction(
+          setServiceOrderTechnicians({
+            id: serviceOrderId,
+            technician_ids: [technicianId],
+          }),
+        );
         notify({ title: `OS atribuida a ${technicianName}`, tone: "success" });
         setSuggestions(null);
       } catch (error) {

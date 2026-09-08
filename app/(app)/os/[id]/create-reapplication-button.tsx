@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { confirmDialog, notifyError } from "@/lib/ui/feedback";
+import { confirmDialog, notifyError, unwrapAction } from "@/lib/ui/feedback";
 import { createReapplicationServiceOrder } from "../actions";
 
 export function CreateReapplicationButton({ originServiceOrderId }: { originServiceOrderId: string }) {
@@ -21,7 +21,7 @@ export function CreateReapplicationButton({ originServiceOrderId }: { originServ
     if (!confirmed) return;
     start(async () => {
       try {
-        const id = await createReapplicationServiceOrder({ originServiceOrderId });
+        const id = await unwrapAction(createReapplicationServiceOrder({ originServiceOrderId }));
         router.push(`/os/${id}`);
       } catch (error) {
         notifyError(error, "Não foi possível criar a reaplicação");
