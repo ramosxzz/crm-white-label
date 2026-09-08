@@ -2396,6 +2396,7 @@ export type Database = {
       }
       satisfaction_survey_responses: {
         Row: {
+          channel: string | null
           comments: string | null
           created_at: string
           employee_name: string | null
@@ -2405,6 +2406,7 @@ export type Database = {
           tenant_id: string
         }
         Insert: {
+          channel?: string | null
           comments?: string | null
           created_at?: string
           employee_name?: string | null
@@ -2414,6 +2416,7 @@ export type Database = {
           tenant_id: string
         }
         Update: {
+          channel?: string | null
           comments?: string | null
           created_at?: string
           employee_name?: string | null
@@ -2425,6 +2428,47 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "satisfaction_survey_responses_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      satisfaction_survey_forms: {
+        Row: {
+          created_at: string
+          employees: Json
+          id: string
+          is_active: boolean
+          slug: string
+          subtitle: string | null
+          tenant_id: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          employees?: Json
+          id?: string
+          is_active?: boolean
+          slug: string
+          subtitle?: string | null
+          tenant_id: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          employees?: Json
+          id?: string
+          is_active?: boolean
+          slug?: string
+          subtitle?: string | null
+          tenant_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "satisfaction_survey_forms_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
