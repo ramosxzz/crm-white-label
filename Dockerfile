@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM node:24-alpine AS deps
 WORKDIR /app
 
@@ -20,7 +21,10 @@ ENV NEXT_PUBLIC_META_WHATSAPP_CONFIG_ID=$NEXT_PUBLIC_META_WHATSAPP_CONFIG_ID
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+# Cache do build incremental do Next.js persiste entre imagens (BuildKit
+# cache mount, nao vai pra dentro da imagem final) - sem isso cada deploy
+# recompilava tudo do zero, uns minutos so pra 1 botao mudar.
+RUN --mount=type=cache,target=/app/.next/cache,sharing=locked npm run build
 
 FROM node:24-alpine AS runner
 WORKDIR /app
