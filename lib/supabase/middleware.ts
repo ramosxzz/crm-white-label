@@ -39,6 +39,7 @@ export async function updateSession(request: NextRequest) {
     url.pathname.startsWith("/privacy") ||
     url.pathname.startsWith("/data-deletion") ||
     url.pathname.startsWith("/terms") ||
+    url.pathname.startsWith("/pesquisa/") ||
     url.pathname.startsWith("/_next") ||
     url.pathname.startsWith("/favicon");
 
