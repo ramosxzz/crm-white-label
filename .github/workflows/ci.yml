@@ -86,17 +86,22 @@ jobs:
 
       - name: Sync code to VPS
         run: |
-          # A conexao SSH pro VPS ja deu "Connection timed out" varias vezes de
-          # forma transitoria, derrubando o deploy inteiro. Tenta de novo antes
-          # de falhar.
-          for i in 1 2 3; do
-            rsync -az --delete --filter=':- .gitignore' --exclude '.git' --exclude '.env*' --exclude 'supabase/.temp' \
+          # A conexao SSH pro VPS as vezes cai no meio da transferencia (visto
+          # no VPS: "Connection closed by <ip-do-runner>", sem fail2ban, sem
+          # bloqueio de firewall na porta 22, carga/memoria normais - e
+          # instabilidade transitoria de rede entre o runner do GitHub e o
+          # VPS, nao algo do lado do servidor). 3 tentativas de 20s ja
+          # falharam seguidas uma vez (2026-09-09); agora sao 5 com backoff
+          # maior, e --partial pra nao perder o progresso ja transferido a
+          # cada retry.
+          for i in 1 2 3 4 5; do
+            rsync -az --partial --delete --filter=':- .gitignore' --exclude '.git' --exclude '.env*' --exclude 'supabase/.temp' \
               -e "ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 -o ServerAliveInterval=15" \
               ./ "${{ secrets.VPS_SSH_USER }}@${{ secrets.VPS_HOST }}:/opt/solaire-crm/app-src/" && exit 0
-            echo "rsync falhou (tentativa $i), tentando de novo em 20s..."
-            sleep 20
+            echo "rsync falhou (tentativa $i/5), tentando de novo em $((i * 15))s..."
+            sleep $((i * 15))
           done
-          echo "rsync falhou nas 3 tentativas."
+          echo "rsync falhou nas 5 tentativas."
           exit 1
 
       - name: Build and restart container (production)
