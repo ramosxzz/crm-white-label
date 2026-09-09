@@ -1171,6 +1171,58 @@ async function addServiceOrderItemImpl(formData: FormData) {
   revalidatePath(`/os/${parsed.service_order_id}`);
 }
 
+const updateItemAmountSchema = z.object({
+  item_id: z.string().uuid(),
+  quantity: z.number().positive(),
+  unit_price: z.number().min(0),
+});
+
+/**
+ * Corrige quantidade/valor de uma peca ja lancada (ex.: consultora digitou
+ * errado na hora da venda). Mesma regra da tabela do lancamento original:
+ * abaixo da tabela volta a pedir aprovacao de desconto, na tabela ou acima
+ * fica liberado direto - tabela e so referencia, nao teto.
+ */
+async function updateServiceOrderItemAmountImpl(input: {
+  item_id: string;
+  quantity: number;
+  unit_price: number;
+}) {
+  const ctx = await requireFieldServiceContext();
+  const parsed = updateItemAmountSchema.parse(input);
+  const supabase = await createClient();
+
+  const { data: item, error: fetchError } = await supabase
+    .from("service_order_items")
+    .select("service_order_id, table_price_cents, kind")
+    .eq("id", parsed.item_id)
+    .eq("tenant_id", ctx.tenantId)
+    .maybeSingle();
+  if (fetchError) throw new Error(fetchError.message);
+  if (!item) throw new Error("Item não encontrado");
+
+  const unitPriceCents = Math.round(parsed.unit_price * 100);
+  const amountCents = Math.round(unitPriceCents * parsed.quantity);
+  const hasDiscount =
+    item.kind === "original" && item.table_price_cents != null && unitPriceCents < item.table_price_cents;
+
+  const { error } = await supabase
+    .from("service_order_items")
+    .update({
+      quantity: parsed.quantity,
+      unit_price_cents: unitPriceCents,
+      amount_cents: amountCents,
+      discount_status: hasDiscount ? "solicitado" : "nao_aplicavel",
+      discount_requested_by: hasDiscount ? ctx.userId : null,
+      discount_requested_at: hasDiscount ? new Date().toISOString() : null,
+    })
+    .eq("id", parsed.item_id)
+    .eq("tenant_id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/os/${item.service_order_id}`);
+}
+
 /** Aprovacao/rejeicao do upsell na conferencia do ADM. */
 async function setServiceOrderItemApprovedImpl(input: { item_id: string; approved: boolean }) {
   const ctx = await requireContext();
@@ -1793,6 +1845,7 @@ export const cancelServiceOrderQuote = safeAction(cancelServiceOrderQuoteImpl);
 export const saveServiceOrderSettlement = safeAction(saveServiceOrderSettlementImpl);
 export const reviewFinancialAdjustment = safeAction(reviewFinancialAdjustmentImpl);
 export const addServiceOrderItem = safeAction(addServiceOrderItemImpl);
+export const updateServiceOrderItemAmount = safeAction(updateServiceOrderItemAmountImpl);
 export const setServiceOrderItemApproved = safeAction(setServiceOrderItemApprovedImpl);
 export const reviewServiceOrderItemDiscount = safeAction(reviewServiceOrderItemDiscountImpl);
 export const setServiceOrderTravelFee = safeAction(setServiceOrderTravelFeeImpl);

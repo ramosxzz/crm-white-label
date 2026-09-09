@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Check, Plus, Trash2, X } from "lucide-react";
+import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,7 @@ import {
   reviewServiceOrderItemDiscount,
   setServiceOrderItemApproved,
   setServiceOrderTravelFee,
+  updateServiceOrderItemAmount,
 } from "../actions";
 
 export function ItemsPanel({
@@ -46,6 +47,9 @@ export function ItemsPanel({
   const [description, setDescription] = useState("");
   const [unitPrice, setUnitPrice] = useState("0");
   const [tablePrice, setTablePrice] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editQty, setEditQty] = useState("1");
+  const [editPrice, setEditPrice] = useState("0");
 
   const approvedTotal = items
     .filter((item) => item.approved && !["solicitado", "recusado"].includes(item.discount_status))
@@ -133,6 +137,29 @@ export function ItemsPanel({
     });
   }
 
+  function startEdit(item: ServiceOrderItem) {
+    setEditingId(item.id);
+    setEditQty(String(item.quantity));
+    setEditPrice((item.unit_price_cents / 100).toFixed(2));
+  }
+
+  function saveEdit(itemId: string) {
+    const quantity = Number(editQty.replace(",", "."));
+    const unit_price = Number(editPrice.replace(",", "."));
+    if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(unit_price) || unit_price < 0) {
+      notifyError(new Error("Quantidade e valor precisam ser números válidos"));
+      return;
+    }
+    start(async () => {
+      try {
+        await unwrapAction(updateServiceOrderItemAmount({ item_id: itemId, quantity, unit_price }));
+        setEditingId(null);
+      } catch (error) {
+        notifyError(error, "Não foi possível salvar o valor");
+      }
+    });
+  }
+
   return (
     <section className="rounded-xl border border-border/70 bg-card shadow-elev-1">
       <header className="flex items-center justify-between border-b border-border/70 px-5 py-3">
@@ -153,7 +180,44 @@ export function ItemsPanel({
             Nenhuma peça lançada nessa OS ainda.
           </li>
         )}
-        {items.map((item) => (
+        {items.map((item) =>
+          editingId === item.id ? (
+            <li key={item.id} className="flex flex-wrap items-end gap-2 bg-muted/30 px-5 py-3">
+              <p className="mr-auto min-w-0 basis-full truncate text-sm font-medium sm:basis-auto">
+                {item.description}
+              </p>
+              <div className="space-y-1">
+                <Label htmlFor={`edit-qty-${item.id}`} className="text-xs">Qtd</Label>
+                <Input
+                  id={`edit-qty-${item.id}`}
+                  type="number"
+                  step="1"
+                  min="1"
+                  className="h-9 w-20"
+                  value={editQty}
+                  onChange={(e) => setEditQty(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor={`edit-price-${item.id}`} className="text-xs">Valor (R$)</Label>
+                <Input
+                  id={`edit-price-${item.id}`}
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="h-9 w-28"
+                  value={editPrice}
+                  onChange={(e) => setEditPrice(e.target.value)}
+                />
+              </div>
+              <Button type="button" variant="brand" size="sm" disabled={pending} onClick={() => saveEdit(item.id)}>
+                <Check className="h-3.5 w-3.5" /> Salvar
+              </Button>
+              <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => setEditingId(null)}>
+                <X className="h-3.5 w-3.5" /> Cancelar
+              </Button>
+            </li>
+          ) : (
           <li key={item.id} className="flex items-center gap-3 px-5 py-3">
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{item.description}</p>
@@ -214,6 +278,18 @@ export function ItemsPanel({
                   </Button>
                 </>
               )}
+              {canEdit && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={pending}
+                  onClick={() => startEdit(item)}
+                  title="Editar valor"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              )}
               {canDelete && (
                 <Button
                   type="button"
@@ -228,7 +304,8 @@ export function ItemsPanel({
               )}
             </div>
           </li>
-        ))}
+          ),
+        )}
       </ul>
 
       <div className="flex flex-wrap items-end gap-3 border-t border-border/70 px-5 py-4">
