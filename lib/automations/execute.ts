@@ -270,28 +270,18 @@ async function runAction(
       .filter(Boolean);
     if (userIds.length === 0) return { skipped: "nenhum usuario configurado" };
 
-    // Cursor persistido por (flow, bloco): le o ultimo indice usado, avanca
-    // um e grava de volta. Nao e atomico sob concorrencia alta, mas pra
-    // volume de lead de PME (um de cada vez, minutos de intervalo) o risco de
-    // duas execucoes lerem o mesmo indice ao mesmo tempo e desprezivel - nao
-    // vale a complexidade de uma function/lock so pra isso.
-    const { data: cursorRow } = await supabase
-      .from("automation_round_robin_cursors")
-      .select("last_index")
-      .eq("flow_id", flowId)
-      .eq("block_id", blockId)
-      .maybeSingle();
-    const lastIndex = (cursorRow as { last_index?: number } | null)?.last_index ?? -1;
-    const nextIndex = (lastIndex + 1) % userIds.length;
-    const userId = userIds[nextIndex];
-
-    await supabase.from("automation_round_robin_cursors").upsert(
-      { flow_id: flowId, block_id: blockId, last_index: nextIndex, updated_at: new Date().toISOString() },
-      { onConflict: "flow_id,block_id" },
-    );
-    await supabase.from("leads").update({ assigned_to: userId }).eq("id", leadId).eq("tenant_id", tenantId);
-    lead.assigned_to = userId;
-    return { assigned_to: userId, round_robin_index: nextIndex };
+    // Cursor e atribuicao sao confirmados juntos, com lock por fluxo/bloco.
+    const { data, error } = await supabase.rpc("assign_automation_lead_round_robin", {
+      p_tenant_id: tenantId,
+      p_flow_id: flowId,
+      p_block_id: blockId,
+      p_lead_id: leadId,
+      p_user_ids: [...new Set(userIds)],
+    });
+    if (error) throw new Error(`Falha no rodizio: ${error.message}`);
+    if (!data?.assigned_to) throw new Error("Rodizio nao retornou um responsavel.");
+    lead.assigned_to = data.assigned_to;
+    return data;
   }
 
   if (kind === "tag_by_ddd" && leadId) {

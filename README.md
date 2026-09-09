@@ -1,11 +1,11 @@
 # SolAIre W+ CRM
 
-CRM **multi-tenant** e **white-label** para operações comerciais: leads, kanban, WhatsApp, disparos em massa e dashboard de operações do dia. Construído com **Next.js 15**, **Supabase** e deploy em **Cloudflare Workers**.
+CRM **multi-tenant** e **white-label** para operações comerciais: leads, kanban, WhatsApp, disparos em massa e dashboard de operações do dia. Construído com **Next.js 15**, **Supabase** e executado em **Docker na VPS**.
 
 <p align="center">
   <img src="https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=next.js" alt="Next.js" />
   <img src="https://img.shields.io/badge/Supabase-Postgres%20%2B%20Auth-3FCF8E?style=flat-square&logo=supabase" alt="Supabase" />
-  <img src="https://img.shields.io/badge/Cloudflare-Workers-F38020?style=flat-square&logo=cloudflare" alt="Cloudflare" />
+  <img src="https://img.shields.io/badge/Docker-VPS-2496ED?style=flat-square&logo=docker" alt="Docker na VPS" />
   <img src="https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript" alt="TypeScript" />
 </p>
 
@@ -15,7 +15,7 @@ CRM **multi-tenant** e **white-label** para operações comerciais: leads, kanba
 
 Cada empresa cadastrada opera em um **tenant isolado** (RLS no Postgres): dados, identidade visual, mensagens rápidas e integrações WhatsApp ficam separados. O produto foi pensado para parceiros e times comerciais que precisam de um CRM enxuto, bonito e pronto para demo ou produção.
 
-**Produção:** configure `NEXT_PUBLIC_APP_URL` com a URL do seu Worker Cloudflare.
+**Produção:** `https://crm.solairew.com.br`, com Next.js em Docker e HTTPS/reverse proxy pelo Caddy.
 
 ---
 
@@ -58,9 +58,10 @@ flowchart LR
   subgraph client [Cliente]
     Browser[Navegador]
   end
-  subgraph edge [Cloudflare Workers]
+  subgraph runtime [VPS Docker]
     Next[Next.js App Router]
     API[API Routes / Webhooks]
+    Caddy[Caddy HTTPS]
   end
   subgraph backend [Supabase]
     Auth[Auth]
@@ -73,7 +74,7 @@ flowchart LR
     Evo[Evolution]
     Zapi[Z-API]
   end
-  Browser --> Next
+  Browser --> Caddy --> Next
   Next --> Auth
   Next --> DB
   Next --> Storage
@@ -89,7 +90,7 @@ flowchart LR
 
 - **Frontend:** Next.js 15 (App Router), React 19, Tailwind CSS, componentes estilo shadcn/ui
 - **Backend:** Supabase (Postgres, Auth, Storage, Realtime)
-- **Deploy:** OpenNext + Wrangler → Cloudflare Workers
+- **Deploy:** Docker na VPS + Caddy, automatizado pelo GitHub Actions
 - **Libs:** dnd-kit, Recharts, Zod, date-fns, lucide-react
 
 ---
@@ -123,7 +124,8 @@ Alias de import: `@/*` → raiz do repositório.
 
 - Node.js 20+
 - Conta [Supabase](https://supabase.com)
-- Conta [Cloudflare](https://dash.cloudflare.com) (para deploy)
+- VPS com Docker e Caddy (para produção)
+- Conta [Cloudflare](https://dash.cloudflare.com) somente se usar R2 para mídias
 - (Opcional) App Meta / Evolution / Z-API para WhatsApp
 
 ---
@@ -188,43 +190,15 @@ Acesse [http://localhost:3000](http://localhost:3000).
 
 ---
 
-## Deploy (Cloudflare Workers)
+## Deploy na VPS
 
-**Não coloque chaves em `wrangler.jsonc`** (arquivo versionado). Use variáveis no painel ou secrets:
+O deploy oficial usa Docker + Caddy e roda automaticamente no GitHub Actions depois que `build` e testes passam na branch `main`. Para executar manualmente com as credenciais locais configuradas:
 
 ```bash
-cp .dev.vars.example .dev.vars
-# Preencha .dev.vars com os valores reais (arquivo ignorado pelo Git)
-
 npm run deploy
 ```
 
-No [Cloudflare Dashboard](https://dash.cloudflare.com) → Workers → **solaire-w-crm** → Settings → **Variables**, configure:
-
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `NEXT_PUBLIC_APP_URL`
-- `WHATSAPP_WEBHOOK_VERIFY_TOKEN`
-
-Service role (somente servidor):
-
-```bash
-npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
-```
-
-Veja também [SECURITY.md](SECURITY.md).
-
-Build local de preview:
-
-```bash
-npm run preview
-```
-
-## Deploy alternativo na VPS
-
-Para rodar o CRM em uma VPS com Docker + HTTPS automatico, use o guia [docs/VPS_DEPLOY.md](docs/VPS_DEPLOY.md).
-
-Esse caminho e recomendado para testar a VPS como ambiente de producao ou como fallback, mantendo o deploy Cloudflare ativo ate a virada do dominio.
+As variáveis de produção ficam somente em `/opt/solaire-crm/app-src/.env.production` na VPS. Não coloque chaves no repositório nem em arquivos versionados. Veja [docs/VPS_DEPLOY.md](docs/VPS_DEPLOY.md) e [SECURITY.md](SECURITY.md).
 
 ---
 
@@ -260,7 +234,9 @@ Variáveis CSS injetadas por tenant: `--brand`, `--accent`, `--ring`, bolhas de 
 |---------|------|
 | `npm run dev` | Servidor de desenvolvimento |
 | `npm run build` | Build Next.js |
-| `npm run deploy` | Build OpenNext + deploy Workers |
+| `npm test` | Suíte de testes Node |
+| `npm run check:migrations` | Detecta migrations sem padrão ou com versão repetida |
+| `npm run deploy` | Build e deploy Docker na VPS |
 | `npm run lint` | ESLint |
 | `npm run supabase:types` | Gera tipos TypeScript do schema local |
 
@@ -283,6 +259,6 @@ Projeto privado — uso conforme acordo com os mantenedores do repositório.
 
 ## Repositório
 
-**GitHub:** [github.com/ramosxzz/solairew-crm](https://github.com/ramosxzz/solairew-crm)
+**GitHub:** [github.com/ramosxzz/crm-white-label](https://github.com/ramosxzz/crm-white-label)
 
 Desenvolvido como chassis operacional **SolAIre W+** para CRM white-label, IA aplicada ao negócio e operações comerciais modernas.

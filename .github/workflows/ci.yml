@@ -45,6 +45,8 @@ jobs:
 
       - run: npm test
 
+      - run: npm run check:migrations
+
       # Falha o build so em vulnerabilidade critica (ja temos 3 "high" hoje,
       # herdadas do proprio Next.js/sharp, que so fecham com upgrade major -
       # travar nisso agora so trava todo deploy sem ninguem poder mergear).

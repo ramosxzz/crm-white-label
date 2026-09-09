@@ -4,9 +4,9 @@ Este caminho roda o CRM em Docker com Caddy na frente. O Caddy cuida de HTTPS, p
 
 ## Por que assim
 
-- Mantem o deploy Cloudflare como fallback enquanto a VPS e testada.
+- Este e o ambiente oficial de producao do CRM.
 - Evita instalar Node, PM2 e Nginx manualmente no servidor.
-- Permite trocar o dominio para a VPS apenas quando o teste estiver estavel.
+- Mantem a aplicacao empacotada e reproduzivel entre deploys.
 - Deixa `/api/health` disponivel para diagnostico rapido.
 
 ## Requisitos da VPS
@@ -73,7 +73,7 @@ docker image prune -f
 
 ## Webhooks
 
-Quando a VPS virar a URL principal, atualize os provedores para o novo dominio:
+Configure os provedores com o dominio oficial da VPS:
 
 ```txt
 https://SEU_DOMINIO/api/webhooks/whatsapp/evolution
@@ -81,23 +81,4 @@ https://SEU_DOMINIO/api/webhooks/whatsapp/cloud_api
 https://SEU_DOMINIO/api/webhooks/instagram
 ```
 
-Enquanto estiver testando, mantenha Cloudflare como fallback e use um subdominio separado para a VPS, por exemplo:
-
-```txt
-crm-vps.seudominio.com.br
-```
-
-## O que me passar para eu subir
-
-Nao envie senhas em texto solto. O ideal e passar por cofre/senha temporaria.
-
-- IP da VPS.
-- Usuario SSH com `sudo`.
-- Dominio/subdominio que vai apontar para a VPS.
-- Confirmacao de que o DNS ja aponta para o IP.
-- Valores de `.env.production`.
-- Se o banco continua no Supabase ou se vamos planejar migracao para Postgres na VPS.
-
-## Minha recomendacao
-
-Primeiro rode o CRM na VPS usando o mesmo Supabase. Se a navegacao melhorar mas mensagens continuarem atrasadas, o gargalo esta no caminho WhatsApp/Instagram -> webhook -> banco. Ai o proximo passo e separar processamento de webhooks em fila com retry.
+O dominio atual e `crm.solairew.com.br`. Nao envie senhas em texto solto; mantenha o acesso SSH e as variaveis de producao nos secrets do GitHub e no arquivo protegido da VPS.

@@ -1,5 +1,6 @@
 import { createBrowserClient } from "@supabase/ssr";
 import type { Database } from "./database.types";
+import { createTimeoutFetch } from "@/lib/async/timeout-fetch";
 
 /**
  * `fetch` nativo nao tem timeout por padrao: sem isso, uma chamada ao
@@ -11,9 +12,7 @@ import type { Database } from "./database.types";
  */
 const SUPABASE_FETCH_TIMEOUT_MS = 30_000;
 
-function timeoutFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  return fetch(input, { ...init, signal: AbortSignal.timeout(SUPABASE_FETCH_TIMEOUT_MS) });
-}
+const timeoutFetch = createTimeoutFetch(SUPABASE_FETCH_TIMEOUT_MS);
 
 export function createClient() {
   return createBrowserClient<Database>(

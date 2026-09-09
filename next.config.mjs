@@ -3,6 +3,8 @@ import { withSentryConfig } from "@sentry/nextjs";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Impede que um package-lock fora do repositorio amplie o trace da imagem Docker.
+  outputFileTracingRoot: process.cwd(),
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**.supabase.co" },
@@ -54,6 +56,8 @@ export default withSentryConfig(nextConfig, {
   project: "javascript-nextjs",
   silent: true,
   widenClientFileUpload: true,
-  disableLogger: true,
-  automaticVercelMonitors: false,
+  webpack: {
+    treeshake: { removeDebugLogging: true },
+    automaticVercelMonitors: false,
+  },
 });

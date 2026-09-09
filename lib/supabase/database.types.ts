@@ -4154,6 +4154,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      assign_automation_lead_round_robin: {
+        Args: { p_tenant_id: string; p_flow_id: string; p_block_id: string; p_lead_id: string; p_user_ids: string[] }
+        Returns: Json
+      }
+      submit_satisfaction_survey_atomic: {
+        Args: { p_slug: string; p_nps_score: number; p_comments: string; p_ratings: Json }
+        Returns: string
+      }
       approve_financial_adjustment: {
         Args: { p_request_id: string; p_user_id: string }
         Returns: undefined

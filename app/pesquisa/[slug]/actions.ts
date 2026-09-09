@@ -12,11 +12,14 @@ const submitSchema = z.object({
         service_rating: z.number().int().min(1).max(5),
       }),
     )
-    .min(1, "Avalie pelo menos uma funcionária"),
+    .min(1, "Avalie pelo menos uma funcionária")
+    .max(100)
+    .refine((ratings) => new Set(ratings.map((r) => r.employee_name)).size === ratings.length,
+      "Cada funcionária pode ser avaliada uma vez"),
   nps_score: z.number().int().min(0).max(10),
   comments: z.string().trim().max(4000).optional(),
   // honeypot - campo invisivel pro humano, se vier preenchido e bot
-  website: z.string().max(0).optional(),
+  website: z.string().max(2000).optional(),
 });
 
 export async function submitSatisfactionSurvey(input: z.infer<typeof submitSchema>) {
@@ -46,33 +49,15 @@ export async function submitSatisfactionSurvey(input: z.infer<typeof submitSchem
     return { ok: false as const, error: "Avalie pelo menos uma funcionária valida." };
   }
 
-  const { data: response, error } = await supabase
-    .from("satisfaction_survey_responses")
-    .insert({
-      tenant_id: form.tenant_id,
-      nps_score: parsed.data.nps_score,
-      comments: parsed.data.comments || null,
-      channel: parsed.data.slug,
-    })
-    .select("id")
-    .single();
+  const { data: response, error } = await supabase.rpc("submit_satisfaction_survey_atomic", {
+    p_slug: parsed.data.slug,
+    p_nps_score: parsed.data.nps_score,
+    p_comments: parsed.data.comments || "",
+    p_ratings: validRatings,
+  });
 
   if (error || !response) {
     console.error("[pesquisa] erro ao inserir response:", error);
-    return { ok: false as const, error: "Nao foi possivel enviar. Tenta de novo em instantes." };
-  }
-
-  const { error: ratingsError } = await supabase.from("satisfaction_survey_employee_ratings").insert(
-    validRatings.map((r) => ({
-      response_id: response.id,
-      tenant_id: form.tenant_id,
-      employee_name: r.employee_name,
-      service_rating: r.service_rating,
-    })),
-  );
-
-  if (ratingsError) {
-    console.error("[pesquisa] erro ao inserir ratings:", ratingsError);
     return { ok: false as const, error: "Nao foi possivel enviar. Tenta de novo em instantes." };
   }
 

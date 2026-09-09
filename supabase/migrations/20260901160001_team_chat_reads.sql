@@ -1,3 +1,4 @@
+-- Identificador unico; as notas da pesquisa usam 20260901160000.
 -- Marca de "lido ate aqui" por usuario no chat da equipe, pra badge de
 -- nao lidas na sidebar.
 

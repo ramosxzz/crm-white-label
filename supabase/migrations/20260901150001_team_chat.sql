@@ -1,3 +1,4 @@
+-- Identificador unico; a pesquisa usa 20260901150000.
 -- Chat interno da empresa: um grupo unico por tenant pra funcionarios
 -- conversarem, com mencao (@usuario) e audio, igual pedido pelo dono.
 
