@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createAppointmentForLead } from "./schedule-meeting-action";
+import { MeetingMiniAgenda } from "./meeting-mini-agenda";
 
 export function ScheduleMeetingButton({
   leadId,
@@ -36,6 +37,14 @@ export function ScheduleMeetingButton({
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
+  const [startsAt, setStartsAt] = useState("");
+  const [assignedTo, setAssignedTo] = useState("");
+
+  function pickFromAgenda(date: string, userId: string) {
+    const time = startsAt.split("T")[1] || "09:00";
+    setStartsAt(`${date}T${time}`);
+    setAssignedTo(userId);
+  }
 
   function onSubmit(formData: FormData) {
     setMsg(null);
@@ -50,8 +59,17 @@ export function ScheduleMeetingButton({
     });
   }
 
+  function onOpenChange(next: boolean) {
+    setOpen(next);
+    if (!next) {
+      setMsg(null);
+      setStartsAt("");
+      setAssignedTo("");
+    }
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button variant={variant as never} size={size as never} title="Agendar reunião">
           <CalendarPlus className="h-4 w-4" />
@@ -65,10 +83,20 @@ export function ScheduleMeetingButton({
         <form action={onSubmit} className="space-y-4">
           <input type="hidden" name="lead_id" value={leadId} />
           <input type="hidden" name="lead_name" value={leadName} />
+
+          <MeetingMiniAgenda selectedUserId={assignedTo} onPickDateAndUser={pickFromAgenda} />
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="sm-start">Data e hora</Label>
-              <Input id="sm-start" name="starts_at" type="datetime-local" required />
+              <Input
+                id="sm-start"
+                name="starts_at"
+                type="datetime-local"
+                required
+                value={startsAt}
+                onChange={(e) => setStartsAt(e.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="sm-duration">Duracao (min)</Label>
@@ -78,7 +106,13 @@ export function ScheduleMeetingButton({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="sm-assignee">Responsavel</Label>
-              <select id="sm-assignee" name="assigned_to" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+              <select
+                id="sm-assignee"
+                name="assigned_to"
+                value={assignedTo}
+                onChange={(e) => setAssignedTo(e.target.value)}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
                 <option value="">Sem responsavel</option>
                 {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
               </select>
