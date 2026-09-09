@@ -85,6 +85,13 @@ export const AGENDA_TONE_CLASSES: Record<AgendaCardTone, { border: string; bg: s
   cinza: { border: "border-slate-300", bg: "bg-slate-100", text: "text-slate-600" },
 };
 
+// O card e sempre claro (pastel), nas duas temas - por isso o texto "neutro"
+// dele (nome do cliente, servico, horario) nao pode usar as classes padrao
+// do tema (foreground/muted-foreground), que viram claras no modo escuro e
+// ficam ilegiveis em cima de um fundo que continua claro.
+export const AGENDA_CARD_TEXT = "text-slate-800";
+export const AGENDA_CARD_MUTED_TEXT = "text-slate-500";
+
 export const AGENDA_TONE_LABEL: Record<AgendaCardTone, string> = {
   amarelo: "A confirmar",
   azul: "Confirmada",
@@ -94,6 +101,60 @@ export const AGENDA_TONE_LABEL: Record<AgendaCardTone, string> = {
   vermelho: "Pendência",
   cinza: "Cancelada",
 };
+
+export type CardLane = { id: string; lane: number; laneCount: number };
+
+/**
+ * Distribui cards que se sobrepoem no tempo em colunas lado a lado (como a
+ * visao de dia do Google Agenda) em vez de empilhar um exatamente por cima
+ * do outro - dois atendimentos proximos (ex.: os dois as 09:00) ficavam
+ * ilegiveis, um escondendo o texto do outro.
+ *
+ * `start`/`end` sao qualquer unidade consistente (aqui, pixels de topo da
+ * grade) - a funcao so compara intervalos, nao importa a unidade.
+ */
+export function layoutOverlappingCards(
+  items: Array<{ id: string; start: number; end: number }>,
+): CardLane[] {
+  const sorted = [...items].sort((a, b) => a.start - b.start);
+  type Active = { id: string; end: number; lane: number };
+  let active: Active[] = [];
+  let cluster: Active[] = [];
+  const clusters: Active[][] = [];
+  const laneById = new Map<string, number>();
+
+  function flushCluster() {
+    if (cluster.length > 0) clusters.push(cluster);
+    cluster = [];
+  }
+
+  for (const item of sorted) {
+    active = active.filter((a) => a.end > item.start);
+    if (active.length === 0) flushCluster();
+
+    const usedLanes = new Set(active.map((a) => a.lane));
+    let lane = 0;
+    while (usedLanes.has(lane)) lane++;
+
+    const entry: Active = { id: item.id, end: item.end, lane };
+    active.push(entry);
+    cluster.push(entry);
+    laneById.set(item.id, lane);
+  }
+  flushCluster();
+
+  const laneCountById = new Map<string, number>();
+  for (const c of clusters) {
+    const maxLane = Math.max(...c.map((e) => e.lane)) + 1;
+    for (const e of c) laneCountById.set(e.id, maxLane);
+  }
+
+  return items.map((item) => ({
+    id: item.id,
+    lane: laneById.get(item.id) ?? 0,
+    laneCount: laneCountById.get(item.id) ?? 1,
+  }));
+}
 
 export function brtDay(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });

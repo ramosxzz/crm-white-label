@@ -17,6 +17,8 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import {
+  AGENDA_CARD_MUTED_TEXT,
+  AGENDA_CARD_TEXT,
   AGENDA_END_HOUR,
   AGENDA_MIN_CARD_MINUTES,
   AGENDA_PX_PER_MINUTE,
@@ -27,6 +29,7 @@ import {
   agendaGridHeightPx,
   fallbackWindowForShift,
   formatHourMinute,
+  layoutOverlappingCards,
   minutesFromGridStart,
 } from "@/lib/field-service/agenda";
 import type { FieldServicePartner, ServiceOrderStatus } from "@/lib/supabase/database.types";
@@ -121,10 +124,10 @@ function AgendaCard({
         </span>
         {order.hasPendingIssue && <AlertTriangle className="h-3 w-3 shrink-0 text-red-600" />}
       </div>
-      <p className="truncate font-medium">{order.leadName}</p>
-      {order.serviceLabel && <p className="truncate text-muted-foreground">{order.serviceLabel}</p>}
+      <p className={cn("truncate font-medium", AGENDA_CARD_TEXT)}>{order.leadName}</p>
+      {order.serviceLabel && <p className={cn("truncate", AGENDA_CARD_MUTED_TEXT)}>{order.serviceLabel}</p>}
       {window_ && (
-        <p className="tabular-nums text-muted-foreground">
+        <p className={cn("tabular-nums", AGENDA_CARD_MUTED_TEXT)}>
           {formatHourMinute(window_.startAt)} → {formatHourMinute(window_.endAt)}
           {!order.scheduledStartAt && " (sem horário exato)"}
         </p>
@@ -309,26 +312,50 @@ function TechnicianColumn({
           style={{ top: i * 60 * AGENDA_PX_PER_MINUTE }}
         />
       ))}
-      {orders.map((order) => {
-        const win = order.scheduledStartAt && order.scheduledEndAt
-          ? { startAt: order.scheduledStartAt, endAt: order.scheduledEndAt }
-          : fallbackWindowForShift(order.serviceDate ?? day, order.shift);
-        if (!win) return null;
-        const top = Math.max(0, minutesFromGridStart(win.startAt, day) * AGENDA_PX_PER_MINUTE);
-        const durationMin = Math.max(
-          AGENDA_MIN_CARD_MINUTES,
-          (new Date(win.endAt).getTime() - new Date(win.startAt).getTime()) / 60000,
+      {(() => {
+        const positioned = orders
+          .map((order) => {
+            const win = order.scheduledStartAt && order.scheduledEndAt
+              ? { startAt: order.scheduledStartAt, endAt: order.scheduledEndAt }
+              : fallbackWindowForShift(order.serviceDate ?? day, order.shift);
+            if (!win) return null;
+            const top = Math.max(0, minutesFromGridStart(win.startAt, day) * AGENDA_PX_PER_MINUTE);
+            const durationMin = Math.max(
+              AGENDA_MIN_CARD_MINUTES,
+              (new Date(win.endAt).getTime() - new Date(win.startAt).getTime()) / 60000,
+            );
+            const height = durationMin * AGENDA_PX_PER_MINUTE;
+            return { order, top, height };
+          })
+          .filter((v): v is { order: AgendaOrder; top: number; height: number } => v !== null);
+
+        // Dois atendimentos proximos (ex.: os dois as 09:00) ficavam um por
+        // cima do outro, ilegiveis - divide em colunas lado a lado quando o
+        // horario se sobrepoe, como a agenda do Google.
+        const lanes = layoutOverlappingCards(
+          positioned.map((p) => ({ id: p.order.id, start: p.top, end: p.top + p.height })),
         );
-        return (
-          <div
-            key={order.id}
-            className="absolute inset-x-0.5"
-            style={{ top, height: durationMin * AGENDA_PX_PER_MINUTE }}
-          >
-            <AgendaCard order={order} day={day} canManage={canManage} technicians={technicians} consultants={consultants} onOpen={onOpen} onAction={onAction} />
-          </div>
-        );
-      })}
+        const laneById = new Map(lanes.map((l) => [l.id, l]));
+
+        return positioned.map(({ order, top, height }) => {
+          const lane = laneById.get(order.id) ?? { lane: 0, laneCount: 1 };
+          const widthPct = 100 / lane.laneCount;
+          return (
+            <div
+              key={order.id}
+              className="absolute px-px"
+              style={{
+                top,
+                height,
+                left: `${lane.lane * widthPct}%`,
+                width: `${widthPct}%`,
+              }}
+            >
+              <AgendaCard order={order} day={day} canManage={canManage} technicians={technicians} consultants={consultants} onOpen={onOpen} onAction={onAction} />
+            </div>
+          );
+        });
+      })()}
     </div>
   );
 
