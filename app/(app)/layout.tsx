@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { Suspense } from "react";
 import { Sidebar } from "@/components/app/sidebar";
+import { OsWorkspaceGate } from "@/components/app/os-workspace-gate";
 import { Topbar } from "@/components/app/topbar";
 import { MobileBottomNav } from "@/components/app/mobile-bottom-nav";
 import { MobileMenuProvider } from "@/components/app/mobile-menu-context";
@@ -80,13 +81,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     getTeamChatUnreadCount(supabase, ctx.tenantId, ctx.userId),
   ]);
 
-  // Tela de uma OS aberta: o menu principal recolhe e da lugar pra agenda do
-  // dia inteiro (pedido explicito, "workspace" de OS) - so a rota exata
-  // /os/<uuid>, nao /os/agenda, /os/roteiro etc (essas ja tem rota propria e
-  // nunca batem no [id] dinamico).
-  const currentPathname = (await headers()).get("x-pathname") ?? "";
-  const isOsWorkspace = /^\/os\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentPathname);
-
   return (
     <>
       <Suspense fallback={null}>
@@ -97,7 +91,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {ctx.osOnlyAccess && <ForceLightTheme />}
       <MobileMenuProvider>
         <div className="flex h-[100dvh] overflow-hidden print:h-auto print:overflow-visible print:block">
-          {!isOsWorkspace && (
+          <OsWorkspaceGate>
             <div className="print:hidden">
               <Sidebar
                 tenantId={ctx.tenantId}
@@ -121,7 +115,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 userEmail={ctx.userEmail}
               />
             </div>
-          )}
+          </OsWorkspaceGate>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col print:block print:min-h-0">
             <div className="print:hidden">
               <Topbar lastSeenUpdateAt={profile?.last_seen_update_at ?? null} />
