@@ -192,8 +192,11 @@ export default async function ServiceOrderDetailPage({
   const canApproveDiscount = canApproveServiceOrderDiscount(ctx.role);
   const isTech = isTechnicianRole(ctx.role);
   const canPriceItems = canManage || ctx.role === "vendedor";
-  const technicians = canManage ? await listTechnicians(ctx.tenantId) : [];
-  const consultants = canManage ? await listConsultants(ctx.tenantId) : [];
+  // Vendedora tambem edita atendimento (voltagem, endereco...) na OS que ela
+  // enxerga - precisa das mesmas listas de tecnico/consultora que a gestao
+  // usa nesse dialogo, senao os seletores aparecem vazios pra ela.
+  const technicians = canPriceItems ? await listTechnicians(ctx.tenantId) : [];
+  const consultants = canPriceItems ? await listConsultants(ctx.tenantId) : [];
 
   // Comissao so existe apos faturar, e a leitura e restrita (mesmo corte de
   // /financeiro) - buscar so quando faz sentido evita mostrar "R$0,00"
@@ -304,7 +307,7 @@ export default async function ServiceOrderDetailPage({
           <section className="rounded-xl border border-border/70 bg-card p-4 shadow-elev-1">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-semibold">Negociação</h2>
-              {canManage && (
+              {canPriceItems && (
                 <AtendimentoEditDialog
                   serviceOrderId={order.id}
                   leadName={order.leads?.name ?? ""}

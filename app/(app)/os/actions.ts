@@ -55,6 +55,18 @@ async function requireManagerContext() {
   return ctx;
 }
 
+/** Corrigir dado do atendimento (nome, voltagem, endereco...): gestao ou a
+    propria vendedora que fechou a venda - a RLS ja restringe qual OS ela
+    enxerga, aqui so barra papel (tecnico, financeiro puro etc). */
+async function requireAtendimentoEditContext() {
+  const ctx = await requireContext();
+  assertFieldServiceEnabled(ctx);
+  if (!canManageServiceOrders(ctx.role) && ctx.role !== "vendedor") {
+    throw new Error("Sem permissao para editar o atendimento");
+  }
+  return ctx;
+}
+
 const addressSchema = {
   address_street: z.string().trim().optional(),
   address_number: z.string().trim().optional(),
@@ -1609,7 +1621,7 @@ async function updateServiceOrderAtendimentoImpl(input: {
   id: string;
   formData: FormData;
 }) {
-  const ctx = await requireManagerContext();
+  const ctx = await requireAtendimentoEditContext();
   const supabase = await createClient();
   const formData = input.formData;
 
