@@ -21,6 +21,7 @@ export function StarRating({
           type="button"
           onClick={() => onChange(n === value ? 0 : n)}
           title={`${n} estrela${n > 1 ? "s" : ""}`}
+          aria-label={`Avaliar lead com ${n} estrela${n > 1 ? "s" : ""}`}
           className="text-muted-foreground transition-colors hover:text-amber-400"
         >
           <Star className={cn(starSize, n <= value && "fill-amber-400 text-amber-400")} />

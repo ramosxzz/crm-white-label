@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { deleteLead } from "@/app/(app)/leads/actions";
+import { cn } from "@/lib/utils";
 
 export function LeadDeleteButton({
   leadId,
@@ -14,6 +15,7 @@ export function LeadDeleteButton({
   variant = "outline",
   size = "sm",
   iconOnly = false,
+  className,
 }: {
   leadId: string;
   leadName: string;
@@ -21,6 +23,7 @@ export function LeadDeleteButton({
   variant?: "outline" | "ghost" | "destructive";
   size?: "sm" | "default" | "icon";
   iconOnly?: boolean;
+  className?: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -31,7 +34,10 @@ export function LeadDeleteButton({
       variant={variant}
       size={size}
       disabled={pending}
-      className={variant === "outline" ? "text-destructive hover:bg-destructive/10" : undefined}
+      className={cn(
+        variant === "outline" && "text-destructive hover:bg-destructive/10",
+        className,
+      )}
       title="Excluir lead"
       onClick={async () => {
         const confirmed = await confirmDialog({

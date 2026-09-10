@@ -18,7 +18,19 @@ async function loadModule() {
   return import(pathToFileURL(outfile).href);
 }
 
-const { getBRTMonthBounds } = await loadModule();
+const { formatCompactTimeBRT, getBRTMonthBounds } = await loadModule();
+
+test("formata o tempo da conversa sem texto desnecessário", () => {
+  const originalNow = Date.now;
+  Date.now = () => new Date("2026-09-10T15:00:00Z").getTime();
+  try {
+    assert.equal(formatCompactTimeBRT("2026-09-10T14:28:00Z"), "32min");
+    assert.equal(formatCompactTimeBRT("2026-09-10T11:00:00Z"), "4h");
+    assert.equal(formatCompactTimeBRT("2026-09-09T15:00:00Z"), "1d");
+  } finally {
+    Date.now = originalNow;
+  }
+});
 
 test("mes atual: julho de 2026", () => {
   const ref = new Date("2026-07-29T15:00:00Z");

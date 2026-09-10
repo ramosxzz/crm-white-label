@@ -43,6 +43,7 @@ import {
   Cable,
   Radio,
   Video,
+  MessageCircle,
 } from "lucide-react";
 import { EmojiPickerButton } from "@/components/chat/emoji-picker-button";
 import { updateLead } from "@/app/(app)/leads/actions";
@@ -58,6 +59,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -1311,7 +1313,7 @@ export function ChatThread({
                         )}
                         <div
                           className={cn(
-                            "max-w-[min(86%,520px)] rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed shadow-elev-1",
+                            "max-w-[min(86%,640px)] rounded-2xl px-3.5 py-2 text-[15px] leading-relaxed shadow-elev-1",
                             outbound
                               ? "rounded-br-md bg-chat-outbound text-chat-outbound-foreground shadow-md ring-1 ring-black/5 dark:ring-white/10"
                               : "rounded-bl-md border border-border/55 bg-card text-foreground shadow-elev-1",
@@ -1354,7 +1356,7 @@ export function ChatThread({
   return (
     <section className="flex min-h-0 flex-1 bg-[hsl(var(--chat-surface))]">
       <div className="flex min-w-0 flex-1 flex-col">
-      <header className="flex shrink-0 flex-col gap-2 border-b border-border/50 bg-card/78 px-3 py-2.5 backdrop-blur-md sm:px-5 sm:py-3.5 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-x-3 md:gap-y-2">
+      <header className="flex shrink-0 flex-col gap-2 border-b border-border/50 bg-card/92 px-3 py-2.5 backdrop-blur-md sm:px-5 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-x-3 md:gap-y-2">
         <div className="flex min-w-0 items-center gap-2.5 md:gap-3">
           <Link
             href="/chat"
@@ -1379,17 +1381,21 @@ export function ChatThread({
               <span className="truncate font-display text-base font-semibold tracking-normal">{displayName}</span>
               <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
             </button>
-            <p className="truncate text-xs text-muted-foreground md:hidden">{displayPhone}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {leadDetails?.companyName || displayPhone}
+            </p>
           </div>
           {/* Estrela ali embaixo no painel lateral era facil de esquecer de
               preencher - fica aqui em cima, sempre visivel ao abrir o chat. */}
-          <StarRating
-            value={leadDetails?.qualityStars ?? 0}
-            onChange={(next) => {
-              setLeadDetails((current) => (current ? { ...current, qualityStars: next } : current));
-              void setLeadQualityStars({ leadId, stars: next }).catch((err) => notifyError(err));
-            }}
-          />
+          <div className="hidden lg:block">
+            <StarRating
+              value={leadDetails?.qualityStars ?? 0}
+              onChange={(next) => {
+                setLeadDetails((current) => (current ? { ...current, qualityStars: next } : current));
+                void setLeadQualityStars({ leadId, stars: next }).catch((err) => notifyError(err));
+              }}
+            />
+          </div>
           <Button
             type="button"
             variant="outline"
@@ -1401,6 +1407,7 @@ export function ChatThread({
             onClick={togglePinned}
             disabled={!conversationId || pinning}
             title={pinned ? "Desafixar conversa" : "Fixar conversa no topo"}
+            aria-label={pinned ? "Desafixar conversa" : "Fixar conversa no topo"}
             aria-pressed={pinned}
           >
             {pinning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pin className={cn("h-4 w-4", pinned && "fill-current")} />}
@@ -1412,25 +1419,13 @@ export function ChatThread({
             className="h-9 w-9 shrink-0 rounded-lg md:hidden"
             onClick={() => setSidePanelOpen(true)}
             title="Detalhes do contato"
+            aria-label="Abrir detalhes do contato"
           >
             <PanelRight className="h-4 w-4" />
           </Button>
         </div>
 
         <div className="relative z-30 hidden min-w-0 shrink-0 items-center gap-2 md:flex md:justify-end">
-          <button
-            type="button"
-            onClick={toggleAutomations}
-            title={automationsOn ? "Automações ligadas — clique para pausar" : "Automações pausadas — clique para ligar"}
-            className={cn(
-              "grid h-9 w-9 shrink-0 place-items-center rounded-lg border text-xs font-medium transition-colors",
-              automationsOn
-                ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                : "border-border/60 text-muted-foreground hover:bg-muted/40",
-            )}
-          >
-            {automationsOn ? <Bot className="h-4 w-4" /> : <BotOff className="h-4 w-4" />}
-          </button>
           {!isInstagram && whatsappAccounts.length > 0 && (
             <AccountSelector
               accounts={whatsappAccounts}
@@ -1445,71 +1440,85 @@ export function ChatThread({
             users={users}
             services={services}
             variant="outline"
-            size="icon"
+            size="sm"
+            className="h-9"
           />
-          {!isInstagram && leadPhone && callsEnabled && <CallButton leadId={leadId} phone={leadPhone} iconOnly />}
-          {!isInstagram && leadPhone && <WhatsAppCallButton phone={leadPhone} iconOnly />}
-          {!isInstagram && (
-            <Link
-              href={`/chat/${leadId}/export`}
-              target="_blank"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border/70 transition-colors hover:bg-muted/40"
-              title="Exportar conversa em PDF"
-            >
-              <FileText className="h-4 w-4" />
-            </Link>
-          )}
-          {fieldService && (
-            <NewServiceOrderDialog
-              lead={{ id: leadId, name: displayName, phone: leadPhone || null }}
-              consultants={fieldService.consultants}
-            partners={fieldService.partners}
-            showMiniAgenda
-
-            lockedConsultant={fieldService.lockedConsultant}
-
-            leadReferral={fieldService.leadReferral}
-            catalogItems={fieldService.catalogItems}
-              trigger={
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="shrink-0 rounded-lg"
-                  title="Abrir ordem de serviço para esse cliente"
-                >
-                  <Wrench className="h-4 w-4" />
-                </Button>
-              }
-            />
+          {!isInstagram && leadPhone && callsEnabled && (
+            <CallButton leadId={leadId} phone={leadPhone} className="h-9" />
           )}
           <StatusSelector status={status} onChange={changeStatus} />
-          {status !== "resolvida" && (
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="shrink-0 rounded-lg border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
-              onClick={() => changeStatus("resolvida")}
-              title="Finalizar conversa como resolvida"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-            </Button>
-          )}
-          <LeadDeleteButton leadId={leadId} leadName={displayName} redirectTo="/chat" size="icon" iconOnly />
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="shrink-0 rounded-lg"
-            onClick={() => {
-              setSidePanelOpen(true);
-              setDesktopPanelOpen((open) => !open);
-            }}
-            title={desktopPanelOpen ? "Recolher detalhes do contato" : "Mostrar detalhes do contato"}
-          >
-            <PanelRight className="h-4 w-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline" size="icon" className="h-9 w-9 rounded-lg" title="Mais ações" aria-label="Mais ações">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuItem onSelect={toggleAutomations} className="cursor-pointer gap-2.5">
+                {automationsOn ? <Bot className="h-4 w-4 text-emerald-500" /> : <BotOff className="h-4 w-4" />}
+                {automationsOn ? "Pausar automações" : "Ativar automações"}
+              </DropdownMenuItem>
+              {!isInstagram && leadPhone && (
+                <DropdownMenuItem asChild>
+                  <a
+                    href={`https://wa.me/${leadPhone.replace(/\D/g, "").startsWith("55") ? leadPhone.replace(/\D/g, "") : `55${leadPhone.replace(/\D/g, "")}`}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="cursor-pointer gap-2.5"
+                  >
+                    <MessageCircle className="h-4 w-4" /> Abrir no WhatsApp
+                  </a>
+                </DropdownMenuItem>
+              )}
+              {!isInstagram && (
+                <DropdownMenuItem asChild>
+                  <Link href={`/chat/${leadId}/export`} target="_blank" className="cursor-pointer gap-2.5">
+                    <FileText className="h-4 w-4" /> Exportar conversa em PDF
+                  </Link>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                onSelect={() => {
+                  setSidePanelOpen(true);
+                  setDesktopPanelOpen((open) => !open);
+                }}
+                className="cursor-pointer gap-2.5"
+              >
+                <PanelRight className="h-4 w-4" />
+                {desktopPanelOpen ? "Recolher ficha do lead" : "Mostrar ficha do lead"}
+              </DropdownMenuItem>
+              {fieldService && (
+                <NewServiceOrderDialog
+                  lead={{ id: leadId, name: displayName, phone: leadPhone || null }}
+                  consultants={fieldService.consultants}
+                  partners={fieldService.partners}
+                  showMiniAgenda
+                  lockedConsultant={fieldService.lockedConsultant}
+                  leadReferral={fieldService.leadReferral}
+                  catalogItems={fieldService.catalogItems}
+                  trigger={
+                    <button type="button" className="flex w-full items-center gap-2.5 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground">
+                      <Wrench className="h-4 w-4" /> Nova ordem de serviço
+                    </button>
+                  }
+                />
+              )}
+              <DropdownMenuSeparator />
+              {status !== "resolvida" && (
+                <DropdownMenuItem onSelect={() => changeStatus("resolvida")} className="cursor-pointer gap-2.5 text-emerald-600 focus:text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4" /> Finalizar atendimento
+                </DropdownMenuItem>
+              )}
+              <LeadDeleteButton
+                leadId={leadId}
+                leadName={displayName}
+                redirectTo="/chat"
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start gap-2.5 px-2 font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <div ref={mobileActionsRef} className="relative z-30 md:hidden">
@@ -1518,6 +1527,7 @@ export function ChatThread({
               type="button"
               onClick={toggleAutomations}
               title={automationsOn ? "Automações ligadas" : "Automações pausadas"}
+              aria-label={automationsOn ? "Pausar automações" : "Ativar automações"}
               className={cn(
                 "grid h-10 w-10 shrink-0 place-items-center rounded-lg border text-xs font-medium transition-colors",
                 automationsOn
@@ -1548,6 +1558,8 @@ export function ChatThread({
               className="h-10 w-10 shrink-0 rounded-lg"
               onClick={() => setMobileActionsOpen((value) => !value)}
               title="Mais ações"
+              aria-label="Mais ações"
+              aria-expanded={mobileActionsOpen}
             >
               <MoreHorizontal className="h-4 w-4" />
             </Button>
@@ -1629,73 +1641,57 @@ export function ChatThread({
       </header>
 
       {nextScheduled && (
-        <div className="shrink-0 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2.5 text-amber-950 dark:bg-amber-500/10 dark:text-amber-100 sm:px-6">
-          <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-amber-500/25 bg-amber-500/12 text-amber-700 dark:text-amber-300">
-                <CalendarClock className="h-4 w-4" />
-              </span>
-              <div className="min-w-0 text-sm">
-                <p className="font-semibold">
+        <div className="shrink-0 border-b border-amber-500/20 bg-amber-500/10 px-4 py-1.5 text-amber-950 dark:text-amber-100 sm:px-6">
+          <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2 text-sm">
+              <CalendarClock className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" />
+              <p className="truncate font-medium">
                   {pendingScheduled.length === 1
                     ? "1 mensagem agendada"
                     : `${pendingScheduled.length} mensagens agendadas`}
-                  <span className="font-normal text-amber-900/75 dark:text-amber-100/75">
-                    {" "}
-                    para {formatBRTDateTime(nextScheduled.send_at)}
-                  </span>
-                </p>
-                <p className="truncate text-xs text-amber-900/70 dark:text-amber-100/65">
-                  {nextScheduled.media_url ? "Áudio agendado" : nextScheduled.body}
-                </p>
-              </div>
+                <span className="font-normal text-amber-900/75 dark:text-amber-100/75">
+                  {` para ${formatBRTDateTime(nextScheduled.send_at)}`}
+                </span>
+              </p>
             </div>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="h-8 shrink-0 border-amber-500/30 bg-background/40 text-amber-900 hover:bg-amber-500/10 dark:text-amber-100"
+              className="h-7 shrink-0 border-amber-500/30 bg-background/40 px-2.5 text-xs text-amber-900 hover:bg-amber-500/10 dark:text-amber-100"
               onClick={() => {
                 refreshPendingScheduled();
                 setScheduleOpen(true);
               }}
             >
-              Ver agendadas
+              Ver
             </Button>
           </div>
         </div>
       )}
 
       {pendingScheduledCalls.length > 0 && (
-        <div className="shrink-0 border-b border-brand/20 bg-brand/10 px-4 py-2.5 text-brand-foreground sm:px-6">
-          <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-brand/25 bg-brand/12 text-brand">
-                <Phone className="h-4 w-4" />
-              </span>
-              <div className="min-w-0 text-sm">
-                <p className="font-semibold text-foreground">
+        <div className="shrink-0 border-b border-brand/20 bg-brand/10 px-4 py-1.5 sm:px-6">
+          <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2 text-sm">
+              <Phone className="h-4 w-4 shrink-0 text-brand" />
+              <p className="truncate font-medium text-foreground">
                   {pendingScheduledCalls.length === 1
                     ? "1 ligação agendada"
                     : `${pendingScheduledCalls.length} ligações agendadas`}
                   <span className="font-normal text-muted-foreground">
-                    {" "}
-                    para {formatBRTDateTime(pendingScheduledCalls[0].starts_at)}
+                    {` para ${formatBRTDateTime(pendingScheduledCalls[0].starts_at)}`}
                   </span>
                 </p>
-                {pendingScheduledCalls[0].notes && (
-                  <p className="truncate text-xs text-muted-foreground">{pendingScheduledCalls[0].notes}</p>
-                )}
-              </div>
             </div>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="h-8 shrink-0"
+              className="h-7 shrink-0 px-2.5 text-xs"
               onClick={() => setScheduleOpen(true)}
             >
-              Ver agendadas
+              Ver
             </Button>
           </div>
         </div>
@@ -2251,13 +2247,11 @@ export function ChatThread({
         leadName={displayName}
         leadPhone={leadPhone}
         channel={channel}
-        status={status}
         details={leadDetails}
         users={users}
         pipelineOptions={pipelineOptions}
         recentCalls={recentCalls}
         callsEnabled={callsEnabled}
-        onFinalize={() => changeStatus("resolvida")}
         mobileOpen={sidePanelOpen}
         onMobileClose={() => setSidePanelOpen(false)}
         desktopOpen={desktopPanelOpen}
@@ -2296,6 +2290,8 @@ function StatusSelector({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-label={`Status do atendimento: ${meta.label}`}
+        aria-expanded={open}
         className={cn(
           "inline-flex h-10 max-w-full items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors",
           meta.pill,
@@ -2353,7 +2349,7 @@ function MessageContent({ message: m }: { message: ChatMessage }) {
   const quoted = m.reply_to_body ? (
     <div
       className={cn(
-        "mb-2 rounded-lg border-l-2 px-2.5 py-1.5 text-xs",
+        "mb-2 border-l-2 px-2.5 py-1 text-xs",
         m.direction === "outbound"
           ? "border-chat-outbound-foreground/40 bg-chat-outbound-foreground/10 text-chat-outbound-meta"
           : "border-brand/60 bg-muted/55 text-muted-foreground",
@@ -2510,10 +2506,10 @@ function AudioMessage({
       />
       <div
         className={cn(
-          "flex items-center gap-2 rounded-lg px-3 py-2 shadow-sm",
+          "flex items-center gap-2",
           outbound
-            ? "bg-sky-400 text-slate-950"
-            : "border border-border/60 bg-muted/80 text-foreground",
+            ? "text-chat-outbound-foreground"
+            : "text-foreground",
         )}
       >
         <button
@@ -2521,7 +2517,7 @@ function AudioMessage({
           onClick={toggle}
           className={cn(
             "grid h-8 w-8 shrink-0 place-items-center rounded-full transition-transform active:scale-95",
-            outbound ? "bg-blue-500/35 text-slate-950" : "bg-brand text-brand-foreground",
+            outbound ? "bg-chat-outbound-foreground/15 text-chat-outbound-foreground" : "bg-brand text-brand-foreground",
           )}
           aria-label={playing ? "Pausar audio" : "Reproduzir audio"}
         >
@@ -2538,7 +2534,7 @@ function AudioMessage({
                   className={cn(
                     "w-[3px] rounded-full transition-colors",
                     outbound
-                      ? active ? "bg-slate-950" : "bg-slate-950/45"
+                      ? active ? "bg-chat-outbound-foreground" : "bg-chat-outbound-foreground/40"
                       : active ? "bg-brand" : "bg-muted-foreground/45",
                   )}
                   style={{ height }}
@@ -2557,7 +2553,7 @@ function AudioMessage({
             aria-label="Posição do áudio"
           />
         </div>
-        <span className={cn("shrink-0 tabular-nums", outbound ? "text-[11px] font-medium text-slate-950" : "text-[11px] text-muted-foreground")}>
+        <span className={cn("shrink-0 tabular-nums", outbound ? "text-[11px] font-medium text-chat-outbound-meta" : "text-[11px] text-muted-foreground")}>
           {timeLabel}
         </span>
         <button
@@ -2565,7 +2561,7 @@ function AudioMessage({
           onClick={toggleRate}
           className={cn(
             "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none transition-colors",
-            outbound ? "bg-blue-500/30 text-slate-950" : "bg-muted text-foreground",
+            outbound ? "bg-chat-outbound-foreground/15 text-chat-outbound-foreground" : "bg-muted text-foreground",
           )}
           aria-label="Alterar velocidade do áudio"
         >
@@ -2627,13 +2623,11 @@ function LeadSidePanel({
   leadName,
   leadPhone,
   channel,
-  status,
   details,
   users,
   pipelineOptions,
   recentCalls,
   callsEnabled = false,
-  onFinalize,
   mobileOpen,
   onMobileClose,
   desktopOpen = true,
@@ -2645,13 +2639,11 @@ function LeadSidePanel({
   leadName: string;
   leadPhone: string;
   channel: "whatsapp" | "instagram";
-  status: ConversationStatus;
   details?: LeadDetails;
   users: { id: string; name: string }[];
   pipelineOptions: PipelineOption[];
   recentCalls: LeadCallAttempt[];
   callsEnabled?: boolean;
-  onFinalize: () => void;
   mobileOpen: boolean;
   onMobileClose: () => void;
   desktopOpen?: boolean;
@@ -2962,77 +2954,53 @@ function LeadSidePanel({
           "fixed inset-y-0 right-0 z-50 w-[86vw] max-w-sm shrink-0 overflow-y-auto border-l border-border/60 bg-card backdrop-blur-xl transition-[width,transform] duration-200",
           "xl:static xl:z-auto xl:max-w-none xl:translate-x-0 xl:bg-card/78",
           mobileOpen ? "translate-x-0" : "translate-x-full xl:translate-x-0",
-          desktopOpen ? "xl:w-[360px]" : "xl:w-0 xl:overflow-hidden xl:border-l-0",
+          desktopOpen ? "xl:w-[340px]" : "xl:w-0 xl:overflow-hidden xl:border-l-0",
         )}
       >
-      <div className="flex items-center justify-between border-b border-border/60 p-4">
+      <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border/60 bg-card/95 p-4 backdrop-blur-md">
         <div className="min-w-0">
-          <Link href={`/leads/${leadId}`} className="block truncate text-base font-semibold hover:text-brand" prefetch>
-            {leadName}
-          </Link>
+          <p className="truncate text-base font-semibold">{leadName}</p>
           <p className="mt-1 text-xs text-muted-foreground">
             {channel === "instagram" ? "Instagram Direct" : formatPhone(leadPhone)}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onMobileClose}
-          className="shrink-0 rounded-lg p-1.5 text-muted-foreground hover:bg-muted/50 xl:hidden"
-          aria-label="Fechar detalhes"
-        >
-          <X className="h-5 w-5" />
-        </button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Link href={`/leads/${leadId}`} className="rounded-md px-2 py-1 text-xs font-medium text-brand hover:bg-brand/10" prefetch>
+            Abrir lead
+          </Link>
+          <button
+            type="button"
+            onClick={onMobileClose}
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted/50 xl:hidden"
+            aria-label="Fechar detalhes"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
-      <PanelSection title="Ações">
-        <div className="grid grid-cols-2 gap-2">
-          <Button asChild variant="outline" size="sm" className="justify-start">
-            <Link href={`/leads/${leadId}`} prefetch>
-              <Plus className="h-3.5 w-3.5" />
-              Negócio
-            </Link>
-          </Button>
-          <Button asChild variant="outline" size="sm" className="justify-start">
-            <Link href="/automations" prefetch>
-              <Zap className="h-3.5 w-3.5" />
-              Automação
-            </Link>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="col-span-2 justify-start border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
-            onClick={onFinalize}
-            disabled={status === "resolvida"}
-          >
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            {status === "resolvida" ? "Conversa resolvida" : "Finalizar atendimento"}
-          </Button>
-        </div>
-      </PanelSection>
-
       <PanelSection
-        title="Perfil"
+        title="Detalhes"
         action={
           <button
             type="button"
             onClick={openProfileEdit}
             className="text-muted-foreground hover:text-foreground"
             title="Editar perfil"
+            aria-label="Editar perfil do lead"
           >
             <Pencil className="h-3.5 w-3.5" />
           </button>
         }
       >
         <InfoRow label="Nome" value={leadName} />
-        <InfoRow label="E-mail" value={details?.email || "Email do lead"} muted={!details?.email} />
+        <InfoRow label="E-mail" value={details?.email || "-"} muted={!details?.email} />
         <InfoRow label="Telefone" value={channel === "instagram" ? "Instagram Direct" : formatPhone(leadPhone)} />
-        <InfoRow label="Empresa" value={details?.companyName || "Não informada"} muted={!details?.companyName} />
+        <InfoRow label="Empresa" value={details?.companyName || "-"} muted={!details?.companyName} />
         {details?.companyCnpj && (
           <InfoRow label="CNPJ" value={details.companyCnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5")} />
         )}
-        {showAddressField && <InfoRow label="Endereço" value={details?.address || "Não informado"} muted={!details?.address} />}
+        {showAddressField && <InfoRow label="Endereço" value={details?.address || "-"} muted={!details?.address} />}
         {details?.partnerPieces && <InfoRow label="Peças (parceiro)" value={details.partnerPieces} />}
         <InfoRow label="Entrada" value={formatShortDate(details?.createdAt)} />
       </PanelSection>
@@ -3592,8 +3560,10 @@ function AccountSelector({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex h-10 w-full shrink-0 items-center gap-1.5 rounded-lg border border-border/60 bg-background/60 px-2.5 text-xs font-medium transition-colors hover:bg-muted/40"
+        className="inline-flex h-9 w-full shrink-0 items-center gap-1.5 rounded-lg border border-border/60 bg-background/60 px-2.5 text-xs font-medium transition-colors hover:bg-muted/40"
         title="Escolher por qual API/numero enviar"
+        aria-label="Escolher conta de envio"
+        aria-expanded={open}
       >
         <CurrentProviderIcon className={cn("h-4 w-4 shrink-0", currentProvider.iconClass)} />
         <span className="min-w-0 flex-1 truncate text-left md:max-w-[120px]">{label}</span>

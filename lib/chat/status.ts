@@ -14,24 +14,29 @@ export type StatusMeta = {
   text: string;
 };
 
+// Paleta reduzida de proposito: roxo (marca) pra "novo, precisa ser pego",
+// amarelo pra "esperando alguem responder", verde pra "sendo atendido",
+// cinza pra "resolvido". Antes "aguardando" usava azul e "novos" usava
+// amarelo - cor sem relacao com o que ela deveria significar (amarelo =
+// atencao/pendencia em qualquer outro lugar do sistema).
 export const CONVERSATION_STATUSES: StatusMeta[] = [
   {
     value: "nao_iniciada",
     label: "Não iniciado",
     short: "Novos",
     icon: Inbox,
-    dot: "bg-amber-500",
-    pill: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30",
-    text: "text-amber-600 dark:text-amber-400",
+    dot: "bg-brand",
+    pill: "bg-brand/15 text-brand border-brand/30",
+    text: "text-brand",
   },
   {
     value: "aguardando",
     label: "Aguardando",
     short: "Aguardando",
     icon: Clock,
-    dot: "bg-blue-500",
-    pill: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30",
-    text: "text-blue-600 dark:text-blue-400",
+    dot: "bg-amber-500",
+    pill: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30",
+    text: "text-amber-600 dark:text-amber-400",
   },
   {
     value: "em_atendimento",

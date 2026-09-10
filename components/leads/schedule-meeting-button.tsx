@@ -25,6 +25,7 @@ export function ScheduleMeetingButton({
   services,
   variant = "outline",
   size = "default",
+  className,
 }: {
   leadId: string;
   leadName: string;
@@ -33,6 +34,7 @@ export function ScheduleMeetingButton({
   services: { id: string; name: string; duration_minutes: number }[];
   variant?: "outline" | "brand" | "ghost" | "default";
   size?: "default" | "sm" | "icon";
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
@@ -71,9 +73,9 @@ export function ScheduleMeetingButton({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button variant={variant as never} size={size as never} title="Agendar reunião">
+        <Button variant={variant as never} size={size as never} className={className} title="Agendar reunião">
           <CalendarPlus className="h-4 w-4" />
-          {size !== "icon" && " Agendar reuniao"}
+          {size !== "icon" && "Agendar"}
         </Button>
       </DialogTrigger>
       <DialogContent>

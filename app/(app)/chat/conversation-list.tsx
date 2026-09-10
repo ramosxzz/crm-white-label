@@ -17,8 +17,7 @@ import {
   Loader2,
   Pin,
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { formatCompactTimeBRT } from "@/lib/date/brt";
 import { cn, initials } from "@/lib/utils";
 import type { ConversationListItem, ConversationStatus } from "@/lib/chat/types";
 import { CONVERSATION_STATUSES, STATUS_META } from "@/lib/chat/status";
@@ -33,7 +32,7 @@ import { matchesConversationSearch } from "@/lib/chat/conversation-search";
 
 export type { ConversationListItem };
 
-export type StatusFilter = ConversationStatus | "todas";
+export type StatusFilter = ConversationStatus | "todas" | "nao_lidas";
 
 const ATTENDANCE_WINDOW_HOURS = 24;
 
@@ -245,10 +244,12 @@ export function ConversationList({
     for (const c of items) counts[c.status] = (counts[c.status] ?? 0) + 1;
     return counts;
   }, [items]);
+  const unreadCount = useMemo(() => items.filter((item) => item.unread > 0).length, [items]);
 
   const activeAdvancedCount = Object.entries(appliedFilters).filter(
     ([key, value]) => value !== DEFAULT_ADVANCED_FILTERS[key as keyof AdvancedFilters],
   ).length;
+  const hiddenStatusFilterActive = statusFilter === "nao_iniciada" || statusFilter === "resolvida";
 
   const displayedItems = query.trim() && searchItems !== null && searchItems !== undefined
     ? searchItems
@@ -256,7 +257,8 @@ export function ConversationList({
 
   const filtered = useMemo(() => {
     const result = displayedItems.filter((c) => {
-      if (statusFilter !== "todas" && c.status !== statusFilter) return false;
+      if (statusFilter === "nao_lidas" && c.unread <= 0) return false;
+      if (statusFilter !== "todas" && statusFilter !== "nao_lidas" && c.status !== statusFilter) return false;
       if (appliedFilters.instanceId !== "todos" && c.whatsappAccountId !== appliedFilters.instanceId) return false;
       if (appliedFilters.tag !== "todos" && !c.tags.includes(appliedFilters.tag)) return false;
       if (appliedFilters.stageId !== "todos" && c.stageId !== appliedFilters.stageId) return false;
@@ -318,6 +320,7 @@ export function ConversationList({
               type="button"
               onClick={toggleSelectMode}
               title="Selecionar várias conversas"
+              aria-label="Selecionar várias conversas"
               className={cn(
                 "flex items-center gap-1 rounded-md px-1.5 py-1.5 text-xs font-medium transition-colors",
                 selectMode
@@ -329,21 +332,9 @@ export function ConversationList({
             </button>
             <button
               type="button"
-              onClick={openFilters}
-              title="Filtros"
-              className="relative rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              {activeAdvancedCount > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-brand text-[9px] font-semibold text-brand-foreground">
-                  {activeAdvancedCount}
-                </span>
-              )}
-            </button>
-            <button
-              type="button"
               onClick={toggleSound}
               title={soundOn ? "Desligar som de notificação" : "Ligar som de notificação"}
+              aria-label={soundOn ? "Desligar som de notificação" : "Ligar som de notificação"}
               className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
             >
               {soundOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
@@ -354,6 +345,7 @@ export function ConversationList({
                 onClick={onRefresh}
                 disabled={isRefreshing}
                 title="Atualizar conversas"
+                aria-label="Atualizar conversas"
                 className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-60"
               >
                 <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
@@ -424,7 +416,15 @@ export function ConversationList({
               label="Todas"
               count={items.length}
             />
-            {CONVERSATION_STATUSES.map((s) => {
+            <StatusPill
+              active={statusFilter === "nao_lidas"}
+              onClick={() => onStatusFilterChange(statusFilter === "nao_lidas" ? "todas" : "nao_lidas")}
+              label="Não lidas"
+              count={unreadCount}
+            />
+            {CONVERSATION_STATUSES.filter(
+              (item) => item.value === "aguardando" || item.value === "em_atendimento",
+            ).map((s) => {
               const Icon = s.icon;
               const active = statusFilter === s.value;
               return (
@@ -445,6 +445,23 @@ export function ConversationList({
                 </button>
               );
             })}
+            <button
+              type="button"
+              onClick={openFilters}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                activeAdvancedCount > 0 || hiddenStatusFilterActive
+                  ? "border-brand/40 bg-brand/10 text-brand"
+                  : "border-border/60 text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+              )}
+              aria-label="Ver todos os filtros"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Filtros
+              {(activeAdvancedCount > 0 || hiddenStatusFilterActive) && (
+                <span className="tabular-nums">{activeAdvancedCount + (hiddenStatusFilterActive ? 1 : 0)}</span>
+              )}
+            </button>
           </div>
         )}
       </header>
@@ -502,8 +519,8 @@ export function ConversationList({
               }}
               aria-busy={opening}
               className={cn(
-                "relative flex gap-3 border-b border-border/35 py-3 pl-4 pr-3 transition-colors duration-150 hover:bg-brand/10 dark:hover:bg-brand/15",
-                (active || opening) && !selectMode && "bg-brand-muted dark:bg-brand/10",
+                "relative flex gap-3 border-b border-border/35 py-3 pl-4 pr-3 transition-colors duration-150 hover:bg-muted/55",
+                (active || opening) && !selectMode && "bg-brand/10 dark:bg-brand/12",
                 selected && "bg-brand/10 dark:bg-brand/15",
               )}
             >
@@ -524,22 +541,14 @@ export function ConversationList({
                   )}
                 </span>
               )}
-              <div className="relative shrink-0">
-                <Avatar className="h-11 w-11">
-                  {c.leadAvatarUrl && <AvatarImage src={c.leadAvatarUrl} alt={c.leadName} />}
-                  <AvatarFallback className="bg-brand-muted text-sm font-semibold text-brand dark:bg-brand dark:text-brand-foreground">
-                    {initials(c.leadName)}
-                  </AvatarFallback>
-                </Avatar>
-                <span
-                  className={cn(
-                    "absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-card",
-                    STATUS_META[c.status].dot,
-                  )}
-                  title={STATUS_META[c.status].label}
-                  aria-hidden
-                />
-              </div>
+              {/* Status ja aparece na faixa lateral (acima) - bolinha extra no
+                  avatar so duplicava o mesmo sinal duas vezes no mesmo item. */}
+              <Avatar className="h-11 w-11 shrink-0">
+                {c.leadAvatarUrl && <AvatarImage src={c.leadAvatarUrl} alt={c.leadName} />}
+                <AvatarFallback className="bg-brand-muted text-sm font-semibold text-brand dark:bg-brand dark:text-brand-foreground">
+                  {initials(c.leadName)}
+                </AvatarFallback>
+              </Avatar>
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
                   <p className={cn("truncate text-sm", c.unread > 0 ? "font-semibold" : "font-medium")}>
@@ -559,7 +568,7 @@ export function ConversationList({
                         )}
                         suppressHydrationWarning
                       >
-                        {formatDistanceToNow(new Date(c.lastAt), { locale: ptBR, addSuffix: false })}
+                        {formatCompactTimeBRT(c.lastAt)}
                       </span>
                     )}
                   </div>
@@ -589,19 +598,37 @@ export function ConversationList({
       {filtersOpen && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/40" onClick={() => setFiltersOpen(false)} aria-hidden />
-          <div className="relative flex h-full w-full max-w-sm flex-col bg-card shadow-xl">
+          <div className="relative flex h-full w-full max-w-sm flex-col bg-card shadow-xl" role="dialog" aria-modal="true" aria-label="Filtros de conversas">
             <div className="flex items-center justify-between border-b border-border/60 px-4 py-4">
               <h3 className="text-base font-semibold">Filtros</h3>
               <button
                 type="button"
                 onClick={() => setFiltersOpen(false)}
                 className="rounded-md p-1 text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                aria-label="Fechar filtros"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+              <FilterField label="Situação">
+                <Select value={statusFilter} onValueChange={(value) => onStatusFilterChange(value as StatusFilter)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas</SelectItem>
+                    <SelectItem value="nao_lidas">Não lidas</SelectItem>
+                    {CONVERSATION_STATUSES.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FilterField>
+
               <FilterField label="Atendente / número">
                 <Select
                   value={appliedFilters.instanceId}
@@ -637,7 +664,7 @@ export function ConversationList({
                 </Select>
               </FilterField>
 
-              <FilterField label="Negocio na etapa">
+              <FilterField label="Negócio na etapa">
                 <Select
                   value={appliedFilters.stageId}
                   onValueChange={(v) => updateFilters({ stageId: v })}
@@ -697,7 +724,7 @@ export function ConversationList({
                 </Select>
               </FilterField>
 
-              <FilterField label="Parado ha (sem nova mensagem)">
+              <FilterField label="Parado há (sem nova mensagem)">
                 <div className="flex gap-2">
                   <Input
                     type="number"
@@ -725,7 +752,7 @@ export function ConversationList({
                 </div>
               </FilterField>
 
-              <FilterField label="Data da ultima mensagem">
+              <FilterField label="Data da última mensagem">
                 <Select
                   value={appliedFilters.lastMessagePeriod}
                   onValueChange={(v) => updateFilters({ lastMessagePeriod: v as LastMessagePeriodFilter })}
@@ -736,8 +763,8 @@ export function ConversationList({
                   <SelectContent>
                     <SelectItem value="todos">Nenhuma data selecionada</SelectItem>
                     <SelectItem value="hoje">Hoje</SelectItem>
-                    <SelectItem value="7dias">Ultimos 7 dias</SelectItem>
-                    <SelectItem value="30dias">Ultimos 30 dias</SelectItem>
+                    <SelectItem value="7dias">Últimos 7 dias</SelectItem>
+                    <SelectItem value="30dias">Últimos 30 dias</SelectItem>
                   </SelectContent>
                 </Select>
               </FilterField>

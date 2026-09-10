@@ -116,6 +116,26 @@ export function formatBRTFullDateTime(iso: string) {
 }
 
 /**
+ * "32min" / "4h" / "1d" - versao ainda mais compacta pra lista de conversas
+ * (coluna estreita, um item por linha). Sem "ha", sem "cerca de" (era o que
+ * o date-fns/ptBR gerava antes - "cerca de 16 horas" nao cabe numa coluna
+ * de 360px sem truncar o preview da mensagem do lado).
+ */
+export function formatCompactTimeBRT(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return "agora";
+  if (minutes < 60) return `${minutes}min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks}sem`;
+  return formatBRTDateShort(iso);
+}
+
+/**
  * "há 5 min" / "há 2 h" / "há 3 dias" - pra achar de relance lead parado ha
  * tempo, sem precisar ler data/hora e fazer conta de cabeca. Passa a usar
  * data completa (formatBRTFullDateTime) a partir de 30 dias, onde "ha X dias"
