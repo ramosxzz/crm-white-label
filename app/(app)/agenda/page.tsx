@@ -15,8 +15,11 @@ import { MonthCalendar } from "./month-calendar";
 import { ScheduledMessagesPanel } from "./scheduled-messages-panel";
 import { ScheduledCallsPanel } from "../ligacoes/scheduled-calls-panel";
 import { formatBRTTime } from "@/lib/date/brt";
+import { PageTabs } from "@/components/ui/page-tabs";
 
-const statusLabel = { scheduled: "Agendado", confirmed: "Confirmado", completed: "Concluido", cancelled: "Cancelado", no_show: "Nao compareceu" };
+const statusLabel = { scheduled: "Agendado", confirmed: "Confirmado", completed: "Concluído", cancelled: "Cancelado", no_show: "Não compareceu" };
+
+type AgendaTab = "calendar" | "calls" | "messages" | "settings";
 
 function brtDay() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
@@ -44,57 +47,75 @@ function monthRange(month: string) {
   return { start, end };
 }
 
-export default async function AgendaPage({ searchParams }: { searchParams?: Promise<{ day?: string }> }) {
+export default async function AgendaPage({ searchParams }: { searchParams?: Promise<{ day?: string; tab?: string }> }) {
   const ctx = await requireContext();
   const params = await searchParams;
   const day = /^\d{4}-\d{2}-\d{2}$/.test(params?.day ?? "") ? params!.day! : brtDay();
+  const requestedTab = (["calendar", "calls", "messages", "settings"].includes(params?.tab ?? "") ? params?.tab : "calendar") as AgendaTab;
   const nextDay = offsetDay(day, 1);
   const month = monthOf(day);
   const { start: monthStart, end: monthEnd } = monthRange(month);
+  const canManage = canManageOperationalSetup(ctx.role);
+  const tab = requestedTab === "calls" && !ctx.tenant.calls_dashboard_enabled
+    ? "calendar"
+    : requestedTab === "settings" && !canManage
+      ? "calendar"
+      : requestedTab;
   const supabase = await createClient();
   const [{ data: appointments }, { data: monthAppointments }, { data: leads }, { data: professionals }, { data: services }, users, scheduledMessages, scheduledCalls] = await Promise.all([
-    supabase
+    tab === "calendar" ? supabase
       .from("appointments")
       .select("id, starts_at, duration_minutes, status, outcome, notes, kind, leads(id, name), professionals(name), services(name)")
       .eq("tenant_id", ctx.tenantId)
       .gte("starts_at", `${day}T00:00:00-03:00`)
       .lt("starts_at", `${nextDay}T00:00:00-03:00`)
-      .order("starts_at"),
-    supabase
+      .order("starts_at") : Promise.resolve({ data: [] }),
+    tab === "calendar" ? supabase
       .from("appointments")
       .select("starts_at")
       .eq("tenant_id", ctx.tenantId)
       .gte("starts_at", `${monthStart}T00:00:00-03:00`)
-      .lt("starts_at", `${monthEnd}T00:00:00-03:00`),
+      .lt("starts_at", `${monthEnd}T00:00:00-03:00`) : Promise.resolve({ data: [] }),
     supabase.from("leads").select("id, name").eq("tenant_id", ctx.tenantId).order("name"),
     supabase.from("professionals").select("id, name").eq("tenant_id", ctx.tenantId).eq("is_active", true).order("name"),
     supabase.from("services").select("id, name, duration_minutes").eq("tenant_id", ctx.tenantId).eq("is_active", true).order("name"),
     listTenantUserOptions(ctx.tenantId),
-    listScheduledMessagesForTenant(),
-    listScheduledCallsForTenant(),
+    tab === "messages" ? listScheduledMessagesForTenant() : Promise.resolve([]),
+    tab === "calls" ? listScheduledCallsForTenant() : Promise.resolve([]),
   ]);
   const daysWithAppointments = new Set(
     (monthAppointments ?? []).map((a) =>
       new Date(a.starts_at).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }),
     ),
   );
-  const canManage = canManageOperationalSetup(ctx.role);
+  const agendaHref = (target: AgendaTab) => `/agenda?day=${day}&tab=${target}`;
+  const dayHref = (targetDay: string) => `/agenda?day=${targetDay}&tab=${tab}`;
+  const tabs = [
+    { id: "calendar", label: "Agenda", href: agendaHref("calendar") },
+    ...(ctx.tenant.calls_dashboard_enabled ? [{ id: "calls", label: "Ligações agendadas", href: agendaHref("calls") }] : []),
+    { id: "messages", label: "Mensagens agendadas", href: agendaHref("messages") },
+    ...(canManage ? [{ id: "settings", label: "Configurações da agenda", href: agendaHref("settings") }] : []),
+  ];
 
   return (
     <div>
-      <PageHeader eyebrow="Atendimento" title="Agenda" description="Horarios internos da equipe" actions={<AppointmentDialog leads={leads ?? []} users={users} professionals={professionals ?? []} services={services ?? []} />} />
+      <PageHeader eyebrow="Atendimento" title="Agenda" description="Horários internos da equipe" actions={<AppointmentDialog leads={leads ?? []} users={users} professionals={professionals ?? []} services={services ?? []} />} />
       <div className="space-y-5 p-6">
+        <PageTabs items={tabs} activeId={tab} label="Seções da agenda" />
+
+        {tab === "calendar" && (
+        <>
         <div className="grid gap-5 md:grid-cols-[280px_1fr]">
           <div className="rounded-xl border border-border/70 p-3">
             <div className="mb-2 flex items-center justify-between">
               <Button asChild variant="ghost" size="icon" className="h-7 w-7">
-                <Link href={`/agenda?day=${offsetMonth(month, -1)}-01`}><ChevronLeft className="h-4 w-4" /></Link>
+                <Link href={dayHref(`${offsetMonth(month, -1)}-01`)}><ChevronLeft className="h-4 w-4" /></Link>
               </Button>
               <p className="text-sm font-semibold capitalize">
                 {new Date(`${month}-01T12:00:00-03:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
               </p>
               <Button asChild variant="ghost" size="icon" className="h-7 w-7">
-                <Link href={`/agenda?day=${offsetMonth(month, 1)}-01`}><ChevronRight className="h-4 w-4" /></Link>
+                <Link href={dayHref(`${offsetMonth(month, 1)}-01`)}><ChevronRight className="h-4 w-4" /></Link>
               </Button>
             </div>
             <MonthCalendar month={month} selectedDay={day} today={brtDay()} daysWithAppointments={daysWithAppointments} />
@@ -102,13 +123,13 @@ export default async function AgendaPage({ searchParams }: { searchParams?: Prom
 
           <div className="space-y-4">
             <div className="flex items-center gap-2 border-b border-border/70 pb-4">
-              <Button asChild variant="outline" size="icon"><Link href={`/agenda?day=${offsetDay(day, -1)}`}><ChevronLeft className="h-4 w-4" /></Link></Button>
+              <Button asChild variant="outline" size="icon"><Link href={dayHref(offsetDay(day, -1))} aria-label="Dia anterior"><ChevronLeft className="h-4 w-4" /></Link></Button>
               <Input type="date" value={day} readOnly className="w-40" />
-              <Button asChild variant="outline" size="icon"><Link href={`/agenda?day=${nextDay}`}><ChevronRight className="h-4 w-4" /></Link></Button>
-              <Button asChild variant="ghost" size="sm"><Link href={`/agenda?day=${brtDay()}`}>Hoje</Link></Button>
+              <Button asChild variant="outline" size="icon"><Link href={dayHref(nextDay)} aria-label="Próximo dia"><ChevronRight className="h-4 w-4" /></Link></Button>
+              <Button asChild variant="ghost" size="sm"><Link href={dayHref(brtDay())}>Hoje</Link></Button>
             </div>
 
-            {(appointments ?? []).length === 0 && <div className="border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">Nenhum horario neste dia.</div>}
+            {(appointments ?? []).length === 0 && <div className="border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">Nenhum horário neste dia.</div>}
         <div className="divide-y divide-border/70 border-y border-border/70">
           {(appointments ?? []).map((appointment) => {
             const lead = appointment.leads as unknown as { id: string; name: string } | null;
@@ -132,7 +153,7 @@ export default async function AgendaPage({ searchParams }: { searchParams?: Prom
                   <p className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1"><UserRound className="h-3 w-3" />{professional?.name ?? "Sem profissional"}</span>
                     {appointmentKind === "meeting" && (
-                      <span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />{service?.name ?? "Sem servico"}</span>
+                      <span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />{service?.name ?? "Sem serviço"}</span>
                     )}
                   </p>
                 </div>
@@ -157,21 +178,30 @@ export default async function AgendaPage({ searchParams }: { searchParams?: Prom
             </div>
           </div>
         </div>
+        </>
+        )}
 
-        <div className={`grid items-start gap-5 ${ctx.tenant.calls_dashboard_enabled ? "md:grid-cols-2" : ""}`}>
-          {ctx.tenant.calls_dashboard_enabled && <ScheduledCallsPanel calls={scheduledCalls} />}
-          <ScheduledMessagesPanel messages={scheduledMessages} showCallButton={ctx.tenant.calls_dashboard_enabled} />
-        </div>
+        {tab === "calls" && ctx.tenant.calls_dashboard_enabled && <ScheduledCallsPanel calls={scheduledCalls} />}
+        {tab === "messages" && <ScheduledMessagesPanel messages={scheduledMessages} showCallButton={ctx.tenant.calls_dashboard_enabled} />}
 
-        {canManage && (
+        {tab === "settings" && canManage && (
           <div className="grid gap-5 border-t border-border/70 pt-5 md:grid-cols-2">
             <form action={createProfessional} className="space-y-3">
               <h2 className="text-sm font-semibold">Cadastrar profissional</h2>
-              <div className="flex gap-2"><Input name="name" required placeholder="Nome" /><Input name="phone" placeholder="Telefone" /><Button>Adicionar</Button></div>
+              <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                <div><label className="mb-1 block text-xs text-muted-foreground">Nome</label><Input name="name" required /></div>
+                <div><label className="mb-1 block text-xs text-muted-foreground">Telefone</label><Input name="phone" inputMode="tel" /></div>
+                <Button className="self-end">Adicionar</Button>
+              </div>
             </form>
             <form action={createService} className="space-y-3">
-              <h2 className="text-sm font-semibold">Cadastrar servico</h2>
-              <div className="grid grid-cols-[1fr_90px_100px_auto] gap-2"><Input name="name" required placeholder="Servico" /><Input name="duration_minutes" type="number" min="15" defaultValue="60" /><Input name="price" type="number" min="0" step="0.01" placeholder="Preco" /><Button>Adicionar</Button></div>
+              <h2 className="text-sm font-semibold">Cadastrar serviço</h2>
+              <div className="grid gap-2 sm:grid-cols-[1fr_110px_120px_auto]">
+                <div><label className="mb-1 block text-xs text-muted-foreground">Serviço</label><Input name="name" required /></div>
+                <div><label className="mb-1 block text-xs text-muted-foreground">Duração (min)</label><Input name="duration_minutes" type="number" min="15" defaultValue="60" /></div>
+                <div><label className="mb-1 block text-xs text-muted-foreground">Preço (R$)</label><Input name="price" type="number" min="0" step="0.01" /></div>
+                <Button className="self-end">Adicionar</Button>
+              </div>
             </form>
           </div>
         )}

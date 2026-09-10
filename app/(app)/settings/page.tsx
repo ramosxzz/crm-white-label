@@ -28,7 +28,15 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <Card>
+      <nav aria-label="Seções das configurações" className="flex gap-2 overflow-x-auto border-b border-border/70 pb-3 text-sm">
+        <a href="#perfil" className="min-w-max rounded-md px-3 py-2 font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">Meu perfil</a>
+        {canCompany && <a href="#empresa" className="min-w-max rounded-md px-3 py-2 font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">Identidade e módulos</a>}
+        {ctx.tenant.calls_dashboard_enabled && <a href="#telefonia" className="min-w-max rounded-md px-3 py-2 font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">Telefonia</a>}
+        {canUsers && <a href="#usuarios" className="min-w-max rounded-md px-3 py-2 font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">Usuários e permissões</a>}
+        {canUsers && <a href="#seguranca" className="min-w-max rounded-md px-3 py-2 font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">Segurança e auditoria</a>}
+      </nav>
+
+      <Card id="perfil" className="scroll-mt-24">
         <CardHeader>
           <CardTitle>Meu perfil</CardTitle>
           <CardDescription>
@@ -46,11 +54,11 @@ export default async function SettingsPage() {
       </Card>
 
       {ctx.tenant.calls_dashboard_enabled && (
-        <Card>
+        <Card id="telefonia" className="scroll-mt-24">
           <CardHeader>
-            <CardTitle>Ligacoes (Api4com)</CardTitle>
+            <CardTitle>Ligações (Api4com)</CardTitle>
             <CardDescription>
-              Configure seu ramal para usar o botao de ligar direto dos leads.
+              Configure seu ramal para usar o botão de ligar direto dos leads.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -60,7 +68,7 @@ export default async function SettingsPage() {
       )}
 
       {canCompany && (
-        <Card>
+        <Card id="empresa" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>Identidade da empresa</CardTitle>
             <CardDescription>
@@ -91,14 +99,14 @@ export default async function SettingsPage() {
       </Link>
 
       {canUsers && (
-        <Link href="/settings/users" prefetch>
+        <Link id="usuarios" className="block scroll-mt-24" href="/settings/users" prefetch>
           <Card className="group transition-colors hover:border-brand/40">
             <CardContent className="flex items-center gap-4 p-5">
               <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">
                 <UserCog className="h-5 w-5" />
               </div>
               <div className="flex-1">
-                <p className="font-medium">Usuarios</p>
+                <p className="font-medium">Usuários e permissões</p>
                 <p className="text-sm text-muted-foreground">
                   Crie atendentes e controle quem aparece nas mensagens do chat.
                 </p>
@@ -110,7 +118,7 @@ export default async function SettingsPage() {
       )}
 
       {canUsers && (
-        <Link href="/settings/auditoria" prefetch>
+        <Link id="seguranca" className="block scroll-mt-24" href="/settings/auditoria" prefetch>
           <Card className="group transition-colors hover:border-brand/40">
             <CardContent className="flex items-center gap-4 p-5">
               <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">

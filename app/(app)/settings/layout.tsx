@@ -5,10 +5,10 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     <div>
       <PageHeader
         eyebrow="Sistema"
-        title="Configuracoes"
+        title="Configurações"
         description="Personalize a identidade da sua empresa no CRM"
       />
-      <div className="p-8">{children}</div>
+      {children}
     </div>
   );
 }

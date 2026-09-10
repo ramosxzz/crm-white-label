@@ -18,6 +18,9 @@ import { CommissionsPanel, type CommissionRow } from "./commissions-panel";
 import { EntriesPanel } from "./entries-panel";
 import { PaymentRatesPanel } from "./payment-rates-panel";
 import { ServiceCatalogPanel } from "./service-catalog-panel";
+import { PageTabs } from "@/components/ui/page-tabs";
+
+type FinanceTab = "overview" | "receivable" | "payable" | "commissions" | "rates" | "catalog";
 
 function brtToday() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
@@ -48,7 +51,7 @@ function humanMonth(month: string) {
 export default async function FinanceiroPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ month?: string }>;
+  searchParams?: Promise<{ month?: string; tab?: string }>;
 }) {
   const ctx = await requireContext();
   if (!ctx.tenant.field_service_enabled) redirect("/dashboard");
@@ -58,6 +61,9 @@ export default async function FinanceiroPage({
   const params = await searchParams;
   const today = brtToday();
   const month = /^\d{4}-\d{2}$/.test(params?.month ?? "") ? params!.month! : monthOf(today);
+  const tab = (["overview", "receivable", "payable", "commissions", "rates", "catalog"].includes(params?.tab ?? "")
+    ? params?.tab
+    : "overview") as FinanceTab;
   const { start, end } = monthRange(month);
 
   const supabase = await createClient();
@@ -72,45 +78,47 @@ export default async function FinanceiroPage({
     { data: pendingAdjustments },
   ] =
     await Promise.all([
-      supabase
+      ["overview", "receivable", "payable"].includes(tab) ? supabase
         .from("finance_entries")
         .select("*")
         .eq("tenant_id", ctx.tenantId)
         .gte("due_date", start)
         .lt("due_date", end)
-        .order("due_date", { ascending: true }),
+        .order("due_date", { ascending: true }) : Promise.resolve({ data: [] }),
       // Contas fixas alimentam a projecao do mes seguinte ("temos contas para
       // o proximo mes e isso ja deixar fixado").
-      supabase
+      tab === "overview" ? supabase
         .from("finance_entries")
         .select("*")
         .eq("tenant_id", ctx.tenantId)
-        .eq("is_recurring", true),
-      supabase
+        .eq("is_recurring", true) : Promise.resolve({ data: [] }),
+      tab === "commissions" ? supabase
         .from("commissions")
         .select("*, service_orders(code_seq)")
         .eq("tenant_id", ctx.tenantId)
         .gte("created_at", `${start}T00:00:00-03:00`)
         .lt("created_at", `${end}T00:00:00-03:00`)
-        .order("created_at", { ascending: false }),
-      supabase.from("commission_rules").select("party_kind, percent, user_id").eq("tenant_id", ctx.tenantId),
-      supabase
+        .order("created_at", { ascending: false }) : Promise.resolve({ data: [] }),
+      tab === "commissions"
+        ? supabase.from("commission_rules").select("party_kind, percent, user_id").eq("tenant_id", ctx.tenantId)
+        : Promise.resolve({ data: [] }),
+      tab === "rates" ? supabase
         .from("payment_method_rates")
         .select("*")
         .eq("tenant_id", ctx.tenantId)
-        .order("name"),
-      supabase
+        .order("name") : Promise.resolve({ data: [] }),
+      tab === "catalog" ? supabase
         .from("service_catalog_items")
         .select("*")
         .eq("tenant_id", ctx.tenantId)
         .order("category")
-        .order("name"),
-      supabase
+        .order("name") : Promise.resolve({ data: [] }),
+      tab === "commissions" ? supabase
         .from("financial_adjustment_requests")
         .select("id, commission_id")
         .eq("tenant_id", ctx.tenantId)
         .eq("adjustment_kind", "comissao")
-        .eq("status", "pendente"),
+        .eq("status", "pendente") : Promise.resolve({ data: [] }),
     ]);
 
   const rows = (entries ?? []) as FinanceEntry[];
@@ -134,7 +142,7 @@ export default async function FinanceiroPage({
     .filter((entry: any) => entry.kind === "pagar")
     .reduce((sum: number, entry: any) => sum + entry.amount_cents, 0);
 
-  const users = await listTenantUserOptions(ctx.tenantId);
+  const users = tab === "commissions" ? await listTenantUserOptions(ctx.tenantId) : [];
   const nameById = new Map(users.map((user) => [user.id, user.name]));
 
   const pendingAdjustmentByCommission = new Map(
@@ -170,11 +178,13 @@ export default async function FinanceiroPage({
     }
   }
 
-  const { data: sellerMembers } = await supabase
-    .from("tenant_members")
-    .select("user_id")
-    .eq("tenant_id", ctx.tenantId)
-    .eq("role", "vendedor");
+  const { data: sellerMembers } = tab === "commissions"
+    ? await supabase
+        .from("tenant_members")
+        .select("user_id")
+        .eq("tenant_id", ctx.tenantId)
+        .eq("role", "vendedor")
+    : { data: [] };
   const sellers = ((sellerMembers ?? []) as Array<{ user_id: string }>)
     .map((m) => ({ id: m.user_id, name: nameById.get(m.user_id) ?? "Vendedora", override: sellerOverrides.get(m.user_id) ?? null }))
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -184,6 +194,16 @@ export default async function FinanceiroPage({
     { label: "Pago no mês", value: paid, tone: "text-destructive" },
     { label: "Saldo", value: received - paid, tone: received - paid >= 0 ? "text-success" : "text-destructive" },
     { label: "Em aberto (receber − pagar)", value: openToReceive - openToPay, tone: "text-foreground" },
+  ];
+  const tabHref = (target: FinanceTab) => `/financeiro?month=${month}&tab=${target}`;
+  const monthHref = (targetMonth: string) => `/financeiro?month=${targetMonth}&tab=${tab}`;
+  const tabs = [
+    { id: "overview", label: "Visão geral", href: tabHref("overview") },
+    { id: "receivable", label: "Contas a receber", href: tabHref("receivable") },
+    { id: "payable", label: "Contas a pagar", href: tabHref("payable") },
+    { id: "commissions", label: "Comissões", href: tabHref("commissions") },
+    { id: "rates", label: "Formas de pagamento", href: tabHref("rates") },
+    { id: "catalog", label: "Catálogo e preços", href: tabHref("catalog") },
   ];
 
   return (
@@ -195,20 +215,20 @@ export default async function FinanceiroPage({
         actions={
           <div className="flex items-center gap-2">
             <Link
-              href={`/financeiro?month=${offsetMonth(month, -1)}`}
+              href={monthHref(offsetMonth(month, -1))}
               className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border/70 transition-colors hover:bg-muted/50"
               aria-label="Mês anterior"
             >
               <ChevronLeft className="h-4 w-4" />
             </Link>
             <Link
-              href="/financeiro"
+              href={`/financeiro?tab=${tab}`}
               className="rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
             >
               Mês atual
             </Link>
             <Link
-              href={`/financeiro?month=${offsetMonth(month, 1)}`}
+              href={monthHref(offsetMonth(month, 1))}
               className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border/70 transition-colors hover:bg-muted/50"
               aria-label="Próximo mês"
             >
@@ -218,7 +238,11 @@ export default async function FinanceiroPage({
         }
       />
 
-      <div className="space-y-6 p-8">
+      <div className="space-y-6 p-6 md:p-8">
+        <PageTabs items={tabs} activeId={tab} label="Seções do financeiro" />
+
+        {tab === "overview" && (
+        <>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {cards.map((card) => (
             <div key={card.label} className="rounded-xl border border-border/70 bg-card p-4 shadow-elev-1">
@@ -240,16 +264,14 @@ export default async function FinanceiroPage({
             </span>
           </div>
         )}
+        </>
+        )}
 
-        <div className="grid gap-6 xl:grid-cols-2">
-          <EntriesPanel kind="receber" entries={toReceive} today={today} />
-          <EntriesPanel kind="pagar" entries={toPay} today={today} />
-        </div>
-
-        <CommissionsPanel commissions={commissionRows} rules={ruleMap} sellers={sellers} isOwner={ctx.role === "owner"} />
-
-        <PaymentRatesPanel rates={(paymentRates ?? []) as PaymentMethodRate[]} />
-        <ServiceCatalogPanel items={(catalogItems ?? []) as ServiceCatalogItem[]} />
+        {tab === "receivable" && <EntriesPanel kind="receber" entries={toReceive} today={today} />}
+        {tab === "payable" && <EntriesPanel kind="pagar" entries={toPay} today={today} />}
+        {tab === "commissions" && <CommissionsPanel commissions={commissionRows} rules={ruleMap} sellers={sellers} isOwner={ctx.role === "owner"} />}
+        {tab === "rates" && <PaymentRatesPanel rates={(paymentRates ?? []) as PaymentMethodRate[]} />}
+        {tab === "catalog" && <ServiceCatalogPanel items={(catalogItems ?? []) as ServiceCatalogItem[]} />}
       </div>
     </div>
   );
