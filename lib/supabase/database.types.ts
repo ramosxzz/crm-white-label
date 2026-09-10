@@ -4267,6 +4267,7 @@ export type Database = {
         Args: {
           p_from?: string
           p_stage_ids?: string[]
+          p_tag?: string
           p_tenant_id: string
           p_to?: string
         }

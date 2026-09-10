@@ -149,7 +149,7 @@ export default async function LeadsPage({
   let totalValueCents = 0;
   let stageBreakdown: StageBreakdown | null = null;
 
-  if (!useDirectCount && qualificationResult) {
+  if (!useDirectCount && qualificationResult && !qualificationResult.error) {
     const qualification = (qualificationResult.data ?? []) as Array<{
       stage_id: string | null;
       quality_stars: number;
@@ -172,6 +172,20 @@ export default async function LeadsPage({
       .map((s) => ({ name: s.name, count: stageCountMap.get(s.id) ?? 0 }))
       .filter((s) => s.count > 0)
       .slice(0, 4);
+  } else if (!useDirectCount) {
+    // O resumo e uma otimizacao. Se a migration ainda nao chegou ao ambiente
+    // ou o RPC falhar, nunca transforme isso em "0 leads": refaz apenas o
+    // count exato com os mesmos filtros da tabela.
+    let fallbackCountQuery = supabase
+      .from("leads")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", ctx.tenantId);
+    if (dateFilter.bounds) fallbackCountQuery = fallbackCountQuery.gte("created_at", dateFilter.bounds.startIso).lte("created_at", dateFilter.bounds.endIso);
+    if (stageFilterIds.length > 0) fallbackCountQuery = fallbackCountQuery.in("stage_id", stageFilterIds);
+    if (tagFilter) fallbackCountQuery = fallbackCountQuery.contains("tags", [tagFilter]);
+
+    const { count: fallbackCount, error: fallbackCountError } = await fallbackCountQuery;
+    if (!fallbackCountError) total = fallbackCount ?? 0;
   }
 
   const sourceCounts = new Map<string, number>();

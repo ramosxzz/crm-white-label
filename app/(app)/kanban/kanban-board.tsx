@@ -731,13 +731,11 @@ const Column = memo(function Column({
   const selectedInStage = stageLeadIds.filter((leadId) => selectedIds.has(leadId)).length;
   const allStageSelected = stageLeadIds.length > 0 && selectedInStage === stageLeadIds.length;
 
-  // Colunas com muitos leads (100+) travavam o board inteiro: cada lead virava
-  // um card montado no DOM + registrado no dnd-kit pro calculo de colisao do
-  // drag, mesmo fora da viewport. Mostra so um lote por vez e revela mais sob
-  // demanda - com busca/filtro ativo mostra tudo (lista ja vem pequena).
-  const PAGE_SIZE = 30;
+  // Cada card tambem e registrado no dnd-kit. Mantemos apenas lotes pequenos
+  // no DOM, inclusive durante filtros, e revelamos mais sob demanda.
+  const PAGE_SIZE = 15;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const shownLeads = isFiltering ? leads : leads.slice(0, visibleCount);
+  const shownLeads = leads.slice(0, visibleCount);
   const remaining = leads.length - shownLeads.length;
   return (
     <div

@@ -1175,16 +1175,115 @@ export type LeadTimelineEntry = {
 export async function listLeadTimeline(leadId: string): Promise<LeadTimelineEntry[]> {
   const ctx = await requireContext();
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("lead_activities")
-    .select("id, kind, payload, user_id, created_at")
-    .eq("tenant_id", ctx.tenantId)
-    .eq("lead_id", leadId)
-    .order("created_at", { ascending: false })
-    .limit(50);
-  const rows = (data ?? []) as { id: string; kind: string; payload: Record<string, unknown> | null; user_id: string | null; created_at: string }[];
+  const [activitiesResult, conversationResult, tasksResult, appointmentsResult, filesResult, automationsResult, valueItemsResult, serviceOrdersResult] = await Promise.all([
+    supabase
+      .from("lead_activities")
+      .select("id, kind, payload, user_id, created_at")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("lead_id", leadId)
+      .order("created_at", { ascending: false })
+      .limit(100),
+    supabase
+      .from("conversations")
+      .select("id")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("lead_id", leadId)
+      .order("last_message_at", { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("tasks")
+      .select("id, title, status, due_at, completed_at, created_by, created_at")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("lead_id", leadId)
+      .order("created_at", { ascending: false })
+      .limit(100),
+    supabase
+      .from("appointments")
+      .select("id, kind, starts_at, status, outcome, notes, created_by, created_at")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("lead_id", leadId)
+      .order("created_at", { ascending: false })
+      .limit(100),
+    supabase
+      .from("files")
+      .select("id, name, mime_type, uploaded_by, created_at")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("lead_id", leadId)
+      .order("created_at", { ascending: false })
+      .limit(100),
+    supabase
+      .from("automation_executions")
+      .select("id, flow_id, trigger_kind, status, error_message, started_at")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("lead_id", leadId)
+      .order("started_at", { ascending: false })
+      .limit(100),
+    supabase
+      .from("lead_value_items")
+      .select("id, label, amount_cents, created_by, created_at")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("lead_id", leadId)
+      .order("created_at", { ascending: false })
+      .limit(100),
+    supabase
+      .from("service_orders")
+      .select("id, code_seq")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("lead_id", leadId)
+      .limit(100),
+  ]);
 
-  const userIds = Array.from(new Set(rows.map((r) => r.user_id).filter((v): v is string => Boolean(v))));
+  const conversationId = conversationResult.data?.id;
+  const messagesResult = conversationId
+    ? await supabase
+        .from("messages")
+        .select("id, body, media_type, direction, status, user_id, created_at")
+        .eq("tenant_id", ctx.tenantId)
+        .eq("conversation_id", conversationId)
+        .order("created_at", { ascending: false })
+        .limit(100)
+    : { data: [] };
+
+  const automationRows = automationsResult.data ?? [];
+  const serviceOrders = serviceOrdersResult.data ?? [];
+  const serviceOrderIds = serviceOrders.map((row) => row.id);
+  const serviceOrderCodes = new Map(serviceOrders.map((row) => [row.id, row.code_seq]));
+  const financeResult = serviceOrderIds.length
+    ? await supabase
+        .from("finance_entries")
+        .select("id, service_order_id, description, kind, amount_cents, status, paid_at, due_date, created_by, created_at")
+        .eq("tenant_id", ctx.tenantId)
+        .in("service_order_id", serviceOrderIds)
+        .order("created_at", { ascending: false })
+        .limit(100)
+    : { data: [] };
+  const flowIds = Array.from(new Set(automationRows.map((row) => row.flow_id)));
+  const { data: flows } = flowIds.length
+    ? await supabase.from("automation_flows").select("id, name").eq("tenant_id", ctx.tenantId).in("id", flowIds)
+    : { data: [] as { id: string; name: string }[] };
+  const flowNames = new Map((flows ?? []).map((flow) => [flow.id, flow.name]));
+
+  // Eventos abaixo ja sao representados pelo registro-fonte de agenda. Isso
+  // evita mostrar duas vezes "reuniao agendada" ou a mesma mudanca de status.
+  const appointmentActivityKinds = new Set([
+    "meeting_scheduled",
+    "call_scheduled",
+    "meeting_status_changed",
+    "call_status_changed",
+    "meeting_outcome",
+    "call_outcome",
+  ]);
+  const activities = (activitiesResult.data ?? []).filter((row) => !appointmentActivityKinds.has(row.kind));
+  const userIds = Array.from(new Set([
+    ...activities.map((row) => row.user_id),
+    ...(messagesResult.data ?? []).map((row) => row.user_id),
+    ...(tasksResult.data ?? []).map((row) => row.created_by),
+    ...(appointmentsResult.data ?? []).map((row) => row.created_by),
+    ...(filesResult.data ?? []).map((row) => row.uploaded_by),
+    ...(valueItemsResult.data ?? []).map((row) => row.created_by),
+    ...(financeResult.data ?? []).map((row) => row.created_by),
+  ].filter((value): value is string => Boolean(value))));
   const namesByUser = new Map<string, string>();
   if (userIds.length > 0) {
     const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", userIds);
@@ -1193,14 +1292,85 @@ export async function listLeadTimeline(leadId: string): Promise<LeadTimelineEntr
     }
   }
 
-  return rows.map((r) => ({
-    id: r.id,
-    kind: r.kind,
-    payload: r.payload ?? {},
-    userId: r.user_id,
-    userName: r.user_id ? namesByUser.get(r.user_id) ?? null : null,
-    createdAt: r.created_at,
-  }));
+  const withUser = (
+    id: string,
+    kind: string,
+    payload: Record<string, unknown>,
+    userId: string | null,
+    createdAt: string,
+  ): LeadTimelineEntry => ({
+    id,
+    kind,
+    payload,
+    userId,
+    userName: userId ? namesByUser.get(userId) ?? null : null,
+    createdAt,
+  });
+
+  const entries: LeadTimelineEntry[] = [
+    ...activities.map((row) => withUser(`activity:${row.id}`, row.kind, (row.payload ?? {}) as Record<string, unknown>, row.user_id, row.created_at)),
+    ...(messagesResult.data ?? []).map((row) => withUser(
+      `message:${row.id}`,
+      "message",
+      { body: row.body, media_type: row.media_type, direction: row.direction, status: row.status },
+      row.user_id,
+      row.created_at,
+    )),
+    ...(tasksResult.data ?? []).map((row) => withUser(
+      `task:${row.id}`,
+      "task",
+      { title: row.title, status: row.status, due_at: row.due_at, completed_at: row.completed_at },
+      row.created_by,
+      row.created_at,
+    )),
+    ...(appointmentsResult.data ?? []).map((row) => withUser(
+      `appointment:${row.id}`,
+      "appointment",
+      { appointment_kind: row.kind, starts_at: row.starts_at, status: row.status, outcome: row.outcome, notes: row.notes },
+      row.created_by,
+      row.created_at,
+    )),
+    ...(filesResult.data ?? []).map((row) => withUser(
+      `file:${row.id}`,
+      "file",
+      { name: row.name, mime_type: row.mime_type },
+      row.uploaded_by,
+      row.created_at,
+    )),
+    ...(valueItemsResult.data ?? []).map((row) => withUser(
+      `value:${row.id}`,
+      "value_item",
+      { label: row.label, amount_cents: row.amount_cents },
+      row.created_by,
+      row.created_at,
+    )),
+    ...(financeResult.data ?? []).map((row) => withUser(
+      `payment:${row.id}`,
+      "payment",
+      {
+        description: row.description,
+        entry_kind: row.kind,
+        amount_cents: row.amount_cents,
+        status: row.status,
+        paid_at: row.paid_at,
+        due_date: row.due_date,
+        service_order_code: row.service_order_id ? serviceOrderCodes.get(row.service_order_id) : null,
+      },
+      row.created_by,
+      row.created_at,
+    )),
+    ...automationRows.map((row) => withUser(
+      `automation:${row.id}`,
+      "automation_execution",
+      { flow_name: flowNames.get(row.flow_id) ?? "Automação", trigger_kind: row.trigger_kind, status: row.status, error: row.error_message },
+      null,
+      row.started_at,
+    )),
+  ];
+
+  return entries
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id))
+    .slice(0, 250);
 }
 
 /**

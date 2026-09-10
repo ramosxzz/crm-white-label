@@ -52,7 +52,7 @@ export default async function KanbanPage({ searchParams }: { searchParams?: Prom
 
   return (
     <div className="flex h-full flex-col">
-      <PageHeader eyebrow="Pipeline" title="Kanban" description="Arraste os leads entre os estagios" />
+      <PageHeader eyebrow="Pipeline" title="Kanban" description="Arraste os leads entre os estágios." />
       <div className="flex-1 overflow-hidden p-3 sm:p-6">
         <KanbanBoard
           key={activePipeline?.id ?? "empty"}

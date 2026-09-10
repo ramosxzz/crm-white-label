@@ -128,9 +128,9 @@ export default async function FunilPage({
   return (
     <div>
       <PageHeader
-        eyebrow="Analise"
+        eyebrow="Análise"
         title="Funil de vendas"
-        description="Volume, valor e tempo medio em cada etapa do funil."
+        description="Distribuição atual, valor e tempo médio em cada etapa do funil."
       />
       <div className="p-8">
         <FunnelView

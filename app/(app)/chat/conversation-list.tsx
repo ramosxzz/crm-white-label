@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search,
   Inbox,
@@ -35,6 +35,8 @@ export type { ConversationListItem };
 export type StatusFilter = ConversationStatus | "todas" | "nao_lidas";
 
 const ATTENDANCE_WINDOW_HOURS = 24;
+const CONVERSATION_ROW_HEIGHT = 69;
+const VIRTUAL_OVERSCAN = 6;
 
 type AttendanceWindowFilter = "todos" | "dentro" | "expirada";
 type LastMessagePeriodFilter = "todos" | "hoje" | "7dias" | "30dias";
@@ -153,6 +155,9 @@ export function ConversationList({
   const router = useRouter();
   const activeLeadId = pathname.startsWith("/chat/") ? (pathname.split("/")[2] ?? null) : null;
   const [openingLeadId, setOpeningLeadId] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(800);
 
   useEffect(() => {
     setOpeningLeadId(null);
@@ -287,6 +292,34 @@ export function ConversationList({
 
     return result;
   }, [displayedItems, query, statusFilter, appliedFilters]);
+
+  useEffect(() => {
+    const element = listRef.current;
+    if (!element) return;
+    const updateHeight = () => setViewportHeight(element.clientHeight || 800);
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const virtualRange = useMemo(() => {
+    const start = Math.max(0, Math.floor(scrollTop / CONVERSATION_ROW_HEIGHT) - VIRTUAL_OVERSCAN);
+    const visibleCount = Math.ceil(viewportHeight / CONVERSATION_ROW_HEIGHT) + VIRTUAL_OVERSCAN * 2;
+    const end = Math.min(filtered.length, start + visibleCount);
+    return {
+      top: start * CONVERSATION_ROW_HEIGHT,
+      bottom: Math.max(0, (filtered.length - end) * CONVERSATION_ROW_HEIGHT),
+      items: filtered.slice(start, end),
+    };
+  }, [filtered, scrollTop, viewportHeight]);
+
+  useEffect(() => {
+    // Um filtro pode reduzir 300 conversas para poucas linhas. Voltar ao topo
+    // impede que a janela virtual fique apontando para uma faixa inexistente.
+    if (listRef.current) listRef.current.scrollTop = 0;
+    setScrollTop(0);
+  }, [query, statusFilter, appliedFilters]);
 
   function openFilters() {
     setFiltersOpen(true);
@@ -466,7 +499,11 @@ export function ConversationList({
         )}
       </header>
 
-      <div className="flex-1 overflow-y-auto">
+      <div
+        ref={listRef}
+        className="flex-1 overflow-y-auto"
+        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      >
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center px-6 py-20 text-center">
             {isSearching ? (
@@ -487,7 +524,9 @@ export function ConversationList({
                 : "As mensagens do WhatsApp aparecem aqui automaticamente."}
             </p>
           </div>
-        ) : filtered.map((c) => {
+        ) : (
+          <div style={{ paddingTop: virtualRange.top, paddingBottom: virtualRange.bottom }}>
+            {virtualRange.items.map((c) => {
           const active = activeLeadId === c.leadId;
           const opening = openingLeadId === c.leadId && !active;
           const selected = selectedIds.has(c.leadId);
@@ -498,7 +537,7 @@ export function ConversationList({
                 ? "gravando áudio..."
                 : c.lastPreview != null
                   ? c.lastDirection === "outbound"
-                    ? `Voce: ${c.lastPreview}`
+                    ? `Você: ${c.lastPreview}`
                     : c.lastPreview
                   : "";
 
@@ -519,7 +558,7 @@ export function ConversationList({
               }}
               aria-busy={opening}
               className={cn(
-                "relative flex gap-3 border-b border-border/35 py-3 pl-4 pr-3 transition-colors duration-150 hover:bg-muted/55",
+                "relative flex h-[69px] gap-3 border-b border-border/35 py-3 pl-4 pr-3 transition-colors duration-150 hover:bg-muted/55",
                 (active || opening) && !selectMode && "bg-brand/10 dark:bg-brand/12",
                 selected && "bg-brand/10 dark:bg-brand/15",
               )}
@@ -592,7 +631,9 @@ export function ConversationList({
               </div>
             </Link>
           );
-        })}
+            })}
+          </div>
+        )}
       </div>
 
       {filtersOpen && (

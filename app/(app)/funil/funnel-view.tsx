@@ -89,21 +89,26 @@ export function FunnelView({
     return `/funil?${qs.toString()}`;
   }
 
+  function pipelineHref(pipelineId: string) {
+    const qs = new URLSearchParams({ pipeline: pipelineId, periodo: activeDateFilter });
+    if (activeDateFilter === "custom" && customDay) qs.set("dia", customDay);
+    return `/funil?${qs.toString()}`;
+  }
+
   const maxCount = useMemo(() => Math.max(1, ...stages.map((s) => s.count)), [stages]);
 
-  // Cada segmento vai da altura da etapa atual ate a da proxima, formando o
-  // afunilamento. A % e a conversao em relacao a etapa anterior.
+  // Os dados retornados pelo RPC sao estoque atual por etapa, nao historico de
+  // transicoes. Portanto mostramos participacao no total do periodo, que e uma
+  // taxa real (0-100%), e nao uma falsa "conversao" entre estoques.
   const segments = useMemo(() => {
     return stages.map((stage, index) => {
       const next = stages[index + 1];
       const heightStart = Math.max(6, (stage.count / maxCount) * CHART_HEIGHT);
       const heightEnd = next ? Math.max(6, (next.count / maxCount) * CHART_HEIGHT) : heightStart;
-      const previous = stages[index - 1];
-      const conversion =
-        previous && previous.count > 0 ? Math.round((stage.count / previous.count) * 100) : null;
-      return { stage, heightStart, heightEnd, conversion };
+      const share = totals.createdCount > 0 ? Math.round((stage.count / totals.createdCount) * 100) : 0;
+      return { stage, heightStart, heightEnd, share };
     });
-  }, [stages, maxCount]);
+  }, [stages, maxCount, totals.createdCount]);
 
   const chartWidth = Math.max(1, stages.length) * COLUMN_WIDTH;
 
@@ -172,13 +177,18 @@ export function FunnelView({
       <Card>
         <CardContent className="p-0">
           <div className="flex flex-col gap-3 border-b border-border/60 p-5 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="font-display text-lg font-semibold">Gráfico de funil</h2>
+            <div>
+              <h2 className="font-display text-lg font-semibold">Distribuição por etapa</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Os percentuais representam a parcela dos leads do período que está atualmente em cada etapa.
+              </p>
+            </div>
             {pipelines.length > 1 && (
               <select
                 value={activePipelineId ?? ""}
                 onChange={(e) => {
                   const pipelineId = e.target.value;
-                  startPipelineNav(() => router.push(`/funil?pipeline=${pipelineId}`));
+                  startPipelineNav(() => router.push(pipelineHref(pipelineId)));
                 }}
                 disabled={pipelinePending}
                 className="h-9 rounded-md border border-border bg-card px-3 text-sm font-medium outline-none transition-colors focus:border-brand disabled:opacity-60"
@@ -252,7 +262,7 @@ export function FunnelView({
                   role="img"
                   aria-label="Grafico de funil por etapa"
                 >
-                  {segments.map(({ stage, heightStart, heightEnd, conversion }, index) => {
+                  {segments.map(({ stage, heightStart, heightEnd, share }, index) => {
                     const x = index * COLUMN_WIDTH;
                     const topStart = (CHART_HEIGHT - heightStart) / 2;
                     const topEnd = (CHART_HEIGHT - heightEnd) / 2;
@@ -266,7 +276,7 @@ export function FunnelView({
                     return (
                       <g key={stage.id}>
                         <path d={path} fill={stage.color} opacity={0.85} />
-                        {conversion !== null && (
+                        {totals.createdCount > 0 && (
                           <g>
                             <rect
                               x={x + COLUMN_WIDTH / 2 - 26}
@@ -282,7 +292,7 @@ export function FunnelView({
                               textAnchor="middle"
                               className="fill-foreground text-[11px] font-semibold"
                             >
-                              {conversion}%
+                              {share}%
                             </text>
                           </g>
                         )}

@@ -6,14 +6,6 @@ import {
   Mail,
   Phone,
   Calendar,
-  MoveRight,
-  Tag,
-  UserCheck,
-  StickyNote,
-  Bot,
-  PhoneCall,
-  Sparkles,
-  Activity,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
@@ -34,6 +26,7 @@ import { ValuePanel } from "./value-panel";
 import { formatBRTFullDate, formatBRTFullDateTime } from "@/lib/date/brt";
 import { LeadTagsPanel } from "./lead-tags-panel";
 import { LeadEmailsPanel } from "./lead-emails-panel";
+import { LeadTimeline } from "@/components/leads/lead-timeline";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -176,10 +169,10 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <div className="space-y-6 lg:col-span-2">
           <Card>
             <CardHeader>
-              <CardTitle>Informacoes</CardTitle>
+              <CardTitle>Informações</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-x-6 gap-y-5 text-sm sm:grid-cols-2">
-              <Info label="Estagio">
+              <Info label="Estágio">
                 <LeadStageSelect leadId={lead.id} stageId={lead.stage_id} stages={stages ?? []} />
               </Info>
               <Info label="Valor">
@@ -194,8 +187,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                   catalog={(tagCatalog ?? []).map((tag) => tag.name)}
                 />
               </Info>
-              <Info label="Observacoes" full>
-                <p className="whitespace-pre-wrap text-muted-foreground">{lead.notes ?? "Sem observacoes."}</p>
+              <Info label="Observações" full>
+                <p className="whitespace-pre-wrap text-muted-foreground">{lead.notes ?? "Sem observações."}</p>
               </Info>
             </CardContent>
           </Card>
@@ -227,107 +220,12 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             <CardTitle>Linha do tempo</CardTitle>
           </CardHeader>
           <CardContent className="text-sm">
-            {(activities ?? []).length === 0 ? (
-              <p className="text-muted-foreground">Sem atividades ainda.</p>
-            ) : (
-              <ol className="relative space-y-4 before:absolute before:left-[13px] before:top-2 before:bottom-2 before:w-px before:bg-border">
-                {activities?.map((a) => {
-                  const meta = activityMeta(a);
-                  const Icon = meta.icon;
-                  const author = a.user_id ? authorNames[a.user_id] : null;
-                  return (
-                    <li key={a.id} className="relative flex gap-3 pl-0">
-                      <span className={`z-10 grid h-7 w-7 shrink-0 place-items-center rounded-full ring-4 ring-background ${meta.color}`}>
-                        <Icon className="h-3.5 w-3.5" />
-                      </span>
-                      <div className="min-w-0 flex-1 pt-0.5">
-                        <p className="font-medium leading-snug">{meta.label}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatBRTFullDateTime(a.created_at)}
-                          {author ? ` · ${author}` : ""}
-                        </p>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
+            <LeadTimeline leadId={lead.id} />
           </CardContent>
         </Card>
       </div>
     </div>
   );
-}
-
-function activityMeta(activity: { kind: string; payload: unknown }): {
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  color: string;
-} {
-  const payload = (activity.payload ?? {}) as Record<string, unknown>;
-  switch (activity.kind) {
-    case "stage_changed": {
-      const to = String(payload.to_stage_name ?? "");
-      const from = payload.from_stage_name ? String(payload.from_stage_name) : null;
-      return {
-        label: from ? `Etapa alterada de ${from} para ${to}` : `Movido para ${to}`,
-        icon: MoveRight,
-        color: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-      };
-    }
-    case "tag_added":
-      return {
-        label: `Tag ${String(payload.tag ?? "")} adicionada`,
-        icon: Tag,
-        color: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-      };
-    case "tag_removed":
-      return {
-        label: `Tag ${String(payload.tag ?? "")} removida`,
-        icon: Tag,
-        color: "bg-gray-500/15 text-gray-600 dark:text-gray-300",
-      };
-    case "assigned":
-      return {
-        label: payload.unassigned
-          ? "Responsável removido"
-          : `Responsável alterado para ${String(payload.to_user_name ?? "equipe")}`,
-        icon: UserCheck,
-        color: "bg-violet-500/15 text-violet-600 dark:text-violet-400",
-      };
-    case "call":
-      return {
-        label: `Ligação${payload.extension ? ` (ramal ${String(payload.extension)})` : ""}`,
-        icon: PhoneCall,
-        color: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-      };
-    case "note":
-      return {
-        label: `Nota: "${String(payload.text ?? "")}"`,
-        icon: StickyNote,
-        color: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-      };
-    case "automation":
-      return {
-        label: payload.ai
-          ? `IA: ${String(payload.ai)}`
-          : `Automação: ${String(payload.message ?? "executada")}`,
-        icon: payload.ai ? Sparkles : Bot,
-        color: "bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-400",
-      };
-    case "technical_profile_updated":
-      return {
-        label: "Perfil técnico atualizado",
-        icon: Activity,
-        color: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
-      };
-    default:
-      return {
-        label: activity.kind.replaceAll("_", " "),
-        icon: Activity,
-        color: "bg-brand/15 text-brand",
-      };
-  }
 }
 
 function Info({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {
