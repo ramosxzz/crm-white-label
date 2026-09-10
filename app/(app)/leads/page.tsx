@@ -16,6 +16,7 @@ import { LeadsTable } from "./leads-table";
 import { LeadsFilters } from "./leads-filters";
 import { LeadsSummaryBar, type StageBreakdown } from "./leads-summary-bar";
 import { listTagsWithLeadCount } from "./actions";
+import { QualificationSummary, type QualificationDistribution } from "./qualification-summary";
 
 type LeadDateFilter = "all" | "today" | "yesterday" | "7d" | "30d" | "custom";
 type SortOption = "recentes" | "antigos" | "valor_desc" | "valor_asc" | "qualificacao";
@@ -114,12 +115,35 @@ export default async function LeadsPage({
     leadsQuery = leadsQuery.or(clauses.join(","));
   }
 
+  function qualificationCountQuery(stars: number) {
+    let query = supabase
+      .from("leads")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", ctx.tenantId)
+      .eq("quality_stars", stars);
+    if (dateFilter.bounds) query = query.gte("created_at", dateFilter.bounds.startIso).lte("created_at", dateFilter.bounds.endIso);
+    if (stageFilterIds.length > 0) query = query.in("stage_id", stageFilterIds);
+    if (tagFilter) query = query.contains("tags", [tagFilter]);
+    if (sourceFilters.length > 0) query = query.in("source", sourceFilters);
+    if (responsavelFilter === "unassigned") query = query.is("assigned_to", null);
+    else if (responsavelFilter) query = query.eq("assigned_to", responsavelFilter);
+    if (minStars) query = query.gte("quality_stars", minStars);
+    if (q) {
+      const digits = q.replace(/\D/g, "");
+      const clauses = [`name.ilike.%${q}%`, `email.ilike.%${q}%`];
+      if (digits) clauses.push(`phone.ilike.%${digits}%`);
+      query = query.or(clauses.join(","));
+    }
+    return query;
+  }
+
   const [
     { data: leads, count: directCount },
     { data: stages },
     members,
     { data: partners },
     qualificationResult,
+    directQualificationCounts,
     { data: sourceRows },
     tags,
   ] = await Promise.all([
@@ -138,6 +162,9 @@ export default async function LeadsPage({
           p_stage_ids: stageFilterIds.length > 0 ? stageFilterIds : undefined,
           p_tag: tagFilter ?? undefined,
         }),
+    useDirectCount
+      ? Promise.all([0, 1, 2, 3, 4, 5].map((stars) => qualificationCountQuery(stars)))
+      : Promise.resolve(null),
     // So os valores distintos de origem, pra popular o filtro - nao precisa
     // ser exato, 5000 linhas mais recentes ja cobre qualquer conjunto real
     // de fontes (poucas dezenas, vindas de integracao fixa).
@@ -148,6 +175,7 @@ export default async function LeadsPage({
   let total = directCount ?? 0;
   let totalValueCents = 0;
   let stageBreakdown: StageBreakdown | null = null;
+  let qualificationDistribution: QualificationDistribution | null = null;
 
   if (!useDirectCount && qualificationResult && !qualificationResult.error) {
     const qualification = (qualificationResult.data ?? []) as Array<{
@@ -157,13 +185,19 @@ export default async function LeadsPage({
       value_cents_sum: number;
     }>;
     const stageCountMap = new Map<string | null, number>();
+    const qualificationCountMap = new Map<number, number>();
     let metricTotal = 0;
     for (const row of qualification) {
       totalValueCents += row.value_cents_sum ?? 0;
       stageCountMap.set(row.stage_id, (stageCountMap.get(row.stage_id) ?? 0) + row.lead_count);
+      qualificationCountMap.set(row.quality_stars, (qualificationCountMap.get(row.quality_stars) ?? 0) + row.lead_count);
       metricTotal += row.lead_count;
     }
     total = metricTotal;
+    qualificationDistribution = [0, 1, 2, 3, 4, 5].map((stars) => ({
+      stars,
+      count: qualificationCountMap.get(stars) ?? 0,
+    }));
     // Pula a primeira etapa (equivalente a "Novo Lead"/entrada) - o resumo
     // e sobre o que ja esta em andamento, a contagem de entrada ja aparece
     // no numero total.
@@ -186,6 +220,11 @@ export default async function LeadsPage({
 
     const { count: fallbackCount, error: fallbackCountError } = await fallbackCountQuery;
     if (!fallbackCountError) total = fallbackCount ?? 0;
+  } else if (directQualificationCounts) {
+    qualificationDistribution = directQualificationCounts.map((result, stars) => ({
+      stars,
+      count: result.count ?? 0,
+    }));
   }
 
   const sourceCounts = new Map<string, number>();
@@ -251,6 +290,10 @@ export default async function LeadsPage({
           stageBreakdown={stageBreakdown}
           valueCents={totalValueCents}
         />
+
+        {qualificationDistribution && (
+          <QualificationSummary total={total} distribution={qualificationDistribution} />
+        )}
 
         <LeadsTable
           leads={leads ?? []}
