@@ -74,6 +74,22 @@ export function resolvePeriodFilter(
   return { active: "all", bounds: null };
 }
 
+/**
+ * Janela imediatamente anterior, mesma duracao - usada pra calcular tendencia
+ * (ex.: leads deste periodo vs periodo equivalente anterior). Sem isso nao
+ * da pra comparar "7 dias" com nada, so "hoje vs ontem" fazia sentido antes.
+ */
+export function previousPeriodBounds(bounds: PeriodBounds): PeriodBounds {
+  if (!bounds) return null;
+  const start = new Date(bounds.startIso).getTime();
+  const end = new Date(bounds.endIso).getTime();
+  const durationMs = end - start;
+  if (durationMs <= 0) return null;
+  const prevEnd = new Date(start - 1);
+  const prevStart = new Date(start - 1 - durationMs);
+  return { startIso: prevStart.toISOString(), endIso: prevEnd.toISOString() };
+}
+
 export function periodLabel(active: PeriodFilter, dia?: string): string {
   if (active === "custom" && dia) {
     const [y, m, d] = dia.split("-");

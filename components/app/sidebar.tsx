@@ -44,18 +44,26 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { markTeamChatRead } from "@/app/(app)/team-chat/actions";
 
-const operationItems = [
-  { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
+const overviewItems = [{ href: "/dashboard", label: "Dashboard", icon: BarChart3 }];
+
+// "Funil" (relatorio analitico) e "Kanban" (quadro operacional) parecem
+// duplicados mas nao sao: um mostra metrica por etapa (tempo medio, valor),
+// o outro e onde o lead e arrastado de fato. Mantidos separados de proposito.
+const crmItems = [
   { href: "/funil", label: "Funil", icon: Filter },
   { href: "/leads", label: "Leads", icon: Users },
   { href: "/atendimento", label: "Atendimento", icon: Timer },
   { href: "/tags", label: "Tags", icon: Tags },
   { href: "/kanban", label: "Kanban", icon: KanbanSquare },
+];
+
+const productivityItems = [
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/tarefas", label: "Tarefas", icon: ListChecks },
   { href: "/reunioes", label: "Reuniões", icon: CalendarCheck },
-  { href: "/estoque", label: "Estoque", icon: Boxes },
 ];
+
+const managementItems = [{ href: "/estoque", label: "Estoque", icon: Boxes }];
 
 const communicationItems = [
   { href: "/chat", label: "Conversas", icon: MessageCircle },
@@ -70,7 +78,7 @@ const communicationItems = [
 const secondaryItems = [
   { href: "/automations", label: "Automacoes", icon: Zap },
   { href: "/ia-w-mais", label: "IA W+", icon: Bot },
-  { href: "/pipelines", label: "Funis", icon: GitBranch },
+  { href: "/pipelines", label: "Configurar pipelines", icon: GitBranch },
   { href: "/integrations", label: "Integracoes", icon: Plug },
   { href: "/settings/users", label: "Usuarios", icon: UserCog },
   { href: "/settings", label: "Configuracoes", icon: Settings, exact: true },
@@ -171,9 +179,17 @@ export function Sidebar({
         { href: "/os/roteiro", label: "Roteiro", icon: Route, exact: true },
         { href: "/os/mapa", label: "Mapa", icon: MapIcon, exact: true },
       ];
-  const visibleOperationItems = osOnlyAccess || isProspeccao
+  const hiddenForRole = osOnlyAccess || isProspeccao;
+  const visibleOverviewItems = hiddenForRole ? [] : overviewItems;
+  const visibleCrmItems = hiddenForRole
     ? []
-    : operationItems.filter((item) => {
+    : crmItems.filter((item) => !(isSeller && sellerBlocked.has(item.href)));
+  const visibleProductivityItems = hiddenForRole
+    ? []
+    : productivityItems.filter((item) => !(isSeller && sellerBlocked.has(item.href)));
+  const visibleManagementItems = hiddenForRole
+    ? []
+    : managementItems.filter((item) => {
         if (isSeller && sellerBlocked.has(item.href)) return false;
         if (item.href === "/estoque") return stockEnabled;
         return true;
@@ -248,14 +264,33 @@ export function Sidebar({
             color="violet"
           />
         )}
-        {visibleOperationItems.length > 0 && (
+        {visibleOverviewItems.length > 0 && (
           <NavGroup
-            label="Operação"
+            label="Visão geral"
             icon={LayoutGrid}
-            items={visibleOperationItems}
+            items={visibleOverviewItems}
             pathname={pathname}
             defaultOpen
             color="blue"
+          />
+        )}
+        {visibleCrmItems.length > 0 && (
+          <NavGroup
+            label="CRM"
+            icon={Users}
+            items={visibleCrmItems}
+            pathname={pathname}
+            defaultOpen
+            color="blue"
+          />
+        )}
+        {visibleProductivityItems.length > 0 && (
+          <NavGroup
+            label="Produtividade"
+            icon={CalendarCheck}
+            items={visibleProductivityItems}
+            pathname={pathname}
+            color="cyan"
           />
         )}
         {visibleCommunicationItems.length > 0 && (
@@ -277,6 +312,15 @@ export function Sidebar({
             color="amber"
           />
         )}
+        {visibleManagementItems.length > 0 && (
+          <NavGroup
+            label="Gestão"
+            icon={Boxes}
+            items={visibleManagementItems}
+            pathname={pathname}
+            color="amber"
+          />
+        )}
         {visibleFieldServiceItems.length > 0 && (
           <NavGroup
             label="Ordens de serviço"
@@ -289,7 +333,7 @@ export function Sidebar({
         )}
         {visibleSecondaryItems.length > 0 && (
           <NavGroup
-            label="Sistema"
+            label="Configurações"
             icon={Settings}
             items={visibleSecondaryItems}
             pathname={pathname}

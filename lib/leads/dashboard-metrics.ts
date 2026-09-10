@@ -1,17 +1,37 @@
 import { getBRTDayBounds, getBRTYesterdayBounds } from "@/lib/date/brt";
 import type { PeriodFilter } from "@/lib/date/period-filter";
 
+export type PipelineStage = {
+  id: string;
+  name: string;
+  color: string;
+  count: number;
+  valueCents: number | null;
+  isWon: boolean;
+  isLost: boolean;
+};
+
+export type AttentionItem = {
+  id: string;
+  label: string;
+  count: number;
+  tone: "critical" | "warning" | "info";
+  href: string;
+};
+
 export type LeadsDashboardData = {
   dateLabel: string;
+  userFirstName: string;
   today: { startIso: string; endIso: string };
   kpis: {
-    newLeadsToday: number;
-    newLeadsYesterday: number;
-    outboundMessagesToday: number;
-    activeConversationsToday: number;
-    wonToday: number;
-    wonValueTodayCents: number;
-    pipelineValueTodayCents: number;
+    /** Leads criados no periodo global selecionado (nao so "hoje"). */
+    newLeadsInPeriod: number;
+    /** Mesma contagem, na janela equivalente imediatamente anterior - base da tendencia. Null quando o periodo e "todos" (sem janela anterior que faca sentido). */
+    newLeadsPreviousPeriod: number | null;
+    inProgress: number;
+    openOpportunities: number;
+    wonInPeriod: number;
+    wonValueInPeriodCents: number;
   };
   operations: {
     sharedQueueLeads: number;
@@ -20,8 +40,9 @@ export type LeadsDashboardData = {
     lowStockProducts: number;
     activeReservations: number;
   };
+  attention: AttentionItem[];
   leadsByHour: { hour: string; count: number }[];
-  pipelineByStage: { id: string; name: string; color: string; count: number; isWon: boolean; isLost: boolean }[];
+  pipelineByStage: PipelineStage[];
   sourcesToday: { source: string; count: number }[];
   recentToday: {
     id: string;
@@ -33,17 +54,10 @@ export type LeadsDashboardData = {
     stageColor: string | null;
     value_cents: number | null;
   }[];
-  weekTrend: { date: string; label: string; count: number }[];
-  starsDistribution: { stars: number; count: number }[];
-  starsAverage: number;
-  starsByPeriod: Partial<Record<PeriodFilter, {
-    distribution: { stars: number; count: number }[];
-    average: number;
-  }>>;
-  /** Periodo ativo do cartao de funil (rosca), por data de criacao do lead. */
-  funnelPeriod: PeriodFilter;
-  /** Periodo ativo do cartao de estrelas, por data de criacao do lead. */
-  starsPeriod: PeriodFilter;
+  leadsWeekTrend: { date: string; label: string; count: number }[];
+  wonWeekTrend: { date: string; label: string; count: number }[];
+  /** Periodo ativo do pipeline/atividade comercial (compartilhado, nao mais um filtro por cartao). */
+  period: PeriodFilter;
   /** Parametros atuais da URL, pra os filtros nao apagarem uns aos outros. */
   periodParams: Record<string, string | undefined>;
 };
@@ -86,47 +100,30 @@ export function aggregateSources(leads: { source: string | null }[]) {
     .slice(0, 6);
 }
 
-export function aggregateStars(leads: { quality_stars: number | null }[]) {
-  const counts = [0, 0, 0, 0, 0, 0];
-  let total = 0;
-  for (const lead of leads) {
-    const stars = Math.min(5, Math.max(0, lead.quality_stars ?? 0));
-    counts[stars]++;
-    total += stars;
-  }
-  const distribution = counts.map((count, stars) => ({ stars, count }));
-  const rated = leads.length - counts[0];
-  const average = rated > 0 ? total / rated : 0;
-  return { distribution, average };
-}
-
-export function aggregateStarsForBounds(
-  leads: { quality_stars: number | null; created_at: string }[],
-  bounds: { startIso: string; endIso: string } | null,
+function buildDayTrend<T>(
+  rows: T[],
+  getDate: (row: T) => string | null,
+  reduce: (rows: T[]) => number,
 ) {
-  if (!bounds) return aggregateStars(leads);
-  const start = new Date(bounds.startIso).getTime();
-  const end = new Date(bounds.endIso).getTime();
-  return aggregateStars(leads.filter((lead) => {
-    const createdAt = new Date(lead.created_at).getTime();
-    return createdAt >= start && createdAt <= end;
-  }));
-}
-
-export function buildWeekTrend(leads: { created_at: string }[]) {
   const days: { date: string; label: string; count: number }[] = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
     const dateStr = d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
     const label = d.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", weekday: "short" });
-    days.push({
-      date: dateStr,
-      label,
-      count: leads.filter((l) => l.created_at.slice(0, 10) === dateStr).length,
-    });
+    const dayRows = rows.filter((row) => getDate(row)?.slice(0, 10) === dateStr);
+    days.push({ date: dateStr, label, count: reduce(dayRows) });
   }
   return days;
+}
+
+export function buildWeekTrend(leads: { created_at: string }[]) {
+  return buildDayTrend(leads, (l) => l.created_at, (rows) => rows.length);
+}
+
+/** Mesma janela de 7 dias, mas contando negocios ganhos por `won_at`. */
+export function buildWonWeekTrend(wonLeads: { won_at: string | null }[]) {
+  return buildDayTrend(wonLeads, (l) => l.won_at, (rows) => rows.length);
 }
 
 export { getBRTDayBounds, getBRTYesterdayBounds };
