@@ -2979,6 +2979,20 @@ function LeadSidePanel({
     saveBusiness(nextDraft, { closeEditor: false, previousDraft });
   }
 
+  function updatePipelineDirectly(pipelineId: string) {
+    if (businessSaving) return;
+    const pipeline = pipelineOptions.find((option) => option.id === pipelineId);
+    const previousDraft = businessDraft;
+    const nextDraft = {
+      ...businessDraft,
+      pipelineId,
+      stageId: pipeline?.stages[0]?.id ?? "none",
+    };
+    setBusinessDraft(nextDraft);
+    setBusinessDirty(false);
+    saveBusiness(nextDraft, { closeEditor: false, previousDraft });
+  }
+
   function savePayment() {
     const parsed = Number(paymentCollectedReais.replace(/\./g, "").replace(",", "."));
     const collectedCents = Math.round(Math.max(0, Number.isFinite(parsed) ? parsed : 0) * 100);
@@ -3259,16 +3273,17 @@ function LeadSidePanel({
       <div className={unifiedSidePanel ? "order-1" : undefined}>
       <PanelSection
         title="Negócio"
-        action={!businessEditOpen ? (
+        action={unifiedSidePanel ? (
+          businessSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-label="Salvando alteração" /> : undefined
+        ) : !businessEditOpen ? (
           <div className="flex items-center gap-1.5">
-            {businessSaving && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-label="Salvando alteração" />}
             <button type="button" onClick={() => setBusinessEditOpen(true)} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted/50 hover:text-foreground" aria-label="Editar negócio">
               <Pencil className="h-3.5 w-3.5" />
             </button>
           </div>
         ) : undefined}
       >
-        {!businessEditOpen ? (
+        {!unifiedSidePanel && !businessEditOpen ? (
           <div>
             <InfoRow label="Valor" value={formatMoney(businessDraftValueCents)} />
             <InfoRow label="Origem" value={sourceSelect === "Outro" ? sourceCustomText : sourceSelect === "none" ? "Não informada" : sourceSelect} muted={sourceSelect === "none"} />
@@ -3375,7 +3390,7 @@ function LeadSidePanel({
             <Label className="text-xs text-muted-foreground">Funil</Label>
             <Select
               value={businessDraft.pipelineId}
-              onValueChange={changePipeline}
+              onValueChange={unifiedSidePanel ? updatePipelineDirectly : changePipeline}
               disabled={pipelineOptions.length === 0}
             >
               <SelectTrigger className="h-9 bg-background/70">
@@ -3400,10 +3415,13 @@ function LeadSidePanel({
             <Select
               value={businessDraft.stageId}
               onValueChange={(stageId) => {
-                setBusinessDirty(true);
-                setBusinessDraft((current) => ({ ...current, stageId }));
+                if (unifiedSidePanel) updateBusinessDirectly({ stageId });
+                else {
+                  setBusinessDirty(true);
+                  setBusinessDraft((current) => ({ ...current, stageId }));
+                }
               }}
-              disabled={selectedStages.length === 0}
+              disabled={businessSaving || selectedStages.length === 0}
             >
               <SelectTrigger className="h-9 bg-background/70">
                 <SelectValue placeholder="Selecione a etapa" />
@@ -3424,9 +3442,13 @@ function LeadSidePanel({
             <Select
               value={businessDraft.assignedTo}
               onValueChange={(assignedTo) => {
-                setBusinessDirty(true);
-                setBusinessDraft((current) => ({ ...current, assignedTo }));
+                if (unifiedSidePanel) updateBusinessDirectly({ assignedTo });
+                else {
+                  setBusinessDirty(true);
+                  setBusinessDraft((current) => ({ ...current, assignedTo }));
+                }
               }}
+              disabled={businessSaving}
             >
               <SelectTrigger className="h-9 bg-background/70">
                 <SelectValue placeholder="Selecione o responsável" />
@@ -3498,7 +3520,7 @@ function LeadSidePanel({
 
           <Button type="button" size="sm" variant="outline" className="w-full" onClick={() => saveBusiness()} disabled={businessSaving}>
             {businessSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-            Salvar negócio
+            Salvar alterações
           </Button>
         </div>
         )}
@@ -3511,13 +3533,15 @@ function LeadSidePanel({
 
       <PanelSection
         title="Pagamento"
-        action={!paymentEditOpen ? (
+        action={unifiedSidePanel ? (
+          paymentSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-label="Salvando pagamento" /> : undefined
+        ) : !paymentEditOpen ? (
           <button type="button" onClick={() => setPaymentEditOpen(true)} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted/50 hover:text-foreground" aria-label="Editar pagamento">
             <Pencil className="h-3.5 w-3.5" />
           </button>
         ) : undefined}
       >
-        {!paymentEditOpen ? (
+        {!unifiedSidePanel && !paymentEditOpen ? (
           <div>
             <InfoRow label="Valor coletado" value={formatMoney(collectedDraftCents)} />
             <InfoRow label="Valor a receber" value={formatMoney(receivableDraftCents)} />
