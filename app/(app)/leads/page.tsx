@@ -1,12 +1,7 @@
-import Link from "next/link";
-import { CalendarDays, Filter } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { canSeeAllLeads } from "@/lib/auth/roles";
 import { listTenantUserOptions } from "@/lib/tenant/users";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/app/page-header";
 import {
   getBRTDayBounds,
@@ -16,55 +11,28 @@ import {
 } from "@/lib/date/brt";
 import { NewLeadDialog } from "./new-lead-dialog";
 import { ImportCsvDialog } from "./import-csv-dialog";
+import { ExportCsvButton } from "./export-csv-button";
 import { LeadsTable } from "./leads-table";
-import { StageFilterExport } from "./stage-filter-export";
-import { LeadsMetricsSummary } from "./leads-metrics-summary";
-import { buildStageDistribution } from "@/lib/leads/operational-metrics";
+import { LeadsFilters } from "./leads-filters";
+import { LeadsSummaryBar, type StageBreakdown } from "./leads-summary-bar";
 import { listTagsWithLeadCount } from "./actions";
-import { TagsSidebar } from "./tags-sidebar";
 
 type LeadDateFilter = "all" | "today" | "yesterday" | "7d" | "30d" | "custom";
-
-const filterOptions: Array<{ value: LeadDateFilter; label: string; href: string }> = [
-  { value: "today", label: "Hoje", href: "/leads?entrada=today" },
-  { value: "yesterday", label: "Ontem", href: "/leads?entrada=yesterday" },
-  { value: "7d", label: "7 dias", href: "/leads?entrada=7d" },
-  { value: "30d", label: "30 dias", href: "/leads?entrada=30d" },
-  { value: "all", label: "Todos", href: "/leads?entrada=all" },
-];
+type SortOption = "recentes" | "antigos" | "valor_desc" | "valor_asc" | "qualificacao";
 
 function resolveLeadDateFilter(entrada?: string, dia?: string) {
   const active = (["today", "yesterday", "7d", "30d", "all", "custom"].includes(entrada ?? "")
     ? entrada
     : "all") as LeadDateFilter;
 
-  if (active === "today") {
-    return { active, bounds: getBRTDayBounds(), label: "Leads que chegaram hoje" };
-  }
-
-  if (active === "yesterday") {
-    return { active, bounds: getBRTYesterdayBounds(), label: "Leads que chegaram ontem" };
-  }
-
-  if (active === "7d") {
-    return { active, bounds: getBRTRollingDayBounds(7), label: "Leads dos últimos 7 dias" };
-  }
-
-  if (active === "30d") {
-    return { active, bounds: getBRTRollingDayBounds(30), label: "Leads dos últimos 30 dias" };
-  }
-
+  if (active === "today") return { active, bounds: getBRTDayBounds(), label: "Leads que chegaram hoje" };
+  if (active === "yesterday") return { active, bounds: getBRTYesterdayBounds(), label: "Leads que chegaram ontem" };
+  if (active === "7d") return { active, bounds: getBRTRollingDayBounds(7), label: "Leads dos últimos 7 dias" };
+  if (active === "30d") return { active, bounds: getBRTRollingDayBounds(30), label: "Leads dos últimos 30 dias" };
   if (active === "custom" && dia) {
     const bounds = getBRTDayBoundsFromDateString(dia);
-    if (bounds) {
-      return {
-        active,
-        bounds,
-        label: `Leads do dia ${dia.split("-").reverse().join("/")}`,
-      };
-    }
+    if (bounds) return { active, bounds, label: `Leads do dia ${dia.split("-").reverse().join("/")}` };
   }
-
   return { active: "all" as LeadDateFilter, bounds: null, label: "Todos os leads cadastrados" };
 }
 
@@ -73,203 +41,196 @@ const LEADS_PAGE_SIZE = 50;
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ entrada?: string; dia?: string; page?: string; etapa?: string | string[]; tag?: string }>;
+  searchParams?: Promise<{
+    entrada?: string;
+    dia?: string;
+    page?: string;
+    etapa?: string | string[];
+    tag?: string;
+    responsavel?: string;
+    origem?: string | string[];
+    qualificacao?: string;
+    ordenar?: string;
+    q?: string;
+  }>;
 }) {
   const ctx = await requireContext();
   const supabase = await createClient();
   const params = await searchParams;
   const dateFilter = resolveLeadDateFilter(params?.entrada, params?.dia);
-  // ?etapa=<id> repetido vira array; um so vira string. Normaliza os dois.
-  const stageFilterIds = params?.etapa
-    ? (Array.isArray(params.etapa) ? params.etapa : [params.etapa]).filter(Boolean)
-    : [];
+  // ?etapa=<id> e ?origem=<valor> repetidos viram array; um so vira string.
+  const stageFilterIds = params?.etapa ? (Array.isArray(params.etapa) ? params.etapa : [params.etapa]).filter(Boolean) : [];
+  const sourceFilters = params?.origem ? (Array.isArray(params.origem) ? params.origem : [params.origem]).filter(Boolean) : [];
   const tagFilter = params?.tag?.trim() || null;
+  const responsavelFilter = params?.responsavel?.trim() || null;
+  const qualificacaoFilter = params?.qualificacao?.trim() || null;
+  const q = params?.q?.trim() || null;
+  const sort = (["recentes", "antigos", "valor_desc", "valor_asc", "qualificacao"].includes(params?.ordenar ?? "")
+    ? params?.ordenar
+    : "recentes") as SortOption;
   const page = Math.max(1, Number(params?.page) || 1);
   const from = (page - 1) * LEADS_PAGE_SIZE;
   const to = from + LEADS_PAGE_SIZE - 1;
 
   const canAssignLeads = canSeeAllLeads(ctx.role);
   const canAssign = canAssignLeads && ctx.tenant.lead_assignment_enabled;
+  const minStars = qualificacaoFilter === "5" ? 5 : qualificacaoFilter === "4" ? 4 : qualificacaoFilter === "rated" ? 1 : null;
 
-  // 500 leads de uma vez travava o scroll da pagina (renderizava tudo numa
-  // tabela so). Pagina no servidor em vez de trazer tudo.
-  // count "estimated": exato quando e pouca coisa, aproximado (via
-  // estatisticas do Postgres, sem escanear linha a linha) quando e muita -
-  // count "exact" aqui forcava avaliar a policy de RLS pra cada linha do
-  // tenant so pra contar, e era a query mais pesada da pagina pra quem tem
-  // muitos leads (medido: ~400ms so nisso, num tenant ainda pequeno).
+  // Filtros "amplos" (etapa/tag/periodo) usam o total exato do RPC
+  // lead_qualification_summary, que ja roda mesmo assim pro resumo - sem
+  // custo extra. Busca/responsavel/origem/qualificacao nao tem suporte no
+  // RPC; nesses casos o resultado tende a ser bem menor (filtro estreito),
+  // entao um count "exact" direto na query e barato e correto - so nao vira
+  // padrao pra tela toda porque contar TODOS os leads do tenant a cada carga
+  // (sem filtro nenhum) e que era caro (~400ms medido).
+  const useDirectCount = Boolean(q || responsavelFilter || sourceFilters.length > 0 || minStars);
+
   let leadsQuery = supabase
     .from("leads")
-    .select("id, name, phone, email, source, value_cents, created_at, stage_id, assigned_to, quality_stars", { count: "estimated" })
+    .select(
+      "id, name, phone, email, source, value_cents, created_at, stage_id, assigned_to, quality_stars",
+      useDirectCount ? { count: "exact" } : undefined,
+    )
     .eq("tenant_id", ctx.tenantId)
-    .order("created_at", { ascending: false })
     .range(from, to);
 
-  if (dateFilter.bounds) {
-    leadsQuery = leadsQuery.gte("created_at", dateFilter.bounds.startIso).lte("created_at", dateFilter.bounds.endIso);
-  }
-  if (stageFilterIds.length > 0) {
-    leadsQuery = leadsQuery.in("stage_id", stageFilterIds);
-  }
-  if (tagFilter) {
-    leadsQuery = leadsQuery.contains("tags", [tagFilter]);
+  if (sort === "antigos") leadsQuery = leadsQuery.order("created_at", { ascending: true });
+  else if (sort === "valor_desc") leadsQuery = leadsQuery.order("value_cents", { ascending: false, nullsFirst: false });
+  else if (sort === "valor_asc") leadsQuery = leadsQuery.order("value_cents", { ascending: true, nullsFirst: true });
+  else if (sort === "qualificacao") leadsQuery = leadsQuery.order("quality_stars", { ascending: false, nullsFirst: false });
+  else leadsQuery = leadsQuery.order("created_at", { ascending: false });
+
+  if (dateFilter.bounds) leadsQuery = leadsQuery.gte("created_at", dateFilter.bounds.startIso).lte("created_at", dateFilter.bounds.endIso);
+  if (stageFilterIds.length > 0) leadsQuery = leadsQuery.in("stage_id", stageFilterIds);
+  if (tagFilter) leadsQuery = leadsQuery.contains("tags", [tagFilter]);
+  if (sourceFilters.length > 0) leadsQuery = leadsQuery.in("source", sourceFilters);
+  if (responsavelFilter === "unassigned") leadsQuery = leadsQuery.is("assigned_to", null);
+  else if (responsavelFilter) leadsQuery = leadsQuery.eq("assigned_to", responsavelFilter);
+  if (minStars) leadsQuery = leadsQuery.gte("quality_stars", minStars);
+  if (q) {
+    const digits = q.replace(/\D/g, "");
+    const clauses = [`name.ilike.%${q}%`, `email.ilike.%${q}%`];
+    if (digits) clauses.push(`phone.ilike.%${digits}%`);
+    leadsQuery = leadsQuery.or(clauses.join(","));
   }
 
-  const [{ data: leads, count: totalCount }, { data: stages }, members, { data: partners }, { data: qualificationRows }, { data: slaRows }, tags] = await Promise.all([
+  const [
+    { data: leads, count: directCount },
+    { data: stages },
+    members,
+    { data: partners },
+    qualificationResult,
+    { data: sourceRows },
+    tags,
+  ] = await Promise.all([
     leadsQuery,
-    supabase
-      .from("pipeline_stages")
-      .select("id, name, color")
-      .eq("tenant_id", ctx.tenantId)
-      .order("position"),
+    supabase.from("pipeline_stages").select("id, name, color").eq("tenant_id", ctx.tenantId).order("position"),
     canAssignLeads ? listTenantUserOptions(ctx.tenantId) : Promise.resolve([]),
     ctx.tenant.field_service_enabled
-      ? supabase
-          .from("field_service_partners")
-          .select("id, kind, name")
-          .eq("tenant_id", ctx.tenantId)
-          .eq("is_active", true)
-          .order("kind")
-          .order("name")
+      ? supabase.from("field_service_partners").select("id, kind, name").eq("tenant_id", ctx.tenantId).eq("is_active", true).order("kind").order("name")
       : Promise.resolve({ data: [] }),
-    supabase.rpc("lead_qualification_summary", {
-      p_tenant_id: ctx.tenantId,
-      p_from: dateFilter.bounds?.startIso ?? undefined,
-      p_to: dateFilter.bounds?.endIso ?? undefined,
-      p_stage_ids: stageFilterIds.length > 0 ? stageFilterIds : undefined,
-    }),
-    supabase.rpc("attendant_sla_metrics", {
-      p_tenant_id: ctx.tenantId,
-      // Sem filtro de data ("Todos"), antes escaneava a tabela messages
-      // inteira desde 1970 com window function por cima - so piorava com o
-      // tempo e era o gargalo mais pesado da pagina (>100ms so nisso, num
-      // tenant ainda pequeno). Tempo de resposta de mensagem de anos atras
-      // nao serve pra nada num painel operacional; limita a 90 dias.
-      p_from: dateFilter.bounds?.startIso ?? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
-      p_to: dateFilter.bounds?.endIso ?? new Date().toISOString(),
-    }),
+    useDirectCount
+      ? Promise.resolve(null)
+      : supabase.rpc("lead_qualification_summary", {
+          p_tenant_id: ctx.tenantId,
+          p_from: dateFilter.bounds?.startIso ?? undefined,
+          p_to: dateFilter.bounds?.endIso ?? undefined,
+          p_stage_ids: stageFilterIds.length > 0 ? stageFilterIds : undefined,
+          p_tag: tagFilter ?? undefined,
+        }),
+    // So os valores distintos de origem, pra popular o filtro - nao precisa
+    // ser exato, 5000 linhas mais recentes ja cobre qualquer conjunto real
+    // de fontes (poucas dezenas, vindas de integracao fixa).
+    supabase.from("leads").select("source").eq("tenant_id", ctx.tenantId).not("source", "is", null).order("created_at", { ascending: false }).limit(5000),
     listTagsWithLeadCount(),
   ]);
 
-  const qualification = (qualificationRows ?? []) as Array<{
-    stage_id: string | null;
-    quality_stars: number;
-    lead_count: number;
-    value_cents_sum: number;
-  }>;
-  const starCounts = [0, 0, 0, 0, 0, 0];
-  const stageCountMap = new Map<string | null, number>();
+  let total = directCount ?? 0;
   let totalValueCents = 0;
-  let starsSum = 0;
-  let metricTotal = 0;
-  for (const row of qualification) {
-    const stars = Math.min(5, Math.max(0, row.quality_stars ?? 0));
-    starCounts[stars] += row.lead_count;
-    starsSum += stars * row.lead_count;
-    totalValueCents += row.value_cents_sum ?? 0;
-    stageCountMap.set(row.stage_id, (stageCountMap.get(row.stage_id) ?? 0) + row.lead_count);
-    metricTotal += row.lead_count;
-  }
-  const ratedLeads = metricTotal - starCounts[0];
-  const qualityAverage = ratedLeads > 0 ? starsSum / ratedLeads : 0;
-  const qualityDistribution = starCounts.map((count, stars) => ({
-    stars,
-    count,
-    percentage: metricTotal > 0 ? Math.round((count / metricTotal) * 100) : 0,
-  }));
-  const mqlLeads = starCounts[3] + starCounts[4] + starCounts[5];
-  const mqlPercentage = metricTotal > 0 ? Math.round((mqlLeads / metricTotal) * 100) : 0;
-  const stageDistribution = buildStageDistribution(
-    [...stageCountMap].map(([stage_id, count]) => ({ stage_id, count })),
-    stages ?? [],
-    metricTotal,
-  );
-  const responseCount = (slaRows ?? []).reduce((sum, row) => sum + Number(row.responses ?? 0), 0);
-  const avgResponseSeconds = responseCount > 0
-    ? (slaRows ?? []).reduce((sum, row) => sum + Number(row.avg_response_seconds ?? 0) * Number(row.responses ?? 0), 0) / responseCount
-    : 0;
+  let stageBreakdown: StageBreakdown | null = null;
 
-  const pageCount = Math.max(1, Math.ceil((totalCount ?? 0) / LEADS_PAGE_SIZE));
+  if (!useDirectCount && qualificationResult) {
+    const qualification = (qualificationResult.data ?? []) as Array<{
+      stage_id: string | null;
+      quality_stars: number;
+      lead_count: number;
+      value_cents_sum: number;
+    }>;
+    const stageCountMap = new Map<string | null, number>();
+    let metricTotal = 0;
+    for (const row of qualification) {
+      totalValueCents += row.value_cents_sum ?? 0;
+      stageCountMap.set(row.stage_id, (stageCountMap.get(row.stage_id) ?? 0) + row.lead_count);
+      metricTotal += row.lead_count;
+    }
+    total = metricTotal;
+    // Pula a primeira etapa (equivalente a "Novo Lead"/entrada) - o resumo
+    // e sobre o que ja esta em andamento, a contagem de entrada ja aparece
+    // no numero total.
+    stageBreakdown = (stages ?? [])
+      .slice(1)
+      .map((s) => ({ name: s.name, count: stageCountMap.get(s.id) ?? 0 }))
+      .filter((s) => s.count > 0)
+      .slice(0, 4);
+  }
+
+  const sourceCounts = new Map<string, number>();
+  for (const row of (sourceRows ?? []) as Array<{ source: string | null }>) {
+    if (!row.source?.trim()) continue;
+    const key = row.source.trim();
+    sourceCounts.set(key, (sourceCounts.get(key) ?? 0) + 1);
+  }
+  const sources = [...sourceCounts.entries()].sort((a, b) => b[1] - a[1]).map(([source]) => source).slice(0, 30);
+
+  const pageCount = Math.max(1, Math.ceil(total / LEADS_PAGE_SIZE));
+  const hasActiveFilters = Boolean(q || stageFilterIds.length || tagFilter || responsavelFilter || sourceFilters.length || minStars || dateFilter.active !== "all");
 
   function pageHref(target: number) {
     const qs = new URLSearchParams();
     if (params?.entrada) qs.set("entrada", params.entrada);
     if (params?.dia) qs.set("dia", params.dia);
     for (const id of stageFilterIds) qs.append("etapa", id);
+    for (const s of sourceFilters) qs.append("origem", s);
     if (tagFilter) qs.set("tag", tagFilter);
+    if (responsavelFilter) qs.set("responsavel", responsavelFilter);
+    if (qualificacaoFilter) qs.set("qualificacao", qualificacaoFilter);
+    if (q) qs.set("q", q);
+    if (sort !== "recentes") qs.set("ordenar", sort);
     if (target > 1) qs.set("page", String(target));
     const query = qs.toString();
     return query ? `/leads?${query}` : "/leads";
   }
 
   return (
-    <div className="flex min-h-full">
-      <TagsSidebar tags={tags} />
-      <div className="min-w-0 flex-1">
+    <div>
       <PageHeader
-        eyebrow="Operacao"
+        eyebrow="Operação"
         title="Leads"
-        description={`${dateFilter.label}${tagFilter ? ` · tag "${tagFilter}"` : ""} · ${totalCount ?? 0} resultado${(totalCount ?? 0) === 1 ? "" : "s"}`}
+        description="Gerencie e acompanhe seus contatos comerciais."
         actions={
           <>
+            <ExportCsvButton startIso={dateFilter.bounds?.startIso ?? null} endIso={dateFilter.bounds?.endIso ?? null} />
             <ImportCsvDialog canAssign={canAssignLeads} members={members} foldersEnabled={ctx.tenant.lead_folders_enabled} />
             <NewLeadDialog stages={stages ?? []} partners={partners ?? []} />
           </>
         }
       />
 
-      <div className="p-8">
-        <LeadsMetricsSummary
-          total={metricTotal}
-          responseSeconds={avgResponseSeconds}
-          respondedConversations={responseCount}
-          stages={stageDistribution}
-          quality={qualityDistribution}
-          qualityAverage={qualityAverage}
-          ratedLeads={ratedLeads}
-          mqlLeads={mqlLeads}
-          mqlPercentage={mqlPercentage}
+      <div className="space-y-4 p-6 md:p-8">
+        <LeadsFilters
+          stages={(stages ?? []).map((s) => ({ id: s.id, name: s.name, color: s.color }))}
+          members={members}
+          sources={sources}
+          tags={(tags ?? []).map((t) => ({ tag: t.tag, count: t.count }))}
+          canAssign={canAssignLeads}
         />
-        <div className="mb-4 flex flex-col gap-3 rounded-xl border border-border/70 bg-card p-4 shadow-elev-1">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="mr-1 flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <Filter className="h-4 w-4" />
-                Entrada
-              </div>
-              {filterOptions.map((option) => (
-                <Button key={option.value} asChild size="sm" variant={dateFilter.active === option.value ? "brand" : "outline"}>
-                  <Link href={option.href}>{option.label}</Link>
-                </Button>
-              ))}
-            </div>
 
-            <form action="/leads" className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <input type="hidden" name="entrada" value="custom" />
-              <label htmlFor="lead-entry-day" className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <CalendarDays className="h-4 w-4" />
-                Dia específico
-              </label>
-              <Input
-                id="lead-entry-day"
-                name="dia"
-                type="date"
-                defaultValue={dateFilter.active === "custom" ? params?.dia : undefined}
-                className={cn("w-full sm:w-44", dateFilter.active === "custom" && "border-brand/60")}
-              />
-              <Button size="sm" variant="secondary" type="submit">
-                Filtrar
-              </Button>
-            </form>
-          </div>
-
-          <StageFilterExport
-            stages={stages ?? []}
-            selectedStageIds={stageFilterIds}
-            startIso={dateFilter.bounds?.startIso ?? null}
-            endIso={dateFilter.bounds?.endIso ?? null}
-          />
-        </div>
+        <LeadsSummaryBar
+          total={total}
+          totalLabel={hasActiveFilters ? "leads encontrados" : "leads"}
+          stageBreakdown={stageBreakdown}
+          valueCents={totalValueCents}
+        />
 
         <LeadsTable
           leads={leads ?? []}
@@ -280,15 +241,9 @@ export default async function LeadsPage({
           nextHref={pageHref(Math.min(pageCount, page + 1))}
           page={page}
           pageCount={pageCount}
-          rangeLabel={`${from + 1}–${Math.min(totalCount ?? 0, from + LEADS_PAGE_SIZE)} de ${totalCount ?? 0}`}
-          totals={{
-            leads: metricTotal,
-            valueCents: totalValueCents,
-            ratedLeads,
-            starsAverage: qualityAverage,
-          }}
+          rangeLabel={`${total === 0 ? 0 : from + 1}–${Math.min(total, from + LEADS_PAGE_SIZE)} de ${total}`}
+          hasActiveFilters={hasActiveFilters}
         />
-      </div>
       </div>
     </div>
   );

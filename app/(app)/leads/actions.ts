@@ -428,6 +428,11 @@ export async function exportLeadsCSV(input: {
   stageIds?: string[];
   startIso?: string | null;
   endIso?: string | null;
+  tag?: string | null;
+  q?: string | null;
+  assignedTo?: string | null;
+  sources?: string[];
+  minStars?: number;
 }) {
   const ctx = await requireContext();
   const supabase = await createClient();
@@ -446,6 +451,18 @@ export async function exportLeadsCSV(input: {
   if (input.stageIds && input.stageIds.length > 0) query = query.in("stage_id", input.stageIds);
   if (input.startIso) query = query.gte("created_at", input.startIso);
   if (input.endIso) query = query.lte("created_at", input.endIso);
+  if (input.tag) query = query.contains("tags", [input.tag]);
+  if (input.assignedTo === "unassigned") query = query.is("assigned_to", null);
+  else if (input.assignedTo) query = query.eq("assigned_to", input.assignedTo);
+  if (input.sources && input.sources.length > 0) query = query.in("source", input.sources);
+  if (input.minStars) query = query.gte("quality_stars", input.minStars);
+  if (input.q?.trim()) {
+    const term = input.q.trim();
+    const digits = term.replace(/\D/g, "");
+    const clauses = [`name.ilike.%${term}%`, `email.ilike.%${term}%`];
+    if (digits) clauses.push(`phone.ilike.%${digits}%`);
+    query = query.or(clauses.join(","));
+  }
 
   const { data: rows, error } = await query;
   if (error) throw new Error(error.message);

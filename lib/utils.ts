@@ -15,11 +15,21 @@ export function formatCurrencyBRL(cents: number | null | undefined): string {
 export function formatPhoneBR(phone: string | null | undefined): string {
   if (!phone) return "";
   const digits = phone.replace(/\D/g, "");
+  // 13 digitos: 55 + DDD + celular com 9 (5511987654321).
   if (digits.length === 13) {
     return `+${digits.slice(0, 2)} (${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`;
   }
+  // 12 digitos: 55 + DDD + numero de 8 (fixo, ou celular antigo sem o 9
+  // extra - ainda comum em leads mais velhos). Sem isso caia no fallback
+  // cru (ex: "555191023865" na tela).
+  if (digits.length === 12) {
+    return `+${digits.slice(0, 2)} (${digits.slice(2, 4)}) ${digits.slice(4, 8)}-${digits.slice(8)}`;
+  }
   if (digits.length === 11) {
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
   }
   return phone;
 }

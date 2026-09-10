@@ -23,6 +23,9 @@ export default function LeadsLoading() {
         <Skeleton className="h-10 w-28 rounded-md" />
       </div>
 
+      {/* Resumo compacto */}
+      <Skeleton className="h-10 w-full rounded-lg" />
+
       {/* Tabela de Leads */}
       <div className="rounded-lg border bg-card">
         <div className="border-b p-4">
