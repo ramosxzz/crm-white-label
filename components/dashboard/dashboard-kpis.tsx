@@ -1,4 +1,4 @@
-import { ArrowDownRight, ArrowUpRight, Handshake, TrendingUp, UserPlus, Users } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, CircleHelp, Handshake, TrendingUp, UserPlus, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrencyBRL, cn } from "@/lib/utils";
 import type { PeriodFilter } from "@/lib/date/period-filter";
@@ -31,14 +31,15 @@ export function DashboardKpis({
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <KpiCard icon={<UserPlus className="h-4 w-4" />} label="Leads novos" value={newLeadsInPeriod} trend={leadsTrend} trendLabel={previousLabel} />
-      <KpiCard icon={<Users className="h-4 w-4" />} label="Em atendimento" value={inProgress} hint="leads já engajados, fora a entrada" />
-      <KpiCard icon={<Handshake className="h-4 w-4" />} label="Oportunidades abertas" value={openOpportunities} hint="todo o pipeline em aberto" />
+      <KpiCard icon={<UserPlus className="h-4 w-4" />} label="Leads novos" value={newLeadsInPeriod} trend={leadsTrend} trendLabel={previousLabel} explanation="Leads cadastrados no período selecionado." />
+      <KpiCard icon={<Users className="h-4 w-4" />} label="Em atendimento" value={inProgress} hint="leads já engajados, fora a entrada" explanation="Oportunidades nas etapas abertas, excluindo a primeira etapa de entrada." />
+      <KpiCard icon={<Handshake className="h-4 w-4" />} label="Oportunidades abertas" value={openOpportunities} hint="todo o pipeline em aberto" explanation="Todos os leads que estão em etapas abertas, incluindo a etapa de entrada." />
       <KpiCard
         icon={<TrendingUp className="h-4 w-4" />}
         label="Vendas / Ganhos"
         value={wonInPeriod}
         hint={wonValueInPeriodCents > 0 ? formatCurrencyBRL(wonValueInPeriodCents) : undefined}
+        explanation="Leads marcados como ganhos no período e soma dos respectivos valores."
       />
     </div>
   );
@@ -51,6 +52,7 @@ function KpiCard({
   trend,
   trendLabel,
   hint,
+  explanation,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -58,6 +60,7 @@ function KpiCard({
   trend?: number | null;
   trendLabel?: string;
   hint?: string;
+  explanation: string;
 }) {
   return (
     <Card className="overflow-hidden border-border/60 bg-card/80">
@@ -79,7 +82,12 @@ function KpiCard({
             </span>
           )}
         </div>
-        <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
+        <p className="mt-4 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          {label}
+          <span className="inline-flex normal-case" title={explanation} aria-label={`${label}: ${explanation}`}>
+            <CircleHelp className="h-3.5 w-3.5" aria-hidden />
+          </span>
+        </p>
         <p className="mt-1 font-display text-3xl font-semibold tabular-nums">{value}</p>
         {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
       </CardContent>

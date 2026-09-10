@@ -225,7 +225,13 @@ export default async function LeadsPage({
           <>
             <ExportCsvButton startIso={dateFilter.bounds?.startIso ?? null} endIso={dateFilter.bounds?.endIso ?? null} />
             <ImportCsvDialog canAssign={canAssignLeads} members={members} foldersEnabled={ctx.tenant.lead_folders_enabled} />
-            <NewLeadDialog stages={stages ?? []} partners={partners ?? []} />
+            <NewLeadDialog
+              stages={stages ?? []}
+              partners={partners ?? []}
+              members={members}
+              sources={sources}
+              canAssign={canAssignLeads}
+            />
           </>
         }
       />

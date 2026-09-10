@@ -27,6 +27,7 @@ const leadSchema = z.object({
   stage_id: z.string().uuid().optional(),
   value_cents: z.number().int().min(0).optional(),
   referred_by_partner_id: z.string().uuid().optional(),
+  assigned_to: z.string().uuid().optional(),
 });
 
 // Modo ausente: define (ou limpa, com null) o vendedor que recebe os novos leads.
@@ -71,15 +72,52 @@ export async function createLead(formData: FormData): Promise<CreateLeadResult> 
     source: formData.get("source") || undefined,
     notes: formData.get("notes") || undefined,
     stage_id: formData.get("stage_id") || undefined,
-    value_cents: formData.get("value_cents")
-      ? Math.round(Number(formData.get("value_cents")) * 100)
+    value_cents: formData.get("value")
+      ? Math.round(Number(formData.get("value")) * 100)
       : 0,
     referred_by_partner_id: formData.get("referred_by_partner_id") || undefined,
+    assigned_to: formData.get("assigned_to") || undefined,
   });
   if (!parsedResult.success) {
     return { ok: false, error: parsedResult.error.issues[0]?.message ?? "Revise os dados do lead." };
   }
   const parsed = parsedResult.data;
+
+  const normalizedPhone = parsed.phone ? normalizePhone(parsed.phone) : null;
+  const normalizedEmail = parsed.email?.trim().toLowerCase() || null;
+  if (normalizedPhone || normalizedEmail) {
+    // Consultas separadas evitam interpolar dados do usuário na sintaxe do
+    // filtro `.or()` do PostgREST (e permitem dizer qual campo duplicou).
+    const [phoneDuplicate, emailDuplicate] = await Promise.all([
+      normalizedPhone
+        ? supabase.from("leads").select("id").eq("tenant_id", ctx.tenantId).eq("phone", normalizedPhone).limit(1).maybeSingle()
+        : Promise.resolve({ data: null }),
+      normalizedEmail
+        ? supabase.from("leads").select("id").eq("tenant_id", ctx.tenantId).ilike("email", normalizedEmail).limit(1).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+    if (phoneDuplicate.data || emailDuplicate.data) {
+      return {
+        ok: false,
+        error: phoneDuplicate.data
+          ? "Já existe um lead cadastrado com este telefone."
+          : "Já existe um lead cadastrado com este e-mail.",
+      };
+    }
+  }
+
+  let requestedAssignee: string | null = null;
+  if (parsed.assigned_to) {
+    if (!canSeeAllLeads(ctx.role)) return { ok: false, error: "Você não pode escolher o responsável deste lead." };
+    const { data: member } = await supabase
+      .from("tenant_members")
+      .select("user_id")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("user_id", parsed.assigned_to)
+      .maybeSingle();
+    if (!member) return { ok: false, error: "O responsável selecionado não pertence a este workspace." };
+    requestedAssignee = parsed.assigned_to;
+  }
 
   let stageId = parsed.stage_id;
   if (!stageId) {
@@ -114,15 +152,15 @@ export async function createLead(formData: FormData): Promise<CreateLeadResult> 
     id: leadId,
     tenant_id: ctx.tenantId,
     name: parsed.name,
-    phone: parsed.phone ? normalizePhone(parsed.phone) : null,
-    email: parsed.email || null,
+    phone: normalizedPhone,
+    email: normalizedEmail,
     source: parsed.source || null,
     notes: parsed.notes || null,
     stage_id: stageId,
     pipeline_id: pipelineRow?.pipeline_id,
     value_cents: parsed.value_cents ?? 0,
     referred_by_partner_id: parsed.referred_by_partner_id ?? null,
-    assigned_to: ctx.role === "vendedor" ? ctx.userId : null,
+    assigned_to: requestedAssignee ?? (ctx.role === "vendedor" ? ctx.userId : null),
   });
 
   if (error) {
@@ -149,6 +187,8 @@ export async function createLead(formData: FormData): Promise<CreateLeadResult> 
     if (ctx.role === "vendedor" && ctx.tenant.lead_assignment_enabled) {
       // No tenant com distribuicao ativa, o lead cadastrado pela propria
       // vendedora permanece com ela e nao entra no fluxo automatico.
+    } else if (requestedAssignee) {
+      // Responsável escolhido manualmente na criação: não sobrescrever com round-robin.
     } else if (parsed.referred_by_partner_id) {
       // no-op: sem modo ausente, sem round-robin.
     } else {

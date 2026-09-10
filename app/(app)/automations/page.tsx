@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Zap, PlayCircle, PauseCircle, FileEdit, Trash2 } from "lucide-react";
+import { Plus, Zap, PlayCircle, PauseCircle, FileEdit, Trash2, CheckCircle2, XCircle } from "lucide-react";
 import { PageHeader } from "@/components/app/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { canManageAutomations } from "@/lib/auth/roles";
 import { createFlow, updateFlowStatus, deleteFlow } from "./actions";
+import { formatRelativeTimeBRT } from "@/lib/date/brt";
 
 const triggerLabels: Record<string, string> = {
   lead_created: "Lead criado",
@@ -45,42 +46,58 @@ export default async function AutomationsPage() {
     .eq("tenant_id", ctx.tenantId)
     .order("updated_at", { ascending: false });
 
-  // Count executions per flow
+  // Um recorte recente evita baixar um histórico ilimitado na listagem. O log
+  // completo continua disponível dentro de cada automação.
   const flowIds = (flows ?? []).map((f) => f.id);
-  const { data: execCounts } = flowIds.length
+  const { data: recentExecutions } = flowIds.length
     ? await supabase
         .from("automation_executions")
-        .select("flow_id, status")
+        .select("flow_id, status, started_at, error_message")
         .in("flow_id", flowIds)
+        .order("started_at", { ascending: false })
+        .limit(2000)
     : { data: [] };
 
-  const countsByFlow = (execCounts ?? []).reduce(
-    (acc, e) => {
-      const fid = e.flow_id as string;
-      acc[fid] = (acc[fid] ?? 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>,
-  );
+  type RecentExecution = {
+    flow_id: string;
+    status: string;
+    started_at: string;
+    error_message: string | null;
+  };
+  const executionsByFlow = new Map<string, {
+    total: number;
+    completed: number;
+    failed: number;
+    last: RecentExecution | null;
+  }>();
+  for (const execution of recentExecutions ?? []) {
+    const flowId = execution.flow_id as string;
+    const summary = executionsByFlow.get(flowId) ?? { total: 0, completed: 0, failed: 0, last: null };
+    summary.total += 1;
+    if (execution.status === "completed") summary.completed += 1;
+    if (execution.status === "failed") summary.failed += 1;
+    if (!summary.last) summary.last = execution;
+    executionsByFlow.set(flowId, summary);
+  }
 
   return (
     <div>
       <PageHeader
         eyebrow="Sistema"
-        title="Automacoes"
-        description="Fluxos automaticos disparados por eventos no CRM."
+        title="Automações"
+        description="Fluxos automáticos disparados por eventos no CRM."
         actions={
           !canManage ? null : (
           <Dialog>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
-                Nova automacao
+                Nova automação
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Criar automacao</DialogTitle>
+                <DialogTitle>Criar automação</DialogTitle>
               </DialogHeader>
               <form action={createFlow} className="space-y-4 pt-2">
                 <div className="space-y-1.5">
@@ -88,11 +105,11 @@ export default async function AutomationsPage() {
                   <Input id="name" name="name" placeholder="Ex: Boas-vindas para novos leads" required />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="description">Descricao (opcional)</Label>
-                  <Input id="description" name="description" placeholder="Para que serve essa automacao?" />
+                  <Label htmlFor="description">Descrição (opcional)</Label>
+                  <Input id="description" name="description" placeholder="Para que serve essa automação?" />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  O gatilho e escolhido dentro do editor, junto com os demais blocos do fluxo.
+                  O gatilho é escolhido dentro do editor, junto com os demais blocos do fluxo.
                 </p>
                 <Button type="submit" className="w-full">
                   Criar e abrir editor
@@ -111,7 +128,7 @@ export default async function AutomationsPage() {
               <Zap className="h-7 w-7 text-brand" />
             </div>
             <div>
-              <p className="font-semibold">Nenhuma automacao criada</p>
+              <p className="font-semibold">Nenhuma automação criada</p>
               <p className="text-sm text-muted-foreground">
                 Crie seu primeiro fluxo para automatizar tarefas do CRM.
               </p>
@@ -122,6 +139,8 @@ export default async function AutomationsPage() {
             {flows.map((flow) => {
               const sc = statusConfig[flow.status as keyof typeof statusConfig] ?? statusConfig.draft;
               const StatusIcon = sc.icon;
+              const execution = executionsByFlow.get(flow.id);
+              const lastExecution = execution?.last;
               return (
                 <Card key={flow.id} className="group flex flex-col">
                   <CardContent className="flex flex-1 flex-col gap-3 p-5">
@@ -147,7 +166,26 @@ export default async function AutomationsPage() {
                           ? flow.trigger_kinds.map((k: string) => triggerLabels[k] ?? k).join(", ")
                           : "Sem gatilho definido"}
                       </span>
-                      <span className="ml-auto">{countsByFlow[flow.id] ?? 0} execucoes</span>
+                      <span className="ml-auto">{execution?.total ?? 0} execuções recentes</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/60 bg-muted/20 p-2.5 text-xs">
+                      <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> {execution?.completed ?? 0} concluídas
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 text-destructive">
+                        <XCircle className="h-3.5 w-3.5" /> {execution?.failed ?? 0} falhas
+                      </span>
+                      <p className="col-span-2 text-muted-foreground">
+                        {lastExecution
+                          ? `Última execução ${formatRelativeTimeBRT(lastExecution.started_at)}`
+                          : "Ainda não executada"}
+                      </p>
+                      {lastExecution?.error_message && (
+                        <p className="col-span-2 truncate text-destructive" title={lastExecution.error_message}>
+                          {lastExecution.error_message}
+                        </p>
+                      )}
                     </div>
 
                     <div className="mt-auto flex gap-2">

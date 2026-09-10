@@ -2657,6 +2657,7 @@ function LeadSidePanel({
   saleStockProducts?: SaleStockProduct[] | null;
   saleStockLocations?: SaleStockLocation[] | null;
 }) {
+  const [panelTab, setPanelTab] = useState<"contact" | "business" | "activities">("contact");
   const [notes, setNotes] = useState(details?.notes ?? "");
   const [notesDirty, setNotesDirty] = useState(false);
   // Nota critica pro atendimento - nao pode depender so do usuario lembrar
@@ -2677,6 +2678,7 @@ function LeadSidePanel({
   const [tagsSaving, setTagsSaving] = useState(false);
   const [businessSaving, setBusinessSaving] = useState(false);
   const [businessDirty, setBusinessDirty] = useState(false);
+  const [businessEditOpen, setBusinessEditOpen] = useState(false);
   const [lostReason, setLostReason] = useState(details?.lostReason ?? "");
   const [lostPain, setLostPain] = useState(details?.lostPain ?? "");
   const [closeChannel, setCloseChannel] = useState("");
@@ -2716,6 +2718,17 @@ function LeadSidePanel({
   const selectedPipeline =
     pipelineOptions.find((pipeline) => pipeline.id === businessDraft.pipelineId) ?? pipelineOptions[0] ?? null;
   const selectedStages = selectedPipeline?.stages ?? [];
+  const selectedStageName =
+    selectedStages.find((stage) => stage.id === businessDraft.stageId)?.name ?? details?.stageName ?? "Sem etapa";
+  const selectedOwnerName =
+    users.find((user) => user.id === businessDraft.assignedTo)?.name ?? details?.assignedName ?? "Não atribuído";
+  const businessDraftValue = Number(businessDraft.valueReais.replace(/\./g, "").replace(",", "."));
+  const businessDraftValueCents = Math.round(Math.max(0, Number.isFinite(businessDraftValue) ? businessDraftValue : 0) * 100);
+  const nextActivity = details?.nextAppointmentAt
+    ? formatShortDate(details.nextAppointmentAt)
+    : (details?.openTasksCount ?? 0) > 0
+      ? `${details?.openTasksCount} tarefa${details?.openTasksCount === 1 ? "" : "s"} aberta${details?.openTasksCount === 1 ? "" : "s"}`
+      : "Nenhuma atividade";
 
   // Sinal recebido / restante a receber. Restante nunca e digitado direto -
   // e sempre valor do negocio menos o que ja foi coletado, senao os dois
@@ -2729,6 +2742,14 @@ function LeadSidePanel({
   );
   const [paymentDirty, setPaymentDirty] = useState(false);
   const [paymentSaving, setPaymentSaving] = useState(false);
+  const [paymentEditOpen, setPaymentEditOpen] = useState(false);
+  const collectedDraftCents = Math.round(
+    (Number(paymentCollectedReais.replace(/\./g, "").replace(",", ".")) || 0) * 100,
+  );
+  const receivableDraftCents = Math.max(0, businessDraftValueCents - collectedDraftCents);
+  const paymentMethodLabel =
+    ({ pix: "Pix", credito: "Crédito", debito: "Débito", dinheiro: "Dinheiro", boleto: "Boleto" } as Record<string, string>)[paymentMethod] ??
+    "Não informado";
 
   const router = useRouter();
   const [profileEditOpen, setProfileEditOpen] = useState(false);
@@ -2782,10 +2803,12 @@ function LeadSidePanel({
     setNotes(details?.notes ?? "");
     setNotesDirty(false);
     setBusinessDirty(false);
+    setBusinessEditOpen(false);
     setPaymentCollectedReais(((details?.collectedCents ?? 0) / 100).toFixed(2).replace(".", ","));
     setPaymentMethod(details?.paymentMethod ?? "");
     setPaymentInstallments(details?.paymentInstallments ? String(details.paymentInstallments) : "");
     setPaymentDirty(false);
+    setPaymentEditOpen(false);
     setLostReason(details?.lostReason ?? "");
     setLostPain(details?.lostPain ?? "");
     setCloseChannel("");
@@ -2927,6 +2950,7 @@ function LeadSidePanel({
     })
       .then((res) => {
         setBusinessDirty(false);
+        setBusinessEditOpen(false);
         if (res?.tags) setTags(res.tags);
         if (!wasWon && willBeWon && saleStockProducts) setSaleDeductOpen(true);
       })
@@ -2945,9 +2969,21 @@ function LeadSidePanel({
       paymentMethod: paymentMethod || null,
       paymentInstallments: installments && installments > 0 ? installments : null,
     })
-      .then(() => setPaymentDirty(false))
+      .then(() => {
+        setPaymentDirty(false);
+        setPaymentEditOpen(false);
+      })
       .catch((err) => notifyError(err))
       .finally(() => setPaymentSaving(false));
+  }
+
+  function selectPanelTab(nextTab: "contact" | "business" | "activities") {
+    if (nextTab === panelTab) return;
+    if (businessDirty || paymentDirty) {
+      notify({ title: "Salve as alterações antes de trocar de aba", tone: "info" });
+      return;
+    }
+    setPanelTab(nextTab);
   }
 
   return (
@@ -2986,6 +3022,28 @@ function LeadSidePanel({
         </div>
       </div>
 
+      <div className="sticky top-[73px] z-[9] border-b border-border/60 bg-card/95 px-4 py-3 backdrop-blur-md">
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+          <SummaryItem label="Etapa" value={selectedStageName} />
+          <SummaryItem label="Responsável" value={selectedOwnerName} />
+          <SummaryItem label="Valor" value={formatMoney(businessDraftValueCents)} />
+          <SummaryItem label="Próxima atividade" value={nextActivity} />
+        </dl>
+        <div className="mt-3 grid grid-cols-3 gap-1 rounded-lg bg-muted/55 p-1" role="tablist" aria-label="Informações do lead">
+          <PanelTab active={panelTab === "contact"} onClick={() => selectPanelTab("contact")}>
+            Contato
+          </PanelTab>
+          <PanelTab active={panelTab === "business"} onClick={() => selectPanelTab("business")}>
+            Negócio
+          </PanelTab>
+          <PanelTab active={panelTab === "activities"} onClick={() => selectPanelTab("activities")}>
+            Atividades
+          </PanelTab>
+        </div>
+      </div>
+
+      {panelTab === "contact" && (
+      <>
       <PanelSection
         title="Detalhes"
         action={
@@ -3011,6 +3069,12 @@ function LeadSidePanel({
         {details?.partnerPieces && <InfoRow label="Peças (parceiro)" value={details.partnerPieces} />}
         <InfoRow label="Entrada" value={formatShortDate(details?.createdAt)} />
       </PanelSection>
+
+      <PanelSection title="Tags">
+        <LeadTagPicker value={tags} options={tagOptions} onChange={persistTags} disabled={tagsSaving} />
+      </PanelSection>
+      </>
+      )}
 
       <Dialog open={profileEditOpen} onOpenChange={setProfileEditOpen}>
         <DialogContent>
@@ -3093,10 +3157,8 @@ function LeadSidePanel({
         </DialogContent>
       </Dialog>
 
-      <PanelSection title="Tags">
-        <LeadTagPicker value={tags} options={tagOptions} onChange={persistTags} disabled={tagsSaving} />
-      </PanelSection>
-
+      {panelTab === "activities" && (
+      <>
       <PanelSection title="Notas">
         <Textarea
           value={notes}
@@ -3162,8 +3224,29 @@ function LeadSidePanel({
         )}
       </PanelSection>
       )}
+      </>
+      )}
 
-      <PanelSection title="Negócio">
+      {panelTab === "business" && (
+      <>
+      <PanelSection
+        title="Negócio"
+        action={!businessEditOpen ? (
+          <button type="button" onClick={() => setBusinessEditOpen(true)} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted/50 hover:text-foreground" aria-label="Editar negócio">
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        ) : undefined}
+      >
+        {!businessEditOpen ? (
+          <div>
+            <InfoRow label="Valor" value={formatMoney(businessDraftValueCents)} />
+            <InfoRow label="Origem" value={sourceSelect === "Outro" ? sourceCustomText : sourceSelect === "none" ? "Não informada" : sourceSelect} muted={sourceSelect === "none"} />
+            <InfoRow label="Criativo" value={creativeDraft || "Não informado"} muted={!creativeDraft} />
+            <InfoRow label="Funil" value={selectedPipeline?.name || "Sem funil"} muted={!selectedPipeline} />
+            <InfoRow label="Etapa" value={selectedStageName} muted={businessDraft.stageId === "none"} />
+            <InfoRow label="Responsável" value={selectedOwnerName} muted={businessDraft.assignedTo === "none"} />
+          </div>
+        ) : (
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="lead-business-value" className="text-xs text-muted-foreground">
@@ -3358,6 +3441,7 @@ function LeadSidePanel({
             Salvar negócio
           </Button>
         </div>
+        )}
 
         <div className="mt-4 border-t border-border/60 pt-3">
           <InfoRow label="Próxima reunião" value={details?.nextAppointmentAt ? formatShortDate(details.nextAppointmentAt) : "Sem reunião"} muted={!details?.nextAppointmentAt} />
@@ -3365,7 +3449,23 @@ function LeadSidePanel({
         </div>
       </PanelSection>
 
-      <PanelSection title="Pagamento">
+      <PanelSection
+        title="Pagamento"
+        action={!paymentEditOpen ? (
+          <button type="button" onClick={() => setPaymentEditOpen(true)} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted/50 hover:text-foreground" aria-label="Editar pagamento">
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        ) : undefined}
+      >
+        {!paymentEditOpen ? (
+          <div>
+            <InfoRow label="Valor coletado" value={formatMoney(collectedDraftCents)} />
+            <InfoRow label="Valor a receber" value={formatMoney(receivableDraftCents)} />
+            <InfoRow label="Forma" value={paymentMethodLabel} muted={!paymentMethod} />
+            {paymentInstallments ? <InfoRow label="Parcelas" value={`${paymentInstallments}x`} /> : null}
+          </div>
+        ) : (
+        <>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Valor coletado</label>
@@ -3383,11 +3483,7 @@ function LeadSidePanel({
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Valor a receber</label>
             <div className="flex h-9 items-center rounded-md border border-border/60 bg-muted/40 px-3 text-sm text-muted-foreground">
-              {(() => {
-                const collected = Number(paymentCollectedReais.replace(/\./g, "").replace(",", ".")) || 0;
-                const total = (details?.valueCents ?? 0) / 100;
-                return `R$ ${Math.max(0, total - collected).toFixed(2).replace(".", ",")}`;
-              })()}
+              {formatMoney(receivableDraftCents)}
             </div>
           </div>
         </div>
@@ -3444,11 +3540,17 @@ function LeadSidePanel({
           {paymentSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
           Salvar pagamento
         </Button>
+        </>
+        )}
       </PanelSection>
+      </>
+      )}
 
+      {panelTab === "activities" && (
       <PanelSection title="Histórico">
         <LeadTimeline leadId={leadId} />
       </PanelSection>
+      )}
       </aside>
 
       {saleDeductOpen && saleStockProducts && saleStockLocations && (
@@ -3461,6 +3563,32 @@ function LeadSidePanel({
         />
       )}
     </>
+  );
+}
+
+function SummaryItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[11px] text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 truncate font-medium text-foreground" title={value}>{value}</dd>
+    </div>
+  );
+}
+
+function PanelTab({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn(
+        "min-h-9 rounded-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60",
+        active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 

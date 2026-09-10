@@ -83,7 +83,11 @@ export default async function DashboardPage({
   const weekStart = new Date();
   weekStart.setDate(weekStart.getDate() - 6);
   const weekStartStr = weekStart.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
-  const twoHoursAgoIso = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+  const nowMs = Date.now();
+  const fifteenMinutesAgoIso = new Date(nowMs - 15 * 60 * 1000).toISOString();
+  const oneHourAgoIso = new Date(nowMs - 60 * 60 * 1000).toISOString();
+  const twoHoursAgoIso = new Date(nowMs - 2 * 60 * 60 * 1000).toISOString();
+  const oneDayAgoIso = new Date(nowMs - 24 * 60 * 60 * 1000).toISOString();
 
   const [
     { data: leadsToday },
@@ -98,7 +102,11 @@ export default async function DashboardPage({
     { count: overdueTasks },
     { count: tasksDueToday },
     { count: meetingsToday },
-    { count: staleAwaitingConversations },
+    { count: awaitingUnder15Minutes },
+    { count: awaiting15To60Minutes },
+    { count: awaitingOneToTwoHours },
+    { count: awaitingTwoTo24Hours },
+    { count: awaitingOver24Hours },
     { count: leadsInPeriodCount },
     { count: leadsPreviousPeriodCount },
     { data: wonInPeriodRows },
@@ -172,7 +180,34 @@ export default async function DashboardPage({
       .select("id", { count: "exact", head: true })
       .eq("tenant_id", ctx.tenantId)
       .eq("status", "aguardando")
+      .gte("last_message_at", fifteenMinutesAgoIso),
+    supabase
+      .from("conversations")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", ctx.tenantId)
+      .eq("status", "aguardando")
+      .gte("last_message_at", oneHourAgoIso)
+      .lt("last_message_at", fifteenMinutesAgoIso),
+    supabase
+      .from("conversations")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", ctx.tenantId)
+      .eq("status", "aguardando")
+      .gte("last_message_at", twoHoursAgoIso)
+      .lt("last_message_at", oneHourAgoIso),
+    supabase
+      .from("conversations")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", ctx.tenantId)
+      .eq("status", "aguardando")
+      .gte("last_message_at", oneDayAgoIso)
       .lt("last_message_at", twoHoursAgoIso),
+    supabase
+      .from("conversations")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", ctx.tenantId)
+      .eq("status", "aguardando")
+      .lt("last_message_at", oneDayAgoIso),
     period.bounds
       ? supabase.from("leads").select("id", { count: "exact", head: true }).eq("tenant_id", ctx.tenantId).gte("created_at", period.bounds.startIso).lte("created_at", period.bounds.endIso)
       : supabase.from("leads").select("id", { count: "exact", head: true }).eq("tenant_id", ctx.tenantId),
@@ -239,10 +274,38 @@ export default async function DashboardPage({
 
   const attention: AttentionItem[] = [
     {
-      id: "awaiting",
-      label: `conversa${(staleAwaitingConversations ?? 0) === 1 ? "" : "s"} aguardando resposta há mais de 2h`,
-      count: staleAwaitingConversations ?? 0,
+      id: "awaiting-over-24h",
+      label: `conversa${(awaitingOver24Hours ?? 0) === 1 ? "" : "s"} sem retorno há mais de 24h`,
+      count: awaitingOver24Hours ?? 0,
       tone: "critical",
+      href: "/chat",
+    },
+    {
+      id: "awaiting-2h-24h",
+      label: `conversa${(awaitingTwoTo24Hours ?? 0) === 1 ? "" : "s"} aguardando entre 2h e 24h`,
+      count: awaitingTwoTo24Hours ?? 0,
+      tone: "critical",
+      href: "/chat",
+    },
+    {
+      id: "awaiting-1h-2h",
+      label: `conversa${(awaitingOneToTwoHours ?? 0) === 1 ? "" : "s"} aguardando entre 1h e 2h`,
+      count: awaitingOneToTwoHours ?? 0,
+      tone: "warning",
+      href: "/chat",
+    },
+    {
+      id: "awaiting-15m-1h",
+      label: `conversa${(awaiting15To60Minutes ?? 0) === 1 ? "" : "s"} aguardando entre 15 e 60 min`,
+      count: awaiting15To60Minutes ?? 0,
+      tone: "warning",
+      href: "/chat",
+    },
+    {
+      id: "awaiting-under-15m",
+      label: `conversa${(awaitingUnder15Minutes ?? 0) === 1 ? "" : "s"} aguardando há até 15 min`,
+      count: awaitingUnder15Minutes ?? 0,
+      tone: "info",
       href: "/chat",
     },
     {
