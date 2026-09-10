@@ -202,6 +202,7 @@ function detectMediaKind(mime: string): MediaKind {
 // Realtime ja atualiza em tempo real; o polling e so uma rede de seguranca
 // (caso o realtime perca um evento) e roda devagar e so com a aba visivel.
 const POLL_MS = 90_000;
+const AVANTE_DIGITAL_TENANT_ID = "1ff0bf3f-3f97-49a0-a411-232a74cf7d17";
 const CLOSE_CHANNEL_OPTIONS = ["Ligação", "Reunião (Meet)", "Reunião presencial", "WhatsApp", "Outro"];
 const LEAD_SOURCE_OPTIONS = ["Marketplace", "Loja", "Indicação", "Anúncio Meta", "Anúncio Google", "WhatsApp", "Instagram", "Outro"];
 
@@ -2657,6 +2658,7 @@ function LeadSidePanel({
   saleStockProducts?: SaleStockProduct[] | null;
   saleStockLocations?: SaleStockLocation[] | null;
 }) {
+  const unifiedSidePanel = tenantId === AVANTE_DIGITAL_TENANT_ID;
   const [panelTab, setPanelTab] = useState<"contact" | "business" | "activities">("contact");
   const [notes, setNotes] = useState(details?.notes ?? "");
   const [notesDirty, setNotesDirty] = useState(false);
@@ -3029,21 +3031,24 @@ function LeadSidePanel({
           <SummaryItem label="Valor" value={formatMoney(businessDraftValueCents)} />
           <SummaryItem label="Próxima atividade" value={nextActivity} />
         </dl>
-        <div className="mt-3 grid grid-cols-3 gap-1 rounded-lg bg-muted/55 p-1" role="tablist" aria-label="Informações do lead">
-          <PanelTab active={panelTab === "contact"} onClick={() => selectPanelTab("contact")}>
-            Contato
-          </PanelTab>
-          <PanelTab active={panelTab === "business"} onClick={() => selectPanelTab("business")}>
-            Negócio
-          </PanelTab>
-          <PanelTab active={panelTab === "activities"} onClick={() => selectPanelTab("activities")}>
-            Atividades
-          </PanelTab>
-        </div>
+        {!unifiedSidePanel && (
+          <div className="mt-3 grid grid-cols-3 gap-1 rounded-lg bg-muted/55 p-1" role="tablist" aria-label="Informações do lead">
+            <PanelTab active={panelTab === "contact"} onClick={() => selectPanelTab("contact")}>
+              Contato
+            </PanelTab>
+            <PanelTab active={panelTab === "business"} onClick={() => selectPanelTab("business")}>
+              Negócio
+            </PanelTab>
+            <PanelTab active={panelTab === "activities"} onClick={() => selectPanelTab("activities")}>
+              Atividades
+            </PanelTab>
+          </div>
+        )}
       </div>
 
-      {panelTab === "contact" && (
-      <>
+      <div className={unifiedSidePanel ? "flex flex-col" : undefined}>
+      {(unifiedSidePanel || panelTab === "contact") && (
+      <div className={unifiedSidePanel ? "order-1" : undefined}>
       <PanelSection
         title="Detalhes"
         action={
@@ -3073,7 +3078,7 @@ function LeadSidePanel({
       <PanelSection title="Tags">
         <LeadTagPicker value={tags} options={tagOptions} onChange={persistTags} disabled={tagsSaving} />
       </PanelSection>
-      </>
+      </div>
       )}
 
       <Dialog open={profileEditOpen} onOpenChange={setProfileEditOpen}>
@@ -3157,8 +3162,8 @@ function LeadSidePanel({
         </DialogContent>
       </Dialog>
 
-      {panelTab === "activities" && (
-      <>
+      {(unifiedSidePanel || panelTab === "activities") && (
+      <div className={unifiedSidePanel ? "order-3" : undefined}>
       <PanelSection title="Notas">
         <Textarea
           value={notes}
@@ -3224,11 +3229,11 @@ function LeadSidePanel({
         )}
       </PanelSection>
       )}
-      </>
+      </div>
       )}
 
-      {panelTab === "business" && (
-      <>
+      {(unifiedSidePanel || panelTab === "business") && (
+      <div className={unifiedSidePanel ? "order-2" : undefined}>
       <PanelSection
         title="Negócio"
         action={!businessEditOpen ? (
@@ -3543,14 +3548,17 @@ function LeadSidePanel({
         </>
         )}
       </PanelSection>
-      </>
+      </div>
       )}
 
-      {panelTab === "activities" && (
-      <PanelSection title="Histórico">
-        <LeadTimeline leadId={leadId} />
-      </PanelSection>
+      {(unifiedSidePanel || panelTab === "activities") && (
+      <div className={unifiedSidePanel ? "order-4" : undefined}>
+        <PanelSection title="Histórico">
+          <LeadTimeline leadId={leadId} />
+        </PanelSection>
+      </div>
       )}
+      </div>
       </aside>
 
       {saleDeductOpen && saleStockProducts && saleStockLocations && (

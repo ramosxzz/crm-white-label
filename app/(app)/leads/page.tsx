@@ -208,18 +208,19 @@ export default async function LeadsPage({
       .slice(0, 4);
   } else if (!useDirectCount) {
     // O resumo e uma otimizacao. Se a migration ainda nao chegou ao ambiente
-    // ou o RPC falhar, nunca transforme isso em "0 leads": refaz apenas o
-    // count exato com os mesmos filtros da tabela.
-    let fallbackCountQuery = supabase
-      .from("leads")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", ctx.tenantId);
-    if (dateFilter.bounds) fallbackCountQuery = fallbackCountQuery.gte("created_at", dateFilter.bounds.startIso).lte("created_at", dateFilter.bounds.endIso);
-    if (stageFilterIds.length > 0) fallbackCountQuery = fallbackCountQuery.in("stage_id", stageFilterIds);
-    if (tagFilter) fallbackCountQuery = fallbackCountQuery.contains("tags", [tagFilter]);
-
-    const { count: fallbackCount, error: fallbackCountError } = await fallbackCountQuery;
-    if (!fallbackCountError) total = fallbackCount ?? 0;
+    // ou o RPC falhar, refaz a distribuicao com counts exatos. Antes o total
+    // tinha fallback, mas o painel ficava oculto porque a distribuicao seguia
+    // nula justamente no ambiente que ainda nao tinha o RPC disponivel.
+    const fallbackQualificationCounts = await Promise.all(
+      [0, 1, 2, 3, 4, 5].map((stars) => qualificationCountQuery(stars)),
+    );
+    qualificationDistribution = fallbackQualificationCounts.map((result, stars) => ({
+      stars,
+      count: result.count ?? 0,
+    }));
+    if (fallbackQualificationCounts.every((result) => !result.error)) {
+      total = qualificationDistribution.reduce((sum, item) => sum + item.count, 0);
+    }
   } else if (directQualificationCounts) {
     qualificationDistribution = directQualificationCounts.map((result, stars) => ({
       stars,
