@@ -5,33 +5,15 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   CalendarDays,
-  CalendarCheck,
   KanbanSquare,
-  ListChecks,
   MessageCircle,
-  MessageSquareText,
   MoreHorizontal,
   Users,
-  Boxes,
-  Zap,
-  Bot,
-  Heart,
-  PhoneCall,
-  Megaphone,
-  Filter,
-  Timer,
-  GitBranch,
-  Plug,
-  UserCog,
-  Settings,
-  LogOut,
   Wallet,
   Wrench,
-  X,
-  Tags,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
 import { useMobileMenu } from "./mobile-menu-context";
 
 const mobileItems = [
@@ -45,14 +27,9 @@ const mobileItems = [
 type MoreItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 
 export function MobileBottomNav({
-  stockEnabled = true,
-  satisfactionSurveyEnabled = false,
-  callsDashboardEnabled = false,
-  broadcastEnabled = false,
-  fieldServiceEnabled = false,
   canManageFinance = false,
-  isSeller = false,
   osOnlyAccess = false,
+  isProspeccao = false,
 }: {
   stockEnabled?: boolean;
   satisfactionSurveyEnabled?: boolean;
@@ -62,6 +39,7 @@ export function MobileBottomNav({
   canManageFinance?: boolean;
   isSeller?: boolean;
   osOnlyAccess?: boolean;
+  isProspeccao?: boolean;
 }) {
   const pathname = usePathname();
   const { open: moreOpen, setOpen: setMoreOpen } = useMobileMenu();
@@ -95,98 +73,23 @@ export function MobileBottomNav({
               </Link>
             );
           })}
-          <button
-            type="button"
-            onClick={async () => {
-              const supabase = createClient();
-              await supabase.auth.signOut();
-              window.location.href = "/login";
-            }}
-            className="mx-0.5 flex min-h-12 flex-col items-center justify-center rounded-lg px-1 text-[10px] font-semibold text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-          >
-            <LogOut className="mb-0.5 h-5 w-5" />
-            <span className="max-w-full truncate">Sair</span>
-          </button>
+          <MobileMoreButton open={moreOpen} onOpen={() => setMoreOpen(true)} />
         </div>
       </nav>
     );
   }
 
-  const operationItems: MoreItem[] = [
-    ...(!isSeller ? [{ href: "/funil", label: "Funil", icon: Filter }] : []),
-    ...(!isSeller ? [{ href: "/atendimento", label: "Atendimento", icon: Timer }] : []),
-    { href: "/tags", label: "Tags", icon: Tags },
-    { href: "/tarefas", label: "Tarefas", icon: ListChecks },
-    // Mostra receita/custo/ROI do tenant inteiro - mesmo corte do sidebar.
-    ...(!isSeller ? [{ href: "/reunioes", label: "Reuniões", icon: CalendarCheck }] : []),
-    { href: "/team-chat", label: "Chat da equipe", icon: Users },
-    { href: "/mensagens-rapidas", label: "Mensagens rápidas", icon: MessageSquareText },
-    ...(stockEnabled && !isSeller ? [{ href: "/estoque", label: "Estoque", icon: Boxes }] : []),
-    ...(!isSeller ? [{ href: "/automations", label: "Automações", icon: Zap }] : []),
-    ...(!isSeller ? [{ href: "/ia-w-mais", label: "IA W+", icon: Bot }] : []),
-    ...(satisfactionSurveyEnabled
-      ? [{ href: "/pesquisa-satisfacao", label: "Pesquisa de Satisfação", icon: Heart }]
-      : []),
-    ...(callsDashboardEnabled && !isSeller ? [{ href: "/ligacoes", label: "Ligações", icon: PhoneCall }] : []),
-    ...(broadcastEnabled ? [{ href: "/disparos", label: "Disparos", icon: Megaphone }] : []),
-    ...(fieldServiceEnabled ? [{ href: "/os", label: "Ordens de serviço", icon: Wrench }] : []),
-    ...(fieldServiceEnabled && canManageFinance
-      ? [{ href: "/financeiro", label: "Financeiro", icon: Wallet }]
-      : []),
-  ];
-
-  const systemItems: MoreItem[] = [
-    { href: "/pipelines", label: "Funis", icon: GitBranch },
-    ...(!isSeller ? [{ href: "/integrations", label: "Integrações", icon: Plug }] : []),
-    ...(!isSeller ? [{ href: "/settings/users", label: "Usuários", icon: UserCog }] : []),
-    { href: "/settings", label: "Configurações", icon: Settings },
-  ];
-
-  async function logout() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    window.location.href = "/login";
-  }
+  const primaryItems = isProspeccao
+    ? [
+        { href: "/prospeccao", label: "Prospecção", icon: UserPlus },
+        { href: "/chat", label: "Conversas", icon: MessageCircle },
+      ]
+    : mobileItems;
 
   return (
-    <>
-      {moreOpen && (
-        <div className="fixed inset-0 z-[60] md:hidden" role="dialog" aria-modal>
-          <div className="absolute inset-0 bg-black/50" onClick={() => setMoreOpen(false)} aria-hidden />
-          <div className="absolute inset-x-0 bottom-0 max-h-[80vh] overflow-y-auto rounded-t-2xl border-t border-border bg-card pb-[max(env(safe-area-inset-bottom),1rem)] pt-2 shadow-2xl">
-            <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-border" />
-            <div className="flex items-center justify-between px-5 py-2">
-              <p className="font-display text-base font-semibold">Menu</p>
-              <button
-                type="button"
-                onClick={() => setMoreOpen(false)}
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted/50"
-                aria-label="Fechar menu"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <MoreSection title="Operação" items={operationItems} pathname={pathname} onNavigate={() => setMoreOpen(false)} />
-            <MoreSection title="Sistema" items={systemItems} pathname={pathname} onNavigate={() => setMoreOpen(false)} />
-
-            <div className="px-3 pb-2 pt-1">
-              <button
-                type="button"
-                onClick={logout}
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
-              >
-                <LogOut className="h-5 w-5 shrink-0" />
-                Sair
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border/70 bg-card/95 px-1 pb-[max(env(safe-area-inset-bottom),0.35rem)] pt-1.5 shadow-[0_-12px_30px_hsl(0_0%_0%/0.22)] backdrop-blur-xl md:hidden">
-        <div className="grid grid-cols-6">
-          {mobileItems.map((item) => {
+        <div className="grid" style={{ gridTemplateColumns: `repeat(${primaryItems.length + 1}, minmax(0, 1fr))` }}>
+          {primaryItems.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
@@ -204,60 +107,26 @@ export function MobileBottomNav({
               </Link>
             );
           })}
-          <button
-            type="button"
-            onClick={() => setMoreOpen(true)}
-            className={cn(
-              "mx-0.5 flex min-h-12 flex-col items-center justify-center rounded-lg px-1 text-[10px] font-semibold transition-colors",
-              moreOpen ? "bg-brand/15 text-brand" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-            )}
-          >
-            <MoreHorizontal className="mb-0.5 h-5 w-5" />
-            <span className="max-w-full truncate">Mais</span>
-          </button>
+          <MobileMoreButton open={moreOpen} onOpen={() => setMoreOpen(true)} />
         </div>
       </nav>
-    </>
   );
 }
 
-function MoreSection({
-  title,
-  items,
-  pathname,
-  onNavigate,
-}: {
-  title: string;
-  items: MoreItem[];
-  pathname: string;
-  onNavigate: () => void;
-}) {
+function MobileMoreButton({ open, onOpen }: { open: boolean; onOpen: () => void }) {
   return (
-    <div className="px-3 py-1">
-      <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-        {title}
-      </p>
-      <div className="grid grid-cols-2 gap-1">
-        {items.map((item) => {
-          const Icon = item.icon;
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              prefetch
-              onClick={onNavigate}
-              className={cn(
-                "flex items-center gap-2.5 rounded-xl px-3 py-3 text-sm font-medium transition-colors",
-                active ? "bg-brand/15 text-brand" : "text-foreground hover:bg-muted/60",
-              )}
-            >
-              <Icon className="h-5 w-5 shrink-0" />
-              <span className="truncate">{item.label}</span>
-            </Link>
-          );
-        })}
-      </div>
-    </div>
+    <button
+      type="button"
+      onClick={onOpen}
+      className={cn(
+        "mx-0.5 flex min-h-12 flex-col items-center justify-center rounded-lg px-1 text-[10px] font-semibold transition-colors",
+        open ? "bg-brand-muted text-brand" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+      )}
+      aria-expanded={open}
+      aria-label="Abrir menu completo"
+    >
+      <MoreHorizontal className="mb-0.5 h-5 w-5" />
+      <span className="max-w-full truncate">Mais</span>
+    </button>
   );
 }

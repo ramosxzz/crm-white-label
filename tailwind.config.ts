@@ -50,6 +50,7 @@ const config: Config = {
         },
         brand: {
           DEFAULT: "hsl(var(--brand))",
+          active: "hsl(var(--brand-active))",
           foreground: "hsl(var(--brand-foreground))",
           muted: "hsl(var(--brand-muted))",
         },

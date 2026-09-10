@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   KanbanSquare,
   ListChecks,
@@ -37,12 +38,14 @@ import {
   Tags,
   ChevronDown,
   LayoutGrid,
+  X,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { markTeamChatRead } from "@/app/(app)/team-chat/actions";
+import { useMobileMenu } from "@/components/app/mobile-menu-context";
 
 const overviewItems = [{ href: "/dashboard", label: "Dashboard", icon: BarChart3 }];
 
@@ -68,7 +71,7 @@ const managementItems = [{ href: "/estoque", label: "Estoque", icon: Boxes }];
 const communicationItems = [
   { href: "/chat", label: "Conversas", icon: MessageCircle },
   { href: "/team-chat", label: "Chat da equipe", icon: Users2 },
-  { href: "/emails", label: "Emails", icon: Mail },
+  { href: "/emails", label: "E-mails", icon: Mail },
   { href: "/mensagens-rapidas", label: "Mensagens rápidas", icon: MessageSquareText },
   { href: "/ligacoes", label: "Ligações", icon: PhoneCall },
   { href: "/pesquisa-satisfacao", label: "Pesquisa de Satisfação", icon: Heart },
@@ -76,12 +79,12 @@ const communicationItems = [
 ];
 
 const secondaryItems = [
-  { href: "/automations", label: "Automacoes", icon: Zap },
+  { href: "/automations", label: "Automações", icon: Zap },
   { href: "/ia-w-mais", label: "IA W+", icon: Bot },
   { href: "/pipelines", label: "Configurar pipelines", icon: GitBranch },
-  { href: "/integrations", label: "Integracoes", icon: Plug },
-  { href: "/settings/users", label: "Usuarios", icon: UserCog },
-  { href: "/settings", label: "Configuracoes", icon: Settings, exact: true },
+  { href: "/integrations", label: "Integrações", icon: Plug },
+  { href: "/settings/users", label: "Usuários", icon: UserCog },
+  { href: "/settings", label: "Configurações gerais", icon: Settings, exact: true },
 ];
 
 export function Sidebar({
@@ -126,6 +129,7 @@ export function Sidebar({
   userEmail: string;
 }) {
   const pathname = usePathname();
+  const { open: mobileOpen, setOpen: setMobileOpen } = useMobileMenu();
   const [unreadTeamChat, setUnreadTeamChat] = useState(initialUnreadTeamChat);
 
   useEffect(() => {
@@ -228,24 +232,81 @@ export function Sidebar({
     ? [{ href: "/prospeccao", label: "Prospecção", icon: UserPlus }]
     : [];
 
+  const navGroups = useMemo<NavGroupDefinition[]>(
+    () =>
+      [
+        { id: "prospeccao", label: "Prospecção", icon: UserPlus, items: visibleProspeccaoItems },
+        { id: "overview", label: "Visão geral", icon: LayoutGrid, items: visibleOverviewItems },
+        { id: "crm", label: "CRM", icon: Users, items: visibleCrmItems },
+        { id: "productivity", label: "Produtividade", icon: CalendarCheck, items: visibleProductivityItems },
+        {
+          id: "communication",
+          label: "Comunicação",
+          icon: MessageCircle,
+          items: visibleCommunicationItems,
+          badges: unreadTeamChat > 0 ? { "/team-chat": unreadTeamChat } : undefined,
+        },
+        { id: "folders", label: "Pastas", icon: FolderKanban, items: visibleFolderItems },
+        { id: "management", label: "Gestão", icon: Boxes, items: visibleManagementItems },
+        {
+          id: "field-service",
+          label: "Ordens de serviço",
+          icon: Wrench,
+          items: visibleFieldServiceItems,
+        },
+        { id: "settings", label: "Configurações", icon: Settings, items: visibleSecondaryItems },
+      ].filter((group) => group.items.length > 0),
+    [
+      unreadTeamChat,
+      visibleCommunicationItems,
+      visibleCrmItems,
+      visibleFieldServiceItems,
+      visibleFolderItems,
+      visibleManagementItems,
+      visibleOverviewItems,
+      visibleProductivityItems,
+      visibleProspeccaoItems,
+      visibleSecondaryItems,
+    ],
+  );
+  const activeGroupId = navGroups.find((group) =>
+    group.items.some((item) => itemIsActive(item, pathname)),
+  )?.id;
+  const [openGroupId, setOpenGroupId] = useState<string | null>(activeGroupId ?? navGroups[0]?.id ?? null);
+
+  useEffect(() => {
+    if (activeGroupId) setOpenGroupId(activeGroupId);
+  }, [activeGroupId]);
+
+  const previousPathname = useRef(pathname);
+  useEffect(() => {
+    if (previousPathname.current !== pathname) setMobileOpen(false);
+    previousPathname.current = pathname;
+  }, [pathname, setMobileOpen]);
+
   async function logout() {
     const supabase = createClient();
     await supabase.auth.signOut();
     window.location.href = "/login";
   }
 
+  const toggleGroup = (groupId: string) => {
+    setOpenGroupId((current) => (current === groupId ? null : groupId));
+  };
+
   return (
-    <aside className="group/sidebar sticky top-0 hidden h-screen w-[4.75rem] shrink-0 overflow-hidden flex-col border-r border-border bg-card shadow-[inset_-1px_0_0_hsl(var(--foreground)/0.04)] transition-[width] duration-200 ease-out hover:w-64 dark:border-border/50 dark:bg-card/75 md:flex">
+    <>
+    <aside className="group/sidebar sticky top-0 hidden h-[100dvh] w-[4.75rem] shrink-0 overflow-hidden flex-col border-r border-border bg-card shadow-[inset_-1px_0_0_hsl(var(--foreground)/0.04)] transition-[width] duration-200 ease-out hover:w-64 dark:border-border/50 dark:bg-card/75 md:flex">
       <div className="flex h-[4.75rem] shrink-0 items-center justify-center border-b border-border/40 px-3 group-hover/sidebar:justify-start">
-        <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-background font-display text-sm font-semibold text-brand ring-1 ring-border/70">
+        <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl bg-background font-display text-sm font-semibold text-brand ring-1 ring-border/70">
           {tenantLogoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={tenantLogoUrl} alt={tenantName} className="h-full w-full rounded-2xl object-cover" />
+            <img src={tenantLogoUrl} alt={tenantName} className="h-full w-full rounded-xl object-cover" />
           ) : (
             initials(tenantName)
           )}
         </div>
-        <div className="ml-0 max-w-0 overflow-hidden opacity-0 transition-all duration-150 group-hover/sidebar:ml-3 group-hover/sidebar:max-w-[10rem] group-hover/sidebar:opacity-100">
+        <div className="ml-0 max-w-0 overflow-hidden opacity-0 transition-all duration-150 group-hover/sidebar:ml-3 group-hover/sidebar:max-w-[10rem] group-hover/sidebar:opacity-100" title={tenantName}>
           <p className="truncate text-sm font-semibold leading-tight">{tenantName}</p>
           <p className="mt-1 text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
             {tenantTagline?.trim() || "CRM"}
@@ -253,93 +314,16 @@ export function Sidebar({
         </div>
       </div>
 
-      <nav className="sidebar-scrollbar flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-3 py-4">
-        {visibleProspeccaoItems.length > 0 && (
+      <nav className="sidebar-scrollbar flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-3 py-3" aria-label="Navegação principal">
+        {navGroups.map((group) => (
           <NavGroup
-            label="Prospecção"
-            icon={UserPlus}
-            items={visibleProspeccaoItems}
+            key={group.id}
+            {...group}
             pathname={pathname}
-            defaultOpen
-            color="violet"
+            open={openGroupId === group.id}
+            onToggle={() => toggleGroup(group.id)}
           />
-        )}
-        {visibleOverviewItems.length > 0 && (
-          <NavGroup
-            label="Visão geral"
-            icon={LayoutGrid}
-            items={visibleOverviewItems}
-            pathname={pathname}
-            defaultOpen
-            color="blue"
-          />
-        )}
-        {visibleCrmItems.length > 0 && (
-          <NavGroup
-            label="CRM"
-            icon={Users}
-            items={visibleCrmItems}
-            pathname={pathname}
-            defaultOpen
-            color="blue"
-          />
-        )}
-        {visibleProductivityItems.length > 0 && (
-          <NavGroup
-            label="Produtividade"
-            icon={CalendarCheck}
-            items={visibleProductivityItems}
-            pathname={pathname}
-            color="cyan"
-          />
-        )}
-        {visibleCommunicationItems.length > 0 && (
-          <NavGroup
-            label="Comunicação"
-            icon={MessageCircle}
-            items={visibleCommunicationItems}
-            pathname={pathname}
-            color="emerald"
-            badges={unreadTeamChat > 0 ? { "/team-chat": unreadTeamChat } : undefined}
-          />
-        )}
-        {visibleFolderItems.length > 0 && (
-          <NavGroup
-            label="Pastas"
-            icon={FolderKanban}
-            items={visibleFolderItems}
-            pathname={pathname}
-            color="amber"
-          />
-        )}
-        {visibleManagementItems.length > 0 && (
-          <NavGroup
-            label="Gestão"
-            icon={Boxes}
-            items={visibleManagementItems}
-            pathname={pathname}
-            color="amber"
-          />
-        )}
-        {visibleFieldServiceItems.length > 0 && (
-          <NavGroup
-            label="Ordens de serviço"
-            icon={Wrench}
-            items={visibleFieldServiceItems}
-            pathname={pathname}
-            defaultOpen={osOnlyAccess}
-            color="cyan"
-          />
-        )}
-        {visibleSecondaryItems.length > 0 && (
-          <NavGroup
-            label="Configurações"
-            icon={Settings}
-            items={visibleSecondaryItems}
-            pathname={pathname}
-            color="rose"
-          />
-        )}
+        ))}
       </nav>
 
       <div className="shrink-0 border-t border-border/40 p-3">
@@ -365,6 +349,50 @@ export function Sidebar({
         </div>
       </div>
     </aside>
+
+    <DialogPrimitive.Root open={mobileOpen} onOpenChange={setMobileOpen}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-[70] bg-foreground/35 motion-safe:data-[state=open]:animate-in motion-safe:data-[state=open]:fade-in-0 motion-safe:data-[state=closed]:animate-out motion-safe:data-[state=closed]:fade-out-0 md:hidden" />
+        <DialogPrimitive.Content className="fixed inset-y-0 left-0 z-[71] flex w-[min(88vw,20rem)] flex-col border-r border-border bg-card shadow-elev-3 outline-none motion-safe:data-[state=open]:animate-in motion-safe:data-[state=open]:slide-in-from-left motion-safe:data-[state=closed]:animate-out motion-safe:data-[state=closed]:slide-out-to-left md:hidden" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+          <DialogPrimitive.Title className="sr-only">Menu principal</DialogPrimitive.Title>
+          <DialogPrimitive.Description className="sr-only">Navegação do CRM</DialogPrimitive.Description>
+          <div className="flex h-[4.75rem] shrink-0 items-center gap-3 border-b border-border/60 px-4">
+            <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl bg-background font-display text-sm font-semibold text-brand ring-1 ring-border/70">
+              {tenantLogoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={tenantLogoUrl} alt={tenantName} className="h-full w-full rounded-xl object-cover" />
+              ) : initials(tenantName)}
+            </div>
+            <div className="min-w-0 flex-1" title={tenantName}>
+              <p className="truncate text-sm font-semibold">{tenantName}</p>
+              <p className="mt-0.5 text-[9px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{tenantTagline?.trim() || "CRM"}</p>
+            </div>
+            <DialogPrimitive.Close asChild><Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" aria-label="Fechar menu"><X className="h-5 w-5" /></Button></DialogPrimitive.Close>
+          </div>
+          <nav className="sidebar-scrollbar flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-3 py-3" aria-label="Navegação mobile">
+            {navGroups.map((group) => (
+              <NavGroup
+                key={group.id}
+                {...group}
+                pathname={pathname}
+                open={openGroupId === group.id}
+                onToggle={() => toggleGroup(group.id)}
+                expanded
+                onNavigate={() => setMobileOpen(false)}
+              />
+            ))}
+          </nav>
+          <div className="shrink-0 border-t border-border/60 p-3">
+            <div className="flex min-h-12 items-center gap-3 rounded-xl bg-background/40 px-2 ring-1 ring-border/40">
+              <Avatar className="h-9 w-9 shrink-0"><AvatarFallback className="bg-brand-muted text-[11px] font-semibold text-brand">{initials(userName)}</AvatarFallback></Avatar>
+              <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{userName}</p><p className="truncate text-[11px] text-muted-foreground">{userEmail}</p></div>
+              <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={logout} aria-label="Sair"><LogOut className="h-4 w-4" /></Button>
+            </div>
+          </div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
+    </>
   );
 }
 
@@ -375,79 +403,72 @@ type SidebarItem = {
   exact?: boolean;
 };
 
+type NavGroupDefinition = {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  items: SidebarItem[];
+  badges?: Record<string, number>;
+};
+
 function itemIsActive(item: SidebarItem, pathname: string) {
   return item.exact
     ? pathname === item.href
     : pathname === item.href || pathname.startsWith(item.href + "/");
 }
 
-// Cor fixa por categoria - a barra recolhida (so icone, sem rotulo) e onde
-// mais precisa disso: com todo mundo cinza, escolher a categoria certa exige
-// olhar o icone de perto toda vez. Uma cor propria da pra reconhecer de
-// relance, mesmo fechada.
-const NAV_GROUP_COLORS = {
-  violet: { icon: "text-violet-500 dark:text-violet-400", activeBg: "bg-violet-500/10", hoverBg: "hover:bg-violet-500/10" },
-  blue: { icon: "text-blue-500 dark:text-blue-400", activeBg: "bg-blue-500/10", hoverBg: "hover:bg-blue-500/10" },
-  emerald: { icon: "text-emerald-500 dark:text-emerald-400", activeBg: "bg-emerald-500/10", hoverBg: "hover:bg-emerald-500/10" },
-  amber: { icon: "text-amber-500 dark:text-amber-400", activeBg: "bg-amber-500/10", hoverBg: "hover:bg-amber-500/10" },
-  cyan: { icon: "text-cyan-500 dark:text-cyan-400", activeBg: "bg-cyan-500/10", hoverBg: "hover:bg-cyan-500/10" },
-  rose: { icon: "text-rose-500 dark:text-rose-400", activeBg: "bg-rose-500/10", hoverBg: "hover:bg-rose-500/10" },
-} as const;
-type NavGroupColor = keyof typeof NAV_GROUP_COLORS;
-
 function NavGroup({
   label,
   icon: Icon,
   items,
   pathname,
-  defaultOpen = false,
-  color = "violet",
+  open,
+  onToggle,
   badges,
+  expanded = false,
+  onNavigate,
 }: {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   items: SidebarItem[];
   pathname: string;
-  defaultOpen?: boolean;
-  color?: NavGroupColor;
+  open: boolean;
+  onToggle: () => void;
   badges?: Record<string, number>;
+  expanded?: boolean;
+  onNavigate?: () => void;
 }) {
   const groupActive = items.some((item) => itemIsActive(item, pathname));
   const groupBadgeTotal = badges ? Object.values(badges).reduce((a, b) => a + b, 0) : 0;
-  const [open, setOpen] = useState(defaultOpen || groupActive);
-  const palette = NAV_GROUP_COLORS[color];
-
-  useEffect(() => {
-    if (groupActive) setOpen(true);
-  }, [groupActive]);
 
   return (
     <div className="space-y-1">
       <button
         type="button"
-        onClick={() => setOpen((current) => !current)}
+        onClick={onToggle}
         className={cn(
-          "group flex h-10 w-full items-center justify-center gap-3 rounded-xl px-3 text-sm font-semibold text-muted-foreground transition-colors duration-150 hover:text-foreground group-hover/sidebar:justify-start",
-          palette.hoverBg,
-          groupActive && ["text-foreground", palette.activeBg],
+          "group flex h-10 w-full items-center justify-center gap-3 rounded-xl px-3 text-sm font-semibold text-muted-foreground transition-colors duration-150 hover:bg-muted/60 hover:text-foreground group-hover/sidebar:justify-start",
+          expanded && "justify-start",
+          groupActive && "text-foreground",
         )}
         aria-expanded={open}
         title={label}
       >
         <span className="relative shrink-0">
-          <Icon className={cn("h-5 w-5 transition-colors", palette.icon)} />
+          <Icon className="h-5 w-5 text-muted-foreground transition-colors group-hover:text-foreground" />
           {groupBadgeTotal > 0 && (
             <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold leading-none text-destructive-foreground">
               {groupBadgeTotal > 99 ? "99+" : groupBadgeTotal}
             </span>
           )}
         </span>
-        <span className="max-w-0 flex-1 overflow-hidden truncate whitespace-nowrap text-left opacity-0 transition-all duration-150 group-hover/sidebar:max-w-[9rem] group-hover/sidebar:opacity-100">
+        <span className={cn("max-w-0 flex-1 overflow-hidden truncate whitespace-nowrap text-left opacity-0 transition-all duration-150 group-hover/sidebar:max-w-[9rem] group-hover/sidebar:opacity-100", expanded && "max-w-none opacity-100")}>
           {label}
         </span>
         <ChevronDown
           className={cn(
             "h-4 w-0 shrink-0 opacity-0 transition-[width,opacity,transform] duration-200 group-hover/sidebar:w-4 group-hover/sidebar:opacity-100",
+            expanded && "w-4 opacity-100",
             open && "rotate-180",
           )}
         />
@@ -462,7 +483,7 @@ function NavGroup({
         <div className="min-h-0 overflow-hidden">
           <div className="space-y-1">
             {items.map((item) => (
-              <NavLink key={item.href} item={item} pathname={pathname} nested badge={badges?.[item.href]} />
+              <NavLink key={item.href} item={item} pathname={pathname} nested badge={badges?.[item.href]} expanded={expanded} onNavigate={onNavigate} />
             ))}
           </div>
         </div>
@@ -476,11 +497,15 @@ function NavLink({
   pathname,
   nested = false,
   badge,
+  expanded = false,
+  onNavigate,
 }: {
   item: SidebarItem;
   pathname: string;
   nested?: boolean;
   badge?: number;
+  expanded?: boolean;
+  onNavigate?: () => void;
 }) {
   const Icon = item.icon;
   const active = itemIsActive(item, pathname);
@@ -488,26 +513,23 @@ function NavLink({
     <Link
       href={item.href}
       prefetch
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
       className={cn(
         "group relative flex h-11 items-center justify-center gap-3 rounded-xl px-3 text-sm font-semibold transition-[padding,color,background-color] duration-150 group-hover/sidebar:justify-start",
         nested && "group-hover/sidebar:pl-5",
+        expanded && nested && "justify-start pl-5",
         active
-          ? "bg-brand-muted text-foreground dark:bg-brand/10"
-          : "text-muted-foreground hover:bg-brand/10 hover:text-foreground dark:hover:bg-brand/15",
+          ? "bg-brand-muted text-brand-active dark:bg-brand/15"
+          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
       )}
       title={item.label}
     >
-      {active && (
-        <span
-          className="absolute -left-3 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-brand"
-          aria-hidden
-        />
-      )}
       <span className="relative shrink-0">
         <Icon
           className={cn(
             "h-5 w-5 transition-colors duration-150",
-            active ? "text-brand" : "text-muted-foreground group-hover:text-brand",
+            active ? "text-brand-active" : "text-muted-foreground group-hover:text-foreground",
           )}
         />
         {!!badge && badge > 0 && (
@@ -516,7 +538,7 @@ function NavLink({
           </span>
         )}
       </span>
-      <span className="max-w-0 flex-1 overflow-hidden truncate whitespace-nowrap opacity-0 transition-all duration-150 group-hover/sidebar:max-w-[10rem] group-hover/sidebar:opacity-100">
+      <span className={cn("max-w-0 flex-1 overflow-hidden truncate whitespace-nowrap opacity-0 transition-all duration-150 group-hover/sidebar:max-w-[10rem] group-hover/sidebar:opacity-100", expanded && "max-w-none opacity-100")}>
         {item.label}
       </span>
       {!!badge && badge > 0 && (

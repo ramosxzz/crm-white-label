@@ -2460,6 +2460,12 @@ function AudioMessage({
   const [duration, setDuration] = useState(0);
   const [rate, setRate] = useState(1);
 
+  function syncDuration(audio: HTMLAudioElement) {
+    if (Number.isFinite(audio.duration) && audio.duration > 0) {
+      setDuration(audio.duration);
+    }
+  }
+
   function toggle() {
     const audio = audioRef.current;
     if (!audio) return;
@@ -2491,11 +2497,12 @@ function AudioMessage({
       <audio
         ref={audioRef}
         src={src}
-        preload="none"
+        preload="metadata"
         onLoadedMetadata={(e) => {
           e.currentTarget.playbackRate = rate;
-          setDuration(e.currentTarget.duration || 0);
+          syncDuration(e.currentTarget);
         }}
+        onDurationChange={(e) => syncDuration(e.currentTarget)}
         onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}

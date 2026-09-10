@@ -136,6 +136,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               fieldServiceEnabled={ctx.tenant.field_service_enabled}
               canManageFinance={canReviewServiceOrder(ctx.role)}
               isSeller={ctx.role === "vendedor"}
+              isProspeccao={ctx.role === "prospeccao"}
               osOnlyAccess={ctx.osOnlyAccess}
             />
           </div>

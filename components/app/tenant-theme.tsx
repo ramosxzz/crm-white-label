@@ -6,6 +6,7 @@ import { tenantBrandCssVars } from "@/lib/theme/brand-colors";
 
 const THEME_KEYS = [
   "--brand",
+  "--brand-active",
   "--brand-foreground",
   "--brand-muted",
   "--accent",

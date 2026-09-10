@@ -31,6 +31,35 @@ function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
 }
 
+function hslToRelativeLuminance(h: number, s: number, l: number) {
+  const saturation = s / 100;
+  const lightness = l / 100;
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+  const segment = ((h % 360) + 360) % 360 / 60;
+  const x = chroma * (1 - Math.abs((segment % 2) - 1));
+  const offset = lightness - chroma / 2;
+  const [r, g, b] =
+    segment < 1 ? [chroma, x, 0]
+      : segment < 2 ? [x, chroma, 0]
+        : segment < 3 ? [0, chroma, x]
+          : segment < 4 ? [0, x, chroma]
+            : segment < 5 ? [x, 0, chroma]
+              : [chroma, 0, x];
+  const linear = (channel: number) => {
+    const value = channel + offset;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+}
+
+/** Escolhe preto ou branco conforme o maior contraste WCAG com a cor informada. */
+export function contrastingForeground(h: number, s: number, l: number) {
+  const luminance = hslToRelativeLuminance(h, s, l);
+  const whiteContrast = 1.05 / (luminance + 0.05);
+  const blackContrast = (luminance + 0.05) / 0.05;
+  return whiteContrast >= blackContrast ? "0 0% 100%" : "0 0% 0%";
+}
+
 /** Variáveis CSS do tema por empresa (light/dark). */
 export function tenantBrandCssVars(
   hex: string,
@@ -44,31 +73,41 @@ export function tenantBrandCssVars(
   if (scheme === "light") {
     const brandL = clamp(28 + (100 - hsl.l) * 0.12, 28, 40);
     const mutedL = 93;
+    const brandForeground = contrastingForeground(h, sat, brandL);
+    const darkForeground = brandForeground === "0 0% 0%";
     return {
       "--brand": `${h} ${sat}% ${brandL}%`,
-      "--brand-foreground": "0 0% 100%",
+      "--brand-active": `${h} ${sat}% ${brandL}%`,
+      "--brand-foreground": brandForeground,
       "--brand-muted": `${h} ${Math.round(sat * 0.45)}% ${mutedL}%`,
       "--accent": `${h} ${Math.round(sat * 0.22)}% 92%`,
       "--accent-foreground": `${h} ${sat}% ${brandL}%`,
       "--ring": `${h} ${sat}% ${brandL + 2}%`,
       "--chat-outbound": `${h} ${sat}% ${brandL}%`,
-      "--chat-outbound-foreground": "0 0% 100%",
-      "--chat-outbound-meta": `${h} ${Math.round(sat * 0.35)}% 88%`,
+      "--chat-outbound-foreground": brandForeground,
+      "--chat-outbound-meta": darkForeground
+        ? `${h} ${Math.round(sat * 0.35)}% 16%`
+        : `${h} ${Math.round(sat * 0.35)}% 88%`,
       "--aqua": `${(h + 16) % 360} ${clamp(sat - 8, 28, 55)}% ${brandL + 6}%`,
     };
   }
 
   const brandL = clamp(42 + hsl.l * 0.08, 44, 58);
+  const chatL = brandL - 6;
+  const chatForeground = contrastingForeground(h, Math.max(sat - 4, 30), chatL);
   return {
     "--brand": `${h} ${sat}% ${brandL}%`,
-    "--brand-foreground": "0 0% 100%",
+    "--brand-active": `${h} ${sat}% ${Math.max(62, brandL)}%`,
+    "--brand-foreground": contrastingForeground(h, sat, brandL),
     "--brand-muted": `${h} ${Math.round(sat * 0.35)}% 14%`,
     "--accent": `${h} ${Math.round(sat * 0.28)}% 16%`,
     "--accent-foreground": `${h} ${Math.min(sat + 8, 72)}% ${brandL + 4}%`,
     "--ring": `${h} ${sat}% ${brandL - 2}%`,
-    "--chat-outbound": `${h} ${Math.max(sat - 4, 30)}% ${brandL - 6}%`,
-    "--chat-outbound-foreground": "0 0% 100%",
-    "--chat-outbound-meta": `${h} ${Math.round(sat * 0.25)}% 78%`,
+    "--chat-outbound": `${h} ${Math.max(sat - 4, 30)}% ${chatL}%`,
+    "--chat-outbound-foreground": chatForeground,
+    "--chat-outbound-meta": chatForeground === "0 0% 0%"
+      ? `${h} ${Math.round(sat * 0.25)}% 14%`
+      : `${h} ${Math.round(sat * 0.25)}% 78%`,
     "--aqua": `${(h + 16) % 360} ${clamp(sat - 6, 28, 55)}% ${brandL + 4}%`,
   };
 }

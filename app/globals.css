@@ -50,6 +50,7 @@
     --info: 200 50% 38%;
 
     --brand: 150 42% 32%;
+    --brand-active: 150 42% 32%;
     --brand-foreground: 0 0% 100%;
     --brand-muted: 0 0% 94%;
 
@@ -107,6 +108,7 @@
     --info: 200 55% 58%;
 
     --brand: 152 45% 48%;
+    --brand-active: 152 45% 62%;
     --brand-foreground: 0 0% 100%;
     --brand-muted: 0 0% 16%;
 
