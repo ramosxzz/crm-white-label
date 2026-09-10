@@ -2884,7 +2884,10 @@ function LeadSidePanel({
       stageId: details?.stageId ?? "none",
       assignedTo: details?.assignedTo ?? "none",
     });
-  }, [details?.valueCents, details?.pipelineId, details?.stageId, details?.assignedTo, pipelineOptions, stageOwnerPipelineId, businessDirty, businessSaving]);
+    // Dirty/saving nao entram nas dependencias de proposito. Ao finalizar um
+    // save direto, os dados recebidos antes do realtime nao podem sobrescrever
+    // o valor otimista com o estado antigo por um instante.
+  }, [details?.valueCents, details?.pipelineId, details?.stageId, details?.assignedTo, pipelineOptions, stageOwnerPipelineId]);
 
   function saveNotes() {
     if (notesAutosaveTimer.current) {
@@ -2932,18 +2935,22 @@ function LeadSidePanel({
     }));
   }
 
-  function saveBusiness() {
-    const parsed = Number(businessDraft.valueReais.replace(/\./g, "").replace(",", "."));
+  function saveBusiness(
+    draft = businessDraft,
+    options: { closeEditor?: boolean; previousDraft?: typeof businessDraft } = {},
+  ) {
+    const parsed = Number(draft.valueReais.replace(/\./g, "").replace(",", "."));
     const valueCents = Math.round(Math.max(0, Number.isFinite(parsed) ? parsed : 0) * 100);
-    const wasWon = stageIsWon(details?.stageId ?? null);
-    const willBeWon = stageIsWon(businessDraft.stageId === "none" ? null : businessDraft.stageId);
+    const previousStageId = options.previousDraft?.stageId ?? details?.stageId ?? null;
+    const wasWon = stageIsWon(previousStageId === "none" ? null : previousStageId);
+    const willBeWon = stageIsWon(draft.stageId === "none" ? null : draft.stageId);
     setBusinessSaving(true);
     void updateChatLeadBusiness({
       leadId,
       valueCents,
-      pipelineId: businessDraft.pipelineId === "none" ? null : businessDraft.pipelineId,
-      stageId: businessDraft.stageId === "none" ? null : businessDraft.stageId,
-      assignedTo: businessDraft.assignedTo === "none" ? null : businessDraft.assignedTo,
+      pipelineId: draft.pipelineId === "none" ? null : draft.pipelineId,
+      stageId: draft.stageId === "none" ? null : draft.stageId,
+      assignedTo: draft.assignedTo === "none" ? null : draft.assignedTo,
       lostReason,
       lostPain,
       closeChannel,
@@ -2952,12 +2959,24 @@ function LeadSidePanel({
     })
       .then((res) => {
         setBusinessDirty(false);
-        setBusinessEditOpen(false);
+        if (options.closeEditor !== false) setBusinessEditOpen(false);
         if (res?.tags) setTags(res.tags);
         if (!wasWon && willBeWon && saleStockProducts) setSaleDeductOpen(true);
       })
-      .catch((err) => notifyError(err))
+      .catch((err) => {
+        if (options.previousDraft) setBusinessDraft(options.previousDraft);
+        notifyError(err);
+      })
       .finally(() => setBusinessSaving(false));
+  }
+
+  function updateBusinessDirectly(patch: Partial<typeof businessDraft>) {
+    if (businessSaving) return;
+    const previousDraft = businessDraft;
+    const nextDraft = { ...businessDraft, ...patch };
+    setBusinessDraft(nextDraft);
+    setBusinessDirty(false);
+    saveBusiness(nextDraft, { closeEditor: false, previousDraft });
   }
 
   function savePayment() {
@@ -3048,7 +3067,8 @@ function LeadSidePanel({
 
       <div className={unifiedSidePanel ? "flex flex-col" : undefined}>
       {(unifiedSidePanel || panelTab === "contact") && (
-      <div className={unifiedSidePanel ? "order-1" : undefined}>
+      <div className={unifiedSidePanel ? "order-3 flex flex-col" : undefined}>
+      <div className={unifiedSidePanel ? "order-2" : undefined}>
       <PanelSection
         title="Detalhes"
         action={
@@ -3074,10 +3094,13 @@ function LeadSidePanel({
         {details?.partnerPieces && <InfoRow label="Peças (parceiro)" value={details.partnerPieces} />}
         <InfoRow label="Entrada" value={formatShortDate(details?.createdAt)} />
       </PanelSection>
+      </div>
 
+      <div className={unifiedSidePanel ? "order-1" : undefined}>
       <PanelSection title="Tags">
         <LeadTagPicker value={tags} options={tagOptions} onChange={persistTags} disabled={tagsSaving} />
       </PanelSection>
+      </div>
       </div>
       )}
 
@@ -3163,7 +3186,7 @@ function LeadSidePanel({
       </Dialog>
 
       {(unifiedSidePanel || panelTab === "activities") && (
-      <div className={unifiedSidePanel ? "order-3" : undefined}>
+      <div className={unifiedSidePanel ? "order-2" : undefined}>
       <PanelSection title="Notas">
         <Textarea
           value={notes}
@@ -3233,13 +3256,16 @@ function LeadSidePanel({
       )}
 
       {(unifiedSidePanel || panelTab === "business") && (
-      <div className={unifiedSidePanel ? "order-2" : undefined}>
+      <div className={unifiedSidePanel ? "order-1" : undefined}>
       <PanelSection
         title="Negócio"
         action={!businessEditOpen ? (
-          <button type="button" onClick={() => setBusinessEditOpen(true)} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted/50 hover:text-foreground" aria-label="Editar negócio">
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {businessSaving && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-label="Salvando alteração" />}
+            <button type="button" onClick={() => setBusinessEditOpen(true)} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted/50 hover:text-foreground" aria-label="Editar negócio">
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          </div>
         ) : undefined}
       >
         {!businessEditOpen ? (
@@ -3248,8 +3274,37 @@ function LeadSidePanel({
             <InfoRow label="Origem" value={sourceSelect === "Outro" ? sourceCustomText : sourceSelect === "none" ? "Não informada" : sourceSelect} muted={sourceSelect === "none"} />
             <InfoRow label="Criativo" value={creativeDraft || "Não informado"} muted={!creativeDraft} />
             <InfoRow label="Funil" value={selectedPipeline?.name || "Sem funil"} muted={!selectedPipeline} />
-            <InfoRow label="Etapa" value={selectedStageName} muted={businessDraft.stageId === "none"} />
-            <InfoRow label="Responsável" value={selectedOwnerName} muted={businessDraft.assignedTo === "none"} />
+            {unifiedSidePanel ? (
+              <>
+                <InlineSelectRow
+                  label="Etapa"
+                  value={businessDraft.stageId}
+                  onValueChange={(stageId) => updateBusinessDirectly({ stageId })}
+                  disabled={businessSaving || selectedStages.length === 0}
+                >
+                  <SelectItem value="none">Sem etapa</SelectItem>
+                  {selectedStages.map((stage) => (
+                    <SelectItem key={stage.id} value={stage.id}>{stage.name}</SelectItem>
+                  ))}
+                </InlineSelectRow>
+                <InlineSelectRow
+                  label="Responsável"
+                  value={businessDraft.assignedTo}
+                  onValueChange={(assignedTo) => updateBusinessDirectly({ assignedTo })}
+                  disabled={businessSaving}
+                >
+                  <SelectItem value="none">Não atribuído</SelectItem>
+                  {users.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem>
+                  ))}
+                </InlineSelectRow>
+              </>
+            ) : (
+              <>
+                <InfoRow label="Etapa" value={selectedStageName} muted={businessDraft.stageId === "none"} />
+                <InfoRow label="Responsável" value={selectedOwnerName} muted={businessDraft.assignedTo === "none"} />
+              </>
+            )}
           </div>
         ) : (
         <div className="space-y-3">
@@ -3441,7 +3496,7 @@ function LeadSidePanel({
             </div>
           )}
 
-          <Button type="button" size="sm" variant="outline" className="w-full" onClick={saveBusiness} disabled={businessSaving}>
+          <Button type="button" size="sm" variant="outline" className="w-full" onClick={() => saveBusiness()} disabled={businessSaving}>
             {businessSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
             Salvar negócio
           </Button>
@@ -3625,6 +3680,35 @@ function InfoRow({ label, value, muted = false }: { label: string; value: string
     <div className="flex items-start justify-between gap-3 py-1.5 text-sm">
       <span className="shrink-0 text-muted-foreground">{label}</span>
       <span className={cn("min-w-0 text-right", muted ? "text-muted-foreground" : "text-foreground")}>{value}</span>
+    </div>
+  );
+}
+
+function InlineSelectRow({
+  label,
+  value,
+  onValueChange,
+  disabled,
+  children,
+}: {
+  label: string;
+  value: string;
+  onValueChange: (value: string) => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-1.5">
+      <span className="shrink-0 text-sm text-muted-foreground">{label}</span>
+      <Select value={value} onValueChange={onValueChange} disabled={disabled}>
+        <SelectTrigger
+          className="h-8 w-[180px] bg-background/70 px-2.5 text-xs"
+          aria-label={`Alterar ${label.toLocaleLowerCase("pt-BR")}`}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>{children}</SelectContent>
+      </Select>
     </div>
   );
 }
