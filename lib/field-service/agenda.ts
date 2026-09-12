@@ -66,8 +66,7 @@ export function agendaCardTone(order: {
   if (order.status === "cancelada") return "cinza";
   if (order.status === "remarcada") return "laranja";
   if (order.status === "em_execucao") return "roxo";
-  if (["concluida", "conferida", "faturada"].includes(order.status)) return "verde";
-  if (order.status === "agendada") return order.confirmedAt ? "azul" : "amarelo";
+  if (["agendada", "concluida", "conferida", "faturada"].includes(order.status)) return "verde";
   return "amarelo";
 }
 
@@ -93,10 +92,10 @@ export const AGENDA_CARD_TEXT = "text-slate-800";
 export const AGENDA_CARD_MUTED_TEXT = "text-slate-500";
 
 export const AGENDA_TONE_LABEL: Record<AgendaCardTone, string> = {
-  amarelo: "A confirmar",
+  amarelo: "Sem agenda",
   azul: "Confirmada",
   roxo: "Em atendimento",
-  verde: "Finalizada",
+  verde: "Programada",
   laranja: "Remarcar",
   vermelho: "Pendência",
   cinza: "Cancelada",
