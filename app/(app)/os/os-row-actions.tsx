@@ -77,7 +77,7 @@ export function OsRowActions({
               </DropdownMenuItem>
             )}
             {["concluida", "conferida"].includes(status) && (
-              <DropdownMenuItem onSelect={() => transition("em_execucao", "OS reaberta")}>
+              <DropdownMenuItem onSelect={() => transition(status === "conferida" ? "concluida" : "em_execucao", "OS reaberta")}>
                 <RotateCcw className="h-4 w-4" /> Reabrir
               </DropdownMenuItem>
             )}
