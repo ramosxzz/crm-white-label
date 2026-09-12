@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { formatCurrencyBRL } from "@/lib/utils";
+import { cn, formatCurrencyBRL } from "@/lib/utils";
 import { notify, notifyError, unwrapAction } from "@/lib/ui/feedback";
 import type {
   FinancialAdjustmentRequest,
@@ -26,6 +26,7 @@ export function SettlementPanel({
   rates,
   requests,
   isOwner,
+  compact = false,
 }: {
   serviceOrderId: string;
   status: ServiceOrderStatus;
@@ -36,6 +37,7 @@ export function SettlementPanel({
   rates: PaymentMethodRate[];
   requests: FinancialAdjustmentRequest[];
   isOwner: boolean;
+  compact?: boolean;
 }) {
   const [expected, setExpected] = useState(((expectedCents ?? totalCents) / 100).toFixed(2));
   const [received, setReceived] = useState((receivedCents / 100).toFixed(2));
@@ -91,7 +93,7 @@ export function SettlementPanel({
   }
 
   return (
-    <section className="rounded-xl border border-border/70 bg-card p-5 shadow-elev-1">
+    <section className={cn("rounded-xl border border-border/70 bg-card shadow-elev-1", compact ? "p-4" : "p-5")}>
       <h2 className="mb-1 inline-flex items-center gap-2 text-sm font-semibold">
         <CircleDollarSign className="h-4 w-4 text-brand" /> Acerto final
       </h2>
@@ -100,7 +102,7 @@ export function SettlementPanel({
       </p>
 
       <form onSubmit={save} className="space-y-3">
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className={cn("grid gap-4", !compact && "sm:grid-cols-3")}>
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Negociação</p>
             <div className="space-y-1.5">
