@@ -80,7 +80,7 @@ export default async function AgendaPage({
     orderIds.length
       ? supabase
           .from("service_order_items")
-          .select("service_order_id, description, kind")
+          .select("service_order_id, description, quantity, kind")
           .eq("kind", "original")
           .in("service_order_id", orderIds)
           .order("created_at", { ascending: true })
@@ -94,12 +94,23 @@ export default async function AgendaPage({
     techniciansByOrder.set(row.service_order_id, list);
   }
 
-  const serviceLabelByOrder = new Map<string, string>();
-  for (const row of (items ?? []) as Array<{ service_order_id: string; description: string }>) {
-    if (!serviceLabelByOrder.has(row.service_order_id)) {
-      serviceLabelByOrder.set(row.service_order_id, row.description);
-    }
+  const itemsByOrder = new Map<string, Array<{ quantity: number; description: string }>>();
+  for (const row of (items ?? []) as Array<{ service_order_id: string; description: string; quantity: number }>) {
+    const list = itemsByOrder.get(row.service_order_id) ?? [];
+    list.push({ quantity: row.quantity, description: row.description });
+    itemsByOrder.set(row.service_order_id, list);
   }
+
+  const profileIds = [...new Set(orders.flatMap((order) => [
+    order.consultant_id,
+    order.confirmed_by,
+    order.created_by,
+    order.reviewed_by,
+  ]).filter(Boolean))] as string[];
+  const { data: auditProfiles } = profileIds.length
+    ? await supabase.from("profiles").select("id, full_name").in("id", profileIds)
+    : { data: [] };
+  const profileNameById = new Map((auditProfiles ?? []).map((profile) => [profile.id, profile.full_name]));
 
   const agendaOrders: AgendaOrder[] = orders.map((order) => ({
     id: order.id,
@@ -111,7 +122,18 @@ export default async function AgendaPage({
     addressNumber: order.address_number,
     addressDistrict: order.address_district,
     addressCity: order.address_city,
-    serviceLabel: serviceLabelByOrder.get(order.id) ?? null,
+    serviceLabel: itemsByOrder.get(order.id)?.[0]?.description ?? null,
+    serviceItems: itemsByOrder.get(order.id) ?? [],
+    partnerName: order.partner_store ?? null,
+    consultantName: order.consultant_id ? profileNameById.get(order.consultant_id) ?? null : null,
+    paymentMethod: order.payment_method ?? null,
+    observations: order.observations ?? order.notes ?? null,
+    confirmedContactName: order.confirmed_contact_name ?? null,
+    confirmedByName: order.confirmed_by ? profileNameById.get(order.confirmed_by) ?? null : null,
+    createdAt: order.created_at,
+    createdByName: order.created_by ? profileNameById.get(order.created_by) ?? null : null,
+    updatedAt: order.updated_at,
+    reviewedByName: order.reviewed_by ? profileNameById.get(order.reviewed_by) ?? null : null,
     totalCents: order.total_cents ?? 0,
     shift: order.shift,
     serviceDate: order.service_date,

@@ -43,7 +43,7 @@ import {
   type ServiceOrderBillingData,
 } from "../actions";
 import { NewServiceOrderDialog } from "../new-service-order-dialog";
-import { OrderQuickView } from "../mapa/order-quick-view";
+import { AgendaOrderPreview } from "./agenda-order-preview";
 import { FaturamentoModal } from "../[id]/faturamento-modal";
 
 export type AgendaOrder = {
@@ -57,6 +57,17 @@ export type AgendaOrder = {
   addressDistrict: string | null;
   addressCity: string | null;
   serviceLabel: string | null;
+  serviceItems: Array<{ quantity: number; description: string }>;
+  partnerName: string | null;
+  consultantName: string | null;
+  paymentMethod: string | null;
+  observations: string | null;
+  confirmedContactName: string | null;
+  confirmedByName: string | null;
+  createdAt: string;
+  createdByName: string | null;
+  updatedAt: string;
+  reviewedByName: string | null;
   totalCents: number;
   shift: "manha" | "tarde" | null;
   serviceDate: string | null;
@@ -127,8 +138,9 @@ function AgendaCard({
       <p className={cn("truncate font-medium", AGENDA_CARD_TEXT)}>{order.leadName}</p>
       {order.serviceLabel && <p className={cn("truncate", AGENDA_CARD_MUTED_TEXT)}>{order.serviceLabel}</p>}
       {window_ && (
-        <p className={cn("tabular-nums", AGENDA_CARD_MUTED_TEXT)}>
-          {formatHourMinute(window_.startAt)} → {formatHourMinute(window_.endAt)}
+        <p className={cn("flex items-center justify-between gap-1 tabular-nums", AGENDA_CARD_MUTED_TEXT)}>
+          <span>{formatHourMinute(window_.startAt)} → {formatHourMinute(window_.endAt)}</span>
+          <span className="truncate font-medium">{order.confirmedAt ? "Confirmada" : "A confirmar"}</span>
           {!order.scheduledStartAt && " (sem horário exato)"}
         </p>
       )}
@@ -423,7 +435,7 @@ export function AgendaGrid({
   const hourLabels = Array.from({ length: AGENDA_END_HOUR - AGENDA_START_HOUR + 1 }, (_, i) => AGENDA_START_HOUR + i);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-3 sm:px-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-3 sm:px-6" aria-busy={pending}>
       <input
         type="search"
         placeholder="Buscar cliente por nome ou telefone..."
@@ -440,10 +452,10 @@ export function AgendaGrid({
           </p>
         </div>
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-border/70 bg-card shadow-elev-1">
+        <div className={cn("min-h-0 flex-1 overflow-auto rounded-xl border border-border/70 bg-card shadow-elev-1 transition-opacity", pending && "opacity-70")}>
           <div
             className="grid min-w-full"
-            style={{ gridTemplateColumns: `56px repeat(${technicians.length}, minmax(190px, 1fr)) 190px` }}
+            style={{ gridTemplateColumns: `56px repeat(${technicians.length}, minmax(176px, 1fr)) 190px` }}
           >
             <div className="sticky top-0 z-20 border-b border-r border-border/60 bg-card" />
             {technicians.map((t) => (
@@ -523,7 +535,11 @@ export function AgendaGrid({
         ))}
       </div>
 
-      <OrderQuickView orderId={quickViewId} onClose={() => setQuickViewId(null)} />
+      <AgendaOrderPreview
+        order={orders.find((order) => order.id === quickViewId) ?? null}
+        technicians={technicians}
+        onClose={() => setQuickViewId(null)}
+      />
 
       {(canManage || canCreate) && (
         <NewServiceOrderDialog
