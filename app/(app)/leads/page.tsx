@@ -17,6 +17,7 @@ import { LeadsFilters } from "./leads-filters";
 import { LeadsSummaryBar, type StageBreakdown } from "./leads-summary-bar";
 import { listTagsWithLeadCount } from "./actions";
 import { QualificationSummary, type QualificationDistribution } from "./qualification-summary";
+import { canFilterLeadsByLocation, normalizeLeadLocationFilter } from "@/lib/leads/location-filter";
 
 type LeadDateFilter = "all" | "today" | "yesterday" | "7d" | "30d" | "custom";
 type SortOption = "recentes" | "antigos" | "valor_desc" | "valor_asc" | "qualificacao";
@@ -53,6 +54,7 @@ export default async function LeadsPage({
     qualificacao?: string;
     ordenar?: string;
     q?: string;
+    localizacao?: string;
   }>;
 }) {
   const ctx = await requireContext();
@@ -66,6 +68,8 @@ export default async function LeadsPage({
   const responsavelFilter = params?.responsavel?.trim() || null;
   const qualificacaoFilter = params?.qualificacao?.trim() || null;
   const q = params?.q?.trim() || null;
+  const showLocationFilter = canFilterLeadsByLocation(ctx.tenantId);
+  const locationFilter = showLocationFilter ? normalizeLeadLocationFilter(params?.localizacao) : null;
   const sort = (["recentes", "antigos", "valor_desc", "valor_asc", "qualificacao"].includes(params?.ordenar ?? "")
     ? params?.ordenar
     : "recentes") as SortOption;
@@ -84,7 +88,7 @@ export default async function LeadsPage({
   // entao um count "exact" direto na query e barato e correto - so nao vira
   // padrao pra tela toda porque contar TODOS os leads do tenant a cada carga
   // (sem filtro nenhum) e que era caro (~400ms medido).
-  const useDirectCount = Boolean(q || responsavelFilter || sourceFilters.length > 0 || minStars);
+  const useDirectCount = Boolean(q || locationFilter || responsavelFilter || sourceFilters.length > 0 || minStars);
 
   let leadsQuery = supabase
     .from("leads")
@@ -108,6 +112,7 @@ export default async function LeadsPage({
   if (responsavelFilter === "unassigned") leadsQuery = leadsQuery.is("assigned_to", null);
   else if (responsavelFilter) leadsQuery = leadsQuery.eq("assigned_to", responsavelFilter);
   if (minStars) leadsQuery = leadsQuery.gte("quality_stars", minStars);
+  if (locationFilter) leadsQuery = leadsQuery.ilike("custom_fields->>address", `%${locationFilter}%`);
   if (q) {
     const digits = q.replace(/\D/g, "");
     const clauses = [`name.ilike.%${q}%`, `email.ilike.%${q}%`];
@@ -128,6 +133,7 @@ export default async function LeadsPage({
     if (responsavelFilter === "unassigned") query = query.is("assigned_to", null);
     else if (responsavelFilter) query = query.eq("assigned_to", responsavelFilter);
     if (minStars) query = query.gte("quality_stars", minStars);
+    if (locationFilter) query = query.ilike("custom_fields->>address", `%${locationFilter}%`);
     if (q) {
       const digits = q.replace(/\D/g, "");
       const clauses = [`name.ilike.%${q}%`, `email.ilike.%${q}%`];
@@ -237,7 +243,7 @@ export default async function LeadsPage({
   const sources = [...sourceCounts.entries()].sort((a, b) => b[1] - a[1]).map(([source]) => source).slice(0, 30);
 
   const pageCount = Math.max(1, Math.ceil(total / LEADS_PAGE_SIZE));
-  const hasActiveFilters = Boolean(q || stageFilterIds.length || tagFilter || responsavelFilter || sourceFilters.length || minStars || dateFilter.active !== "all");
+  const hasActiveFilters = Boolean(q || locationFilter || stageFilterIds.length || tagFilter || responsavelFilter || sourceFilters.length || minStars || dateFilter.active !== "all");
 
   function pageHref(target: number) {
     const qs = new URLSearchParams();
@@ -249,6 +255,7 @@ export default async function LeadsPage({
     if (responsavelFilter) qs.set("responsavel", responsavelFilter);
     if (qualificacaoFilter) qs.set("qualificacao", qualificacaoFilter);
     if (q) qs.set("q", q);
+    if (locationFilter) qs.set("localizacao", locationFilter);
     if (sort !== "recentes") qs.set("ordenar", sort);
     if (target > 1) qs.set("page", String(target));
     const query = qs.toString();
@@ -283,6 +290,7 @@ export default async function LeadsPage({
           sources={sources}
           tags={(tags ?? []).map((t) => ({ tag: t.tag, count: t.count }))}
           canAssign={canAssignLeads}
+          showLocationFilter={canFilterLeadsByLocation(ctx.tenantId)}
         />
 
         <LeadsSummaryBar

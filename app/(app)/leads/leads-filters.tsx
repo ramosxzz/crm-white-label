@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, Layers, User, Megaphone, Tag as TagIcon, CalendarDays, SlidersHorizontal, X, Star } from "lucide-react";
+import { Search, Layers, User, Megaphone, Tag as TagIcon, CalendarDays, SlidersHorizontal, X, Star, MapPin } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -44,18 +44,21 @@ export function LeadsFilters({
   sources,
   tags,
   canAssign,
+  showLocationFilter,
 }: {
   stages: StageOption[];
   members: MemberOption[];
   sources: string[];
   tags: TagOption[];
   canAssign: boolean;
+  showLocationFilter: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pending, startNav] = useTransition();
   const [moreOpen, setMoreOpen] = useState(false);
   const [searchValue, setSearchValue] = useState(searchParams.get("q") ?? "");
+  const [locationValue, setLocationValue] = useState(searchParams.get("localizacao") ?? "");
 
   const stageIds = searchParams.getAll("etapa");
   const sourceValues = searchParams.getAll("origem");
@@ -81,6 +84,21 @@ export function LeadsFilters({
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchValue]);
+
+  useEffect(() => {
+    if (!showLocationFilter) return;
+    const current = searchParams.get("localizacao") ?? "";
+    if (locationValue === current) return;
+    const timer = setTimeout(() => {
+      const qs = new URLSearchParams(searchParams.toString());
+      if (locationValue.trim()) qs.set("localizacao", locationValue.trim());
+      else qs.delete("localizacao");
+      qs.delete("page");
+      startNav(() => router.push(qs.toString() ? `/leads?${qs}` : "/leads"));
+    }, 400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationValue, showLocationFilter]);
 
   function navigate(mutate: (qs: URLSearchParams) => void) {
     const qs = new URLSearchParams(searchParams.toString());
@@ -115,6 +133,7 @@ export function LeadsFilters({
   function clearAll() {
     startNav(() => router.push("/leads"));
     setSearchValue("");
+    setLocationValue("");
   }
 
   const quickStages = stages.slice(0, QUICK_STAGE_LIMIT);
@@ -143,17 +162,37 @@ export function LeadsFilters({
     const label = QUALITY_OPTIONS.find((o) => o.value === qualificacao)?.label ?? qualificacao;
     activeFilters.push({ key: "qualificacao", label: `Qualificação: ${label}`, onRemove: () => setSingle("qualificacao", null) });
   }
+  if (showLocationFilter && locationValue.trim()) {
+    activeFilters.push({
+      key: "localizacao",
+      label: `Localização: ${locationValue}`,
+      onRemove: () => setLocationValue(""),
+    });
+  }
 
   return (
     <div className={cn("space-y-3 transition-opacity", pending && "opacity-70")}>
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={searchValue}
-          onChange={(e) => setSearchValue(e.target.value)}
-          placeholder="Buscar por nome, telefone ou e-mail..."
-          className="h-11 pl-9 text-sm"
-        />
+      <div className={cn("grid gap-2", showLocationFilter && "md:grid-cols-2")}>
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+            placeholder="Buscar por nome, telefone ou e-mail..."
+            className="h-11 pl-9 text-sm"
+          />
+        </div>
+        {showLocationFilter && (
+          <div className="relative">
+            <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={locationValue}
+              onChange={(e) => setLocationValue(e.target.value)}
+              placeholder="Buscar por endereço ou cidade..."
+              className="h-11 pl-9 text-sm"
+            />
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
