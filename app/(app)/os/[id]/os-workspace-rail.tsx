@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { X } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { createServiceClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
-import { formatServiceOrderCode } from "@/lib/field-service/status";
+import { formatServiceOrderCode, SERVICE_ORDER_STATUS_LABEL } from "@/lib/field-service/status";
+import { offsetDay } from "@/lib/field-service/agenda";
 
 function formatTime(value: string | null) {
   if (!value) return null;
@@ -41,7 +42,7 @@ export async function OsWorkspaceRail({
 
   const { data: orders } = await supabase
     .from("service_orders")
-    .select("id, code_seq, status, shift, scheduled_start_at, leads(name)")
+    .select("id, code_seq, status, shift, scheduled_start_at, address_city, leads(name)")
     .eq("tenant_id", tenantId)
     .eq("service_date", day)
     .not("status", "in", "(cancelada)")
@@ -75,7 +76,7 @@ export async function OsWorkspaceRail({
   }
 
   return (
-    <aside className="sticky top-0 flex h-screen w-72 shrink-0 flex-col self-start border-r border-border bg-card">
+    <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col self-start border-r border-border bg-card xl:flex">
       <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Agenda do dia</p>
@@ -89,6 +90,29 @@ export async function OsWorkspaceRail({
           title="Sair da OS, voltar pro menu"
         >
           <X className="h-4 w-4" />
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-[2.25rem_1fr_2.25rem] gap-1 border-b border-border/70 p-2">
+        <Link
+          href={`/os/agenda?day=${offsetDay(day, -1)}`}
+          className="inline-flex h-8 items-center justify-center rounded-md border border-border/70 hover:bg-muted/50"
+          aria-label="Dia anterior"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Link>
+        <Link
+          href={`/os/agenda?day=${day}`}
+          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-brand px-2 text-xs font-semibold text-brand-foreground"
+        >
+          <CalendarDays className="h-3.5 w-3.5" /> Agenda completa
+        </Link>
+        <Link
+          href={`/os/agenda?day=${offsetDay(day, 1)}`}
+          className="inline-flex h-8 items-center justify-center rounded-md border border-border/70 hover:bg-muted/50"
+          aria-label="Próximo dia"
+        >
+          <ChevronRight className="h-4 w-4" />
         </Link>
       </div>
 
@@ -121,6 +145,12 @@ export async function OsWorkspaceRail({
                     )}
                   </div>
                   <p className="mt-0.5 truncate text-muted-foreground">{row.leads?.name ?? "Lead removido"}</p>
+                  <p className="mt-1 flex items-center justify-between gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    <span className="truncate">{row.address_city ?? "Cidade não informada"}</span>
+                    <span className="shrink-0">
+                      {SERVICE_ORDER_STATUS_LABEL[row.status as keyof typeof SERVICE_ORDER_STATUS_LABEL] ?? row.status}
+                    </span>
+                  </p>
                 </Link>
               ))}
             </div>

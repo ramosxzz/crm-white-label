@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronRight, MapPin, Printer } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronRight, MapPin, Printer } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import {
@@ -15,13 +15,15 @@ import {
   SERVICE_ORDER_SHIFT_LABEL,
   formatServiceOrderCode,
 } from "@/lib/field-service/status";
-import { brtDay } from "@/lib/field-service/agenda";
+import { brtDay, formatHourMinute } from "@/lib/field-service/agenda";
 import type { ServiceOrderStatus } from "@/lib/supabase/database.types";
 import { listConsultants } from "@/lib/field-service/users";
 import type { FieldServicePartner } from "@/lib/supabase/database.types";
 import { ServiceOrderStatusBadge } from "./status-badge";
 import { NewServiceOrderDialog } from "./new-service-order-dialog";
 import { ServiceOrdersLive } from "./service-orders-live";
+import { OsRowActions } from "./os-row-actions";
+import { usesKomodusServiceOrderWorkspace } from "@/lib/field-service/workspace-access";
 
 const STATUS_FILTERS: Array<{ value: string; label: string }> = [
   { value: "abertas", label: "Em aberto" },
@@ -66,6 +68,7 @@ export default async function ServiceOrdersPage({
   searchParams: Promise<{ status?: string }>;
 }) {
   const ctx = await requireContext();
+  const komodusWorkspace = usesKomodusServiceOrderWorkspace(ctx);
   if (!ctx.tenant.field_service_enabled) redirect("/dashboard");
   if (!canAccessServiceOrders(ctx.role)) redirect("/dashboard");
 
@@ -113,6 +116,36 @@ export default async function ServiceOrdersPage({
     : { data: [] };
 
   const rows = orders ?? [];
+  const orderIds = komodusWorkspace ? rows.map((order) => order.id) : [];
+  const [{ data: assignments }, { data: itemRows }] = orderIds.length
+    ? await Promise.all([
+        supabase
+          .from("service_order_technicians")
+          .select("service_order_id, user_id")
+          .in("service_order_id", orderIds),
+        supabase
+          .from("service_order_items")
+          .select("service_order_id, description")
+          .eq("kind", "original")
+          .in("service_order_id", orderIds)
+          .order("created_at", { ascending: true }),
+      ])
+    : [{ data: [] }, { data: [] }];
+  const technicianIds = [...new Set((assignments ?? []).map((row) => row.user_id))];
+  const { data: technicianProfiles } = technicianIds.length
+    ? await supabase.from("profiles").select("id, full_name").in("id", technicianIds)
+    : { data: [] };
+  const technicianNameById = new Map((technicianProfiles ?? []).map((profile) => [profile.id, profile.full_name]));
+  const techniciansByOrder = new Map<string, string[]>();
+  for (const assignment of assignments ?? []) {
+    const list = techniciansByOrder.get(assignment.service_order_id) ?? [];
+    list.push(technicianNameById.get(assignment.user_id) ?? "Técnico");
+    techniciansByOrder.set(assignment.service_order_id, list);
+  }
+  const firstServiceByOrder = new Map<string, string>();
+  for (const item of itemRows ?? []) {
+    if (!firstServiceByOrder.has(item.service_order_id)) firstServiceByOrder.set(item.service_order_id, item.description);
+  }
 
   return (
     <div>
@@ -123,6 +156,14 @@ export default async function ServiceOrdersPage({
         description={`${rows.length} ${rows.length === 1 ? "OS" : "OS"} nesse filtro`}
         actions={
           <div className="flex items-center gap-2">
+            {komodusWorkspace && canViewServiceRoutes(ctx.role) && (
+              <Link
+                href={`/os/agenda?day=${brtDay()}`}
+                className="inline-flex h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-sm font-semibold text-brand-foreground transition-opacity hover:opacity-90"
+              >
+                <CalendarDays className="h-4 w-4" /> Agenda completa
+              </Link>
+            )}
             {canViewServiceRoutes(ctx.role) && (
               <Link
                 href={`/os/roteiro/print?day=${brtDay()}`}
@@ -143,7 +184,7 @@ export default async function ServiceOrdersPage({
         }
       />
 
-      <div className="space-y-6 p-8">
+      <div className={komodusWorkspace ? "space-y-4 p-4 sm:p-6" : "space-y-6 p-8"}>
         <div className="flex flex-wrap gap-2">
           {STATUS_FILTERS.map((filter) => {
             const active = filter.value === status;
@@ -170,8 +211,10 @@ export default async function ServiceOrdersPage({
                 <tr>
                   <th className="px-5 py-3 font-medium">OS</th>
                   <th className="px-5 py-3 font-medium">Cliente</th>
-                  <th className="px-5 py-3 font-medium">Endereço</th>
-                  <th className="px-5 py-3 font-medium">Agenda</th>
+                  <th className={komodusWorkspace ? "px-4 py-3 font-medium" : "px-5 py-3 font-medium"}>{komodusWorkspace ? "Cidade / serviço" : "Endereço"}</th>
+                  {komodusWorkspace && <th className="px-4 py-3 font-medium">Técnico</th>}
+                  <th className={komodusWorkspace ? "px-4 py-3 font-medium" : "px-5 py-3 font-medium"}>Agenda</th>
+                  {komodusWorkspace && <th className="px-4 py-3 font-medium">Confirmação</th>}
                   <th className="px-5 py-3 font-medium">Valor</th>
                   <th className="px-5 py-3 font-medium">Status</th>
                   <th className="px-5 py-3" />
@@ -180,7 +223,7 @@ export default async function ServiceOrdersPage({
               <tbody className="divide-y divide-border/70">
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-5 py-16 text-center">
+                    <td colSpan={komodusWorkspace ? 9 : 7} className="px-5 py-16 text-center">
                       <p className="font-medium">Nenhuma ordem de serviço aqui</p>
                       <p className="mt-1 text-sm text-muted-foreground">
                         {canManage
@@ -205,16 +248,31 @@ export default async function ServiceOrdersPage({
                           <p className="text-xs text-muted-foreground">{order.leads.phone}</p>
                         )}
                       </td>
-                      <td className="px-5 py-3 text-xs text-muted-foreground">
+                      <td className={komodusWorkspace ? "px-4 py-3 text-xs text-muted-foreground" : "px-5 py-3 text-xs text-muted-foreground"}>
                         <span className="inline-flex items-start gap-1">
                           <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
-                          {formatAddress(order)}
+                          {komodusWorkspace ? order.address_city || formatAddress(order) : formatAddress(order)}
                         </span>
+                        {komodusWorkspace && (
+                          <p className="mt-1 max-w-52 truncate font-medium text-foreground">
+                            {firstServiceByOrder.get(order.id) ?? "Serviço não informado"}
+                          </p>
+                        )}
                       </td>
-                      <td className="px-5 py-3 text-xs">
+                      {komodusWorkspace && (
+                        <td className="px-4 py-3 text-xs">
+                          {(techniciansByOrder.get(order.id) ?? ["Sem técnico"]).join(" + ")}
+                        </td>
+                      )}
+                      <td className={komodusWorkspace ? "px-4 py-3 text-xs" : "px-5 py-3 text-xs"}>
                         {scheduled ? (
                           <span className="inline-flex flex-col">
                             <span className="font-medium">{scheduled}</span>
+                            {komodusWorkspace && order.scheduled_start_at && order.scheduled_end_at && (
+                              <span className="font-semibold tabular-nums text-foreground">
+                                {formatHourMinute(order.scheduled_start_at)}–{formatHourMinute(order.scheduled_end_at)}
+                              </span>
+                            )}
                             {order.shift && (
                               <span className="text-muted-foreground">
                                 {SERVICE_ORDER_SHIFT_LABEL[order.shift as "manha" | "tarde"]}
@@ -225,17 +283,31 @@ export default async function ServiceOrdersPage({
                           <Badge variant="outline">Sem agenda</Badge>
                         )}
                       </td>
+                      {komodusWorkspace && (
+                        <td className="px-4 py-3 text-xs">
+                          <span className={order.confirmed_at ? "inline-flex items-center gap-1 font-medium text-emerald-600" : "text-muted-foreground"}>
+                            {order.confirmed_at && <CheckCircle2 className="h-3.5 w-3.5" />}
+                            {order.confirmed_at ? "Confirmada" : "A confirmar"}
+                          </span>
+                        </td>
+                      )}
                       <td className="px-5 py-3 font-medium">{formatCurrencyBRL(order.total_cents)}</td>
                       <td className="px-5 py-3">
                         <ServiceOrderStatusBadge status={order.status} />
                       </td>
                       <td className="px-5 py-3 text-right">
-                        <Link
-                          href={`/os/${order.id}`}
-                          className="opacity-0 transition-opacity group-hover:opacity-100"
-                        >
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        </Link>
+                        {komodusWorkspace ? (
+                          <OsRowActions
+                            id={order.id}
+                            status={order.status as ServiceOrderStatus}
+                            confirmed={Boolean(order.confirmed_at)}
+                            canManage={canManage}
+                          />
+                        ) : (
+                          <Link href={`/os/${order.id}`} className="opacity-0 transition-opacity group-hover:opacity-100">
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          </Link>
+                        )}
                       </td>
                     </tr>
                   );
