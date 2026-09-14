@@ -126,7 +126,10 @@ function configPreview(kind: string, config: Record<string, unknown>): string | 
   if (kind === "assign_lead" && config.user_id) return `→ responsável`;
   if (kind === "assign_lead_round_robin" && config.user_ids) {
     const count = String(config.user_ids).split(",").filter((s) => s.trim()).length;
-    return `→ rodízio entre ${count} vendedor(es)`;
+    const window = config.assignment_hours_only
+      ? ` · ${String(config.assignment_hour_start ?? 0).padStart(2, "0")}h–${String(config.assignment_hour_end ?? 17).padStart(2, "0")}h`
+      : "";
+    return `→ rodízio entre ${count} vendedor(es)${window}`;
   }
   if (kind === "tag_by_ddd") return `→ tag automática por UF`;
   if (kind === "condition" && config.field) return `${String(config.field)} ${String(config.operator ?? "=")} ${String(config.value ?? "")}`;

@@ -3,7 +3,12 @@ import { createProvider } from "@/lib/whatsapp/factory";
 import { triggerApi4comCall } from "@/lib/integrations/api4com";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
 import { getWhatsAppAccountForLead } from "@/lib/whatsapp/account-for-lead";
-import { deferUntil, DEFAULT_SEND_START_HOUR, DEFAULT_SEND_END_HOUR } from "@/lib/automations/sending-window";
+import {
+  deferUntil,
+  isWithinSendingWindow,
+  DEFAULT_SEND_START_HOUR,
+  DEFAULT_SEND_END_HOUR,
+} from "@/lib/automations/sending-window";
 import { dayGreeting } from "@/lib/whatsapp/day-greeting";
 import { ufFromPhone } from "@/lib/automations/ddd-uf";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
@@ -269,6 +274,34 @@ async function runAction(
       .map((id) => id.trim())
       .filter(Boolean);
     if (userIds.length === 0) return { skipped: "nenhum usuario configurado" };
+
+    // Numero individual de WhatsApp ja define quem deve atender. O rodizio
+    // serve apenas para a fila sem dono; nunca pode tirar um lead do celular
+    // de uma vendedora e entregar para outra.
+    if (blockConfig.only_if_unassigned && lead.assigned_to) {
+      return {
+        skipped: "lead ja possui responsavel",
+        assigned_to: lead.assigned_to,
+      };
+    }
+
+    // Diferente da janela de mensagens, fora do horario o lead nao deve ficar
+    // esperando para ser atribuido no dia seguinte. Ele permanece sem dono
+    // para a gestao distribuir manualmente, que e exatamente o fluxo usado
+    // por equipes que encerram o rodizio em um horario fixo.
+    if (blockConfig.assignment_hours_only) {
+      const start = Number(blockConfig.assignment_hour_start ?? 0);
+      const end = Number(blockConfig.assignment_hour_end ?? 17);
+      if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > 24 || start >= end) {
+        return { skipped: "janela de distribuicao invalida" };
+      }
+      if (!isWithinSendingWindow(new Date(), start, end)) {
+        return {
+          skipped: "fora do horario de distribuicao; atribuicao manual",
+          assignment_window: { start, end, time_zone: "America/Sao_Paulo" },
+        };
+      }
+    }
 
     // Cursor e atribuicao sao confirmados juntos, com lock por fluxo/bloco.
     const { data, error } = await supabase.rpc("assign_automation_lead_round_robin", {

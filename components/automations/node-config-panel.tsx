@@ -275,18 +275,75 @@ export function NodeConfigPanel({
 
         {/* assign_lead_round_robin */}
         {kind === "assign_lead_round_robin" && (
-          <div className="space-y-1.5">
-            <Label>IDs dos usuários (rodízio)</Label>
-            <Textarea
-              placeholder="uuid-vendedor-1, uuid-vendedor-2"
-              value={String(config.user_ids ?? "")}
-              onChange={(e) => set("user_ids", e.target.value)}
-              rows={3}
-            />
-            <p className="text-xs text-muted-foreground">
-              Separe os IDs por vírgula (pegue em Configurações → Usuários). Cada lead novo vai pro próximo da lista,
-              alternando na ordem.
-            </p>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>IDs dos usuários (rodízio)</Label>
+              <Textarea
+                placeholder="uuid-vendedor-1, uuid-vendedor-2"
+                value={String(config.user_ids ?? "")}
+                onChange={(e) => set("user_ids", e.target.value)}
+                rows={3}
+              />
+              <p className="text-xs text-muted-foreground">
+                Separe os IDs por vírgula (pegue em Configurações → Usuários). Cada lead novo vai pro próximo da lista,
+                alternando na ordem.
+              </p>
+            </div>
+
+            <div className="space-y-2 rounded-lg border border-border/70 p-3">
+              <label className="flex cursor-pointer items-start gap-2">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 rounded border-border accent-brand"
+                  checked={Boolean(config.only_if_unassigned)}
+                  onChange={(e) => set("only_if_unassigned", e.target.checked)}
+                />
+                <span className="text-xs">
+                  <span className="font-medium">Distribuir somente leads sem responsável</span>
+                  <span className="mt-0.5 block text-muted-foreground">
+                    Preserva o dono dos leads recebidos em números individuais.
+                  </span>
+                </span>
+              </label>
+
+              <label className="flex cursor-pointer items-start gap-2">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 rounded border-border accent-brand"
+                  checked={Boolean(config.assignment_hours_only)}
+                  onChange={(e) => set("assignment_hours_only", e.target.checked)}
+                />
+                <span className="text-xs">
+                  <span className="font-medium">Distribuir somente nesta faixa de horário</span>
+                  <span className="mt-0.5 block text-muted-foreground">
+                    Fora da faixa o lead fica sem responsável para distribuição manual.
+                  </span>
+                </span>
+              </label>
+
+              {Boolean(config.assignment_hours_only) && (
+                <div className="flex items-center gap-2 pl-6">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={23}
+                    className="h-8 w-16"
+                    value={String(config.assignment_hour_start ?? 0)}
+                    onChange={(e) => set("assignment_hour_start", Number(e.target.value))}
+                  />
+                  <span className="text-xs text-muted-foreground">até</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={24}
+                    className="h-8 w-16"
+                    value={String(config.assignment_hour_end ?? 17)}
+                    onChange={(e) => set("assignment_hour_end", Number(e.target.value))}
+                  />
+                  <span className="text-xs text-muted-foreground">h (Brasília)</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

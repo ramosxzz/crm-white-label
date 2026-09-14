@@ -96,3 +96,13 @@ test("a mensagem e adiada, nunca descartada", () => {
     assert.ok(isWithin(adiado), `${hora}h caiu fora da janela ao reabrir`);
   }
 });
+
+test("rodizio da Frigigold distribui antes das 17h de Brasilia", () => {
+  assert.equal(isWithin(brt(15, 0), 0, 17), true, "meia-noite ja pertence ao periodo de distribuicao");
+  assert.equal(isWithin(brt(15, 16), 0, 17), true, "16h59 ainda distribui automaticamente");
+});
+
+test("rodizio da Frigigold para exatamente as 17h de Brasilia", () => {
+  assert.equal(isWithin(brt(15, 17), 0, 17), false, "17h em ponto passa para atribuicao manual");
+  assert.equal(isWithin(brt(15, 23), 0, 17), false, "depois das 17h permanece manual");
+});
