@@ -1,20 +1,23 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Check, CircleDollarSign, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { formatCurrencyBRL } from "@/lib/utils";
+import { cn, formatCurrencyBRL } from "@/lib/utils";
 import { notify, notifyError, unwrapAction } from "@/lib/ui/feedback";
 import type {
   FinancialAdjustmentRequest,
   PaymentMethodRate,
   ServiceOrderStatus,
 } from "@/lib/supabase/database.types";
-import { reviewFinancialAdjustment, saveServiceOrderSettlement } from "../actions";
+import {
+  reviewFinancialAdjustment,
+  saveServiceOrderSettlement,
+} from "../actions";
 
 export function SettlementPanel({
   serviceOrderId,
@@ -26,6 +29,7 @@ export function SettlementPanel({
   rates,
   requests,
   isOwner,
+  compact = false,
 }: {
   serviceOrderId: string;
   status: ServiceOrderStatus;
@@ -36,18 +40,36 @@ export function SettlementPanel({
   rates: PaymentMethodRate[];
   requests: FinancialAdjustmentRequest[];
   isOwner: boolean;
+  compact?: boolean;
 }) {
-  const [expected, setExpected] = useState(((expectedCents ?? totalCents) / 100).toFixed(2));
+  const automaticExpectedCents =
+    expectedCents != null && expectedCents > 0 ? expectedCents : totalCents;
+  const [expected, setExpected] = useState(
+    (automaticExpectedCents / 100).toFixed(2),
+  );
   const [received, setReceived] = useState((receivedCents / 100).toFixed(2));
   const [method, setMethod] = useState(paymentMethod ?? "");
   const [reason, setReason] = useState("");
   const [pending, start] = useTransition();
 
+  // router.refresh preserva o estado de Client Components. Sem sincronizar
+  // aqui, o total novo chegava do servidor mas os campos continuavam com os
+  // valores antigos que estavam na tela antes da alteracao do tecnico/ADM.
+  useEffect(() => {
+    setExpected((automaticExpectedCents / 100).toFixed(2));
+    setReceived((receivedCents / 100).toFixed(2));
+    setMethod(paymentMethod ?? "");
+  }, [automaticExpectedCents, receivedCents, paymentMethod]);
+
   const pendingCents = useMemo(
     () =>
       Math.max(
         0,
-        Math.round((Number(expected.replace(",", ".")) - Number(received.replace(",", "."))) * 100),
+        Math.round(
+          (Number(expected.replace(",", ".")) -
+            Number(received.replace(",", "."))) *
+            100,
+        ),
       ),
     [expected, received],
   );
@@ -82,8 +104,13 @@ export function SettlementPanel({
   function review(requestId: string, approve: boolean) {
     start(async () => {
       try {
-        await unwrapAction(reviewFinancialAdjustment({ request_id: requestId, approve }));
-        notify({ title: approve ? "Alteração liberada" : "Alteração recusada", tone: "success" });
+        await unwrapAction(
+          reviewFinancialAdjustment({ request_id: requestId, approve }),
+        );
+        notify({
+          title: approve ? "Alteração liberada" : "Alteração recusada",
+          tone: "success",
+        });
       } catch (error) {
         notifyError(error, "Não foi possível revisar a solicitação");
       }
@@ -91,18 +118,26 @@ export function SettlementPanel({
   }
 
   return (
-    <section className="rounded-xl border border-border/70 bg-card p-5 shadow-elev-1">
+    <section
+      className={cn(
+        "rounded-xl border border-border/70 bg-card shadow-elev-1",
+        compact ? "p-4" : "p-5",
+      )}
+    >
       <h2 className="mb-1 inline-flex items-center gap-2 text-sm font-semibold">
         <CircleDollarSign className="h-4 w-4 text-brand" /> Acerto final
       </h2>
       <p className="mb-4 text-xs text-muted-foreground">
-        Previsto, recebido e pendente desta OS. Taxas são lançadas conforme a forma de pagamento.
+        Previsto, recebido e pendente desta OS. Taxas são lançadas conforme a
+        forma de pagamento.
       </p>
 
       <form onSubmit={save} className="space-y-3">
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className={cn("grid gap-4", !compact && "sm:grid-cols-3")}>
           <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Negociação</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Negociação
+            </p>
             <div className="space-y-1.5">
               <Label htmlFor="settlement-expected">Previsto (R$)</Label>
               <Input
@@ -123,19 +158,27 @@ export function SettlementPanel({
                 className="h-10 w-full rounded-md border border-border/70 bg-background px-3 text-sm"
               >
                 <option value="">Não informada</option>
-                {rates.filter((rate) => rate.is_active).map((rate) => (
-                  <option key={rate.id} value={rate.name}>
-                    {rate.name}
-                    {rate.installment_count > 1 ? ` · ${rate.installment_count} parcelas` : ""}
-                    {rate.fee_percent > 0 ? ` · taxa ${rate.fee_percent}%` : ""}
-                  </option>
-                ))}
+                {rates
+                  .filter((rate) => rate.is_active)
+                  .map((rate) => (
+                    <option key={rate.id} value={rate.name}>
+                      {rate.name}
+                      {rate.installment_count > 1
+                        ? ` · ${rate.installment_count} parcelas`
+                        : ""}
+                      {rate.fee_percent > 0
+                        ? ` · taxa ${rate.fee_percent}%`
+                        : ""}
+                    </option>
+                  ))}
               </select>
             </div>
           </div>
 
           <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Valores finais</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Valores finais
+            </p>
             <div className="space-y-1.5">
               <Label htmlFor="settlement-received">Recebido (R$)</Label>
               <Input
@@ -149,14 +192,22 @@ export function SettlementPanel({
             </div>
             <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
               <span className="text-xs text-muted-foreground">Pendente</span>
-              <strong className={pendingCents > 0 ? "text-sm text-warning" : "text-sm text-success"}>
+              <strong
+                className={
+                  pendingCents > 0
+                    ? "text-sm text-warning"
+                    : "text-sm text-success"
+                }
+              >
                 {formatCurrencyBRL(pendingCents)}
               </strong>
             </div>
           </div>
 
           <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Observações</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Observações
+            </p>
             {locked ? (
               <div className="space-y-1.5">
                 <Label htmlFor="settlement-reason">Motivo da alteração</Label>
@@ -170,7 +221,8 @@ export function SettlementPanel({
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">
-                OS aberta — alterações aqui são livres. Depois de faturada, viram pedido de liberação.
+                OS aberta — alterações aqui são livres. Depois de faturada,
+                viram pedido de liberação.
               </p>
             )}
           </div>
@@ -186,7 +238,10 @@ export function SettlementPanel({
             Histórico de ajustes
           </h3>
           {requests.map((request) => (
-            <div key={request.id} className="rounded-lg border border-border/60 p-3">
+            <div
+              key={request.id}
+              className="rounded-lg border border-border/60 p-3"
+            >
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-medium">{request.reason}</p>
                 <Badge

@@ -47,6 +47,28 @@ export function ServiceOrdersLive({
       refreshSoon,
     );
 
+    // Itens, tecnicos, checklist e avarias podem ser alterados pelo app de
+    // campo sem que a propria linha de service_orders mude. Escutar as tabelas
+    // filhas garante que a tela administrativa acompanhe o tecnico em tempo real.
+    for (const table of [
+      "service_order_items",
+      "service_order_technicians",
+      "service_order_checklists",
+      "service_order_damages",
+      "service_order_followups",
+    ]) {
+      channel = channel.on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table,
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        refreshSoon,
+      );
+    }
+
     if (withTechnicianPositions) {
       channel = channel.on(
         "postgres_changes",
