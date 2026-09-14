@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { canAccessServiceOrders, canCreateServiceOrder, isTechnician as isTechnicianRole } from "@/lib/auth/roles";
 import { formatCurrencyBRL } from "@/lib/utils";
@@ -34,8 +34,12 @@ export default async function ServiceOrderPrintPage({ params }: { params: Promis
   if (!canAccessServiceOrders(ctx.role) && !canCreateServiceOrder(ctx.role) && !isTechnicianRole(ctx.role)) notFound();
 
   const { id } = await params;
-  const supabase = createServiceClient();
-  const { data: order } = await supabase
+  // Client autenticado: a RLS de service_orders e quem decide se este
+  // vendedor/tecnico pode ver esta OS especifica (so a dele). Sem linha
+  // aqui pode ser OS inexistente ou bloqueada pela RLS - nos dois casos o
+  // usuario nao deve saber a diferenca.
+  const rlsClient = await createClient();
+  const { data: order } = await rlsClient
     .from("service_orders")
     .select("*, leads(name, phone)")
     .eq("id", id)
@@ -43,6 +47,7 @@ export default async function ServiceOrderPrintPage({ params }: { params: Promis
     .maybeSingle();
   if (!order) notFound();
 
+  const supabase = createServiceClient();
   const [{ data: items }, { data: assignments }] = await Promise.all([
     supabase.from("service_order_items").select("*").eq("service_order_id", id).order("created_at", { ascending: true }),
     supabase.from("service_order_technicians").select("user_id").eq("service_order_id", id),
