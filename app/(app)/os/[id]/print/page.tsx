@@ -6,6 +6,8 @@ import { canAccessServiceOrders, canCreateServiceOrder, isTechnician as isTechni
 import { formatCurrencyBRL } from "@/lib/utils";
 import { SALE_CHANNEL_LABEL, SERVICE_ORDER_SHIFT_LABEL, formatServiceOrderCode } from "@/lib/field-service/status";
 import { PrintOnOpen } from "./print-on-open";
+import { LegacyServiceOrderPrint } from "./legacy-service-order-print";
+import { usesKomodusServiceOrderWorkspace } from "@/lib/field-service/workspace-access";
 
 function formatAddress(order: any) {
   const street = [order.address_street, order.address_number].filter(Boolean).join(", ");
@@ -59,6 +61,19 @@ export default async function ServiceOrderPrintPage({ params }: { params: Promis
   const nameById = new Map(((profiles ?? []) as any[]).map((profile) => [profile.id, profile.full_name]));
   const technicianNames = ((assignments ?? []) as any[]).map((assignment) => nameById.get(assignment.user_id)).filter(Boolean);
   const row = order as any;
+
+  if (!usesKomodusServiceOrderWorkspace(ctx)) {
+    return (
+      <LegacyServiceOrderPrint
+        id={id}
+        tenantName={ctx.tenant.name}
+        row={row}
+        items={(items ?? []) as any[]}
+        technicianNames={technicianNames as string[]}
+        nameById={nameById as Map<string, string>}
+      />
+    );
+  }
 
   return (
     <main className="mx-auto max-w-4xl bg-white px-5 py-6 text-[11px] leading-tight text-slate-950 sm:px-8 print:max-w-none print:px-0 print:py-0">

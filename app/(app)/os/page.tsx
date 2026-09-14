@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarDays, CheckCircle2, MapPin, Printer } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronRight, MapPin, Printer } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import {
@@ -23,6 +23,7 @@ import { ServiceOrderStatusBadge } from "./status-badge";
 import { NewServiceOrderDialog } from "./new-service-order-dialog";
 import { ServiceOrdersLive } from "./service-orders-live";
 import { OsRowActions } from "./os-row-actions";
+import { usesKomodusServiceOrderWorkspace } from "@/lib/field-service/workspace-access";
 
 const STATUS_FILTERS: Array<{ value: string; label: string }> = [
   { value: "abertas", label: "Em aberto" },
@@ -67,6 +68,7 @@ export default async function ServiceOrdersPage({
   searchParams: Promise<{ status?: string }>;
 }) {
   const ctx = await requireContext();
+  const komodusWorkspace = usesKomodusServiceOrderWorkspace(ctx);
   if (!ctx.tenant.field_service_enabled) redirect("/dashboard");
   if (!canAccessServiceOrders(ctx.role)) redirect("/dashboard");
 
@@ -114,7 +116,7 @@ export default async function ServiceOrdersPage({
     : { data: [] };
 
   const rows = orders ?? [];
-  const orderIds = rows.map((order) => order.id);
+  const orderIds = komodusWorkspace ? rows.map((order) => order.id) : [];
   const [{ data: assignments }, { data: itemRows }] = orderIds.length
     ? await Promise.all([
         supabase
@@ -154,7 +156,7 @@ export default async function ServiceOrdersPage({
         description={`${rows.length} ${rows.length === 1 ? "OS" : "OS"} nesse filtro`}
         actions={
           <div className="flex items-center gap-2">
-            {canViewServiceRoutes(ctx.role) && (
+            {komodusWorkspace && canViewServiceRoutes(ctx.role) && (
               <Link
                 href={`/os/agenda?day=${brtDay()}`}
                 className="inline-flex h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-sm font-semibold text-brand-foreground transition-opacity hover:opacity-90"
@@ -182,7 +184,7 @@ export default async function ServiceOrdersPage({
         }
       />
 
-      <div className="space-y-4 p-4 sm:p-6">
+      <div className={komodusWorkspace ? "space-y-4 p-4 sm:p-6" : "space-y-6 p-8"}>
         <div className="flex flex-wrap gap-2">
           {STATUS_FILTERS.map((filter) => {
             const active = filter.value === status;
@@ -209,10 +211,10 @@ export default async function ServiceOrdersPage({
                 <tr>
                   <th className="px-5 py-3 font-medium">OS</th>
                   <th className="px-5 py-3 font-medium">Cliente</th>
-                  <th className="px-4 py-3 font-medium">Cidade / serviço</th>
-                  <th className="px-4 py-3 font-medium">Técnico</th>
-                  <th className="px-4 py-3 font-medium">Agenda</th>
-                  <th className="px-4 py-3 font-medium">Confirmação</th>
+                  <th className={komodusWorkspace ? "px-4 py-3 font-medium" : "px-5 py-3 font-medium"}>{komodusWorkspace ? "Cidade / serviço" : "Endereço"}</th>
+                  {komodusWorkspace && <th className="px-4 py-3 font-medium">Técnico</th>}
+                  <th className={komodusWorkspace ? "px-4 py-3 font-medium" : "px-5 py-3 font-medium"}>Agenda</th>
+                  {komodusWorkspace && <th className="px-4 py-3 font-medium">Confirmação</th>}
                   <th className="px-5 py-3 font-medium">Valor</th>
                   <th className="px-5 py-3 font-medium">Status</th>
                   <th className="px-5 py-3" />
@@ -221,7 +223,7 @@ export default async function ServiceOrdersPage({
               <tbody className="divide-y divide-border/70">
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-5 py-16 text-center">
+                    <td colSpan={komodusWorkspace ? 9 : 7} className="px-5 py-16 text-center">
                       <p className="font-medium">Nenhuma ordem de serviço aqui</p>
                       <p className="mt-1 text-sm text-muted-foreground">
                         {canManage
@@ -246,23 +248,27 @@ export default async function ServiceOrdersPage({
                           <p className="text-xs text-muted-foreground">{order.leads.phone}</p>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                      <td className={komodusWorkspace ? "px-4 py-3 text-xs text-muted-foreground" : "px-5 py-3 text-xs text-muted-foreground"}>
                         <span className="inline-flex items-start gap-1">
                           <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
-                          {order.address_city || formatAddress(order)}
+                          {komodusWorkspace ? order.address_city || formatAddress(order) : formatAddress(order)}
                         </span>
-                        <p className="mt-1 max-w-52 truncate font-medium text-foreground">
-                          {firstServiceByOrder.get(order.id) ?? "Serviço não informado"}
-                        </p>
+                        {komodusWorkspace && (
+                          <p className="mt-1 max-w-52 truncate font-medium text-foreground">
+                            {firstServiceByOrder.get(order.id) ?? "Serviço não informado"}
+                          </p>
+                        )}
                       </td>
-                      <td className="px-4 py-3 text-xs">
-                        {(techniciansByOrder.get(order.id) ?? ["Sem técnico"]).join(" + ")}
-                      </td>
-                      <td className="px-4 py-3 text-xs">
+                      {komodusWorkspace && (
+                        <td className="px-4 py-3 text-xs">
+                          {(techniciansByOrder.get(order.id) ?? ["Sem técnico"]).join(" + ")}
+                        </td>
+                      )}
+                      <td className={komodusWorkspace ? "px-4 py-3 text-xs" : "px-5 py-3 text-xs"}>
                         {scheduled ? (
                           <span className="inline-flex flex-col">
                             <span className="font-medium">{scheduled}</span>
-                            {order.scheduled_start_at && order.scheduled_end_at && (
+                            {komodusWorkspace && order.scheduled_start_at && order.scheduled_end_at && (
                               <span className="font-semibold tabular-nums text-foreground">
                                 {formatHourMinute(order.scheduled_start_at)}–{formatHourMinute(order.scheduled_end_at)}
                               </span>
@@ -277,23 +283,31 @@ export default async function ServiceOrdersPage({
                           <Badge variant="outline">Sem agenda</Badge>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-xs">
-                        <span className={order.confirmed_at ? "inline-flex items-center gap-1 font-medium text-emerald-600" : "text-muted-foreground"}>
-                          {order.confirmed_at && <CheckCircle2 className="h-3.5 w-3.5" />}
-                          {order.confirmed_at ? "Confirmada" : "A confirmar"}
-                        </span>
-                      </td>
+                      {komodusWorkspace && (
+                        <td className="px-4 py-3 text-xs">
+                          <span className={order.confirmed_at ? "inline-flex items-center gap-1 font-medium text-emerald-600" : "text-muted-foreground"}>
+                            {order.confirmed_at && <CheckCircle2 className="h-3.5 w-3.5" />}
+                            {order.confirmed_at ? "Confirmada" : "A confirmar"}
+                          </span>
+                        </td>
+                      )}
                       <td className="px-5 py-3 font-medium">{formatCurrencyBRL(order.total_cents)}</td>
                       <td className="px-5 py-3">
                         <ServiceOrderStatusBadge status={order.status} />
                       </td>
                       <td className="px-5 py-3 text-right">
-                        <OsRowActions
-                          id={order.id}
-                          status={order.status as ServiceOrderStatus}
-                          confirmed={Boolean(order.confirmed_at)}
-                          canManage={canManage}
-                        />
+                        {komodusWorkspace ? (
+                          <OsRowActions
+                            id={order.id}
+                            status={order.status as ServiceOrderStatus}
+                            confirmed={Boolean(order.confirmed_at)}
+                            canManage={canManage}
+                          />
+                        ) : (
+                          <Link href={`/os/${order.id}`} className="opacity-0 transition-opacity group-hover:opacity-100">
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          </Link>
+                        )}
                       </td>
                     </tr>
                   );

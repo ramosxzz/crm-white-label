@@ -61,12 +61,16 @@ export function agendaCardTone(order: {
   status: ServiceOrderStatus;
   confirmedAt: string | null;
   hasPendingIssue: boolean;
-}): AgendaCardTone {
+}, komodusWorkspace = false): AgendaCardTone {
   if (order.hasPendingIssue) return "vermelho";
   if (order.status === "cancelada") return "cinza";
   if (order.status === "remarcada") return "laranja";
   if (order.status === "em_execucao") return "roxo";
-  if (["agendada", "concluida", "conferida", "faturada"].includes(order.status)) return "verde";
+  if (["concluida", "conferida", "faturada"].includes(order.status)) return "verde";
+  if (order.status === "agendada") {
+    if (komodusWorkspace) return "verde";
+    return order.confirmedAt ? "azul" : "amarelo";
+  }
   return "amarelo";
 }
 
@@ -92,14 +96,21 @@ export const AGENDA_CARD_TEXT = "text-slate-800";
 export const AGENDA_CARD_MUTED_TEXT = "text-slate-500";
 
 export const AGENDA_TONE_LABEL: Record<AgendaCardTone, string> = {
-  amarelo: "Sem agenda",
+  amarelo: "A confirmar",
   azul: "Confirmada",
   roxo: "Em atendimento",
-  verde: "Programada",
+  verde: "Finalizada",
   laranja: "Remarcar",
   vermelho: "Pendência",
   cinza: "Cancelada",
 };
+
+export function agendaToneLabel(tone: AgendaCardTone, komodusWorkspace = false): string {
+  if (!komodusWorkspace) return AGENDA_TONE_LABEL[tone];
+  if (tone === "amarelo") return "Sem agenda";
+  if (tone === "verde") return "Programada";
+  return AGENDA_TONE_LABEL[tone];
+}
 
 export type CardLane = { id: string; lane: number; laneCount: number };
 

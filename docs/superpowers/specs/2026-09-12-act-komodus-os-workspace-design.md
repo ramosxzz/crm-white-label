@@ -2,7 +2,7 @@
 
 **Data:** 2026-09-12  
 **Status:** aprovado para planejamento  
-**Escopo:** todo o módulo de OS, disponível exclusivamente para o tenant ACT
+**Escopo:** apresentação Komodus exclusiva do login administrativo `admact`, identificado pela permissão persistida `tenant_members.os_only_access`; o módulo continua pertencendo ao tenant ACT
 
 ## Objetivo
 
@@ -12,7 +12,8 @@ O resultado deve permitir que a administradora trabalhe sem alternar entre vári
 
 ## Princípios
 
-- O módulo de OS pertence somente ao tenant ACT; não será criada uma variação paralela para outros tenants.
+- O módulo de OS pertence somente ao tenant ACT.
+- A apresentação Komodus é exclusiva do usuário com `os_only_access = true` (atualmente `admact@solairew.com.br`). Os demais usuários do tenant preservam a apresentação anterior.
 - A familiaridade operacional tem prioridade sobre uma reformulação estética ampla.
 - A tela principal de uma OS deve ser compacta e mostrar todas as informações importantes de uma vez.
 - A agenda completa continua sendo uma tela separada, otimizada para distribuir serviços entre técnicos.
@@ -153,7 +154,7 @@ O formato deve favorecer a impressão de múltiplas OS por página quando o cont
 
 A implementação reaproveitará as tabelas, consultas e componentes existentes para ordens, agenda, itens, responsáveis, parceiros, pagamentos, comissões, registros e acompanhamentos. Mudanças de banco serão limitadas a lacunas comprovadas durante a implementação e entregues por migração versionada.
 
-O acesso permanece protegido pelas regras de tenant e permissões existentes. Como o módulo é exclusivo da ACT, sua navegação e suas rotas não devem aparecer para outros tenants.
+O acesso permanece protegido pelas regras de tenant e permissões existentes. Como o módulo é exclusivo da ACT, sua navegação e suas rotas não devem aparecer para outros tenants. Dentro da ACT, a apresentação Komodus deve ser decidida pela permissão persistida `os_only_access`, nunca por comparação de nome ou e-mail.
 
 ## Desempenho
 

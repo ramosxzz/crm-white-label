@@ -20,13 +20,28 @@ async function loadModule() {
 test("agenda ACT usa verde para OS agendada normal", async () => {
   const { agendaCardTone } = await loadModule();
   assert.equal(
-    agendaCardTone({ status: "agendada", confirmedAt: null, hasPendingIssue: false }),
+    agendaCardTone({ status: "agendada", confirmedAt: null, hasPendingIssue: false }, true),
     "verde",
   );
   assert.equal(
-    agendaCardTone({ status: "agendada", confirmedAt: "2026-09-12T12:00:00Z", hasPendingIssue: false }),
+    agendaCardTone({ status: "agendada", confirmedAt: "2026-09-12T12:00:00Z", hasPendingIssue: false }, true),
     "verde",
   );
+});
+
+test("demais logins preservam as cores anteriores da agenda", async () => {
+  const { agendaCardTone, agendaToneLabel } = await loadModule();
+  assert.equal(
+    agendaCardTone({ status: "agendada", confirmedAt: null, hasPendingIssue: false }, false),
+    "amarelo",
+  );
+  assert.equal(
+    agendaCardTone({ status: "agendada", confirmedAt: "2026-09-12T12:00:00Z", hasPendingIssue: false }, false),
+    "azul",
+  );
+  assert.equal(agendaToneLabel("amarelo", false), "A confirmar");
+  assert.equal(agendaToneLabel("verde", false), "Finalizada");
+  assert.equal(agendaToneLabel("verde", true), "Programada");
 });
 
 test("excecoes operacionais sobrepoem o verde", async () => {

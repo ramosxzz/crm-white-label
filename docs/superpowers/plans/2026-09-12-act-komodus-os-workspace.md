@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Redesenhar o módulo exclusivo de Ordens de Serviço da ACT para reproduzir o fluxo operacional compacto do Komodus, mantendo a identidade visual e as regras existentes do CRM W+.
+**Goal:** Redesenhar o módulo exclusivo de Ordens de Serviço da ACT para reproduzir o fluxo operacional compacto do Komodus somente no login `admact`, mantendo a identidade visual, as regras existentes do CRM W+ e a apresentação anterior para os demais usuários.
 
 **Architecture:** A implementação mantém as rotas, tabelas e ações atuais e reorganiza a apresentação em quatro superfícies: lista, agenda completa, workspace compacto e impressão. Regras puras de exibição ficam em `lib/field-service`, componentes client ficam pequenos e focados, e as páginas server continuam responsáveis por autorização e carregamento agregado dos dados.
 
@@ -372,7 +372,7 @@ git add app/(app)/os/[id]/print/page.tsx app/(app)/os/[id]/print/print-on-open.t
 git commit -m "feat: rebuild ACT operational OS print sheet"
 ```
 
-### Task 7: Confirmar exclusividade ACT e validar ponta a ponta
+### Task 7: Confirmar exclusividade ACT/admact e validar ponta a ponta
 
 **Files:**
 - Modify only if evidence requires: `lib/tenant.ts`
@@ -383,6 +383,8 @@ git commit -m "feat: rebuild ACT operational OS print sheet"
 - [ ] **Step 1: Auditar a configuração dos tenants no Supabase**
 
 Consultar `tenants.id`, `tenants.name` e `tenants.field_service_enabled`. Confirmar que somente ACT possui o módulo ativo. Se outro tenant estiver ativo, não alterar silenciosamente: identificar uso real e restringir a navegação por configuração persistida, não por comparação frágil do nome.
+
+Também confirmar que somente o login administrativo solicitado possui `tenant_members.os_only_access = true`. Essa permissão, e não o e-mail, ativa a apresentação Komodus.
 
 - [ ] **Step 2: Executar a suíte completa**
 

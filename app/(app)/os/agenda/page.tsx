@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
+import { usesKomodusServiceOrderWorkspace } from "@/lib/field-service/workspace-access";
 import { canCreateServiceOrder, canManageServiceOrders, canViewTechnicianAgenda } from "@/lib/auth/roles";
 import { PageHeader } from "@/components/app/page-header";
 import { listTechnicians, listConsultants } from "@/lib/field-service/users";
@@ -18,6 +19,7 @@ export default async function AgendaPage({
   searchParams?: Promise<{ day?: string }>;
 }) {
   const ctx = await requireContext();
+  const komodusWorkspace = usesKomodusServiceOrderWorkspace(ctx);
   if (!ctx.tenant.field_service_enabled) redirect("/dashboard");
   if (!canViewTechnicianAgenda(ctx.role)) redirect("/dashboard");
   const canManage = canManageServiceOrders(ctx.role);
@@ -187,6 +189,7 @@ export default async function AgendaPage({
         leads={(leads ?? []) as Array<{ id: string; name: string; phone: string | null }>}
         consultants={consultants}
         partners={(partnersData ?? []) as FieldServicePartner[]}
+        komodusWorkspace={komodusWorkspace}
       />
     </div>
   );

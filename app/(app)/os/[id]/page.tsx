@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { MapPin, Phone, Plug, Printer, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
+import { usesKomodusServiceOrderWorkspace } from "@/lib/field-service/workspace-access";
 import {
   canAccessServiceOrders,
   canApproveServiceOrderDiscount,
@@ -72,6 +73,7 @@ export default async function ServiceOrderDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const ctx = await requireContext();
+  const komodusWorkspace = usesKomodusServiceOrderWorkspace(ctx);
   if (!ctx.tenant.field_service_enabled) notFound();
   if (!canAccessServiceOrders(ctx.role) && !canCreateServiceOrder(ctx.role) && !isTechnicianRole(ctx.role)) notFound();
 
@@ -267,8 +269,8 @@ export default async function ServiceOrderDetailPage({
   const scheduled = formatDate(order.service_date);
 
   return (
-    <div className="flex min-h-screen">
-      {canManage && (
+    <div className={komodusWorkspace ? "flex min-h-screen" : "flex"}>
+      {komodusWorkspace && canManage && (
         <OsWorkspaceRail
           tenantId={ctx.tenantId}
           currentOrderId={order.id}
@@ -302,9 +304,9 @@ export default async function ServiceOrderDetailPage({
         }
       />
 
-      <div className="grid gap-3 p-4 pb-28 xl:grid-cols-[18rem_minmax(0,1fr)_22rem] xl:items-start">
-        <div className="contents">
-          <section className="rounded-xl border border-border/70 bg-card p-4 shadow-elev-1 xl:col-start-1 xl:row-start-1">
+      <div className={komodusWorkspace ? "grid gap-3 p-4 pb-28 xl:grid-cols-[18rem_minmax(0,1fr)_22rem] xl:items-start" : "space-y-4 p-8 pb-28"}>
+        <div className={komodusWorkspace ? "contents" : "grid gap-4 lg:grid-cols-[20rem_1fr] lg:items-start"}>
+          <section className={komodusWorkspace ? "rounded-xl border border-border/70 bg-card p-4 shadow-elev-1 xl:col-start-1 xl:row-start-1" : "rounded-xl border border-border/70 bg-card p-4 shadow-elev-1"}>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-semibold">Negociação</h2>
               {canPriceItems && (
@@ -411,7 +413,7 @@ export default async function ServiceOrderDetailPage({
             )}
           </section>
 
-          <div className="min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1">
+          <div className={komodusWorkspace ? "min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1" : "min-w-0"}>
           <ItemsPanel
             serviceOrderId={order.id}
             items={(items ?? []) as ServiceOrderItem[]}
@@ -426,8 +428,8 @@ export default async function ServiceOrderDetailPage({
 
         </div>
 
-        <div className="contents">
-          <div className="space-y-3 xl:col-start-1 xl:row-start-2">
+        <div className={komodusWorkspace ? "contents" : "grid gap-4 lg:grid-cols-[20rem_1fr] lg:items-start"}>
+          <div className={komodusWorkspace ? "space-y-3 xl:col-start-1 xl:row-start-2" : "space-y-4"}>
             <section className="rounded-xl border border-border/70 bg-card p-4 shadow-elev-1">
               <h2 className="mb-3 text-sm font-semibold">Dados do cliente</h2>
               <dl className="space-y-2.5 text-sm">
@@ -487,7 +489,7 @@ export default async function ServiceOrderDetailPage({
             )}
           </div>
 
-          <div className="min-w-0 xl:col-start-2 xl:row-start-3">
+          <div className={komodusWorkspace ? "min-w-0 xl:col-start-2 xl:row-start-3" : "min-w-0"}>
           <RegistrosPanel
             serviceOrderId={order.id}
             events={(events ?? []) as any}
@@ -503,7 +505,7 @@ export default async function ServiceOrderDetailPage({
           </div>
         </div>
 
-        <div className="space-y-3 xl:col-start-3 xl:row-span-2 xl:row-start-1">
+        <div className={komodusWorkspace ? "space-y-3 xl:col-start-3 xl:row-span-2 xl:row-start-1" : "contents"}>
         {canReview && order.service_type !== "assistencia" && (
           <SettlementPanel
             serviceOrderId={order.id}
@@ -515,14 +517,14 @@ export default async function ServiceOrderDetailPage({
             rates={(paymentRates ?? []) as PaymentMethodRate[]}
             requests={(adjustmentRequests ?? []) as FinancialAdjustmentRequest[]}
             isOwner={ctx.role === "owner"}
-            compact
+            compact={komodusWorkspace}
           />
         )}
           <CommissionsPanel serviceOrderId={order.id} commissions={commissions} canAdjust={canReview} />
 
         </div>
 
-        <div className="grid gap-3 md:grid-cols-2 xl:col-span-3 xl:grid-cols-3">
+        <div className={komodusWorkspace ? "grid gap-3 md:grid-cols-2 xl:col-span-3 xl:grid-cols-3" : "grid gap-6 lg:grid-cols-3"}>
 
           {canManage && !locked && (
             <SchedulePanel
@@ -534,7 +536,7 @@ export default async function ServiceOrderDetailPage({
             />
           )}
 
-          <section className="rounded-xl border border-border/70 bg-card p-4 shadow-elev-1">
+          <section className={komodusWorkspace ? "rounded-xl border border-border/70 bg-card p-4 shadow-elev-1" : "rounded-xl border border-border/70 bg-card p-5 shadow-elev-1"}>
             <h2 className="mb-3 text-sm font-semibold">Assinatura do cliente</h2>
             {order.signed_at ? (
               <div className="text-sm">
@@ -580,7 +582,7 @@ export default async function ServiceOrderDetailPage({
         </div>
       </div>
 
-      <div className="sticky bottom-0 z-10 border-t border-border/70 bg-card/95 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] backdrop-blur print:hidden">
+      <div className={`sticky bottom-0 z-10 border-t border-border/70 bg-card/95 ${komodusWorkspace ? "px-4" : "px-8"} py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] backdrop-blur print:hidden`}>
         <div className="flex items-center justify-between gap-3">
           <p className="hidden text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:block">
             Confirmação de serviço

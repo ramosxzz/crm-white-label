@@ -24,8 +24,8 @@ import {
   AGENDA_PX_PER_MINUTE,
   AGENDA_START_HOUR,
   AGENDA_TONE_CLASSES,
-  AGENDA_TONE_LABEL,
   agendaCardTone,
+  agendaToneLabel,
   agendaGridHeightPx,
   fallbackWindowForShift,
   formatHourMinute,
@@ -44,6 +44,7 @@ import {
 } from "../actions";
 import { NewServiceOrderDialog } from "../new-service-order-dialog";
 import { AgendaOrderPreview } from "./agenda-order-preview";
+import { OrderQuickView } from "../mapa/order-quick-view";
 import { FaturamentoModal } from "../[id]/faturamento-modal";
 
 export type AgendaOrder = {
@@ -90,6 +91,7 @@ function AgendaCard({
   consultants,
   onOpen,
   onAction,
+  komodusWorkspace,
 }: {
   order: AgendaOrder;
   day: string;
@@ -98,6 +100,7 @@ function AgendaCard({
   consultants: FieldServiceUser[];
   onOpen: (id: string) => void;
   onAction: (fn: () => Promise<void>, successMsg?: string) => void;
+  komodusWorkspace: boolean;
 }) {
   const [billingData, setBillingData] = useState<ServiceOrderBillingData | null>(null);
   const [commissionsOpen, setCommissionsOpen] = useState(false);
@@ -115,7 +118,7 @@ function AgendaCard({
   const window_ = order.scheduledStartAt && order.scheduledEndAt
     ? { startAt: order.scheduledStartAt, endAt: order.scheduledEndAt }
     : fallbackWindowForShift(order.serviceDate ?? day, order.shift);
-  const tone = agendaCardTone(order);
+  const tone = agendaCardTone(order, komodusWorkspace);
   const toneClasses = AGENDA_TONE_CLASSES[tone];
   const closed = ["faturada", "cancelada"].includes(order.status);
 
@@ -301,6 +304,7 @@ function TechnicianColumn({
   onOpen,
   onAction,
   onNewHere,
+  komodusWorkspace,
 }: {
   day: string;
   technician: FieldServiceUser;
@@ -312,6 +316,7 @@ function TechnicianColumn({
   onOpen: (id: string) => void;
   onAction: (fn: () => Promise<void>, successMsg?: string) => void;
   onNewHere: (technicianId: string, technicianName: string) => void;
+  komodusWorkspace: boolean;
 }) {
   const height = agendaGridHeightPx();
 
@@ -363,7 +368,7 @@ function TechnicianColumn({
                 width: `${widthPct}%`,
               }}
             >
-              <AgendaCard order={order} day={day} canManage={canManage} technicians={technicians} consultants={consultants} onOpen={onOpen} onAction={onAction} />
+              <AgendaCard order={order} day={day} canManage={canManage} technicians={technicians} consultants={consultants} onOpen={onOpen} onAction={onAction} komodusWorkspace={komodusWorkspace} />
             </div>
           );
         });
@@ -394,6 +399,7 @@ export function AgendaGrid({
   leads,
   consultants,
   partners,
+  komodusWorkspace = false,
 }: {
   day: string;
   technicians: FieldServiceUser[];
@@ -404,6 +410,7 @@ export function AgendaGrid({
   leads: Array<{ id: string; name: string; phone: string | null }>;
   consultants: FieldServiceUser[];
   partners: FieldServicePartner[];
+  komodusWorkspace?: boolean;
 }) {
   const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const [newOsPreset, setNewOsPreset] = useState<{ technicianId: string; technicianName: string } | null>(null);
@@ -501,6 +508,7 @@ export function AgendaGrid({
                 onOpen={setQuickViewId}
                 onAction={onAction}
                 onNewHere={(id, name) => setNewOsPreset({ technicianId: id, technicianName: name })}
+                komodusWorkspace={komodusWorkspace}
               />
             ))}
 
@@ -518,6 +526,7 @@ export function AgendaGrid({
                     consultants={consultants}
                     onOpen={setQuickViewId}
                     onAction={onAction}
+                    komodusWorkspace={komodusWorkspace}
                   />
                 ))
               )}
@@ -530,16 +539,20 @@ export function AgendaGrid({
         {(["amarelo", "azul", "roxo", "verde", "laranja", "vermelho", "cinza"] as const).map((tone) => (
           <span key={tone} className="inline-flex items-center gap-1.5">
             <span className={cn("h-2.5 w-2.5 rounded-full", AGENDA_TONE_CLASSES[tone].bg, AGENDA_TONE_CLASSES[tone].border, "border")} />
-            {AGENDA_TONE_LABEL[tone]}
+            {agendaToneLabel(tone, komodusWorkspace)}
           </span>
         ))}
       </div>
 
-      <AgendaOrderPreview
-        order={orders.find((order) => order.id === quickViewId) ?? null}
-        technicians={technicians}
-        onClose={() => setQuickViewId(null)}
-      />
+      {komodusWorkspace ? (
+        <AgendaOrderPreview
+          order={orders.find((order) => order.id === quickViewId) ?? null}
+          technicians={technicians}
+          onClose={() => setQuickViewId(null)}
+        />
+      ) : (
+        <OrderQuickView orderId={quickViewId} onClose={() => setQuickViewId(null)} />
+      )}
 
       {(canManage || canCreate) && (
         <NewServiceOrderDialog
