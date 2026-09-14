@@ -57,6 +57,11 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
     // (globals.css): aqui quem rola sao a lista e a thread, cada uma na sua.
     <div data-chat-shell className="flex h-full min-h-0 overflow-hidden bg-background">
       <ConversationListLive
+        // A lista possui polling e requisicoes em voo. Ao sair de uma conta e
+        // entrar em outra do mesmo tenant, remonte o componente inteiro para
+        // uma resposta iniciada pela sessao anterior nunca repor nomes da
+        // carteira anterior na tela do novo usuario.
+        key={`${ctx.tenantId}:${ctx.userId}`}
         tenantId={ctx.tenantId}
         initialItems={items.map((item) => ({
           ...item,

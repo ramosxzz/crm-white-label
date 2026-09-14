@@ -23,7 +23,7 @@ async function loadModule() {
             namespace: "stub",
           }));
           b.onLoad({ filter: /.*/, namespace: "stub" }, () => ({
-            contents: "export const createServiceClient = () => ({}); export const canSeeAllLeads = (role) => ['owner', 'admin', 'gerente'].includes(role); export const buildConversationItems = () => [];",
+            contents: "export const createClient = async () => ({}); export const createServiceClient = () => ({}); export const canSeeAllLeads = (role) => ['owner', 'admin', 'gerente'].includes(role); export const buildConversationItems = () => [];",
             loader: "js",
           }));
         },
@@ -33,8 +33,8 @@ async function loadModule() {
   return import(pathToFileURL(process.cwd() + "/" + outfile).href + `?v=${Date.now()}`);
 }
 
-function item(whatsappAccountId) {
-  return { id: `conv-${whatsappAccountId ?? "none"}`, whatsappAccountId };
+function item(whatsappAccountId, assignedTo = null) {
+  return { id: `conv-${whatsappAccountId ?? "none"}-${assignedTo ?? "none"}`, whatsappAccountId, assignedTo };
 }
 
 test("gestao ve todas as contas e conversas sem vinculo", async () => {
@@ -94,6 +94,32 @@ test("numero da equipe aparece pro vendedor sem numero proprio", async () => {
   );
   const result = filterByAllowedAccounts([item("loja"), item(null)], visibility);
   assert.deepEqual(result.map((i) => i.whatsappAccountId), ["loja", null]);
+});
+
+test("numero compartilhado nao compartilha carteira quando distribuicao por responsavel esta ativa", async () => {
+  const { buildChatAccountVisibility, filterByAllowedAccounts } = await loadModule();
+  const visibility = buildChatAccountVisibility(
+    [{ id: "loja", assigned_to: null, shared_with_all: true }],
+    "seller-a",
+    "vendedor",
+    { restrictToAssignedLeads: true },
+  );
+  const result = filterByAllowedAccounts(
+    [item("loja", "seller-a"), item("loja", "seller-b"), item("loja", null)],
+    visibility,
+  );
+  assert.deepEqual(result.map((i) => i.assignedTo), ["seller-a"]);
+});
+
+test("numero proprio continua dando acesso mesmo antes de atribuir o lead", async () => {
+  const { buildChatAccountVisibility, filterByAllowedAccounts } = await loadModule();
+  const visibility = buildChatAccountVisibility(
+    [{ id: "meu", assigned_to: "seller-a" }],
+    "seller-a",
+    "vendedor",
+    { restrictToAssignedLeads: true },
+  );
+  assert.equal(filterByAllowedAccounts([item("meu", null)], visibility).length, 1);
 });
 
 test("vendedor com numero proprio ve o dele E o da equipe, nao o do colega", async () => {

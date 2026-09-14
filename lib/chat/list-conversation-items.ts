@@ -1,7 +1,7 @@
 import { buildConversationItems } from "@/lib/chat/build-conversation-items";
 import type { ConversationLeadRow } from "@/lib/chat/conversation-filter";
 import type { ConversationListItem } from "@/lib/chat/types";
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import type { ConversationStatus, WhatsAppAccount } from "@/lib/supabase/database.types";
 import { canSeeAllLeads } from "@/lib/auth/roles";
 import type { MemberRole } from "@/lib/supabase/database.types";
@@ -9,6 +9,9 @@ import type { MemberRole } from "@/lib/supabase/database.types";
 export type ChatAccountVisibility = {
   blockedAccountIds: string[];
   allowUnlinkedConversations: boolean;
+  userId: string;
+  ownedAccountIds: string[];
+  restrictToAssignedLeads: boolean;
 };
 
 type AccountVisibilityRow = {
@@ -44,6 +47,7 @@ export function buildChatAccountVisibility(
   accounts: AccountVisibilityRow[],
   userId: string,
   role: MemberRole,
+  options: { restrictToAssignedLeads?: boolean } = {},
 ): ChatAccountVisibility | null {
   if (canSeeAllLeads(role)) return null;
 
@@ -77,6 +81,9 @@ export function buildChatAccountVisibility(
       .filter((account) => !allowedIds.has(account.id))
       .map((account) => account.id),
     allowUnlinkedConversations,
+    userId,
+    ownedAccountIds: ownedIds,
+    restrictToAssignedLeads: options.restrictToAssignedLeads === true,
   };
 }
 
@@ -87,12 +94,22 @@ export async function getChatAccountVisibility(
 ): Promise<ChatAccountVisibility | null> {
   if (canSeeAllLeads(role)) return null;
   const supabase = createServiceClient();
-  const { data, error } = await supabase
-    .from("whatsapp_accounts")
-    .select("id, assigned_to, shared_with_all")
-    .eq("tenant_id", tenantId);
+  const [{ data, error }, tenantResult] = await Promise.all([
+    supabase
+      .from("whatsapp_accounts")
+      .select("id, assigned_to, shared_with_all")
+      .eq("tenant_id", tenantId),
+    supabase
+      .from("tenants")
+      .select("lead_assignment_enabled")
+      .eq("id", tenantId)
+      .single(),
+  ]);
   if (error) throw new Error(error.message);
-  return buildChatAccountVisibility((data ?? []) as AccountVisibilityRow[], userId, role);
+  if (tenantResult.error) throw new Error(tenantResult.error.message);
+  return buildChatAccountVisibility((data ?? []) as AccountVisibilityRow[], userId, role, {
+    restrictToAssignedLeads: tenantResult.data.lead_assignment_enabled === true,
+  });
 }
 
 export function canAccessConversationAccount(
@@ -149,7 +166,12 @@ export async function listConversationItemsForTenant(
   tenantName?: string | null,
   visibility?: ChatAccountVisibility | null,
 ): Promise<ConversationListItem[]> {
-  const supabase = createServiceClient();
+  // Com carteira por responsavel, use a sessao autenticada para a RLS reduzir
+  // o conjunto ANTES do ORDER/LIMIT da RPC. Filtrar depois do limite fazia
+  // conversas legitimas antigas sumirem em tenants com muitos leads.
+  const supabase = visibility?.restrictToAssignedLeads
+    ? await createClient()
+    : createServiceClient();
   const rpcClient = supabase as unknown as ChatConversationRpcClient;
   const search = filters.search?.trim() ?? "";
   const status = filters.status?.trim() ?? "";
@@ -207,12 +229,12 @@ export async function listConversationItemsForTenant(
       direction: row.last_direction ?? "inbound",
     }));
 
-  const items = buildConversationItems(
+  const items = await attachLeadAssignments(tenantId, buildConversationItems(
     conversationRows,
     messagePreviews,
     (waAccount as WhatsAppAccount | null) ?? null,
     { tenantName },
-  );
+  ));
   return filterByAllowedAccounts(items, visibility);
 }
 
@@ -221,9 +243,59 @@ export function filterByAllowedAccounts(
   visibility?: ChatAccountVisibility | null,
 ): ConversationListItem[] {
   if (!visibility) return items;
-  return items.filter((item) =>
-    canAccessConversationAccount(item.whatsappAccountId, visibility),
+  return items.filter((item) => {
+    if (!canAccessConversationAccount(item.whatsappAccountId, visibility)) return false;
+    if (!visibility.restrictToAssignedLeads) return true;
+
+    // Numero compartilhado autoriza a vendedora a enviar pelo mesmo WhatsApp,
+    // mas nao abre a carteira inteira. Nesse modo a atribuicao do lead e a
+    // fonte de verdade; numero individual proprio continua autorizando o lead.
+    return item.assignedTo === visibility.userId || (
+      item.whatsappAccountId != null && visibility.ownedAccountIds.includes(item.whatsappAccountId)
+    );
+  });
+}
+
+async function attachLeadAssignments(
+  tenantId: string,
+  items: ConversationListItem[],
+): Promise<ConversationListItem[]> {
+  const leadIds = [...new Set(items.map((item) => item.leadId))];
+  if (leadIds.length === 0) return items;
+
+  const supabase = createServiceClient();
+  const { data: leads, error } = await supabase
+    .from("leads")
+    .select("id, assigned_to")
+    .eq("tenant_id", tenantId)
+    .in("id", leadIds);
+  if (error) throw new Error(error.message);
+
+  const assignedByLead = new Map(
+    ((leads ?? []) as { id: string; assigned_to: string | null }[]).map((lead) => [lead.id, lead.assigned_to]),
   );
+  const userIds = [...new Set([...assignedByLead.values()].filter((id): id is string => Boolean(id)))];
+  const namesByUser = new Map<string, string>();
+
+  if (userIds.length > 0) {
+    const { data: profiles, error: profilesError } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", userIds);
+    if (profilesError) throw new Error(profilesError.message);
+    for (const profile of (profiles ?? []) as { id: string; full_name: string | null }[]) {
+      if (profile.full_name) namesByUser.set(profile.id, profile.full_name);
+    }
+  }
+
+  return items.map((item) => {
+    const assignedTo = assignedByLead.get(item.leadId) ?? null;
+    return {
+      ...item,
+      assignedTo,
+      assignedName: assignedTo ? namesByUser.get(assignedTo) ?? null : null,
+    };
+  });
 }
 
 async function listFilteredConversationItemsForTenant(
@@ -233,7 +305,9 @@ async function listFilteredConversationItemsForTenant(
   tenantName?: string | null,
   visibility?: ChatAccountVisibility | null,
 ): Promise<ConversationListItem[]> {
-  const supabase = createServiceClient();
+  const supabase = visibility?.restrictToAssignedLeads
+    ? await createClient()
+    : createServiceClient();
   const cappedLimit = Math.min(Math.max(limit, 1), 300);
   const search = filters.search.trim();
   const status = filters.status.trim();
@@ -276,12 +350,12 @@ async function listFilteredConversationItemsForTenant(
   const conversationIds = conversationRows.map((row) => row.id);
   const messagePreviews = await fetchLatestMessagePreviews(tenantId, conversationIds);
 
-  const items = buildConversationItems(
+  const items = await attachLeadAssignments(tenantId, buildConversationItems(
     conversationRows,
     messagePreviews,
     (waAccount as WhatsAppAccount | null) ?? null,
     { tenantName },
-  );
+  ));
   return filterByAllowedAccounts(items, visibility);
 }
 

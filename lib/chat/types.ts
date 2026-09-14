@@ -37,6 +37,9 @@ export type ConversationListItem = {
   pinnedAt: string | null;
   status: ConversationStatus;
   whatsappAccountId: string | null;
+  /** Responsavel comercial pelo lead; usado para separar carteiras em numero compartilhado. */
+  assignedTo?: string | null;
+  assignedName?: string | null;
   tags: string[];
   stageId: string | null;
   leadCreatedAt: string | null;

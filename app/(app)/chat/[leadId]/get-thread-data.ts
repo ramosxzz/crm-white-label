@@ -17,12 +17,14 @@ import { listConsultants } from "@/lib/field-service/users";
 import { getSaleStockContext } from "@/lib/estoque/sale-stock-actions";
 import type { FieldServicePartner, WhatsAppProviderKind } from "@/lib/supabase/database.types";
 import type { ConversationStatus } from "@/lib/chat/types";
+import { currentUserCanAccessLead } from "@/lib/auth/lead-access";
 
 /** Busca tudo que o ChatThread precisa pra renderizar um lead. Usado tanto
  * pela pagina /chat/[leadId] quanto pelo painel flutuante do Kanban - assim
  * os dois mostram exatamente as mesmas funcionalidades, sem duplicar logica. */
 export async function getChatThreadData(leadId: string) {
   const ctx = await requireContext();
+  if (!(await currentUserCanAccessLead(ctx.tenantId, leadId))) notFound();
   const service = createServiceClient();
 
   const [

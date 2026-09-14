@@ -36,7 +36,9 @@ export function ConversationListLive({
   const [query, setQuery] = useState("");
   const [searchItems, setSearchItems] = useState<ConversationListItem[] | null>(null);
   const [isSearching, setIsSearching] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("todas");
+  // A caixa de entrada abre somente com conversas em aberto. As finalizadas
+  // continuam disponiveis na aba "Resolvidos", sem poluir o atendimento.
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ativas");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const contactRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contactRefreshInFlightRef = useRef(false);

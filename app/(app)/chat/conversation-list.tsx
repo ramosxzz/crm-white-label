@@ -32,7 +32,7 @@ import { matchesConversationSearch } from "@/lib/chat/conversation-search";
 
 export type { ConversationListItem };
 
-export type StatusFilter = ConversationStatus | "todas" | "nao_lidas";
+export type StatusFilter = ConversationStatus | "ativas" | "todas" | "nao_lidas";
 
 const ATTENDANCE_WINDOW_HOURS = 24;
 const CONVERSATION_ROW_HEIGHT = 69;
@@ -249,12 +249,16 @@ export function ConversationList({
     for (const c of items) counts[c.status] = (counts[c.status] ?? 0) + 1;
     return counts;
   }, [items]);
-  const unreadCount = useMemo(() => items.filter((item) => item.unread > 0).length, [items]);
+  const activeCount = useMemo(() => items.filter((item) => item.status !== "resolvida").length, [items]);
+  const unreadCount = useMemo(
+    () => items.filter((item) => item.status !== "resolvida" && item.unread > 0).length,
+    [items],
+  );
 
   const activeAdvancedCount = Object.entries(appliedFilters).filter(
     ([key, value]) => value !== DEFAULT_ADVANCED_FILTERS[key as keyof AdvancedFilters],
   ).length;
-  const hiddenStatusFilterActive = statusFilter === "nao_iniciada" || statusFilter === "resolvida";
+  const hiddenStatusFilterActive = statusFilter === "nao_iniciada" || statusFilter === "todas";
 
   const displayedItems = query.trim() && searchItems !== null && searchItems !== undefined
     ? searchItems
@@ -262,8 +266,14 @@ export function ConversationList({
 
   const filtered = useMemo(() => {
     const result = displayedItems.filter((c) => {
-      if (statusFilter === "nao_lidas" && c.unread <= 0) return false;
-      if (statusFilter !== "todas" && statusFilter !== "nao_lidas" && c.status !== statusFilter) return false;
+      if (statusFilter === "ativas" && c.status === "resolvida") return false;
+      if (statusFilter === "nao_lidas" && (c.status === "resolvida" || c.unread <= 0)) return false;
+      if (
+        statusFilter !== "ativas" &&
+        statusFilter !== "todas" &&
+        statusFilter !== "nao_lidas" &&
+        c.status !== statusFilter
+      ) return false;
       if (appliedFilters.instanceId !== "todos" && c.whatsappAccountId !== appliedFilters.instanceId) return false;
       if (appliedFilters.tag !== "todos" && !c.tags.includes(appliedFilters.tag)) return false;
       if (appliedFilters.stageId !== "todos" && c.stageId !== appliedFilters.stageId) return false;
@@ -444,14 +454,14 @@ export function ConversationList({
         ) : (
           <div className="mt-3 flex flex-wrap gap-1.5">
             <StatusPill
-              active={statusFilter === "todas"}
-              onClick={() => onStatusFilterChange("todas")}
-              label="Todas"
-              count={items.length}
+              active={statusFilter === "ativas"}
+              onClick={() => onStatusFilterChange("ativas")}
+              label="Ativas"
+              count={activeCount}
             />
             <StatusPill
               active={statusFilter === "nao_lidas"}
-              onClick={() => onStatusFilterChange(statusFilter === "nao_lidas" ? "todas" : "nao_lidas")}
+              onClick={() => onStatusFilterChange(statusFilter === "nao_lidas" ? "ativas" : "nao_lidas")}
               label="Não lidas"
               count={unreadCount}
             />
@@ -464,7 +474,7 @@ export function ConversationList({
                 <button
                   key={s.value}
                   type="button"
-                  onClick={() => onStatusFilterChange(active ? "todas" : s.value)}
+                  onClick={() => onStatusFilterChange(active ? "ativas" : s.value)}
                   className={cn(
                     "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
                     active
@@ -478,6 +488,12 @@ export function ConversationList({
                 </button>
               );
             })}
+            <StatusPill
+              active={statusFilter === "resolvida"}
+              onClick={() => onStatusFilterChange(statusFilter === "resolvida" ? "ativas" : "resolvida")}
+              label="Resolvidos"
+              count={statusCounts.resolvida}
+            />
             <button
               type="button"
               onClick={openFilters}
@@ -620,7 +636,9 @@ export function ConversationList({
                       c.presence && "italic text-brand",
                     )}
                   >
-                    {preview || c.leadSubtitle}
+                    {c.assignedName
+                      ? `${c.assignedName} · ${preview || c.leadSubtitle}`
+                      : preview || c.leadSubtitle}
                   </p>
                   {c.unread > 0 && (
                     <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-brand px-1.5 text-[10px] font-semibold text-brand-foreground">
@@ -659,6 +677,7 @@ export function ConversationList({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="ativas">Ativas</SelectItem>
                     <SelectItem value="todas">Todas</SelectItem>
                     <SelectItem value="nao_lidas">Não lidas</SelectItem>
                     {CONVERSATION_STATUSES.map((item) => (

@@ -1041,7 +1041,16 @@ export async function openLeadByPhone(rawPhone: string): Promise<{ leadId: strin
     .eq("tenant_id", ctx.tenantId)
     .eq("phone", phone)
     .maybeSingle();
-  if (existing) return { leadId: existing.id };
+  if (existing) {
+    const { data: accessible } = await supabase
+      .from("leads")
+      .select("id")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("id", existing.id)
+      .maybeSingle();
+    if (!accessible) throw new Error("Este contato ja esta atribuido a outro usuario");
+    return { leadId: existing.id };
+  }
 
   const { data: pipeline } = await supabase
     .from("pipelines")
@@ -1382,7 +1391,9 @@ export async function getLeadChatThread(leadId: string): Promise<{
   messages: ChatMessage[];
 }> {
   const ctx = await requireContext();
-  const supabase = createServiceClient();
+  // Client autenticado: a RLS barra chamadas diretas desta Server Action com
+  // um leadId pertencente a outro vendedor.
+  const supabase = await createClient();
 
   const { data: conv } = await supabase
     .from("conversations")
