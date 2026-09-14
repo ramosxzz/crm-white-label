@@ -75,7 +75,7 @@ export default async function LeadsPage({
 
   const canAssignLeads = canSeeAllLeads(ctx.role);
   const canAssign = canAssignLeads && ctx.tenant.lead_assignment_enabled;
-  const minStars = qualificacaoFilter === "5" ? 5 : qualificacaoFilter === "4" ? 4 : qualificacaoFilter === "rated" ? 1 : null;
+  const minStars = qualificacaoFilter === "5" ? 5 : qualificacaoFilter === "4" ? 4 : qualificacaoFilter === "3" ? 3 : qualificacaoFilter === "rated" ? 1 : null;
 
   // Filtros "amplos" (etapa/tag/periodo) usam o total exato do RPC
   // lead_qualification_summary, que ja roda mesmo assim pro resumo - sem

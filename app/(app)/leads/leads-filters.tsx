@@ -15,6 +15,7 @@ export type TagOption = { tag: string; count: number };
 
 const QUALITY_OPTIONS: FilterOption[] = [
   { value: "rated", label: "Avaliados (qualquer nota)" },
+  { value: "3", label: "3+ estrelas" },
   { value: "4", label: "4+ estrelas" },
   { value: "5", label: "5 estrelas" },
 ];
