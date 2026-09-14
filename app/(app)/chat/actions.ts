@@ -770,7 +770,7 @@ export async function updateChatLeadBusiness(input: {
         kind: "lead_assigned",
         title: "Novo lead atribuido a voce",
         description: (leadRow as { name?: string } | null)?.name ?? "Um lead foi enviado para voce",
-        link: `/leads/${input.leadId}`,
+        link: `/chat/${input.leadId}`,
       });
     }
   }

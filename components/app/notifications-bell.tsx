@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { Bell, BellRing, Check, Inbox, Users, MessageCircle } from "lucide-react";
+import { Bell, BellRing, Check, Inbox, Users, MessageCircle, X } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { createClient } from "@/lib/supabase/client";
@@ -22,6 +22,7 @@ export function NotificationsBell({
   tenantId: string;
 }) {
   const [items, setItems] = useState<Notification[]>(initial);
+  const [incomingLead, setIncomingLead] = useState<Notification | null>(null);
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const unread = items.filter((n) => !n.is_read).length;
@@ -41,6 +42,13 @@ export function NotificationsBell({
           const next = p.new as Notification;
           if (!isVisible(next)) return;
           setItems((prev) => [next, ...prev].slice(0, 20));
+          if (next.kind === "lead_assigned" && !next.is_read) {
+            setIncomingLead(next);
+            if (window.localStorage.getItem("chat_notification_sound") !== "off") {
+              const audio = new Audio("/sounds/notification.mp3");
+              void audio.play().catch(() => null);
+            }
+          }
         },
       )
       .on(
@@ -59,6 +67,12 @@ export function NotificationsBell({
     return () => { void supabase.removeChannel(channel); };
   }, [currentUserId, tenantId]);
 
+  useEffect(() => {
+    if (!incomingLead) return;
+    const timer = window.setTimeout(() => setIncomingLead(null), 15_000);
+    return () => window.clearTimeout(timer);
+  }, [incomingLead]);
+
   function onMarkAllRead() {
     start(async () => {
       await markAllNotificationsRead();
@@ -75,7 +89,43 @@ export function NotificationsBell({
   }
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <>
+      {incomingLead && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="fixed right-4 top-20 z-[90] flex w-[min(390px,calc(100vw-2rem))] items-start gap-3 rounded-2xl border border-brand/30 bg-card p-4 shadow-elev-3 ring-1 ring-brand/10 animate-in slide-in-from-right-4"
+        >
+          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand text-brand-foreground">
+            <Users className="h-5 w-5" />
+          </span>
+          <Link
+            href={incomingLead.link ?? "#"}
+            onClick={() => {
+              onClickItem(incomingLead);
+              setIncomingLead(null);
+            }}
+            className="min-w-0 flex-1"
+          >
+            <span className="block text-sm font-semibold">Novo lead para voce</span>
+            <span className="mt-0.5 block truncate text-sm text-foreground/80">
+              {incomingLead.description ?? "Um novo atendimento foi atribuido a voce"}
+            </span>
+            <span className="mt-2 block text-xs font-semibold text-brand">
+              Abrir conversa e enviar mensagem
+            </span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => setIncomingLead(null)}
+            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="Fechar alerta"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+      <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="relative" aria-label="Notificacoes">
           {unread > 0 ? <BellRing className="h-[18px] w-[18px]" /> : <Bell className="h-[18px] w-[18px]" />}
@@ -119,7 +169,8 @@ export function NotificationsBell({
           )}
         </div>
       </DropdownMenuContent>
-    </DropdownMenu>
+      </DropdownMenu>
+    </>
   );
 }
 

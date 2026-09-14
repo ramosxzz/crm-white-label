@@ -57,7 +57,7 @@ export async function forwardNewLead(
     kind: "lead_assigned",
     title: "Novo lead encaminhado para voce",
     description: (leadRow as { name?: string } | null)?.name ?? "Um lead novo caiu para voce",
-    link: `/leads/${leadId}`,
+    link: `/chat/${leadId}`,
   });
 
   return forwardTo;

@@ -11,6 +11,7 @@ import {
 } from "@/lib/automations/sending-window";
 import { dayGreeting } from "@/lib/whatsapp/day-greeting";
 import { ufFromPhone } from "@/lib/automations/ddd-uf";
+import { notifyUser } from "@/lib/notifications/notify";
 import type { WhatsAppAccount } from "@/lib/supabase/database.types";
 
 type Block = {
@@ -314,6 +315,18 @@ async function runAction(
     if (error) throw new Error(`Falha no rodizio: ${error.message}`);
     if (!data?.assigned_to) throw new Error("Rodizio nao retornou um responsavel.");
     lead.assigned_to = data.assigned_to;
+
+    // O rodizio roda com service_role, portanto a notificacao precisa ser
+    // explicitamente enderecada para quem recebeu o lead. A RLS de
+    // notifications garante que as demais vendedoras nao enxerguem o aviso.
+    await notifyUser(supabase, {
+      tenantId,
+      userId: String(data.assigned_to),
+      kind: "lead_assigned",
+      title: "Novo lead atribuido a voce",
+      description: String(lead.name ?? "Um lead novo caiu para voce"),
+      link: `/chat/${leadId}`,
+    });
     return data;
   }
 

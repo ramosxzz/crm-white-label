@@ -415,7 +415,7 @@ export async function assignLead(input: {
         kind: "lead_assigned",
         title: "Novo lead atribuido a voce",
         description: (leadRow as { name?: string } | null)?.name ?? "Um lead foi enviado para voce",
-        link: `/leads/${input.leadId}`,
+        link: `/chat/${input.leadId}`,
       });
     }
   }
@@ -693,6 +693,12 @@ export async function importLeadsCSV(
       } catch (assignmentError) {
         console.error("Erro ao distribuir lead importado automaticamente:", assignmentError);
       }
+      // Mantem a importacao no mesmo contrato dos demais pontos de entrada:
+      // automacoes de "lead criado" (inclusive rodizio com horario) tambem
+      // precisam enxergar leads vindos de planilha.
+      void fireAutomationTrigger(ctx.tenantId, "lead_created", lead.id, {
+        source: "csv-import",
+      });
     }
   }
 
