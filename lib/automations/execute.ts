@@ -286,6 +286,20 @@ async function runAction(
       };
     }
 
+    // Lead que chegou no numero pessoal de alguem (nao compartilhado) fica
+    // com a dona do numero, mesmo no gatilho de lead novo - foi isso que
+    // aconteceu com a Suzete Koch na 2L: ela mandou mensagem pro zap da
+    // Janaina e o rodizio, cego ao numero, jogou o lead pra Vitori. O
+    // rodizio continua distribuindo normalmente os leads sem numero
+    // vinculado (formulario, importacao, canal compartilhado).
+    const ownerAccount = await getWhatsAppAccountForLead(supabase, tenantId, leadId);
+    const individualOwnerId = ownerAccount && !ownerAccount.shared_with_all ? ownerAccount.assigned_to : null;
+    if (individualOwnerId && userIds.includes(individualOwnerId) && individualOwnerId !== lead.assigned_to) {
+      await supabase.from("leads").update({ assigned_to: individualOwnerId }).eq("id", leadId).eq("tenant_id", tenantId);
+      lead.assigned_to = individualOwnerId;
+      return { assigned_to: individualOwnerId, skipped_round_robin: "numero individual define o dono" };
+    }
+
     // Diferente da janela de mensagens, fora do horario o lead nao deve ficar
     // esperando para ser atribuido no dia seguinte. Ele permanece sem dono
     // para a gestao distribuir manualmente, que e exatamente o fluxo usado
