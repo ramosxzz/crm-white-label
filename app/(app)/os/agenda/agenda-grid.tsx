@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { AlertTriangle, Ban, CalendarClock, CheckCircle2, DollarSign, ExternalLink, Plus, UserCog } from "lucide-react";
+import {
+  AlertTriangle,
+  Ban,
+  CalendarClock,
+  CheckCircle2,
+  DollarSign,
+  ExternalLink,
+  Plus,
+  UserCog,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { notify, notifyError, unwrapAction } from "@/lib/ui/feedback";
 import {
@@ -32,7 +41,10 @@ import {
   layoutOverlappingCards,
   minutesFromGridStart,
 } from "@/lib/field-service/agenda";
-import type { FieldServicePartner, ServiceOrderStatus } from "@/lib/supabase/database.types";
+import type {
+  FieldServicePartner,
+  ServiceOrderStatus,
+} from "@/lib/supabase/database.types";
 import type { FieldServiceUser } from "@/lib/field-service/users";
 import {
   confirmServiceOrder,
@@ -61,6 +73,7 @@ export type AgendaOrder = {
   serviceItems: Array<{ quantity: number; description: string }>;
   partnerName: string | null;
   consultantName: string | null;
+  consultantExtraName: string | null;
   paymentMethod: string | null;
   observations: string | null;
   confirmedContactName: string | null;
@@ -80,7 +93,10 @@ export type AgendaOrder = {
 };
 
 function cityLine(order: AgendaOrder) {
-  return [order.addressCity, order.addressDistrict].filter(Boolean).join(" · ") || "Endereço não informado";
+  return (
+    [order.addressCity, order.addressDistrict].filter(Boolean).join(" · ") ||
+    "Endereço não informado"
+  );
 }
 
 function AgendaCard({
@@ -102,7 +118,8 @@ function AgendaCard({
   onAction: (fn: () => Promise<void>, successMsg?: string) => void;
   komodusWorkspace: boolean;
 }) {
-  const [billingData, setBillingData] = useState<ServiceOrderBillingData | null>(null);
+  const [billingData, setBillingData] =
+    useState<ServiceOrderBillingData | null>(null);
   const [commissionsOpen, setCommissionsOpen] = useState(false);
 
   function openCommissionEdit() {
@@ -115,9 +132,10 @@ function AgendaCard({
       });
   }
 
-  const window_ = order.scheduledStartAt && order.scheduledEndAt
-    ? { startAt: order.scheduledStartAt, endAt: order.scheduledEndAt }
-    : fallbackWindowForShift(order.serviceDate ?? day, order.shift);
+  const window_ =
+    order.scheduledStartAt && order.scheduledEndAt
+      ? { startAt: order.scheduledStartAt, endAt: order.scheduledEndAt }
+      : fallbackWindowForShift(order.serviceDate ?? day, order.shift);
   const tone = agendaCardTone(order, komodusWorkspace);
   const toneClasses = AGENDA_TONE_CLASSES[tone];
   const closed = ["faturada", "cancelada"].includes(order.status);
@@ -133,17 +151,40 @@ function AgendaCard({
       onClick={() => onOpen(order.id)}
     >
       <div className="flex items-center justify-between gap-1">
-        <span className={cn("truncate font-semibold uppercase tracking-wide", toneClasses.text)}>
+        <span
+          className={cn(
+            "truncate font-semibold uppercase tracking-wide",
+            toneClasses.text,
+          )}
+        >
           {cityLine(order)}
         </span>
-        {order.hasPendingIssue && <AlertTriangle className="h-3 w-3 shrink-0 text-red-600" />}
+        {order.hasPendingIssue && (
+          <AlertTriangle className="h-3 w-3 shrink-0 text-red-600" />
+        )}
       </div>
-      <p className={cn("truncate font-medium", AGENDA_CARD_TEXT)}>{order.leadName}</p>
-      {order.serviceLabel && <p className={cn("truncate", AGENDA_CARD_MUTED_TEXT)}>{order.serviceLabel}</p>}
+      <p className={cn("truncate font-medium", AGENDA_CARD_TEXT)}>
+        {order.leadName}
+      </p>
+      {order.serviceLabel && (
+        <p className={cn("truncate", AGENDA_CARD_MUTED_TEXT)}>
+          {order.serviceLabel}
+        </p>
+      )}
       {window_ && (
-        <p className={cn("flex items-center justify-between gap-1 tabular-nums", AGENDA_CARD_MUTED_TEXT)}>
-          <span>{formatHourMinute(window_.startAt)} → {formatHourMinute(window_.endAt)}</span>
-          <span className="truncate font-medium">{order.confirmedAt ? "Confirmada" : "A confirmar"}</span>
+        <p
+          className={cn(
+            "flex items-center justify-between gap-1 tabular-nums",
+            AGENDA_CARD_MUTED_TEXT,
+          )}
+        >
+          <span>
+            {formatHourMinute(window_.startAt)} →{" "}
+            {formatHourMinute(window_.endAt)}
+          </span>
+          <span className="truncate font-medium">
+            {order.confirmedAt ? "Confirmada" : "A confirmar"}
+          </span>
           {!order.scheduledStartAt && " (sem horário exato)"}
         </p>
       )}
@@ -154,141 +195,160 @@ function AgendaCard({
 
   return (
     <>
-    <ContextMenu>
-      <ContextMenuTrigger asChild>{card}</ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuLabel>
-          OS-{String(order.codeSeq).padStart(4, "0")} · {order.leadName}
-        </ContextMenuLabel>
-        <ContextMenuSeparator />
-        <ContextMenuItem asChild>
-          <Link href={`/os/${order.id}`} className="flex items-center gap-2">
-            <ExternalLink className="h-3.5 w-3.5" /> Abrir OS completa
-          </Link>
-        </ContextMenuItem>
-        {!closed && (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>{card}</ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuLabel>
+            OS-{String(order.codeSeq).padStart(4, "0")} · {order.leadName}
+          </ContextMenuLabel>
+          <ContextMenuSeparator />
+          <ContextMenuItem asChild>
+            <Link href={`/os/${order.id}`} className="flex items-center gap-2">
+              <ExternalLink className="h-3.5 w-3.5" /> Abrir OS completa
+            </Link>
+          </ContextMenuItem>
+          {!closed && (
+            <ContextMenuItem
+              onSelect={() =>
+                onAction(async () => {
+                  if (order.confirmedAt)
+                    await unwrapAction(unconfirmServiceOrder({ id: order.id }));
+                  else
+                    await unwrapAction(confirmServiceOrder({ id: order.id }));
+                })
+              }
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {order.confirmedAt
+                ? "Desmarcar confirmação"
+                : "Confirmar com o cliente"}
+            </ContextMenuItem>
+          )}
           <ContextMenuItem
             onSelect={() =>
               onAction(async () => {
-                if (order.confirmedAt) await unwrapAction(unconfirmServiceOrder({ id: order.id }));
-                else await unwrapAction(confirmServiceOrder({ id: order.id }));
+                const note = order.hasPendingIssue
+                  ? undefined
+                  : (window.prompt("Qual o problema/pendência?") ?? undefined);
+                if (!order.hasPendingIssue && !note) return;
+                await unwrapAction(
+                  setServiceOrderPendingIssue({
+                    id: order.id,
+                    has_pending_issue: !order.hasPendingIssue,
+                    note,
+                  }),
+                );
               })
             }
           >
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            {order.confirmedAt ? "Desmarcar confirmação" : "Confirmar com o cliente"}
+            <AlertTriangle className="h-3.5 w-3.5" />
+            {order.hasPendingIssue ? "Remover pendência" : "Marcar pendência"}
           </ContextMenuItem>
-        )}
-        <ContextMenuItem
-          onSelect={() =>
-            onAction(async () => {
-              const note = order.hasPendingIssue
-                ? undefined
-                : window.prompt("Qual o problema/pendência?") ?? undefined;
-              if (!order.hasPendingIssue && !note) return;
-              await unwrapAction(
-                setServiceOrderPendingIssue({
-                  id: order.id,
-                  has_pending_issue: !order.hasPendingIssue,
-                  note,
-                }),
-              );
-            })
-          }
-        >
-          <AlertTriangle className="h-3.5 w-3.5" />
-          {order.hasPendingIssue ? "Remover pendência" : "Marcar pendência"}
-        </ContextMenuItem>
-        {!closed && technicians.length > 1 && (
-          <ContextMenuSub>
-            <ContextMenuSubTrigger>
-              <UserCog className="h-3.5 w-3.5" /> Trocar técnico
-            </ContextMenuSubTrigger>
-            <ContextMenuSubContent>
-              {technicians
-                .filter((t) => !order.technicianIds.includes(t.id))
-                .map((t) => (
-                  <ContextMenuItem
-                    key={t.id}
-                    onSelect={() =>
-                      onAction(async () => {
-                        const { scheduleServiceOrder } = await import("../actions");
-                        await unwrapAction(
-                          scheduleServiceOrder({
-                            id: order.id,
-                            service_date: order.serviceDate ?? day,
-                            shift: order.shift ?? "manha",
-                            technician_ids: [t.id],
-                            scheduled_start_at: order.scheduledStartAt ?? undefined,
-                            scheduled_end_at: order.scheduledEndAt ?? undefined,
-                            reason: `Trocado pra ${t.name} pela agenda`,
-                          }),
-                        );
-                      }, `Técnico trocado para ${t.name}`)
-                    }
-                  >
-                    {t.name}
-                  </ContextMenuItem>
-                ))}
-            </ContextMenuSubContent>
-          </ContextMenuSub>
-        )}
-        {!closed && order.status !== "remarcada" && (
-          <ContextMenuItem
-            onSelect={() =>
-              onAction(async () => {
-                const reason = window.prompt("Motivo da remarcação:");
-                if (!reason) return;
-                await unwrapAction(transitionServiceOrder({ id: order.id, to: "remarcada", reason }));
-              }, "Movida para Remarcar")
-            }
-          >
-            <CalendarClock className="h-3.5 w-3.5" /> Mover para Remarcar
-          </ContextMenuItem>
-        )}
-        <ContextMenuItem onSelect={openCommissionEdit}>
-          <DollarSign className="h-3.5 w-3.5" /> Editar comissões
-        </ContextMenuItem>
-        {!closed && order.status !== "cancelada" && (
-          <>
-            <ContextMenuSeparator />
+          {!closed && technicians.length > 1 && (
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>
+                <UserCog className="h-3.5 w-3.5" /> Trocar técnico
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent>
+                {technicians
+                  .filter((t) => !order.technicianIds.includes(t.id))
+                  .map((t) => (
+                    <ContextMenuItem
+                      key={t.id}
+                      onSelect={() =>
+                        onAction(async () => {
+                          const { scheduleServiceOrder } =
+                            await import("../actions");
+                          await unwrapAction(
+                            scheduleServiceOrder({
+                              id: order.id,
+                              service_date: order.serviceDate ?? day,
+                              shift: order.shift ?? "manha",
+                              technician_ids: [t.id],
+                              scheduled_start_at:
+                                order.scheduledStartAt ?? undefined,
+                              scheduled_end_at:
+                                order.scheduledEndAt ?? undefined,
+                              reason: `Trocado pra ${t.name} pela agenda`,
+                            }),
+                          );
+                        }, `Técnico trocado para ${t.name}`)
+                      }
+                    >
+                      {t.name}
+                    </ContextMenuItem>
+                  ))}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          )}
+          {!closed && order.status !== "remarcada" && (
             <ContextMenuItem
-              className="text-destructive focus:text-destructive"
               onSelect={() =>
                 onAction(async () => {
-                  const reason = window.prompt("Motivo do cancelamento:");
+                  const reason = window.prompt("Motivo da remarcação:");
                   if (!reason) return;
-                  await unwrapAction(transitionServiceOrder({ id: order.id, to: "cancelada", reason }));
-                }, "OS cancelada")
+                  await unwrapAction(
+                    transitionServiceOrder({
+                      id: order.id,
+                      to: "remarcada",
+                      reason,
+                    }),
+                  );
+                }, "Movida para Remarcar")
               }
             >
-              <Ban className="h-3.5 w-3.5" /> Cancelar OS
+              <CalendarClock className="h-3.5 w-3.5" /> Mover para Remarcar
             </ContextMenuItem>
-          </>
-        )}
-      </ContextMenuContent>
-    </ContextMenu>
-    {billingData && (
-      <FaturamentoModal
-        serviceOrderId={order.id}
-        leadName={billingData.leadName}
-        leadPhone={billingData.leadPhone}
-        leadEmail={billingData.leadEmail}
-        checklist={billingData.checklist}
-        items={billingData.items}
-        catalogItems={billingData.catalogItems}
-        travelFeeCents={billingData.travelFeeCents}
-        canEditItems
-        canApprove
-        canApproveDiscount
-        canDelete
-        open={commissionsOpen}
-        onOpenChange={(next) => {
-          setCommissionsOpen(next);
-          if (!next) setBillingData(null);
-        }}
-      />
-    )}
+          )}
+          <ContextMenuItem onSelect={openCommissionEdit}>
+            <DollarSign className="h-3.5 w-3.5" /> Editar comissões
+          </ContextMenuItem>
+          {!closed && order.status !== "cancelada" && (
+            <>
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                className="text-destructive focus:text-destructive"
+                onSelect={() =>
+                  onAction(async () => {
+                    const reason = window.prompt("Motivo do cancelamento:");
+                    if (!reason) return;
+                    await unwrapAction(
+                      transitionServiceOrder({
+                        id: order.id,
+                        to: "cancelada",
+                        reason,
+                      }),
+                    );
+                  }, "OS cancelada")
+                }
+              >
+                <Ban className="h-3.5 w-3.5" /> Cancelar OS
+              </ContextMenuItem>
+            </>
+          )}
+        </ContextMenuContent>
+      </ContextMenu>
+      {billingData && (
+        <FaturamentoModal
+          serviceOrderId={order.id}
+          leadName={billingData.leadName}
+          leadPhone={billingData.leadPhone}
+          leadEmail={billingData.leadEmail}
+          checklist={billingData.checklist}
+          items={billingData.items}
+          catalogItems={billingData.catalogItems}
+          travelFeeCents={billingData.travelFeeCents}
+          canEditItems
+          canApprove
+          canApproveDiscount
+          canDelete
+          open={commissionsOpen}
+          onOpenChange={(next) => {
+            setCommissionsOpen(next);
+            if (!next) setBillingData(null);
+          }}
+        />
+      )}
     </>
   );
 }
@@ -322,35 +382,53 @@ function TechnicianColumn({
 
   const column = (
     <div className="relative border-r border-border/60" style={{ height }}>
-      {Array.from({ length: AGENDA_END_HOUR - AGENDA_START_HOUR }).map((_, i) => (
-        <div
-          key={i}
-          className="absolute inset-x-0 border-t border-slate-300 dark:border-border/30"
-          style={{ top: i * 60 * AGENDA_PX_PER_MINUTE }}
-        />
-      ))}
+      {Array.from({ length: AGENDA_END_HOUR - AGENDA_START_HOUR }).map(
+        (_, i) => (
+          <div
+            key={i}
+            className="absolute inset-x-0 border-t border-slate-300 dark:border-border/30"
+            style={{ top: i * 60 * AGENDA_PX_PER_MINUTE }}
+          />
+        ),
+      )}
       {(() => {
         const positioned = orders
           .map((order) => {
-            const win = order.scheduledStartAt && order.scheduledEndAt
-              ? { startAt: order.scheduledStartAt, endAt: order.scheduledEndAt }
-              : fallbackWindowForShift(order.serviceDate ?? day, order.shift);
+            const win =
+              order.scheduledStartAt && order.scheduledEndAt
+                ? {
+                    startAt: order.scheduledStartAt,
+                    endAt: order.scheduledEndAt,
+                  }
+                : fallbackWindowForShift(order.serviceDate ?? day, order.shift);
             if (!win) return null;
-            const top = Math.max(0, minutesFromGridStart(win.startAt, day) * AGENDA_PX_PER_MINUTE);
+            const top = Math.max(
+              0,
+              minutesFromGridStart(win.startAt, day) * AGENDA_PX_PER_MINUTE,
+            );
             const durationMin = Math.max(
               AGENDA_MIN_CARD_MINUTES,
-              (new Date(win.endAt).getTime() - new Date(win.startAt).getTime()) / 60000,
+              (new Date(win.endAt).getTime() -
+                new Date(win.startAt).getTime()) /
+                60000,
             );
             const height = durationMin * AGENDA_PX_PER_MINUTE;
             return { order, top, height };
           })
-          .filter((v): v is { order: AgendaOrder; top: number; height: number } => v !== null);
+          .filter(
+            (v): v is { order: AgendaOrder; top: number; height: number } =>
+              v !== null,
+          );
 
         // Dois atendimentos proximos (ex.: os dois as 09:00) ficavam um por
         // cima do outro, ilegiveis - divide em colunas lado a lado quando o
         // horario se sobrepoe, como a agenda do Google.
         const lanes = layoutOverlappingCards(
-          positioned.map((p) => ({ id: p.order.id, start: p.top, end: p.top + p.height })),
+          positioned.map((p) => ({
+            id: p.order.id,
+            start: p.top,
+            end: p.top + p.height,
+          })),
         );
         const laneById = new Map(lanes.map((l) => [l.id, l]));
 
@@ -368,7 +446,16 @@ function TechnicianColumn({
                 width: `${widthPct}%`,
               }}
             >
-              <AgendaCard order={order} day={day} canManage={canManage} technicians={technicians} consultants={consultants} onOpen={onOpen} onAction={onAction} komodusWorkspace={komodusWorkspace} />
+              <AgendaCard
+                order={order}
+                day={day}
+                canManage={canManage}
+                technicians={technicians}
+                consultants={consultants}
+                onOpen={onOpen}
+                onAction={onAction}
+                komodusWorkspace={komodusWorkspace}
+              />
             </div>
           );
         });
@@ -382,7 +469,9 @@ function TechnicianColumn({
     <ContextMenu>
       <ContextMenuTrigger asChild>{column}</ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onSelect={() => onNewHere(technician.id, technician.name)}>
+        <ContextMenuItem
+          onSelect={() => onNewHere(technician.id, technician.name)}
+        >
           <Plus className="h-3.5 w-3.5" /> Nova OS com {technician.name}
         </ContextMenuItem>
       </ContextMenuContent>
@@ -413,7 +502,10 @@ export function AgendaGrid({
   komodusWorkspace?: boolean;
 }) {
   const [quickViewId, setQuickViewId] = useState<string | null>(null);
-  const [newOsPreset, setNewOsPreset] = useState<{ technicianId: string; technicianName: string } | null>(null);
+  const [newOsPreset, setNewOsPreset] = useState<{
+    technicianId: string;
+    technicianName: string;
+  } | null>(null);
   const [pending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
 
@@ -421,7 +513,8 @@ export function AgendaGrid({
     const q = search.trim().toLowerCase();
     if (!q) return orders;
     return orders.filter(
-      (o) => o.leadName.toLowerCase().includes(q) || (o.leadPhone ?? "").includes(q),
+      (o) =>
+        o.leadName.toLowerCase().includes(q) || (o.leadPhone ?? "").includes(q),
     );
   }, [orders, search]);
 
@@ -439,10 +532,16 @@ export function AgendaGrid({
     });
   }
 
-  const hourLabels = Array.from({ length: AGENDA_END_HOUR - AGENDA_START_HOUR + 1 }, (_, i) => AGENDA_START_HOUR + i);
+  const hourLabels = Array.from(
+    { length: AGENDA_END_HOUR - AGENDA_START_HOUR + 1 },
+    (_, i) => AGENDA_START_HOUR + i,
+  );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-3 sm:px-6" aria-busy={pending}>
+    <div
+      className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-3 sm:px-6"
+      aria-busy={pending}
+    >
       <input
         type="search"
         placeholder="Buscar cliente por nome ou telefone..."
@@ -455,18 +554,29 @@ export function AgendaGrid({
         <div className="rounded-xl border border-dashed border-border/70 p-8 text-center">
           <p className="font-medium">Nenhum técnico cadastrado</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Cadastre usuários com o papel &quot;Técnico&quot; em Configurações → Usuários pra montar a agenda.
+            Cadastre usuários com o papel &quot;Técnico&quot; em Configurações →
+            Usuários pra montar a agenda.
           </p>
         </div>
       ) : (
-        <div className={cn("min-h-0 flex-1 overflow-auto rounded-xl border border-border/70 bg-card shadow-elev-1 transition-opacity", pending && "opacity-70")}>
+        <div
+          className={cn(
+            "min-h-0 flex-1 overflow-auto rounded-xl border border-border/70 bg-card shadow-elev-1 transition-opacity",
+            pending && "opacity-70",
+          )}
+        >
           <div
             className="grid min-w-full"
-            style={{ gridTemplateColumns: `56px repeat(${technicians.length}, minmax(176px, 1fr)) 190px` }}
+            style={{
+              gridTemplateColumns: `56px repeat(${technicians.length}, minmax(176px, 1fr)) 190px`,
+            }}
           >
             <div className="sticky top-0 z-20 border-b border-r border-border/60 bg-card" />
             {technicians.map((t) => (
-              <div key={t.id} className="sticky top-0 z-20 truncate border-b border-r border-border/60 bg-card px-2 py-2 text-center text-sm font-semibold">
+              <div
+                key={t.id}
+                className="sticky top-0 z-20 truncate border-b border-r border-border/60 bg-card px-2 py-2 text-center text-sm font-semibold"
+              >
                 {t.name}
               </div>
             ))}
@@ -480,14 +590,17 @@ export function AgendaGrid({
                   key={h}
                   className={cn(
                     "absolute right-1 text-[10px] leading-none text-muted-foreground",
-                    h !== AGENDA_START_HOUR && h !== AGENDA_END_HOUR && "-translate-y-1/2",
+                    h !== AGENDA_START_HOUR &&
+                      h !== AGENDA_END_HOUR &&
+                      "-translate-y-1/2",
                   )}
                   style={{
-                    top: h === AGENDA_START_HOUR
-                      ? 4
-                      : h === AGENDA_END_HOUR
-                        ? agendaGridHeightPx() - 14
-                        : (h - AGENDA_START_HOUR) * 60 * AGENDA_PX_PER_MINUTE,
+                    top:
+                      h === AGENDA_START_HOUR
+                        ? 4
+                        : h === AGENDA_END_HOUR
+                          ? agendaGridHeightPx() - 14
+                          : (h - AGENDA_START_HOUR) * 60 * AGENDA_PX_PER_MINUTE,
                   }}
                 >
                   {String(h).padStart(2, "0")}h
@@ -507,14 +620,18 @@ export function AgendaGrid({
                 consultants={consultants}
                 onOpen={setQuickViewId}
                 onAction={onAction}
-                onNewHere={(id, name) => setNewOsPreset({ technicianId: id, technicianName: name })}
+                onNewHere={(id, name) =>
+                  setNewOsPreset({ technicianId: id, technicianName: name })
+                }
                 komodusWorkspace={komodusWorkspace}
               />
             ))}
 
             <div className="space-y-1.5 border-l border-border/60 p-1.5">
               {remarcarPool.length === 0 ? (
-                <p className="p-3 text-center text-[11px] text-muted-foreground">Nada aguardando remarcação.</p>
+                <p className="p-3 text-center text-[11px] text-muted-foreground">
+                  Nada aguardando remarcação.
+                </p>
               ) : (
                 remarcarPool.map((order) => (
                   <AgendaCard
@@ -536,9 +653,26 @@ export function AgendaGrid({
       )}
 
       <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-        {(["amarelo", "azul", "roxo", "verde", "laranja", "vermelho", "cinza"] as const).map((tone) => (
+        {(
+          [
+            "amarelo",
+            "azul",
+            "roxo",
+            "verde",
+            "laranja",
+            "vermelho",
+            "cinza",
+          ] as const
+        ).map((tone) => (
           <span key={tone} className="inline-flex items-center gap-1.5">
-            <span className={cn("h-2.5 w-2.5 rounded-full", AGENDA_TONE_CLASSES[tone].bg, AGENDA_TONE_CLASSES[tone].border, "border")} />
+            <span
+              className={cn(
+                "h-2.5 w-2.5 rounded-full",
+                AGENDA_TONE_CLASSES[tone].bg,
+                AGENDA_TONE_CLASSES[tone].border,
+                "border",
+              )}
+            />
             {agendaToneLabel(tone, komodusWorkspace)}
           </span>
         ))}
@@ -551,7 +685,10 @@ export function AgendaGrid({
           onClose={() => setQuickViewId(null)}
         />
       ) : (
-        <OrderQuickView orderId={quickViewId} onClose={() => setQuickViewId(null)} />
+        <OrderQuickView
+          orderId={quickViewId}
+          onClose={() => setQuickViewId(null)}
+        />
       )}
 
       {(canManage || canCreate) && (
@@ -567,7 +704,9 @@ export function AgendaGrid({
                   technicianId: newOsPreset.technicianId,
                   technicianName: newOsPreset.technicianName,
                   date: day,
-                  dateLabel: new Date(`${day}T12:00:00-03:00`).toLocaleDateString("pt-BR"),
+                  dateLabel: new Date(
+                    `${day}T12:00:00-03:00`,
+                  ).toLocaleDateString("pt-BR"),
                 }
               : undefined
           }

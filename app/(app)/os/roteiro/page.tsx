@@ -1,8 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarClock, ChevronLeft, ChevronRight, Map as MapIcon, MapPin, Printer, Sun, Sunset } from "lucide-react";
+import {
+  CalendarClock,
+  ChevronLeft,
+  ChevronRight,
+  Map as MapIcon,
+  MapPin,
+  Printer,
+  Sun,
+  Sunset,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
+import { usesKomodusServiceOrderWorkspace } from "@/lib/field-service/workspace-access";
 import { canManageServiceOrders, canViewServiceRoutes } from "@/lib/auth/roles";
 import { PageHeader } from "@/components/app/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +27,9 @@ import { ServiceOrdersLive } from "../service-orders-live";
 import { cn } from "@/lib/utils";
 
 function brtDay() {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  return new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/Sao_Paulo",
+  });
 }
 
 function offsetDay(day: string, amount: number) {
@@ -49,8 +61,11 @@ function shortAddress(order: any) {
 }
 
 function OrderCard({ order }: { order: any }) {
-  const completed = ["concluida", "conferida", "faturada"].includes(order.status);
-  const assistance = order.status === "assistencia" || order.service_type === "assistencia";
+  const completed = ["concluida", "conferida", "faturada"].includes(
+    order.status,
+  );
+  const assistance =
+    order.status === "assistencia" || order.service_type === "assistencia";
   return (
     <Link
       href={`/os/${order.id}`}
@@ -59,13 +74,20 @@ function OrderCard({ order }: { order: any }) {
         completed && "border-success/40 bg-success/5",
         assistance && "border-info/40 bg-info/5",
         order.status === "remarcada" && "border-warning/50 bg-warning/5",
-        !completed && !assistance && order.status !== "remarcada" && "border-border/70",
+        !completed &&
+          !assistance &&
+          order.status !== "remarcada" &&
+          "border-border/70",
       )}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{order.leads?.name ?? "Lead removido"}</p>
-          <p className="text-[11px] text-muted-foreground">{formatServiceOrderCode(order.code_seq)}</p>
+          <p className="truncate text-sm font-semibold">
+            {order.leads?.name ?? "Lead removido"}
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            {formatServiceOrderCode(order.code_seq)}
+          </p>
         </div>
         {order.route_position != null && (
           <span className="shrink-0 rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand">
@@ -79,7 +101,9 @@ function OrderCard({ order }: { order: any }) {
       </p>
       <div className="mt-2 flex items-center justify-between gap-2">
         <ServiceOrderStatusBadge status={order.status} />
-        <span className="text-xs font-medium">{formatCurrencyBRL(order.total_cents)}</span>
+        <span className="text-xs font-medium">
+          {formatCurrencyBRL(order.total_cents)}
+        </span>
       </div>
     </Link>
   );
@@ -91,6 +115,7 @@ export default async function RoteiroPage({
   searchParams?: Promise<{ day?: string }>;
 }) {
   const ctx = await requireContext();
+  const komodusWorkspace = usesKomodusServiceOrderWorkspace(ctx);
   if (!ctx.tenant.field_service_enabled) redirect("/dashboard");
   if (!canViewServiceRoutes(ctx.role)) redirect("/dashboard");
   // Vendedora ve o trajeto, mas nao mexe: otimizar rota, alocar tecnico e
@@ -98,11 +123,18 @@ export default async function RoteiroPage({
   const canManage = canManageServiceOrders(ctx.role);
 
   const params = await searchParams;
-  const day = /^\d{4}-\d{2}-\d{2}$/.test(params?.day ?? "") ? params!.day! : brtDay();
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(params?.day ?? "")
+    ? params!.day!
+    : brtDay();
 
   const supabase = await createClient();
 
-  const [{ data: dayOrders }, { data: pool }, { data: rescheduled }, technicians] = await Promise.all([
+  const [
+    { data: dayOrders },
+    { data: pool },
+    { data: rescheduled },
+    technicians,
+  ] = await Promise.all([
     supabase
       .from("service_orders")
       .select("*, leads(name, phone)")
@@ -142,7 +174,10 @@ export default async function RoteiroPage({
     : { data: [] };
 
   const techniciansByOrder = new Map<string, string[]>();
-  for (const row of (assignments ?? []) as Array<{ service_order_id: string; user_id: string }>) {
+  for (const row of (assignments ?? []) as Array<{
+    service_order_id: string;
+    user_id: string;
+  }>) {
     const list = techniciansByOrder.get(row.service_order_id) ?? [];
     list.push(row.user_id);
     techniciansByOrder.set(row.service_order_id, list);
@@ -151,16 +186,21 @@ export default async function RoteiroPage({
   function ordersFor(technicianId: string, shift: "manha" | "tarde") {
     return orders.filter(
       (order) =>
-        order.shift === shift && (techniciansByOrder.get(order.id) ?? []).includes(technicianId),
+        order.shift === shift &&
+        (techniciansByOrder.get(order.id) ?? []).includes(technicianId),
     );
   }
 
-  const unassigned = orders.filter((order) => (techniciansByOrder.get(order.id) ?? []).length === 0);
+  const unassigned = orders.filter(
+    (order) => (techniciansByOrder.get(order.id) ?? []).length === 0,
+  );
 
   // Roteirizacao so aparece com chave do Google configurada no servidor e
   // endereco base cadastrado - sem os dois ela nao teria de onde partir.
   const routingReady =
-    canManage && isRoutingEnabled() && Boolean(ctx.tenant.field_service_base_address);
+    canManage &&
+    isRoutingEnabled() &&
+    Boolean(ctx.tenant.field_service_base_address);
 
   return (
     <div>
@@ -171,44 +211,48 @@ export default async function RoteiroPage({
         description={humanDay(day)}
         actions={
           <div className="flex items-center gap-2">
-            <Link
-              href={`/os/roteiro?day=${offsetDay(day, -1)}`}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border/70 transition-colors hover:bg-muted/50"
-              aria-label="Dia anterior"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/os/roteiro"
-              className="rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
-            >
-              Hoje
-            </Link>
-            <Link
-              href={`/os/roteiro?day=${offsetDay(day, 1)}`}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border/70 transition-colors hover:bg-muted/50"
-              aria-label="Próximo dia"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href={`/os/agenda?day=${day}`}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
-            >
-              <CalendarClock className="h-4 w-4" /> Agenda
-            </Link>
-            <Link
-              href={`/os/mapa?day=${day}`}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
-            >
-              <MapIcon className="h-4 w-4" /> Mapa
-            </Link>
-            <Link
-              href="/os"
-              className="rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
-            >
-              Lista de OS
-            </Link>
+            {!komodusWorkspace && (
+              <>
+                <Link
+                  href={`/os/roteiro?day=${offsetDay(day, -1)}`}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border/70 transition-colors hover:bg-muted/50"
+                  aria-label="Dia anterior"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Link>
+                <Link
+                  href="/os/roteiro"
+                  className="rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
+                >
+                  Hoje
+                </Link>
+                <Link
+                  href={`/os/roteiro?day=${offsetDay(day, 1)}`}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border/70 transition-colors hover:bg-muted/50"
+                  aria-label="Próximo dia"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  href={`/os/agenda?day=${day}`}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
+                >
+                  <CalendarClock className="h-4 w-4" /> Agenda
+                </Link>
+                <Link
+                  href={`/os/mapa?day=${day}`}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
+                >
+                  <MapIcon className="h-4 w-4" /> Mapa
+                </Link>
+                <Link
+                  href="/os"
+                  className="rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
+                >
+                  Lista de OS
+                </Link>
+              </>
+            )}
             <Link
               href={`/os/roteiro/print?day=${day}`}
               className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
@@ -224,7 +268,8 @@ export default async function RoteiroPage({
           <div className="rounded-xl border border-dashed border-border/70 p-8 text-center">
             <p className="font-medium">Nenhum técnico cadastrado</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Cadastre usuários com o papel &quot;Técnico&quot; em Configurações → Usuários pra montar o roteiro.
+              Cadastre usuários com o papel &quot;Técnico&quot; em Configurações
+              → Usuários pra montar o roteiro.
             </p>
           </div>
         )}
@@ -237,20 +282,32 @@ export default async function RoteiroPage({
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {technicians.map((tech) => {
                 const list = ordersFor(tech.id, value);
-                const total = list.reduce((sum, order) => sum + (order.total_cents ?? 0), 0);
+                const total = list.reduce(
+                  (sum, order) => sum + (order.total_cents ?? 0),
+                  0,
+                );
                 return (
-                  <div key={tech.id} className="rounded-xl border border-border/70 bg-card p-4 shadow-elev-1">
+                  <div
+                    key={tech.id}
+                    className="rounded-xl border border-border/70 bg-card p-4 shadow-elev-1"
+                  >
                     <header className="mb-3 flex items-center justify-between gap-2">
-                      <p className="truncate text-sm font-semibold">{tech.name}</p>
+                      <p className="truncate text-sm font-semibold">
+                        {tech.name}
+                      </p>
                       <Badge variant={list.length > 4 ? "warning" : "outline"}>
                         {list.length} OS
                       </Badge>
                     </header>
                     <div className="space-y-2">
                       {list.length === 0 ? (
-                        <p className="py-4 text-center text-xs text-muted-foreground">Turno livre</p>
+                        <p className="py-4 text-center text-xs text-muted-foreground">
+                          Turno livre
+                        </p>
                       ) : (
-                        list.map((order) => <OrderCard key={order.id} order={order} />)
+                        list.map((order) => (
+                          <OrderCard key={order.id} order={order} />
+                        ))
                       )}
                     </div>
                     {total > 0 && (
@@ -273,8 +330,8 @@ export default async function RoteiroPage({
                         />
                       ) : (
                         <p className="mt-3 text-center text-[11px] leading-snug text-muted-foreground">
-                          Cadastre o endereço base da empresa em Configurações pra liberar a
-                          otimização de rota.
+                          Cadastre o endereço base da empresa em Configurações
+                          pra liberar a otimização de rota.
                         </p>
                       ))}
                   </div>
@@ -286,7 +343,9 @@ export default async function RoteiroPage({
 
         {unassigned.length > 0 && (
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-warning">Agendadas sem técnico</h2>
+            <h2 className="text-sm font-semibold text-warning">
+              Agendadas sem técnico
+            </h2>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {unassigned.map((order) => (
                 <div key={order.id} className="space-y-2">
@@ -307,7 +366,10 @@ export default async function RoteiroPage({
         {(rescheduled ?? []).length > 0 && (
           <section className="space-y-3">
             <h2 className="text-sm font-semibold text-warning">
-              Remarcações deste dia <span className="text-muted-foreground">({rescheduled!.length})</span>
+              Remarcações deste dia{" "}
+              <span className="text-muted-foreground">
+                ({rescheduled!.length})
+              </span>
             </h2>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {(rescheduled ?? []).map((entry: any) => (
@@ -323,7 +385,9 @@ export default async function RoteiroPage({
                       </p>
                       <p className="text-[11px] text-muted-foreground">
                         {entry.service_orders?.code_seq
-                          ? formatServiceOrderCode(entry.service_orders.code_seq)
+                          ? formatServiceOrderCode(
+                              entry.service_orders.code_seq,
+                            )
                           : "OS"}
                       </p>
                     </div>
@@ -333,11 +397,15 @@ export default async function RoteiroPage({
                     Nova data:{" "}
                     <strong>
                       {entry.new_date
-                        ? new Date(`${entry.new_date}T12:00:00-03:00`).toLocaleDateString("pt-BR")
+                        ? new Date(
+                            `${entry.new_date}T12:00:00-03:00`,
+                          ).toLocaleDateString("pt-BR")
                         : "a definir"}
                     </strong>
                   </p>
-                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{entry.reason}</p>
+                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                    {entry.reason}
+                  </p>
                 </Link>
               ))}
             </div>
@@ -346,7 +414,10 @@ export default async function RoteiroPage({
 
         <section className="space-y-3">
           <h2 className="text-sm font-semibold">
-            Fila de inclusões <span className="text-muted-foreground">({(pool ?? []).length})</span>
+            Fila de inclusões{" "}
+            <span className="text-muted-foreground">
+              ({(pool ?? []).length})
+            </span>
           </h2>
           {(pool ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">

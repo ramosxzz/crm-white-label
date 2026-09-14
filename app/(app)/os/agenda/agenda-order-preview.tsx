@@ -1,9 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarClock, ExternalLink, MapPin, Phone, Store, UserRound, Wrench } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { formatOperationalAddress, formatOperationalWindow, summarizeServiceItems } from "@/lib/field-service/os-presentation";
+import {
+  CalendarClock,
+  ExternalLink,
+  MapPin,
+  Phone,
+  Store,
+  UserRound,
+  Wrench,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  formatOperationalAddress,
+  formatOperationalWindow,
+  summarizeServiceItems,
+} from "@/lib/field-service/os-presentation";
 import { formatCurrencyBRL } from "@/lib/utils";
 import type { FieldServiceUser } from "@/lib/field-service/users";
 import type { AgendaOrder } from "./agenda-grid";
@@ -16,7 +33,13 @@ function formatAuditDate(value: string) {
   });
 }
 
-function DetailLine({ icon: Icon, children }: { icon: typeof MapPin; children: React.ReactNode }) {
+function DetailLine({
+  icon: Icon,
+  children,
+}: {
+  icon: typeof MapPin;
+  children: React.ReactNode;
+}) {
   return (
     <p className="flex items-start gap-2 text-sm text-muted-foreground">
       <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
@@ -49,14 +72,21 @@ export function AgendaOrderPreview({
           </p>
           <DialogTitle className="pr-6 text-xl">{order.leadName}</DialogTitle>
           <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
-            {formatOperationalWindow(order.scheduledStartAt, order.scheduledEndAt)}
+            {formatOperationalWindow(
+              order.scheduledStartAt,
+              order.scheduledEndAt,
+            )}
           </p>
         </DialogHeader>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <section className="space-y-2 rounded-lg border border-border/70 p-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider">Cliente</h3>
-            {order.leadPhone && <DetailLine icon={Phone}>{order.leadPhone}</DetailLine>}
+            <h3 className="text-xs font-semibold uppercase tracking-wider">
+              Cliente
+            </h3>
+            {order.leadPhone && (
+              <DetailLine icon={Phone}>{order.leadPhone}</DetailLine>
+            )}
             <DetailLine icon={MapPin}>
               {formatOperationalAddress({
                 street: order.addressStreet,
@@ -68,10 +98,20 @@ export function AgendaOrderPreview({
           </section>
 
           <section className="space-y-2 rounded-lg border border-border/70 p-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider">Operação</h3>
-            <DetailLine icon={Wrench}>{technicianNames.join(" + ") || "Sem técnico"}</DetailLine>
-            <DetailLine icon={UserRound}>{order.consultantName || "Consultor não informado"}</DetailLine>
-            <DetailLine icon={Store}>{order.partnerName || "Parceiro não informado"}</DetailLine>
+            <h3 className="text-xs font-semibold uppercase tracking-wider">
+              Operação
+            </h3>
+            <DetailLine icon={Wrench}>
+              {technicianNames.join(" + ") || "Sem técnico"}
+            </DetailLine>
+            <DetailLine icon={UserRound}>
+              {[order.consultantName, order.consultantExtraName]
+                .filter(Boolean)
+                .join(" + ") || "Consultor não informado"}
+            </DetailLine>
+            <DetailLine icon={Store}>
+              {order.partnerName || "Parceiro não informado"}
+            </DetailLine>
             <DetailLine icon={CalendarClock}>
               {order.confirmedAt
                 ? `Confirmado com ${order.confirmedContactName || order.leadName}`
@@ -82,28 +122,49 @@ export function AgendaOrderPreview({
 
         <section className="rounded-lg border border-border/70 p-3">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider">Serviço e peças</h3>
-            <span className="font-semibold tabular-nums">{formatCurrencyBRL(order.totalCents)}</span>
+            <h3 className="text-xs font-semibold uppercase tracking-wider">
+              Serviço e peças
+            </h3>
+            <span className="font-semibold tabular-nums">
+              {formatCurrencyBRL(order.totalCents)}
+            </span>
           </div>
           <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
-            {serviceItems.length > 0
-              ? serviceItems.map((item) => <li key={item}>• {item}</li>)
-              : <li>Nenhum item cadastrado</li>}
+            {serviceItems.length > 0 ? (
+              serviceItems.map((item) => <li key={item}>• {item}</li>)
+            ) : (
+              <li>Nenhum item cadastrado</li>
+            )}
           </ul>
-          {order.paymentMethod && <p className="mt-2 text-xs font-medium">Pagamento: {order.paymentMethod}</p>}
+          {order.paymentMethod && (
+            <p className="mt-2 text-xs font-medium">
+              Pagamento: {order.paymentMethod}
+            </p>
+          )}
         </section>
 
         {order.observations && (
           <section className="rounded-lg bg-muted/40 p-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider">Observações</h3>
-            <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{order.observations}</p>
+            <h3 className="text-xs font-semibold uppercase tracking-wider">
+              Observações
+            </h3>
+            <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
+              {order.observations}
+            </p>
           </section>
         )}
 
         <section className="grid gap-1 rounded-lg border border-dashed border-border/70 p-3 text-xs text-muted-foreground sm:grid-cols-2">
-          <p>Criada por {order.createdByName || "usuário do sistema"} em {formatAuditDate(order.createdAt)}</p>
+          <p>
+            Criada por {order.createdByName || "usuário do sistema"} em{" "}
+            {formatAuditDate(order.createdAt)}
+          </p>
           <p>Atualizada em {formatAuditDate(order.updatedAt)}</p>
-          {order.confirmedAt && <p>Confirmada por {order.confirmedByName || "usuário do sistema"}</p>}
+          {order.confirmedAt && (
+            <p>
+              Confirmada por {order.confirmedByName || "usuário do sistema"}
+            </p>
+          )}
           {order.reviewedByName && <p>Conferida por {order.reviewedByName}</p>}
         </section>
 

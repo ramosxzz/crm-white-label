@@ -4,7 +4,11 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext } from "@/lib/tenant";
 import { usesKomodusServiceOrderWorkspace } from "@/lib/field-service/workspace-access";
-import { canCreateServiceOrder, canManageServiceOrders, canViewTechnicianAgenda } from "@/lib/auth/roles";
+import {
+  canCreateServiceOrder,
+  canManageServiceOrders,
+  canViewTechnicianAgenda,
+} from "@/lib/auth/roles";
 import { PageHeader } from "@/components/app/page-header";
 import { listTechnicians, listConsultants } from "@/lib/field-service/users";
 import { brtDay, offsetDay } from "@/lib/field-service/agenda";
@@ -28,46 +32,54 @@ export default async function AgendaPage({
   const canCreate = canCreateServiceOrder(ctx.role);
 
   const params = await searchParams;
-  const day = /^\d{4}-\d{2}-\d{2}$/.test(params?.day ?? "") ? params!.day! : brtDay();
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(params?.day ?? "")
+    ? params!.day!
+    : brtDay();
 
   const supabase = await createClient();
 
-  const [{ data: dayOrders }, { data: pool }, technicians, consultants, { data: partnersData }, { data: leads }] =
-    await Promise.all([
-      supabase
-        .from("service_orders")
-        .select("*, leads(name, phone)")
-        .eq("tenant_id", ctx.tenantId)
-        .eq("service_date", day)
-        .order("scheduled_start_at", { ascending: true, nullsFirst: false }),
-      supabase
-        .from("service_orders")
-        .select("*, leads(name, phone)")
-        .eq("tenant_id", ctx.tenantId)
-        .is("service_date", null)
-        .in("status", ["rascunho", "remarcada"])
-        .order("created_at", { ascending: true })
-        .limit(50),
-      listTechnicians(ctx.tenantId),
-      canCreate ? listConsultants(ctx.tenantId) : Promise.resolve([]),
-      canCreate
-        ? supabase
-            .from("field_service_partners")
-            .select("*")
-            .eq("tenant_id", ctx.tenantId)
-            .eq("is_active", true)
-            .order("kind")
-            .order("name")
-        : Promise.resolve({ data: [] as FieldServicePartner[] }),
-      canCreate
-        ? supabase
-            .from("leads")
-            .select("id, name, phone")
-            .eq("tenant_id", ctx.tenantId)
-            .order("created_at", { ascending: false })
-            .limit(300)
-        : Promise.resolve({ data: [] }),
-    ]);
+  const [
+    { data: dayOrders },
+    { data: pool },
+    technicians,
+    consultants,
+    { data: partnersData },
+    { data: leads },
+  ] = await Promise.all([
+    supabase
+      .from("service_orders")
+      .select("*, leads(name, phone)")
+      .eq("tenant_id", ctx.tenantId)
+      .eq("service_date", day)
+      .order("scheduled_start_at", { ascending: true, nullsFirst: false }),
+    supabase
+      .from("service_orders")
+      .select("*, leads(name, phone)")
+      .eq("tenant_id", ctx.tenantId)
+      .is("service_date", null)
+      .in("status", ["rascunho", "remarcada"])
+      .order("created_at", { ascending: true })
+      .limit(50),
+    listTechnicians(ctx.tenantId),
+    canCreate ? listConsultants(ctx.tenantId) : Promise.resolve([]),
+    canCreate
+      ? supabase
+          .from("field_service_partners")
+          .select("*")
+          .eq("tenant_id", ctx.tenantId)
+          .eq("is_active", true)
+          .order("kind")
+          .order("name")
+      : Promise.resolve({ data: [] as FieldServicePartner[] }),
+    canCreate
+      ? supabase
+          .from("leads")
+          .select("id, name, phone")
+          .eq("tenant_id", ctx.tenantId)
+          .order("created_at", { ascending: false })
+          .limit(300)
+      : Promise.resolve({ data: [] }),
+  ]);
 
   const orders = [...(dayOrders ?? []), ...(pool ?? [])] as any[];
   const orderIds = orders.map((o) => o.id);
@@ -90,29 +102,56 @@ export default async function AgendaPage({
   ]);
 
   const techniciansByOrder = new Map<string, string[]>();
-  for (const row of (assignments ?? []) as Array<{ service_order_id: string; user_id: string }>) {
+  for (const row of (assignments ?? []) as Array<{
+    service_order_id: string;
+    user_id: string;
+  }>) {
     const list = techniciansByOrder.get(row.service_order_id) ?? [];
     list.push(row.user_id);
     techniciansByOrder.set(row.service_order_id, list);
   }
 
-  const itemsByOrder = new Map<string, Array<{ quantity: number; description: string }>>();
-  for (const row of (items ?? []) as Array<{ service_order_id: string; description: string; quantity: number }>) {
+  const itemsByOrder = new Map<
+    string,
+    Array<{ quantity: number; description: string }>
+  >();
+  for (const row of (items ?? []) as Array<{
+    service_order_id: string;
+    description: string;
+    quantity: number;
+  }>) {
     const list = itemsByOrder.get(row.service_order_id) ?? [];
     list.push({ quantity: row.quantity, description: row.description });
     itemsByOrder.set(row.service_order_id, list);
   }
 
-  const profileIds = [...new Set(orders.flatMap((order) => [
-    order.consultant_id,
-    order.confirmed_by,
-    order.created_by,
-    order.reviewed_by,
-  ]).filter(Boolean))] as string[];
+  const profileIds = [
+    ...new Set(
+      orders
+        .flatMap((order) => [
+          order.consultant_id,
+          order.confirmed_by,
+          order.created_by,
+          order.reviewed_by,
+        ])
+        .filter(Boolean),
+    ),
+  ] as string[];
   const { data: auditProfiles } = profileIds.length
-    ? await supabase.from("profiles").select("id, full_name").in("id", profileIds)
+    ? await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", profileIds)
     : { data: [] };
-  const profileNameById = new Map((auditProfiles ?? []).map((profile) => [profile.id, profile.full_name]));
+  const profileNameById = new Map(
+    (auditProfiles ?? []).map((profile) => [profile.id, profile.full_name]),
+  );
+  // A lista de consultores usa a leitura autorizada do tenant. A consulta
+  // direta em profiles pode ser limitada pela RLS para o administrativo e
+  // fazia o modal dizer "nao informado" mesmo com a OS preenchida.
+  const consultantNameById = new Map(
+    consultants.map((consultant) => [consultant.id, consultant.name]),
+  );
 
   const agendaOrders: AgendaOrder[] = orders.map((order) => ({
     id: order.id,
@@ -126,16 +165,34 @@ export default async function AgendaPage({
     addressCity: order.address_city,
     serviceLabel: itemsByOrder.get(order.id)?.[0]?.description ?? null,
     serviceItems: itemsByOrder.get(order.id) ?? [],
-    partnerName: order.partner_store ?? null,
-    consultantName: order.consultant_id ? profileNameById.get(order.consultant_id) ?? null : null,
+    partnerName:
+      [order.partner_store, order.partner_extra_name]
+        .filter(Boolean)
+        .join(" + ") || null,
+    consultantName: order.consultant_id
+      ? (consultantNameById.get(order.consultant_id) ??
+        profileNameById.get(order.consultant_id) ??
+        null)
+      : null,
+    consultantExtraName: order.consultant_extra_id
+      ? (consultantNameById.get(order.consultant_extra_id) ??
+        profileNameById.get(order.consultant_extra_id) ??
+        null)
+      : null,
     paymentMethod: order.payment_method ?? null,
     observations: order.observations ?? order.notes ?? null,
     confirmedContactName: order.confirmed_contact_name ?? null,
-    confirmedByName: order.confirmed_by ? profileNameById.get(order.confirmed_by) ?? null : null,
+    confirmedByName: order.confirmed_by
+      ? (profileNameById.get(order.confirmed_by) ?? null)
+      : null,
     createdAt: order.created_at,
-    createdByName: order.created_by ? profileNameById.get(order.created_by) ?? null : null,
+    createdByName: order.created_by
+      ? (profileNameById.get(order.created_by) ?? null)
+      : null,
     updatedAt: order.updated_at,
-    reviewedByName: order.reviewed_by ? profileNameById.get(order.reviewed_by) ?? null : null,
+    reviewedByName: order.reviewed_by
+      ? (profileNameById.get(order.reviewed_by) ?? null)
+      : null,
     totalCents: order.total_cents ?? 0,
     shift: order.shift,
     serviceDate: order.service_date,
@@ -147,7 +204,10 @@ export default async function AgendaPage({
   }));
 
   return (
-    <div data-agenda-shell className="flex h-full min-h-0 flex-col overflow-hidden">
+    <div
+      data-agenda-shell
+      className="flex h-full min-h-0 flex-col overflow-hidden"
+    >
       <ServiceOrdersLive tenantId={ctx.tenantId} />
       <PageHeader
         eyebrow="Serviço em campo"
@@ -186,7 +246,13 @@ export default async function AgendaPage({
         orders={agendaOrders}
         canManage={canManage}
         canCreate={canCreate}
-        leads={(leads ?? []) as Array<{ id: string; name: string; phone: string | null }>}
+        leads={
+          (leads ?? []) as Array<{
+            id: string;
+            name: string;
+            phone: string | null;
+          }>
+        }
         consultants={consultants}
         partners={(partnersData ?? []) as FieldServicePartner[]}
         komodusWorkspace={komodusWorkspace}
