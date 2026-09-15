@@ -413,7 +413,15 @@ async function runAction(
     const nextFields = { ...currentFields, ...captured };
     await supabase.from("leads").update({ custom_fields: nextFields }).eq("id", leadId).eq("tenant_id", tenantId);
     lead.custom_fields = nextFields;
-    return { captured };
+
+    // So marca "qualificacao completa" quando TODOS os campos configurados
+    // vieram na resposta - uma mensagem qualquer que so bate com um rotulo
+    // por acaso (ou a primeira mensagem do lead, antes de ele responder o
+    // formulario) nao pode contar como qualificado e liberar o proximo passo
+    // (ex: atribuir e confirmar encaminhamento) antes da hora.
+    const configuredFieldCount = fields.filter((f) => f.label?.trim() && f.custom_field?.trim()).length;
+    lead.capture_reply_fields_matched = Object.keys(captured).length === configuredFieldCount;
+    return { captured, all_fields_matched: lead.capture_reply_fields_matched };
   }
 
   if (kind === "create_task" && leadId) {
