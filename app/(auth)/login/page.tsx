@@ -82,9 +82,9 @@ export default function LoginPage() {
     <LoginCard>
       <div>
         <div className="mb-7 space-y-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300">Área segura</p>
-          <h1 className="font-display text-3xl font-semibold tracking-tight text-white">Entrar no CRM W+</h1>
-          <p className="text-sm leading-6 text-white/50">Use os dados da sua conta para acessar a operação.</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">Área segura</p>
+          <h1 className="text-3xl font-semibold leading-[1.1] tracking-[-0.025em] text-white">Entrar no CRM W+</h1>
+          <p className="text-sm leading-6 tracking-[-0.006em] text-white/45">Use os dados da sua conta para acessar a operação.</p>
         </div>
 
         <form onSubmit={onSubmit} className="space-y-4">
@@ -98,7 +98,7 @@ export default function LoginPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="voce@empresa.com"
-            className="border-white/15 bg-white/[0.04] text-white placeholder:text-white/25"
+            className="rounded-[10px] border-white/10 bg-white/[0.03] text-white placeholder:text-white/25 focus-visible:border-white/25 focus-visible:ring-white/10"
           />
         </div>
         <div className="space-y-2">
@@ -109,11 +109,11 @@ export default function LoginPage() {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="border-white/15 bg-white/[0.04] text-white"
+            className="rounded-[10px] border-white/10 bg-white/[0.03] text-white focus-visible:border-white/25 focus-visible:ring-white/10"
           />
         </div>
         {error && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <div className="motion-safe:animate-fade-in-up rounded-[10px] border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive [animation-duration:0.3s]">
             {error}
           </div>
         )}
@@ -121,7 +121,7 @@ export default function LoginPage() {
         <Button
           type="submit"
           size="lg"
-          className="w-full bg-white text-[#05070c] hover:bg-cyan-50"
+          className="w-full rounded-[10px] bg-white text-[#08090b] hover:bg-white/90"
           disabled={loading || redirecting}
           onMouseEnter={() => arrowIconRef.current?.startAnimation()}
           onMouseLeave={() => arrowIconRef.current?.stopAnimation()}
@@ -138,7 +138,7 @@ export default function LoginPage() {
             </>
           )}
         </Button>
-          <button type="button" onClick={fillDemoCredentials} className="mx-auto flex items-center gap-2 py-1 text-xs text-white/45 transition-colors hover:text-white">
+          <button type="button" onClick={fillDemoCredentials} className="mx-auto flex items-center gap-2 py-1 text-xs text-white/45 transition-[color,opacity] duration-150 ease-premium hover:text-white active:opacity-60">
             <Eye className="h-3.5 w-3.5" />
             Preencher acesso de demonstração
           </button>

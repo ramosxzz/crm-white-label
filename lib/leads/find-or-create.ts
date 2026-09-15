@@ -88,6 +88,21 @@ export async function findOrCreateWhatsAppLead(
       await attachWhatsAppLidToLead(supabase, existing.id, tenantId, contact.lid);
     }
 
+    // Lead ja existia, mas a mensagem chegou num numero individual de outro
+    // vendedor (ex: cliente passou a falar com o dono do numero novo em vez
+    // de quem tinha o lead antes). Reatribui pra quem recebeu de verdade -
+    // senao o responsavel fica "de mentirinha" enquanto a conversa real
+    // acontece no numero do colega, que so enxerga o lead pela regra de
+    // "numero proprio sempre autoriza" (ver getChatAccountVisibility) sem o
+    // CRM refletir que e ele quem esta atendendo.
+    if (contact.receivingAccountOwnerId && contact.receivingAccountOwnerId !== existing.assigned_to) {
+      await supabase
+        .from("leads")
+        .update({ assigned_to: contact.receivingAccountOwnerId })
+        .eq("id", existing.id)
+        .eq("tenant_id", tenantId);
+    }
+
     // Lead pode ter sido criado antes do pushName/profile.name estar disponivel
     // (ex: primeira mensagem sem nome no payload). Se o nome atual e so o
     // fallback generico (telefone/"Contato"), atualiza assim que um nome real chegar -

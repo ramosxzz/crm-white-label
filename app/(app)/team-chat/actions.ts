@@ -62,12 +62,13 @@ export async function sendTeamMessage(input: {
 export async function markTeamChatRead() {
   const ctx = await requireContext();
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("team_message_reads")
     .upsert(
       { tenant_id: ctx.tenantId, user_id: ctx.userId, last_read_at: new Date().toISOString() },
       { onConflict: "tenant_id,user_id" },
     );
+  if (error) throw new Error(error.message);
 }
 
 export async function editTeamMessage(input: { id: string; body: string }) {
