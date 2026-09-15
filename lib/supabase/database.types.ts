@@ -3823,6 +3823,7 @@ export type Database = {
           field_service_base_lng: number | null
           field_service_enabled: boolean
           id: string
+          hidden_navigation_items: string[]
           lead_assignment_enabled: boolean
           lead_folders_enabled: boolean
           lead_forward_user_id: string | null
@@ -3860,6 +3861,7 @@ export type Database = {
           field_service_base_lng?: number | null
           field_service_enabled?: boolean
           id?: string
+          hidden_navigation_items?: string[]
           lead_assignment_enabled?: boolean
           lead_folders_enabled?: boolean
           lead_forward_user_id?: string | null
@@ -3897,6 +3899,7 @@ export type Database = {
           field_service_base_lng?: number | null
           field_service_enabled?: boolean
           id?: string
+          hidden_navigation_items?: string[]
           lead_assignment_enabled?: boolean
           lead_folders_enabled?: boolean
           lead_forward_user_id?: string | null

@@ -19,6 +19,11 @@ import { MaintenanceNoticeBanner } from "@/components/app/maintenance-notice-ban
 import { TenantSuspendedScreen } from "@/components/app/tenant-suspended-screen";
 import { ForceLightTheme } from "@/components/app/force-light-theme";
 import { TopNavigationProgress } from "@/components/ui/top-navigation-progress";
+import {
+  navigationItemForPath,
+  isNavigationItemEnabled,
+  firstEnabledNavigationHref,
+} from "@/lib/navigation/tenant-navigation";
 
 export async function generateMetadata(): Promise<Metadata> {
   const ctx = await getCurrentContext();
@@ -75,6 +80,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     if (!pathname.startsWith("/os") && pathname !== "/financeiro") redirect("/os/agenda");
   }
 
+  // Modulo desativado pra este tenant (ex.: Frigigold sem Tarefas/Reunioes):
+  // ocultar o item do menu nao basta, o link direto (favorito, historico,
+  // digitado a mao) tem que cair fora tambem - mesmo raciocinio do bloqueio
+  // por papel acima.
+  if (ctx.tenant.hidden_navigation_items?.length) {
+    const pathname = (await headers()).get("x-pathname") ?? "";
+    const navItem = navigationItemForPath(pathname);
+    if (navItem && !isNavigationItemEnabled(ctx.tenant.hidden_navigation_items, navItem.id)) {
+      redirect(firstEnabledNavigationHref(ctx.tenant.hidden_navigation_items));
+    }
+  }
+
   const supabase = await createClient();
   const [{ data: profile }, unreadTeamChat] = await Promise.all([
     supabase.from("profiles").select("full_name, last_seen_update_at").eq("id", ctx.userId).single(),
@@ -111,6 +128,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 isSeller={ctx.role === "vendedor"}
                 isProspeccao={ctx.role === "prospeccao"}
                 osOnlyAccess={ctx.osOnlyAccess}
+                hiddenNavigationItems={ctx.tenant.hidden_navigation_items}
                 userName={profile?.full_name ?? "Usuario"}
                 userEmail={ctx.userEmail}
               />

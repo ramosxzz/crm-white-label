@@ -44,8 +44,9 @@ import { cn, initials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { markTeamChatRead } from "@/app/(app)/team-chat/actions";
 import { useMobileMenu } from "@/components/app/mobile-menu-context";
+import { TEAM_CHAT_READ_EVENT } from "@/lib/team-chat/read-events";
+import { TENANT_NAVIGATION_ITEMS } from "@/lib/navigation/tenant-navigation";
 
 const overviewItems = [{ href: "/dashboard", label: "Dashboard", icon: BarChart3 }];
 
@@ -105,6 +106,7 @@ export function Sidebar({
   isSeller = false,
   isProspeccao = false,
   osOnlyAccess = false,
+  hiddenNavigationItems = [],
   userName,
   userEmail,
 }: {
@@ -125,12 +127,18 @@ export function Sidebar({
   isSeller?: boolean;
   isProspeccao?: boolean;
   osOnlyAccess?: boolean;
+  hiddenNavigationItems?: readonly string[];
   userName: string;
   userEmail: string;
 }) {
   const pathname = usePathname();
   const { open: mobileOpen, setOpen: setMobileOpen } = useMobileMenu();
   const [unreadTeamChat, setUnreadTeamChat] = useState(initialUnreadTeamChat);
+  const pathnameRef = useRef(pathname);
+
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -141,7 +149,9 @@ export function Sidebar({
         { event: "INSERT", schema: "public", table: "team_messages", filter: `tenant_id=eq.${tenantId}` },
         (payload) => {
           const row = payload.new as { sender_id: string };
-          if (row.sender_id !== userId) setUnreadTeamChat((c) => c + 1);
+          const viewingTeamChat =
+            pathnameRef.current.startsWith("/team-chat") && document.visibilityState === "visible";
+          if (row.sender_id !== userId && !viewingTeamChat) setUnreadTeamChat((c) => c + 1);
         },
       )
       .subscribe();
@@ -150,24 +160,29 @@ export function Sidebar({
     };
   }, [tenantId, userId]);
 
-  const skipInitialMarkReadRef = useRef(true);
   useEffect(() => {
     if (!pathname.startsWith("/team-chat")) return;
     setUnreadTeamChat(0);
-    // Pula a chamada da Server Action no carregamento direto/hard-reload: ela
-    // competia com o streaming SSR ainda em andamento e travava a pagina no
-    // loading.tsx. Numa navegacao de verdade (clicando no link) ja nao ha
-    // stream concorrente, entao dispara normal.
-    if (skipInitialMarkReadRef.current) {
-      skipInitialMarkReadRef.current = false;
-      return;
-    }
-    void markTeamChatRead();
   }, [pathname]);
+
+  useEffect(() => {
+    const clearTeamChatBadge = () => setUnreadTeamChat(0);
+    window.addEventListener(TEAM_CHAT_READ_EVENT, clearTeamChatBadge);
+    return () => window.removeEventListener(TEAM_CHAT_READ_EVENT, clearTeamChatBadge);
+  }, []);
   // Vendedor nao gerencia estoque, automacoes, IA W+, integracoes, usuarios,
   // nem ve o dashboard de reunioes (mostra receita/custo/ROI do tenant
   // inteiro - a mesma pagina ja redireciona se um vendedor acessar direto).
   const sellerBlocked = new Set(["/estoque", "/automations", "/ia-w-mais", "/integrations", "/settings/users", "/funil", "/atendimento", "/reunioes", "/ligacoes", "/os", "/os/roteiro", "/os/mapa"]);
+  // Modulo desativado pra este tenant (ex.: Frigigold nao usa Tarefas nem
+  // Reunioes) - some do menu aqui, e o layout barra a rota direto tambem.
+  const hiddenHrefSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const item of TENANT_NAVIGATION_ITEMS) {
+      if (hiddenNavigationItems.includes(item.id)) set.add(item.href);
+    }
+    return set;
+  }, [hiddenNavigationItems]);
   // Login restrito a Agenda/OS: so ve o que e do modulo de servico em campo,
   // nada do resto do CRM (chat, leads, kanban...).
   // Vendedora fecha a venda abrindo a OS e para por ai: ve so a Agenda, pra
@@ -255,9 +270,12 @@ export function Sidebar({
           items: visibleFieldServiceItems,
         },
         { id: "settings", label: "Configurações", icon: Settings, items: visibleSecondaryItems },
-      ].filter((group) => group.items.length > 0),
+      ]
+        .map((group) => ({ ...group, items: group.items.filter((item) => !hiddenHrefSet.has(item.href)) }))
+        .filter((group) => group.items.length > 0),
     [
       unreadTeamChat,
+      hiddenHrefSet,
       visibleCommunicationItems,
       visibleCrmItems,
       visibleFieldServiceItems,
