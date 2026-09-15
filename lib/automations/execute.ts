@@ -111,12 +111,21 @@ function escapeRegex(value: string): string {
  * a IA pros campos que ainda faltam, pra nao gastar em quem ja respondeu
  * direitinho no formato.
  */
+type AiExtractionResult = {
+  fields: Record<string, string>;
+  /** false quando a IA nem foi chamada (sem AI_API_KEY) ou falhou - usado
+   * pra logar em vez de deixar o lead preso silenciosamente sem responsavel. */
+  ok: boolean;
+  reason?: string;
+};
+
 async function extractMissingFieldsWithAI(
   body: string,
   missingFields: { label: string; custom_field: string }[],
-): Promise<Record<string, string>> {
+): Promise<AiExtractionResult> {
   const apiKey = process.env.AI_API_KEY;
-  if (!apiKey || missingFields.length === 0) return {};
+  if (missingFields.length === 0) return { fields: {}, ok: true };
+  if (!apiKey) return { fields: {}, ok: false, reason: "AI_API_KEY nao configurada no servidor" };
 
   const baseUrl = (process.env.AI_BASE_URL ?? "https://integrate.api.nvidia.com/v1").replace(/\/$/, "");
   const model = process.env.AI_MODEL ?? "meta/llama-3.3-70b-instruct";
@@ -143,20 +152,24 @@ async function extractMissingFieldsWithAI(
         max_tokens: 300,
       }),
     });
-    if (!resp.ok) return {};
+    if (!resp.ok) {
+      return { fields: {}, ok: false, reason: `IA respondeu HTTP ${resp.status}` };
+    }
     const data = (await resp.json()) as { choices?: { message?: { content?: string } }[] };
     const text = data?.choices?.[0]?.message?.content?.trim() ?? "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return {};
+    if (!jsonMatch) {
+      return { fields: {}, ok: false, reason: "resposta da IA nao veio em JSON" };
+    }
     const parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
     const result: Record<string, string> = {};
     for (const f of missingFields) {
       const value = String(parsed[f.custom_field] ?? "").trim();
       if (value) result[f.custom_field] = value;
     }
-    return result;
-  } catch {
-    return {};
+    return { fields: result, ok: true };
+  } catch (err) {
+    return { fields: {}, ok: false, reason: err instanceof Error ? err.message : String(err) };
   }
 }
 
@@ -473,11 +486,22 @@ async function runAction(
       return !captured[cf] && !String(currentFields[cf] ?? "").trim();
     });
     if (blockConfig.use_ai !== false && stillMissing.length > 0) {
-      const aiCaptured = await extractMissingFieldsWithAI(
+      const aiResult = await extractMissingFieldsWithAI(
         body,
         stillMissing.map((f) => ({ label: String(f.label).trim(), custom_field: String(f.custom_field).trim() })),
       );
-      Object.assign(captured, aiCaptured);
+      Object.assign(captured, aiResult.fields);
+      if (!aiResult.ok) {
+        // Nao pode falhar em silencio: sem isso o lead fica preso sem
+        // responsavel pra sempre e ninguem percebe ate o cliente reclamar.
+        console.error(`[automations] capture_reply_fields: extracao por IA falhou (lead ${leadId}): ${aiResult.reason}`);
+        await supabase.from("lead_activities").insert({
+          tenant_id: tenantId,
+          lead_id: leadId,
+          kind: "automation",
+          payload: { warning: `Extração por IA falhou: ${aiResult.reason}. Preencha manualmente se necessário.` },
+        });
+      }
     }
 
     const nextFields = { ...currentFields, ...captured };
