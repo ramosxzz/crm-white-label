@@ -27,6 +27,7 @@ import { formatBRTFullDate, formatBRTFullDateTime } from "@/lib/date/brt";
 import { LeadTagsPanel } from "./lead-tags-panel";
 import { LeadEmailsPanel } from "./lead-emails-panel";
 import { LeadTimeline } from "@/components/leads/lead-timeline";
+import { isNavigationItemEnabled } from "@/lib/navigation/tenant-navigation";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -41,6 +42,9 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     .single();
 
   if (!lead) notFound();
+
+  const meetingsEnabled = isNavigationItemEnabled(ctx.tenant.hidden_navigation_items, "meetings");
+  const tasksEnabled = isNavigationItemEnabled(ctx.tenant.hidden_navigation_items, "tasks");
 
   const [{ data: stages }, { data: files }, { data: activities }, { data: technicalDefinitions }, { data: tasks }, { data: professionals }, { data: services }, { data: valueItems }, { data: tagCatalog }, users, { data: googleAccount }] = await Promise.all([
     supabase
@@ -145,13 +149,15 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             </div>
           </div>
           <div className="flex flex-wrap gap-2 sm:shrink-0">
-            <ScheduleMeetingButton
-              leadId={lead.id}
-              leadName={lead.name}
-              professionals={professionals ?? []}
-              users={users}
-              services={(services ?? []) as { id: string; name: string; duration_minutes: number }[]}
-            />
+            {meetingsEnabled && (
+              <ScheduleMeetingButton
+                leadId={lead.id}
+                leadName={lead.name}
+                professionals={professionals ?? []}
+                users={users}
+                services={(services ?? []) as { id: string; name: string; duration_minutes: number }[]}
+              />
+            )}
             {lead.phone && ctx.tenant.calls_dashboard_enabled && <CallButton leadId={lead.id} phone={lead.phone} />}
             {lead.phone && (
               <Button asChild variant="brand">
@@ -211,7 +217,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           />
 
           <LeadFilesPanel leadId={lead.id} files={files ?? []} />
-          <TaskPanel leadId={lead.id} tasks={tasks ?? []} currentUserId={ctx.userId} />
+          {tasksEnabled && <TaskPanel leadId={lead.id} tasks={tasks ?? []} currentUserId={ctx.userId} />}
           <NotesPanel leadId={lead.id} activities={activities ?? []} authorNames={authorNames} />
         </div>
 

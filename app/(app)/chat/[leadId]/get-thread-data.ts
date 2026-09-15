@@ -18,6 +18,7 @@ import { getSaleStockContext } from "@/lib/estoque/sale-stock-actions";
 import type { FieldServicePartner, WhatsAppProviderKind } from "@/lib/supabase/database.types";
 import type { ConversationStatus } from "@/lib/chat/types";
 import { currentUserCanAccessLead } from "@/lib/auth/lead-access";
+import { isNavigationItemEnabled } from "@/lib/navigation/tenant-navigation";
 
 /** Busca tudo que o ChatThread precisa pra renderizar um lead. Usado tanto
  * pela pagina /chat/[leadId] quanto pelo painel flutuante do Kanban - assim
@@ -305,6 +306,8 @@ export async function getChatThreadData(leadId: string) {
     ),
     recentCalls,
     callsEnabled: ctx.tenant.calls_dashboard_enabled,
+    meetingsEnabled: isNavigationItemEnabled(ctx.tenant.hidden_navigation_items, "meetings"),
+    tasksEnabled: isNavigationItemEnabled(ctx.tenant.hidden_navigation_items, "tasks"),
     saleStockProducts: saleStock?.products ?? null,
     saleStockLocations: saleStock?.locations ?? null,
     // null = tenant sem o ERP W+ ou usuario sem permissao de abrir OS.

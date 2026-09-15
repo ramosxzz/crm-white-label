@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -15,6 +16,12 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMobileMenu } from "./mobile-menu-context";
+import {
+  navigationItemForPath,
+  isNavigationItemEnabled,
+  TENANT_NAVIGATION_UPDATED_EVENT,
+  type TenantNavigationUpdatedDetail,
+} from "@/lib/navigation/tenant-navigation";
 
 const mobileItems = [
   { href: "/dashboard", label: "Inicio", icon: BarChart3 },
@@ -30,6 +37,7 @@ export function MobileBottomNav({
   canManageFinance = false,
   osOnlyAccess = false,
   isProspeccao = false,
+  hiddenNavigationItems = [],
 }: {
   stockEnabled?: boolean;
   satisfactionSurveyEnabled?: boolean;
@@ -40,9 +48,21 @@ export function MobileBottomNav({
   isSeller?: boolean;
   osOnlyAccess?: boolean;
   isProspeccao?: boolean;
+  hiddenNavigationItems?: readonly string[];
 }) {
   const pathname = usePathname();
   const { open: moreOpen, setOpen: setMoreOpen } = useMobileMenu();
+  const [liveHiddenNavigationItems, setLiveHiddenNavigationItems] = useState<readonly string[]>(hiddenNavigationItems);
+
+  useEffect(() => setLiveHiddenNavigationItems(hiddenNavigationItems), [hiddenNavigationItems]);
+
+  useEffect(() => {
+    const updateNavigation = (event: Event) => {
+      setLiveHiddenNavigationItems((event as CustomEvent<TenantNavigationUpdatedDetail>).detail.hiddenItems);
+    };
+    window.addEventListener(TENANT_NAVIGATION_UPDATED_EVENT, updateNavigation);
+    return () => window.removeEventListener(TENANT_NAVIGATION_UPDATED_EVENT, updateNavigation);
+  }, []);
 
   // Login restrito a Agenda/OS: barra inferior mostra so isso, nada do
   // resto do CRM.
@@ -79,12 +99,15 @@ export function MobileBottomNav({
     );
   }
 
-  const primaryItems = isProspeccao
+  const primaryItems = (isProspeccao
     ? [
         { href: "/prospeccao", label: "Prospecção", icon: UserPlus },
         { href: "/chat", label: "Conversas", icon: MessageCircle },
       ]
-    : mobileItems;
+    : mobileItems).filter((item) => {
+      const navItem = navigationItemForPath(item.href);
+      return !navItem || isNavigationItemEnabled(liveHiddenNavigationItems, navItem.id);
+    });
 
   return (
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border/70 bg-card/95 px-1 pb-[max(env(safe-area-inset-bottom),0.35rem)] pt-1.5 shadow-[0_-12px_30px_hsl(0_0%_0%/0.22)] backdrop-blur-xl md:hidden">

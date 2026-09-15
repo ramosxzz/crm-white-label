@@ -367,6 +367,8 @@ export function ChatThread({
   pipelineOptions = [],
   leadDetails: initialLeadDetails,
   callsEnabled = false,
+  meetingsEnabled = true,
+  tasksEnabled = true,
   fieldService = null,
   saleStockProducts = null,
   saleStockLocations = null,
@@ -395,6 +397,8 @@ export function ChatThread({
   pipelineOptions?: PipelineOption[];
   leadDetails?: LeadDetails;
   callsEnabled?: boolean;
+  meetingsEnabled?: boolean;
+  tasksEnabled?: boolean;
   /** null quando o tenant nao tem o ERP W+ ou o usuario nao pode abrir OS. */
   fieldService?: {
     consultants: FieldServiceUser[];
@@ -1438,16 +1442,18 @@ export function ChatThread({
               onChange={setSelectedAccountId}
             />
           )}
-          <ScheduleMeetingButton
-            leadId={leadId}
-            leadName={displayName}
-            professionals={professionals}
-            users={users}
-            services={services}
-            variant="outline"
-            size="sm"
-            className="h-9"
-          />
+          {meetingsEnabled && (
+            <ScheduleMeetingButton
+              leadId={leadId}
+              leadName={displayName}
+              professionals={professionals}
+              users={users}
+              services={services}
+              variant="outline"
+              size="sm"
+              className="h-9"
+            />
+          )}
           {!isInstagram && leadPhone && callsEnabled && (
             <CallButton leadId={leadId} phone={leadPhone} className="h-9" />
           )}
@@ -1573,15 +1579,17 @@ export function ChatThread({
           {mobileActionsOpen && (
             <div className="absolute right-0 top-full z-50 mt-2 w-[min(22rem,calc(100vw-1.5rem))] rounded-2xl border border-border/70 bg-popover p-2 shadow-elev-2">
               <div className="grid grid-cols-2 gap-2">
-                <ScheduleMeetingButton
-                  leadId={leadId}
-                  leadName={displayName}
-                  professionals={professionals}
-                  users={users}
-                  services={services}
-                  variant="outline"
-                  size="sm"
-                />
+                {meetingsEnabled && (
+                  <ScheduleMeetingButton
+                    leadId={leadId}
+                    leadName={displayName}
+                    professionals={professionals}
+                    users={users}
+                    services={services}
+                    variant="outline"
+                    size="sm"
+                  />
+                )}
                 {!isInstagram && leadPhone && callsEnabled && <CallButton leadId={leadId} phone={leadPhone} />}
                 {!isInstagram && leadPhone && <WhatsAppCallButton phone={leadPhone} />}
                 {!isInstagram && (
@@ -2257,6 +2265,8 @@ export function ChatThread({
         pipelineOptions={pipelineOptions}
         recentCalls={recentCalls}
         callsEnabled={callsEnabled}
+        meetingsEnabled={meetingsEnabled}
+        tasksEnabled={tasksEnabled}
         mobileOpen={sidePanelOpen}
         onMobileClose={() => setSidePanelOpen(false)}
         desktopOpen={desktopPanelOpen}
@@ -2640,6 +2650,8 @@ function LeadSidePanel({
   pipelineOptions,
   recentCalls,
   callsEnabled = false,
+  meetingsEnabled = true,
+  tasksEnabled = true,
   mobileOpen,
   onMobileClose,
   desktopOpen = true,
@@ -2656,6 +2668,8 @@ function LeadSidePanel({
   pipelineOptions: PipelineOption[];
   recentCalls: LeadCallAttempt[];
   callsEnabled?: boolean;
+  meetingsEnabled?: boolean;
+  tasksEnabled?: boolean;
   mobileOpen: boolean;
   onMobileClose: () => void;
   desktopOpen?: boolean;
@@ -2730,9 +2744,9 @@ function LeadSidePanel({
     users.find((user) => user.id === businessDraft.assignedTo)?.name ?? details?.assignedName ?? "Não atribuído";
   const businessDraftValue = Number(businessDraft.valueReais.replace(/\./g, "").replace(",", "."));
   const businessDraftValueCents = Math.round(Math.max(0, Number.isFinite(businessDraftValue) ? businessDraftValue : 0) * 100);
-  const nextActivity = details?.nextAppointmentAt
+  const nextActivity = meetingsEnabled && details?.nextAppointmentAt
     ? formatShortDate(details.nextAppointmentAt)
-    : (details?.openTasksCount ?? 0) > 0
+    : tasksEnabled && (details?.openTasksCount ?? 0) > 0
       ? `${details?.openTasksCount} tarefa${details?.openTasksCount === 1 ? "" : "s"} aberta${details?.openTasksCount === 1 ? "" : "s"}`
       : "Nenhuma atividade";
 
@@ -3066,7 +3080,7 @@ function LeadSidePanel({
           <SummaryItem label="Etapa" value={selectedStageName} />
           <SummaryItem label="Responsável" value={selectedOwnerName} />
           <SummaryItem label="Valor" value={formatMoney(businessDraftValueCents)} />
-          <SummaryItem label="Próxima atividade" value={nextActivity} />
+          {(meetingsEnabled || tasksEnabled) && <SummaryItem label="Próxima atividade" value={nextActivity} />}
         </dl>
         {!unifiedSidePanel && (
           <div className="mt-3 grid grid-cols-3 gap-1 rounded-lg bg-muted/55 p-1" role="tablist" aria-label="Informações do lead">
@@ -3529,10 +3543,12 @@ function LeadSidePanel({
         </div>
         )}
 
-        <div className="mt-4 border-t border-border/60 pt-3">
-          <InfoRow label="Próxima reunião" value={details?.nextAppointmentAt ? formatShortDate(details.nextAppointmentAt) : "Sem reunião"} muted={!details?.nextAppointmentAt} />
-          <InfoRow label="Tarefas abertas" value={String(details?.openTasksCount ?? 0)} />
-        </div>
+        {(meetingsEnabled || tasksEnabled) && (
+          <div className="mt-4 border-t border-border/60 pt-3">
+            {meetingsEnabled && <InfoRow label="Próxima reunião" value={details?.nextAppointmentAt ? formatShortDate(details.nextAppointmentAt) : "Sem reunião"} muted={!details?.nextAppointmentAt} />}
+            {tasksEnabled && <InfoRow label="Tarefas abertas" value={String(details?.openTasksCount ?? 0)} />}
+          </div>
+        )}
       </PanelSection>
 
       <PanelSection

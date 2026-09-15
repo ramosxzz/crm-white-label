@@ -52,8 +52,8 @@ export function MeetingMiniAgenda({
   }, [date]);
 
   return (
-    <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3">
-      <div className="flex items-center justify-between gap-3">
+    <section className="min-w-0 rounded-lg border border-border/70 bg-muted/20 p-3" aria-label="Disponibilidade da equipe">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="inline-flex items-center gap-1.5 text-sm font-medium">
           <CalendarDays className="h-4 w-4 text-brand" /> Ver agenda do dia
         </p>
@@ -61,7 +61,7 @@ export function MeetingMiniAgenda({
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="h-8 w-40"
+          className="h-8 w-40 max-w-full"
         />
       </div>
 
@@ -72,7 +72,7 @@ export function MeetingMiniAgenda({
       ) : !rows || rows.length === 0 ? (
         <p className="py-2 text-sm text-muted-foreground">Nenhum usuário cadastrado.</p>
       ) : (
-        <ul className="space-y-1.5">
+        <ul className="mt-3 max-h-64 space-y-1.5 overflow-y-auto overscroll-contain pr-1">
           {rows.map((row) => {
             const selected = selectedUserId === row.userId;
             return (
@@ -101,7 +101,7 @@ export function MeetingMiniAgenda({
                           className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
                           title={b.leadName}
                         >
-                          {hhmm(b.startAt)}–{hhmm(b.endAt)}
+                          {hhmm(b.startAt)}-{hhmm(b.endAt)}
                         </span>
                       ))}
                     </div>
@@ -112,6 +112,6 @@ export function MeetingMiniAgenda({
           })}
         </ul>
       )}
-    </div>
+    </section>
   );
 }

@@ -23,6 +23,21 @@ export const TENANT_NAVIGATION_ITEMS = [
 
 export type TenantNavigationItemId = (typeof TENANT_NAVIGATION_ITEMS)[number]["id"];
 
+export const TENANT_NAVIGATION_UPDATED_EVENT = "crm:tenant-navigation-updated";
+
+export type TenantNavigationUpdatedDetail = {
+  hiddenItems: TenantNavigationItemId[];
+};
+
+export function announceTenantNavigationUpdate(hiddenItems: TenantNavigationItemId[]) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent<TenantNavigationUpdatedDetail>(TENANT_NAVIGATION_UPDATED_EVENT, {
+      detail: { hiddenItems },
+    }),
+  );
+}
+
 const TENANT_NAVIGATION_ITEM_IDS = new Set<string>(TENANT_NAVIGATION_ITEMS.map((item) => item.id));
 
 export function normalizeHiddenNavigationItems(value: unknown): TenantNavigationItemId[] {

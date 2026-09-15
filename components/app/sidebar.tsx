@@ -46,7 +46,11 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useMobileMenu } from "@/components/app/mobile-menu-context";
 import { TEAM_CHAT_READ_EVENT } from "@/lib/team-chat/read-events";
-import { TENANT_NAVIGATION_ITEMS } from "@/lib/navigation/tenant-navigation";
+import {
+  TENANT_NAVIGATION_ITEMS,
+  TENANT_NAVIGATION_UPDATED_EVENT,
+  type TenantNavigationUpdatedDetail,
+} from "@/lib/navigation/tenant-navigation";
 
 const overviewItems = [{ href: "/dashboard", label: "Dashboard", icon: BarChart3 }];
 
@@ -135,6 +139,20 @@ export function Sidebar({
   const { open: mobileOpen, setOpen: setMobileOpen } = useMobileMenu();
   const [unreadTeamChat, setUnreadTeamChat] = useState(initialUnreadTeamChat);
   const pathnameRef = useRef(pathname);
+  const [liveHiddenNavigationItems, setLiveHiddenNavigationItems] = useState<readonly string[]>(hiddenNavigationItems);
+
+  useEffect(() => {
+    setLiveHiddenNavigationItems(hiddenNavigationItems);
+  }, [hiddenNavigationItems]);
+
+  useEffect(() => {
+    const updateNavigation = (event: Event) => {
+      const detail = (event as CustomEvent<TenantNavigationUpdatedDetail>).detail;
+      setLiveHiddenNavigationItems(detail.hiddenItems);
+    };
+    window.addEventListener(TENANT_NAVIGATION_UPDATED_EVENT, updateNavigation);
+    return () => window.removeEventListener(TENANT_NAVIGATION_UPDATED_EVENT, updateNavigation);
+  }, []);
 
   useEffect(() => {
     pathnameRef.current = pathname;
@@ -179,10 +197,10 @@ export function Sidebar({
   const hiddenHrefSet = useMemo(() => {
     const set = new Set<string>();
     for (const item of TENANT_NAVIGATION_ITEMS) {
-      if (hiddenNavigationItems.includes(item.id)) set.add(item.href);
+      if (liveHiddenNavigationItems.includes(item.id)) set.add(item.href);
     }
     return set;
-  }, [hiddenNavigationItems]);
+  }, [liveHiddenNavigationItems]);
   // Login restrito a Agenda/OS: so ve o que e do modulo de servico em campo,
   // nada do resto do CRM (chat, leads, kanban...).
   // Vendedora fecha a venda abrindo a OS e para por ai: ve so a Agenda, pra

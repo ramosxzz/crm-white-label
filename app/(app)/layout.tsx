@@ -156,6 +156,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               isSeller={ctx.role === "vendedor"}
               isProspeccao={ctx.role === "prospeccao"}
               osOnlyAccess={ctx.osOnlyAccess}
+              hiddenNavigationItems={ctx.tenant.hidden_navigation_items}
             />
           </div>
         </div>
