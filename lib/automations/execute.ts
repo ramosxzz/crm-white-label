@@ -105,6 +105,62 @@ function escapeRegex(value: string): string {
 }
 
 /**
+ * Extrai campos via IA quando o regex por rotulo nao bateu (cliente nao
+ * seguiu o formato "Nome: / Cidade: / Modelo:" e so respondeu em ordem livre,
+ * ex: "Samuel Gobbi / Jaraguá do Sul/SC / Reboque para 2 cavalos"). So chama
+ * a IA pros campos que ainda faltam, pra nao gastar em quem ja respondeu
+ * direitinho no formato.
+ */
+async function extractMissingFieldsWithAI(
+  body: string,
+  missingFields: { label: string; custom_field: string }[],
+): Promise<Record<string, string>> {
+  const apiKey = process.env.AI_API_KEY;
+  if (!apiKey || missingFields.length === 0) return {};
+
+  const baseUrl = (process.env.AI_BASE_URL ?? "https://integrate.api.nvidia.com/v1").replace(/\/$/, "");
+  const model = process.env.AI_MODEL ?? "meta/llama-3.3-70b-instruct";
+  const fieldList = missingFields.map((f) => `- ${f.custom_field}: ${f.label}`).join("\n");
+
+  try {
+    const resp = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        model,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Voce extrai dados de uma mensagem de cliente que respondeu (em qualquer ordem, com ou sem rotulos) a um formulario. " +
+              `Campos pedidos (chave: descricao):\n${fieldList}\n\n` +
+              "Responda APENAS com um objeto JSON valido usando exatamente essas chaves. " +
+              "Se um campo nao aparecer na mensagem, use string vazia. Nao invente valores. Nao inclua texto fora do JSON.",
+          },
+          { role: "user", content: body },
+        ],
+        temperature: 0,
+        max_tokens: 300,
+      }),
+    });
+    if (!resp.ok) return {};
+    const data = (await resp.json()) as { choices?: { message?: { content?: string } }[] };
+    const text = data?.choices?.[0]?.message?.content?.trim() ?? "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return {};
+    const parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+    const result: Record<string, string> = {};
+    for (const f of missingFields) {
+      const value = String(parsed[f.custom_field] ?? "").trim();
+      if (value) result[f.custom_field] = value;
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+/**
  * O lead falou depois que a cadencia comecou?
  *
  * Numa sequencia automatica isso e o que separa "acompanhamento" de "robo
@@ -391,11 +447,11 @@ async function runAction(
       return { skipped: "sem corpo de mensagem ou campos configurados" };
     }
 
+    const validFields = fields.filter((f) => f.label?.trim() && f.custom_field?.trim());
     const captured: Record<string, string> = {};
-    for (const f of fields) {
-      const label = String(f.label ?? "").trim();
-      const customField = String(f.custom_field ?? "").trim();
-      if (!label || !customField) continue;
+    for (const f of validFields) {
+      const label = String(f.label).trim();
+      const customField = String(f.custom_field).trim();
       // O rotulo pode vir com texto extra antes dos dois-pontos (ex: pergunta
       // era "Modelo de reboque que você procura:" mas o lead so cola "Modelo
       // de reboque: X") - casa o rotulo e pega tudo ate o primeiro ":".
@@ -404,24 +460,48 @@ async function runAction(
       if (value) captured[customField] = value;
     }
 
-    if (Object.keys(captured).length === 0) {
-      return { skipped: "nenhum campo reconhecido na resposta" };
-    }
-
     const { data: currentLead } = await supabase.from("leads").select("custom_fields").eq("id", leadId).single();
     const currentFields = (currentLead as { custom_fields?: Record<string, unknown> } | null)?.custom_fields ?? {};
+
+    // Regex so acha o que veio no formato "Rotulo: valor". Cliente de verdade
+    // nem sempre repete o rotulo - pode so responder em ordem livre ("Samuel
+    // Gobbi / Jaraguá do Sul/SC / Reboque para 2 cavalos"). Pro que sobrou sem
+    // bater no regex e ainda nao esta salvo de uma mensagem anterior, tenta
+    // a IA antes de desistir do campo.
+    const stillMissing = validFields.filter((f) => {
+      const cf = String(f.custom_field).trim();
+      return !captured[cf] && !String(currentFields[cf] ?? "").trim();
+    });
+    if (blockConfig.use_ai !== false && stillMissing.length > 0) {
+      const aiCaptured = await extractMissingFieldsWithAI(
+        body,
+        stillMissing.map((f) => ({ label: String(f.label).trim(), custom_field: String(f.custom_field).trim() })),
+      );
+      Object.assign(captured, aiCaptured);
+    }
+
     const nextFields = { ...currentFields, ...captured };
-    await supabase.from("leads").update({ custom_fields: nextFields }).eq("id", leadId).eq("tenant_id", tenantId);
-    lead.custom_fields = nextFields;
+
+    if (Object.keys(captured).length > 0) {
+      await supabase.from("leads").update({ custom_fields: nextFields }).eq("id", leadId).eq("tenant_id", tenantId);
+      lead.custom_fields = nextFields;
+    }
 
     // So marca "qualificacao completa" quando TODOS os campos configurados
-    // vieram na resposta - uma mensagem qualquer que so bate com um rotulo
-    // por acaso (ou a primeira mensagem do lead, antes de ele responder o
-    // formulario) nao pode contar como qualificado e liberar o proximo passo
-    // (ex: atribuir e confirmar encaminhamento) antes da hora.
-    const configuredFieldCount = fields.filter((f) => f.label?.trim() && f.custom_field?.trim()).length;
-    lead.capture_reply_fields_matched = Object.keys(captured).length === configuredFieldCount;
-    return { captured, all_fields_matched: lead.capture_reply_fields_matched };
+    // estao presentes no lead - olhando o acumulado (nextFields), nao so o
+    // que essa mensagem trouxe. O cliente pode responder tudo numa mensagem
+    // so ou espalhar nome/cidade/modelo em varias mensagens separadas; o que
+    // importa e se, somando tudo que ja chegou, o formulario ficou completo -
+    // nao se ESTA mensagem especifica bateu com os 3 rotulos de uma vez.
+    const allFieldsPresent =
+      validFields.length > 0 &&
+      validFields.every((f) => String(nextFields[String(f.custom_field).trim()] ?? "").trim());
+    lead.capture_reply_fields_matched = allFieldsPresent;
+
+    if (Object.keys(captured).length === 0 && !allFieldsPresent) {
+      return { skipped: "nenhum campo novo reconhecido na resposta" };
+    }
+    return { captured, all_fields_matched: allFieldsPresent, cumulative_fields: nextFields };
   }
 
   if (kind === "create_task" && leadId) {
