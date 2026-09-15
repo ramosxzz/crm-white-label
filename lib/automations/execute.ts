@@ -104,6 +104,34 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Monta "Rotulo: valor, Rotulo2: valor2" a partir dos custom_fields do lead
+ * que tem definicao cadastrada (custom_field_definitions) - so esses tem
+ * rotulo amigavel e sao "publicos" o suficiente pra aparecer numa notificacao;
+ * campo tecnico sem definicao (ex: whatsapp_profile_pic_url) fica de fora. */
+async function buildCustomFieldsSummary(
+  supabase: SupabaseClient,
+  tenantId: string,
+  customFields: unknown,
+): Promise<string | null> {
+  const fields = customFields as Record<string, unknown> | null;
+  if (!fields || Object.keys(fields).length === 0) return null;
+
+  const { data: defs } = await supabase
+    .from("custom_field_definitions")
+    .select("key, label")
+    .eq("tenant_id", tenantId)
+    .eq("entity_type", "lead");
+
+  const labelByKey = new Map(((defs ?? []) as { key: string; label: string }[]).map((d) => [d.key, d.label]));
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(fields)) {
+    const label = labelByKey.get(key);
+    const text = String(value ?? "").trim();
+    if (label && text) parts.push(`${label}: ${text}`);
+  }
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
 /**
  * Extrai campos via IA quando o regex por rotulo nao bateu (cliente nao
  * seguiu o formato "Nome: / Cidade: / Modelo:" e so respondeu em ordem livre,
@@ -425,12 +453,20 @@ async function runAction(
     // O rodizio roda com service_role, portanto a notificacao precisa ser
     // explicitamente enderecada para quem recebeu o lead. A RLS de
     // notifications garante que as demais vendedoras nao enxerguem o aviso.
+    //
+    // Se o lead ja chegou com custom_fields preenchidos (ex: qualificacao
+    // automatica por IA antes de atribuir), inclui um resumo na propria
+    // notificacao - senao a vendedora so ve o nome e precisa abrir o lead pra
+    // descobrir o que o cliente pediu. So usa campos que tem definicao visivel
+    // (custom_field_definitions), pra nao vazar chave tecnica nem dado interno
+    // tipo whatsapp_profile_pic_url.
+    const summary = await buildCustomFieldsSummary(supabase, tenantId, lead.custom_fields);
     await notifyUser(supabase, {
       tenantId,
       userId: String(data.assigned_to),
       kind: "lead_assigned",
       title: "Novo lead atribuido a voce",
-      description: String(lead.name ?? "Um lead novo caiu para voce"),
+      description: summary ? `${String(lead.name ?? "Novo lead")} - ${summary}` : String(lead.name ?? "Um lead novo caiu para voce"),
       link: `/chat/${leadId}`,
     });
     return data;
