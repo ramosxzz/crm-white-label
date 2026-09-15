@@ -60,10 +60,11 @@ async function ensureOggAudio(
     const { data: pub } = supabase.storage.from("chat-media").getPublicUrl(path);
     return { mediaUrl: pub.publicUrl, mimeType: "audio/ogg; codecs=opus" };
   } catch (err) {
-    // Sem ffmpeg/conversao no ar por algum motivo: manda o original mesmo
-    // (webm), melhor arriscar duracao errada do que nao mandar nada.
-    console.error("[chat] falha ao converter audio pra ogg, mandando original", err);
-    return { mediaUrl: input.mediaUrl, mimeType: input.mimeType ?? "audio/webm" };
+    // Nunca encaminha um arquivo que o servidor nao conseguiu validar. A
+    // Evolution pode responder como enviado mesmo com o audio corrompido,
+    // deixando uma bolha 0:00 que nao toca nem no WhatsApp nem no CRM.
+    console.error("[chat] falha ao validar/converter audio", err);
+    throw new Error("Nao foi possivel processar este audio. Grave novamente e tente enviar.");
   }
 }
 

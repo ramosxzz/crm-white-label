@@ -495,10 +495,14 @@ export function ChatThread({
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
   const scheduleAudioInputRef = useRef<HTMLInputElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recordChunksRef = useRef<Blob[]>([]);
+  const audioRecordingRef = useRef<{
+    recorder: MediaRecorder;
+    stream: MediaStream;
+    chunks: Blob[];
+    target: "send" | "schedule";
+    cancelled: boolean;
+  } | null>(null);
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recordTargetRef = useRef<"send" | "schedule">("send");
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef(true);
@@ -1031,23 +1035,27 @@ export function ChatThread({
   }
 
   async function startRecording(target: "send" | "schedule" = "send") {
+    if (audioRecordingRef.current) return;
     try {
-      recordTargetRef.current = target;
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = createAudioMediaRecorder(stream);
-      recordChunksRef.current = [];
+      const session = { recorder: mr, stream, chunks: [] as Blob[], target, cancelled: false };
+      audioRecordingRef.current = session;
       mr.ondataavailable = (ev) => {
-        if (ev.data.size > 0) recordChunksRef.current.push(ev.data);
+        if (ev.data.size > 0) session.chunks.push(ev.data);
       };
       mr.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
-        const { blob, fileName } = buildRecordedAudio(mr, recordChunksRef.current);
+        if (audioRecordingRef.current === session) audioRecordingRef.current = null;
+        if (session.cancelled) return;
+        const { blob, fileName } = buildRecordedAudio(mr, session.chunks);
         if (blob.size === 0) return;
-        if (recordTargetRef.current === "schedule") void uploadForSchedule(blob, fileName);
+        if (session.target === "schedule") void uploadForSchedule(blob, fileName);
         else void uploadAndSend(blob, fileName, "audio");
       };
-      mediaRecorderRef.current = mr;
-      mr.start(250);
+      // Nao precisamos transmitir os pedacos enquanto grava. Pedir um blob
+      // unico no stop evita que fragmentos WebM independentes se misturem.
+      mr.start();
       setRecording(true);
       setRecordSecs(0);
       recordTimerRef.current = setInterval(() => setRecordSecs((s) => s + 1), 1000);
@@ -1057,16 +1065,12 @@ export function ChatThread({
   }
 
   function stopRecording(cancel = false) {
-    const mr = mediaRecorderRef.current;
+    const session = audioRecordingRef.current;
     if (recordTimerRef.current) clearInterval(recordTimerRef.current);
     setRecording(false);
-    if (!mr) return;
-    if (cancel) {
-      recordChunksRef.current = [];
-      mr.onstop = () => mr.stream.getTracks().forEach((t) => t.stop());
-    }
-    mr.stop();
-    mediaRecorderRef.current = null;
+    if (!session) return;
+    session.cancelled = cancel;
+    session.recorder.stop();
   }
 
   function openPicker(accept: string) {
