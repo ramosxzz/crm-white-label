@@ -11,7 +11,8 @@ import { notify, notifyError, confirmDialog } from "@/lib/ui/feedback";
 import { formatBRTTime, formatBRTDateShort } from "@/lib/date/brt";
 import { createAudioMediaRecorder, buildRecordedAudio } from "@/lib/media/audio-recorder";
 import type { TenantUserOption } from "@/lib/tenant/users";
-import { sendTeamMessage, deleteTeamMessage } from "./actions";
+import { TEAM_CHAT_READ_EVENT } from "@/lib/team-chat/read-events";
+import { sendTeamMessage, deleteTeamMessage, markTeamChatRead } from "./actions";
 
 type TeamMessageRow = {
   id: string;
@@ -118,6 +119,24 @@ export function TeamChatThread({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
+
+  useEffect(() => {
+    const markVisibleMessagesRead = () => {
+      if (document.visibilityState !== "visible") return;
+      window.dispatchEvent(new Event(TEAM_CHAT_READ_EVENT));
+      void markTeamChatRead().catch(() => {
+        // O proximo foco/nova mensagem tenta novamente sem interromper o chat.
+      });
+    };
+
+    markVisibleMessagesRead();
+    document.addEventListener("visibilitychange", markVisibleMessagesRead);
+    window.addEventListener("focus", markVisibleMessagesRead);
+    return () => {
+      document.removeEventListener("visibilitychange", markVisibleMessagesRead);
+      window.removeEventListener("focus", markVisibleMessagesRead);
+    };
   }, [messages.length]);
 
   function handleDraftChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
