@@ -71,17 +71,28 @@ export async function fireAutomationTrigger(
         const triggersOfKind = block.data?.config?.triggers?.filter((t) => t.kind === kind) ?? [];
         if (triggersOfKind.length === 0) continue;
 
+        // Filtro generico por numero de WhatsApp - qualquer gatilho pode ser
+        // restrito a um numero especifico (ex: fluxo de qualificacao que so
+        // deve rodar no numero central, nunca no numero pessoal de um
+        // vendedor). Sem filtro configurado, dispara pra qualquer numero.
+        const matchesAccount = (t: { config?: Record<string, unknown> }) => {
+          const requiredAccountId = t.config?.whatsapp_account_id;
+          return !requiredAccountId || requiredAccountId === payload.whatsapp_account_id;
+        };
+
+        let matches = triggersOfKind.filter(matchesAccount);
+
         if (kind === "message_sent") {
           // Gatilhos "mensagem enviada" podem ser filtrados por uma mensagem
           // rapida especifica; so dispara se o payload bater com o que foi
           // configurado (ou se o gatilho nao tem filtro, dispara sempre).
-          const matches = triggersOfKind.some((t) => {
+          matches = matches.filter((t) => {
             const requiredId = t.config?.quick_message_id;
             return !requiredId || requiredId === payload.quick_message_id;
           });
-          if (!matches) continue;
         }
 
+        if (matches.length === 0) continue;
         matchedBlockIds.push(block.id);
       }
 

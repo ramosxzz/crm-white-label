@@ -507,7 +507,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
 
       referral: msg.referral || null,
 
-      receivingAccountOwnerId: account.assigned_to ?? null,
+      // Numero de equipe (shared_with_all) nao tem "dono" de verdade - e so
+      // uma fila de triagem. Tratar assigned_to dele como responsavel jogaria
+      // o lead de volta pra fila a cada mensagem nova, desfazendo qualquer
+      // atribuicao feita depois (rodizio, atendimento manual etc).
+      receivingAccountOwnerId: account.shared_with_all ? null : (account.assigned_to ?? null),
 
     });
 
@@ -520,7 +524,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
     // leads que chegam pelo WhatsApp (a maioria) - so funcionava pra leads
     // criados manualmente ou pela API publica, que ja chamam esse trigger.
     if (leadResult.created) {
-      void fireAutomationTrigger(account.tenant_id, "lead_created", leadId, { source: "whatsapp" });
+      void fireAutomationTrigger(account.tenant_id, "lead_created", leadId, {
+        source: "whatsapp",
+        whatsapp_account_id: account.id,
+      });
     }
 
     // IIFE em vez de encadear .then().catch() direto no builder: o builder do
@@ -809,6 +816,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
       void fireAutomationTrigger(account.tenant_id, "message_received", leadId, {
         conversation_id: conversationId,
         body: msg.body ?? "",
+        whatsapp_account_id: account.id,
       });
       void dispatchWebhookEvent(account.tenant_id, "message.received", {
         lead_id: leadId,

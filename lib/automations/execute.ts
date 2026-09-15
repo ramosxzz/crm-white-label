@@ -94,7 +94,15 @@ type ActionCtx = {
    * de qual bloco/fluxo e a vez de cada execucao, nao é global por tenant). */
   flowId: string;
   blockId: string;
+  /** Corpo da mensagem que disparou o gatilho (so presente em execucoes
+   * originadas de "mensagem recebida") - usado por acoes que leem o que o
+   * lead respondeu, como capture_reply_fields. */
+  triggerBody: string;
 };
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 /**
  * O lead falou depois que a cadencia comecou?
@@ -329,6 +337,21 @@ async function runAction(
     if (error) throw new Error(`Falha no rodizio: ${error.message}`);
     if (!data?.assigned_to) throw new Error("Rodizio nao retornou um responsavel.");
     lead.assigned_to = data.assigned_to;
+    // Marca "acabou de atribuir agora" (so nesta execucao, nunca persistido) -
+    // permite condicionar uma acao seguinte (ex: mensagem de confirmacao) pra
+    // rodar so na atribuicao de verdade, nao nas mensagens seguintes do mesmo
+    // lead ja atribuido (que caem no only_if_unassigned acima e nem chegam
+    // aqui, mas cobre tambem quem verifica esse campo depois).
+    lead.round_robin_just_assigned = true;
+
+    const { data: assignedProfile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", String(data.assigned_to))
+      .maybeSingle();
+    const assignedFullName = (assignedProfile as { full_name?: string | null } | null)?.full_name?.trim() ?? "";
+    lead.assigned_name = assignedFullName;
+    lead.assigned_first_name = assignedFullName ? assignedFullName.split(/\s+/)[0] : "";
 
     // O rodizio roda com service_role, portanto a notificacao precisa ser
     // explicitamente enderecada para quem recebeu o lead. A RLS de
@@ -354,6 +377,43 @@ async function runAction(
     }
     lead.tags = tags.includes(uf) ? tags : [...tags, uf];
     return { tag_added: uf };
+  }
+
+  if (kind === "capture_reply_fields" && leadId) {
+    // Le a resposta do lead a um formulario tipo "Nome: / Cidade: / Modelo:"
+    // e salva cada valor num custom_field - pensado pro fluxo de qualificacao
+    // de um numero central antes de encaminhar pra um vendedor (2L Reboques).
+    const body = ctx.triggerBody;
+    const fields = Array.isArray(blockConfig.fields)
+      ? (blockConfig.fields as { label?: string; custom_field?: string }[])
+      : [];
+    if (!body.trim() || fields.length === 0) {
+      return { skipped: "sem corpo de mensagem ou campos configurados" };
+    }
+
+    const captured: Record<string, string> = {};
+    for (const f of fields) {
+      const label = String(f.label ?? "").trim();
+      const customField = String(f.custom_field ?? "").trim();
+      if (!label || !customField) continue;
+      // O rotulo pode vir com texto extra antes dos dois-pontos (ex: pergunta
+      // era "Modelo de reboque que você procura:" mas o lead so cola "Modelo
+      // de reboque: X") - casa o rotulo e pega tudo ate o primeiro ":".
+      const match = body.match(new RegExp(`${escapeRegex(label)}[^:\\n\\r]*:\\s*([^\\n\\r]+)`, "i"));
+      const value = match?.[1]?.trim();
+      if (value) captured[customField] = value;
+    }
+
+    if (Object.keys(captured).length === 0) {
+      return { skipped: "nenhum campo reconhecido na resposta" };
+    }
+
+    const { data: currentLead } = await supabase.from("leads").select("custom_fields").eq("id", leadId).single();
+    const currentFields = (currentLead as { custom_fields?: Record<string, unknown> } | null)?.custom_fields ?? {};
+    const nextFields = { ...currentFields, ...captured };
+    await supabase.from("leads").update({ custom_fields: nextFields }).eq("id", leadId).eq("tenant_id", tenantId);
+    lead.custom_fields = nextFields;
+    return { captured };
   }
 
   if (kind === "create_task" && leadId) {
@@ -688,6 +748,7 @@ export async function processExecution(
         startedAt: (execution.started_at as string | null) ?? null,
         flowId,
         blockId: block.id,
+        triggerBody: String((triggerPayload as { body?: unknown } | null)?.body ?? ""),
       };
 
       if (kind === "action_group") {
