@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireContext, invalidateContextCache } from "@/lib/tenant";
+import { normalizeHiddenNavigationItems } from "@/lib/navigation/tenant-navigation";
 
 export async function updateTenantInfo(input: {
   name: string;
@@ -27,7 +28,7 @@ export async function updateTenantInfo(input: {
   // broadcast_enabled e field_service_enabled (ERP W+) sao modulos pagos -
   // de proposito NAO aparecem aqui. So o Ramos ativa via SQL direto, senao
   // qualquer admin de tenant liga sozinho um modulo que ninguem contratou.
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("tenants")
     .update({
       name: input.name,
@@ -42,7 +43,9 @@ export async function updateTenantInfo(input: {
       field_service_base_address: baseAddress,
       ...(baseChanged ? { field_service_base_lat: null, field_service_base_lng: null } : {}),
     })
-    .eq("id", ctx.tenantId);
+    .eq("id", ctx.tenantId)
+    .select("name, tagline, email, phone, website, brand_color, stock_enabled, stock_deduct_on_won, calls_dashboard_enabled, field_service_base_address")
+    .single();
   if (error) throw new Error(error.message);
   // getCurrentContext cacheia o tenant (cor da marca, etc) por 20s em memoria
   // - sem isso, salvar aqui nao aparecia em lugar nenhum ate o cache expirar
@@ -57,6 +60,8 @@ export async function updateTenantInfo(input: {
   revalidatePath("/disparos");
   revalidatePath("/os");
   revalidatePath("/financeiro");
+  revalidatePath("/settings");
+  return updated;
 }
 
 export async function getTenantLogoPath() {
@@ -70,18 +75,34 @@ export async function persistTenantLogoUrl(publicUrl: string, brandColor?: strin
   const supabase = await createClient();
   const patch: { logo_url: string; brand_color?: string } = { logo_url: publicUrl };
   if (brandColor?.trim()) patch.brand_color = brandColor.trim();
-  const { error } = await supabase.from("tenants").update(patch).eq("id", ctx.tenantId);
+  const { data: updated, error } = await supabase
+    .from("tenants")
+    .update(patch)
+    .eq("id", ctx.tenantId)
+    .select("logo_url, brand_color")
+    .single();
   if (error) throw new Error(error.message);
   invalidateContextCache(ctx.userId);
   revalidatePath("/", "layout");
+  revalidatePath("/settings");
+  return updated;
 }
 
 export async function removeTenantLogo() {
   const ctx = await requireContext();
+  if (!["owner", "admin"].includes(ctx.role)) throw new Error("Sem permissao");
   const supabase = await createClient();
-  await supabase.from("tenants").update({ logo_url: null }).eq("id", ctx.tenantId);
+  const { data: updated, error } = await supabase
+    .from("tenants")
+    .update({ logo_url: null })
+    .eq("id", ctx.tenantId)
+    .select("logo_url, brand_color")
+    .single();
+  if (error) throw new Error(error.message);
   invalidateContextCache(ctx.userId);
   revalidatePath("/", "layout");
+  revalidatePath("/settings");
+  return updated;
 }
 
 export async function updateProfile(input: {
@@ -160,6 +181,23 @@ export async function updateTenantMetaSettings(input: {
   revalidatePath("/integrations");
   revalidatePath("/integrations/facebook");
   revalidatePath("/dashboard");
+}
+
+export async function updateHiddenNavigationItems(hiddenItemIds: string[]) {
+  const ctx = await requireContext();
+  if (!["owner", "admin"].includes(ctx.role)) throw new Error("Sem permissao");
+  const supabase = await createClient();
+
+  const normalized = normalizeHiddenNavigationItems(hiddenItemIds);
+  const { error } = await supabase
+    .from("tenants")
+    .update({ hidden_navigation_items: normalized })
+    .eq("id", ctx.tenantId);
+  if (error) throw new Error(error.message);
+
+  invalidateContextCache(ctx.userId);
+  revalidatePath("/", "layout");
+  return normalized;
 }
 
 function normalizeMetaAdAccountId(value?: string | null) {

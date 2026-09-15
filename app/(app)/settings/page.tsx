@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { canManageCompanySettings, canManageUsers } from "@/lib/auth/roles";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TenantForm } from "./tenant-form";
+import { NavigationVisibilityForm } from "./navigation-visibility-form";
 import { ProfileForm } from "./profile-form";
 import { Api4comForm } from "./api4com-form";
 
@@ -77,6 +78,21 @@ export default async function SettingsPage() {
           </CardHeader>
           <CardContent>
             <TenantForm tenant={ctx.tenant} role={ctx.role} />
+          </CardContent>
+        </Card>
+      )}
+
+      {canCompany && (
+        <Card id="menu" className="scroll-mt-24">
+          <CardHeader>
+            <CardTitle>Menu lateral</CardTitle>
+            <CardDescription>
+              Escolha quais módulos aparecem pra este tenant. Módulo desmarcado some do menu e fica
+              bloqueado mesmo por link direto.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <NavigationVisibilityForm hiddenItems={ctx.tenant.hidden_navigation_items ?? []} />
           </CardContent>
         </Card>
       )}
